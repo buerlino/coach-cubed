@@ -1,0 +1,20 @@
+# torch/torchvision are NOT here on purpose — see setup_conda_linux.sh, which
+# installs the ROCm wheels from the pytorch index first (PyPI/conda only serve
+# the CUDA build, useless on this box's W7800).
+#
+# Versions are left unpinned (unlike vendor/easy_ViTPose/requirements.txt,
+# which freezes 2023-era releases) so pip resolves against whatever the ROCm
+# torch build here actually wants; the vendored inference code doesn't lean
+# on anything version-specific in these.
+flask
+waitress
+ultralytics
+opencv-python
+pillow
+numpy
+filterpy      # easy_ViTPose's SORT tracker
+pycocotools   # keypoint skeleton/eval metadata easy_ViTPose imports at load time
+scikit-image  # imported at module load by sort.py, even though inference never calls it
+matplotlib    # ditto — sort.py and vit_utils/visualization.py import it unconditionally
+munkres       # vit_utils/transform.py's bottom-up keypoint grouping (wholebody path)
+ffmpeg-python # vit_utils/visualization.py's video export helper — import-time only here

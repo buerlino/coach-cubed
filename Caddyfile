@@ -1,0 +1,102 @@
+# Caddy reverse proxy for coach — terminates HTTPS and forwards to the app.
+# Copied from ../tecna/Caddyfile (same box, same tailnet, same TLS setup) with
+# only the project paths changed — see COACH_DEPLOY.md for why this is safe:
+# the two sites are never run at the same time, so reusing port 8080 and the
+# same hostnames/IPs is not a conflict. Dropped tecna's /qwen/openai/v1/* API
+# passthrough block since coach has no equivalent route (harmless either way,
+# but pointless to carry over).
+#
+#   Client ──HTTPS/443──▶ Caddy (this) ──HTTP/8080──▶ waitress (app.py)
+#
+# Only Caddy is exposed; app.py binds 127.0.0.1 only.
+#
+# There are two kinds of site block below, and they differ in how they get a cert:
+#
+#   1. The MagicDNS name (coach-host.example-tailnet.ts.net) uses `get_certificate tailscale`,
+#      which pulls a real Let's Encrypt cert from tailscaled. Browsers trust it with
+#      no CA install — this is the address to use from a phone/laptop on the tailnet.
+#      Requires tailscaled cert access, granted once with:
+#          sudo tailscale set --operator=$USER
+#      and HTTPS enabled for the tailnet (admin console → DNS → HTTPS Certificates).
+#
+#   2. The bare IP addresses use `tls internal`, i.e. Caddy's own local CA. Browsers
+#      will warn unless you install the root from .caddy/pki/authorities/local/root.crt.
+#      These exist as a fallback for when DNS/MagicDNS isn't in play — notably the
+#      literal tailnet IPv6 below, which is how a userspace-mode tailscaled client
+#      (no TUN, SOCKS proxy at localhost:1055) reaches this box.
+#
+# 443 is privileged. Grant the binary the capability once, then run as your user:
+#     sudo setcap cap_net_bind_service=+ep ~/.local/bin/caddy
+#     caddy start --config /home/noah/coach/Caddyfile
+# (run_coach.sh does the `caddy start` half.)
+
+{
+	# Keep Caddy's data (incl. the local CA root cert) inside the project so it's
+	# easy to locate for installing on a phone. Root cert ends up at:
+	#   .caddy/pki/authorities/local/root.crt
+	storage file_system /home/noah/coach/.caddy
+}
+
+# --- plain HTTP: hand out the CA root, redirect everything else ----------------
+# Chicken-and-egg: a device can't fetch the local CA root over HTTPS without
+# already trusting that CA. So serve just this one file over port 80. That's not
+# a leak — a CA *root certificate* is public by design (the private key stays in
+# .caddy/pki/authorities/local/root.key, which is 0600 and never served), and the
+# tailnet is WireGuard-encrypted underneath anyway.
+#
+# Fetch it from a phone/laptop on the tailnet:
+#   http://[2001:db8::1]/root.crt
+#
+# Defining these http:// blocks explicitly replaces Caddy's automatic HTTP->HTTPS
+# redirect for these hosts, so the redirect is reinstated below for every other
+# path — otherwise the whole site would start answering on plain HTTP.
+http://coach-host.example-tailnet.ts.net, http://192.0.2.10, http://100.64.0.1, http://[2001:db8::1] {
+	# Both encodings of the same root: PEM (.crt) and DER (.der). macOS Keychain
+	# and some Android importers are picky about which they accept, so offer both.
+	# pki-public/ holds nothing else, so file_server here can't expose anything.
+	@ca path /root.crt /root.der
+	handle @ca {
+		root * /home/noah/coach/pki-public
+		header Content-Type application/x-x509-ca-cert
+		file_server
+	}
+	handle {
+		redir https://{host}{uri} permanent
+	}
+}
+
+# --- everything, on Caddy's local CA -------------------------------------------
+# MagicDNS name + LAN + tailnet v4 + tailnet v6, all served the same way.
+#
+# The IPv6 literal is the one that matters for userspace-mode tailscale clients,
+# which can't resolve MagicDNS and must dial the address directly through SOCKS5:
+#   curl --socks5-hostname localhost:1055 https://[2001:db8::1]/
+#
+# Browsers will warn until you install .caddy/pki/authorities/local/root.crt.
+# To get rid of that warning, see the real-cert block below.
+coach.local, coach-host.example-tailnet.ts.net, 192.0.2.10, 100.64.0.1, [2001:db8::1] {
+	tls internal
+	reverse_proxy 127.0.0.1:8080
+}
+
+# --- upgrade path: real Let's Encrypt cert for the MagicDNS name ----------------
+# Swap the block above for this one to drop the browser warning. It needs TWO
+# things that aren't set up yet, and it silently does the wrong thing without them:
+#
+#   1. HTTPS Certificates enabled for the tailnet
+#      (admin console -> DNS -> HTTPS Certificates). Until this is on, the name
+#      has no public DNS record.
+#   2. sudo tailscale set --operator=noah
+#      so Caddy can read the cert from tailscaled's local API as your user.
+#
+# Learned the hard way: with `get_certificate tailscale` alone, Caddy STILL runs
+# its normal ACME flow against Let's Encrypt first. With (1) missing that fails
+# NXDOMAIN and retries every 60s forever, burning LE rate limits. So don't enable
+# this block until both prerequisites are actually in place.
+#
+# coach-host.example-tailnet.ts.net {
+# 	tls {
+# 		get_certificate tailscale
+# 	}
+# 	reverse_proxy 127.0.0.1:8080
+# }

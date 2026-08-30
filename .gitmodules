@@ -1,0 +1,3 @@
+[submodule "vendor/easy_ViTPose"]
+	path = vendor/easy_ViTPose
+	url = https://github.com/JunkyByte/easy_ViTPose.git
