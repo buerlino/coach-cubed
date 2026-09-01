@@ -140,6 +140,43 @@ INDEX_HTML = """<!doctype html>
   <p id="vsummary" style="font-size:12px;color:#9c9"></p>
 </div>
 
+<h3>keypoint plot</h3>
+<div id="plotControls" style="display:none; margin-bottom:12px;">
+  <label style="font-size:14px;color:#9ab">person id
+    <select id="plotPersonSelect"></select>
+  </label>
+  <label style="font-size:14px;color:#9ab;margin-left:12px">keypoint
+    <select id="plotKeypointSelect">
+      <option value="0">0: nose</option>
+      <option value="1">1: left_eye</option>
+      <option value="2">2: right_eye</option>
+      <option value="3">3: left_ear</option>
+      <option value="4">4: right_ear</option>
+      <option value="5">5: left_shoulder</option>
+      <option value="6">6: right_shoulder</option>
+      <option value="7">7: left_elbow</option>
+      <option value="8">8: right_elbow</option>
+      <option value="9">9: left_wrist</option>
+      <option value="10" selected>10: right_wrist</option>
+      <option value="11">11: left_hip</option>
+      <option value="12">12: right_hip</option>
+      <option value="13">13: left_knee</option>
+      <option value="14">14: right_knee</option>
+      <option value="15">15: left_ankle</option>
+      <option value="16">16: right_ankle</option>
+    </select>
+  </label>
+  <label style="font-size:14px;color:#9ab;margin-left:12px">axis
+    <select id="plotAxisSelect">
+      <option value="y" selected>Y position (vertical)</option>
+      <option value="x">X position (horizontal)</option>
+    </select>
+  </label>
+</div>
+<div id="plotWrap" style="position:relative; width:100%; max-width:640px; background:#1a1a1a; border-radius:8px; border:1px solid #333; padding:8px; box-sizing:border-box;">
+  <canvas id="plotCanvas" width="600" height="200" style="width:100%; height:auto; display:block; cursor:pointer;"></canvas>
+</div>
+
 <script>
 const $ = id => document.getElementById(id);
 
@@ -172,6 +209,163 @@ let vSource = null, vObjectUrl = null, vCamStream = null, vRecorder = null, vChu
 const PALETTE = ['#e6194b','#3cb44b','#ffe119','#4363d8','#f58231','#911eb4','#46f0f0','#f032e6'];
 const CONF_THRESHOLD = 0.3;
 
+// --- plot canvas ---
+const pcanvas = $('plotCanvas'), pctx = pcanvas.getContext('2d');
+
+function updatePlotControls() {
+  if (!vKeypoints) {
+    $('plotControls').style.display = 'none';
+    pctx.clearRect(0, 0, pcanvas.width, pcanvas.height);
+    return;
+  }
+  const personSelect = $('plotPersonSelect');
+  const ids = new Set();
+  for (const frame of Object.values(vKeypoints)) {
+    for (const id of Object.keys(frame)) ids.add(id);
+  }
+  const currentVal = personSelect.value;
+  personSelect.innerHTML = '';
+  const sortedIds = Array.from(ids).sort((a,b) => parseInt(a,10) - parseInt(b,10));
+  for (const id of sortedIds) {
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = `person ${id}`;
+    personSelect.appendChild(opt);
+  }
+  if (currentVal && ids.has(currentVal)) {
+    personSelect.value = currentVal;
+  }
+  $('plotControls').style.display = 'block';
+  drawPlot();
+}
+
+function drawPlot() {
+  pctx.clearRect(0, 0, pcanvas.width, pcanvas.height);
+  if (!vKeypoints || !vMeta) return;
+
+  const personId = $('plotPersonSelect').value;
+  const kpIdx = parseInt($('plotKeypointSelect').value, 10);
+  const axis = $('plotAxisSelect').value; // 'y' (index 0) or 'x' (index 1)
+  const coordIdx = axis === 'y' ? 0 : 1;
+
+  if (!personId) return;
+
+  const frameKeys = Object.keys(vKeypoints).map(Number).sort((a,b) => a - b);
+  if (frameKeys.length === 0) return;
+
+  const points = [];
+  for (const f of frameKeys) {
+    const frameData = vKeypoints[String(f)];
+    const p = frameData?.[personId]?.[kpIdx];
+    if (p && p[2] >= CONF_THRESHOLD) {
+      points.push({ frame: f, val: p[coordIdx], t: f / vMeta.fps });
+    }
+  }
+
+  const w = pcanvas.width, h = pcanvas.height;
+  const padL = 40, padR = 15, padT = 20, padB = 25;
+  const graphW = w - padL - padR;
+  const graphH = h - padT - padB;
+
+  // Background grid
+  pctx.strokeStyle = '#2a2a2a';
+  pctx.lineWidth = 1;
+  pctx.font = '10px system-ui';
+  pctx.fillStyle = '#888';
+
+  const maxFrame = vMeta.frame_count || frameKeys[frameKeys.length - 1] || 1;
+
+  if (points.length === 0) {
+    pctx.fillStyle = '#888';
+    pctx.textAlign = 'center';
+    pctx.fillText('No detected data for selected keypoint / person', w / 2, h / 2);
+    return;
+  }
+
+  let minVal = Math.min(...points.map(p => p.val));
+  let maxVal = Math.max(...points.map(p => p.val));
+  if (minVal === maxVal) { minVal -= 10; maxVal += 10; }
+  const valMargin = (maxVal - minVal) * 0.05;
+  minVal -= valMargin;
+  maxVal += valMargin;
+
+  // Draw Y-axis grid lines & labels
+  const steps = 4;
+  for (let i = 0; i <= steps; i++) {
+    const ratio = i / steps;
+    const yPx = padT + graphH * (1 - ratio);
+    pctx.beginPath();
+    pctx.moveTo(padL, yPx);
+    pctx.lineTo(w - padR, yPx);
+    pctx.stroke();
+
+    const val = minVal + ratio * (maxVal - minVal);
+    pctx.textAlign = 'right';
+    pctx.fillText(Math.round(val), padL - 5, yPx + 3);
+  }
+
+  // Draw X-axis label (time)
+  pctx.textAlign = 'center';
+  pctx.fillText('0s', padL, h - 5);
+  pctx.fillText(`${(maxFrame / vMeta.fps).toFixed(1)}s`, w - padR, h - 5);
+
+  // Line color matching person palette
+  const color = colorForId(personId);
+  pctx.strokeStyle = color;
+  pctx.lineWidth = 2;
+  pctx.beginPath();
+
+  const getX = (f) => padL + (f / maxFrame) * graphW;
+  const getY = (val) => {
+    // For Y position, inverted coordinates (0 is top of image)
+    if (axis === 'y') {
+      return padT + ((val - minVal) / (maxVal - minVal)) * graphH;
+    } else {
+      return padT + (1 - (val - minVal) / (maxVal - minVal)) * graphH;
+    }
+  };
+
+  points.forEach((pt, i) => {
+    const x = getX(pt.frame);
+    const y = getY(pt.val);
+    if (i === 0) pctx.moveTo(x, y);
+    else pctx.lineTo(x, y);
+  });
+  pctx.stroke();
+
+  // Draw current playhead position
+  if (vvideo && vvideo.duration) {
+    const currentFrame = Math.floor(vvideo.currentTime * vMeta.fps);
+    const playheadX = getX(currentFrame);
+
+    pctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+    pctx.lineWidth = 1.5;
+    pctx.setLineDash([4, 4]);
+    pctx.beginPath();
+    pctx.moveTo(playheadX, padT);
+    pctx.lineTo(playheadX, padT + graphH);
+    pctx.stroke();
+    pctx.setLineDash([]);
+  }
+}
+
+$('plotPersonSelect').onchange = drawPlot;
+$('plotKeypointSelect').onchange = drawPlot;
+$('plotAxisSelect').onchange = drawPlot;
+
+// Clicking plot seeks video
+pcanvas.onclick = (e) => {
+  if (!vMeta) return;
+  const rect = pcanvas.getBoundingClientRect();
+  const clickX = e.clientX - rect.left;
+  const scale = pcanvas.width / rect.width;
+  const padL = 40, padR = 15, graphW = pcanvas.width - padL - padR;
+  const relativeX = (clickX * scale) - padL;
+  const ratio = Math.max(0, Math.min(1, relativeX / graphW));
+  const targetTime = ratio * (vMeta.frame_count / vMeta.fps);
+  vvideo.currentTime = targetTime;
+};
+
 function colorForId(id) {
   const n = parseInt(id, 10);
   return PALETTE[(Number.isFinite(n) ? n : 0) % PALETTE.length];
@@ -190,6 +384,9 @@ function drawOverlay() {
   idx -= idx % vMeta.frame_stride;
   idx = Math.max(0, Math.min(idx, vMeta.frame_count - 1));
   const frame = vKeypoints[String(idx)];
+
+  drawPlot(); // Update playhead line on plot canvas
+
   if (!frame) return;
 
   for (const [id, points] of Object.entries(frame)) {
@@ -309,6 +506,7 @@ $('vrun').onclick = async () => {
   vMeta = data.meta;
   syncCanvasSize();
   drawOverlay();
+  updatePlotControls();
   const ids = new Set();
   for (const frame of Object.values(vKeypoints)) for (const id of Object.keys(frame)) ids.add(id);
   $('vstatus').textContent = 'done';
@@ -351,3 +549,4 @@ if __name__ == "__main__":
     except ImportError:
         print("waitress not installed — falling back to Flask dev server.")
         app.run(host=HOST, port=PORT, debug=False, threaded=True)
+
