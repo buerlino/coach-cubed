@@ -16,19 +16,22 @@ export TMPDIR="$ROOT/.tmp"
 export PIP_CACHE_DIR="$HOME/.cache/pip"
 mkdir -p "$TMPDIR" "$PIP_CACHE_DIR"
 
-echo "=== [1/4] conda env '$ENV' (python 3.12) ==="
+echo "=== [1/5] vendor/easy_ViTPose submodule ==="
+git submodule update --init --recursive
+
+echo "=== [2/5] conda env '$ENV' (python 3.12) ==="
 conda create -y -n $ENV python=3.12
 
-echo "=== [2/4] torch (ROCm 7.1 wheels) ==="
+echo "=== [3/5] torch (ROCm 7.1 wheels) ==="
 conda run -n $ENV pip install \
   --index-url https://download.pytorch.org/whl/rocm7.1 \
   "torch==2.13.0+rocm7.1" "torchvision==0.28.0+rocm7.1"
 
-echo "=== [3/4] app + easy_ViTPose deps ==="
+echo "=== [4/5] app + easy_ViTPose deps ==="
 conda run -n $ENV pip install -r requirements.txt
 conda run -n $ENV pip install -e vendor/easy_ViTPose --no-deps   # code only; deps come from requirements.txt above
 
-echo "=== [4/4] verify ROCm torch + the checkpoints are where vitpose_backend.py expects ==="
+echo "=== [5/5] verify ROCm torch + the checkpoints are where vitpose_backend.py expects ==="
 cat > "$TMPDIR/verify.py" <<PY
 import sys
 sys.path.insert(0, "$ROOT")   # python auto-adds the *script's* dir (.tmp), not this one
@@ -43,4 +46,8 @@ PY
 conda run -n $ENV python "$TMPDIR/verify.py"
 
 echo
-echo "done. run:  ./run_coach.sh"
+if [ -f "${COACH_MODEL_DIR:-$HOME/models/easy_vitpose}/torch/coco/vitpose-l-coco.pth" ]; then
+	echo "done. run:  ./coach_launch.sh"
+else
+	echo "done. checkpoints missing — run:  ./download_models.sh"
+fi

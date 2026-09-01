@@ -15,8 +15,10 @@ one less moving part, no benefit lost. See the docstring in
 ## Checkpoints
 
 Live outside the repo at `~/models/easy_vitpose` (torch `.pth` only — coco
-dataset, sizes l/h; see the earlier huggingface pull). Not vendored here,
-same as tecna keeps its checkpoints out of git.
+dataset, sizes l/h). Not vendored here, same as tecna keeps its checkpoints
+out of git. `./download_models.sh` pulls them (and `yolov8s.pt`) straight
+from the JunkyByte/easy_ViTPose HuggingFace repo into that layout —
+`COACH_MODEL_DIR`/`COACH_SIZES` env vars override the destination/sizes.
 
 ## Caddy / port 443
 
@@ -26,12 +28,14 @@ same tailnet IPs, same `reverse_proxy 127.0.0.1:8080`, since it's the same
 physical box either way. Dropped tecna's `/qwen/openai/v1/*` passthrough block
 (no equivalent route in coach's app.py).
 
-This only works because **tecna and coach are never run at the same time** —
-both want :443 and :8080. `run_coach.sh` starts/stops app.py *and* Caddy
-together (`./run_coach.sh` / `./run_coach.sh stop`); make sure
-`../tecna/run_tecna.sh stop` has been run first if tecna was up.
+This only works because **tecna, llm-server and coach are never run at the
+same time** — all three want :443 and :8080. `coach_launch.sh` starts/stops
+app.py *and* Caddy together (`./coach_launch.sh` / `./coach_launch.sh stop`)
+and calls `free_ports.sh` first, which stops whichever of tecna/llm-server is
+up (systemd units, or a raw process from their own `*_launch.sh`) — no manual
+stop-first step needed.
 
-First `./run_coach.sh` run also mints a fresh local CA (separate from tecna's
+First `./coach_launch.sh` run also mints a fresh local CA (separate from tecna's
 — different `.caddy` storage dir) and publishes its root cert to
 `pki-public/root.crt` for phones/laptops to install, same as tecna's does.
 
@@ -44,9 +48,8 @@ couple upgrades.
 
 ## Auth
 
-Reuses tecna's scheme verbatim (sha256 password file + in-memory bearer
-tokens) — `.auth_password` is per-app, set on first visit, not shared with
-tecna's.
+None — unauthenticated. Caddy/tailnet is the access boundary, same as the
+rest of the deploy.
 
 ## Not done yet
 

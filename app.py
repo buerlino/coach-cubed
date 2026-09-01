@@ -3,14 +3,14 @@ tecna (Flask + waitress behind Caddy on the tailnet, see ../tecna/Caddyfile)
 but with a single in-process backend instead of ComfyUI — see
 vitpose_backend.py for why that split doesn't apply here.
 
-app.py's job is deliberately small: auth, one upload endpoint, one page.
-Add routes here as the app grows; keep any ML code out of this file the same
+app.py's job is deliberately small: one upload endpoint, one page. Add
+routes here as the app grows; keep any ML code out of this file the same
 way tecna does (imports only vitpose_backend, never torch/cv2/etc. directly).
+
+Unauthenticated by design — Caddy/tailnet is the access boundary, same as
+the rest of the deploy.
 """
-import hashlib
 import os
-from functools import wraps
-from pathlib import Path
 
 from flask import Flask, request, jsonify, Response
 
@@ -19,72 +19,9 @@ import vitpose_backend
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024  # 20MB max upload
 
-# --- auth: identical scheme to tecna/app.py (sha256 password file + bearer
-# tokens held in memory) — kept in lockstep so the two apps stay familiar to
-# operate, not because coach needs anything fancier than that. ---------------
-PASSWORD_FILE = Path("./.auth_password")
-
-
-def get_password_hash():
-    if PASSWORD_FILE.exists():
-        return PASSWORD_FILE.read_text().strip()
-    return None
-
-
-def set_password(password):
-    hash_val = hashlib.sha256(password.encode()).hexdigest()
-    PASSWORD_FILE.write_text(hash_val)
-    PASSWORD_FILE.chmod(0o600)
-    return hash_val
-
-
-def check_password(password):
-    stored = get_password_hash()
-    return bool(stored) and hashlib.sha256(password.encode()).hexdigest() == stored
-
-
-def require_auth(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = request.headers.get("Authorization", "").replace("Bearer ", "")
-        if not token or token not in app.tokens:
-            return jsonify({"error": "Unauthorized"}), 401
-        return f(*args, **kwargs)
-    return decorated
-
-
-app.tokens = set()
-
-
-@app.route("/api/auth/status", methods=["GET"])
-def auth_status():
-    return jsonify({"needs_setup": get_password_hash() is None})
-
-
-@app.route("/api/auth/init", methods=["POST"])
-def auth_init():
-    if get_password_hash() is not None:
-        return jsonify({"error": "already initialized"}), 400
-    password = (request.json or {}).get("password", "")
-    if len(password) < 8:
-        return jsonify({"error": "password too short"}), 400
-    set_password(password)
-    return jsonify({"ok": True})
-
-
-@app.route("/api/auth/login", methods=["POST"])
-def auth_login():
-    password = (request.json or {}).get("password", "")
-    if not check_password(password):
-        return jsonify({"error": "wrong password"}), 401
-    token = os.urandom(24).hex()
-    app.tokens.add(token)
-    return jsonify({"token": token})
-
 
 # --- pose ---------------------------------------------------------------
 @app.route("/api/pose", methods=["POST"])
-@require_auth
 def api_pose():
     if "image" not in request.files:
         return jsonify({"error": "no image field in upload"}), 400
@@ -119,22 +56,13 @@ INDEX_HTML = """<!doctype html>
   body { background:#111; color:#eee; font-family:system-ui,sans-serif; max-width:640px; margin:40px auto; padding:0 16px; }
   h1 { font-weight:600; }
   input,button,select { font-size:16px; padding:8px; margin:4px 0; }
-  #gate input { width:100%; box-sizing:border-box; }
   img { max-width:100%; margin-top:16px; border-radius:8px; }
-  #err { color:#f66; }
 </style>
 </head>
 <body>
 <h1>coach</h1>
 
-<div id="gate">
-  <p id="gate-msg">Checking...</p>
-  <input id="pw" type="password" placeholder="password">
-  <button id="gate-btn"></button>
-  <p id="err"></p>
-</div>
-
-<div id="app" style="display:none">
+<div id="app">
   <input id="file" type="file" accept="image/*">
   <select id="size"><option value="l">l (large, ~1.2GB)</option><option value="h">h (huge, ~2.5GB)</option></select>
   <button id="run">Run pose</button>
@@ -144,32 +72,7 @@ INDEX_HTML = """<!doctype html>
 </div>
 
 <script>
-let token = null;
 const $ = id => document.getElementById(id);
-
-async function refreshGate() {
-  const r = await fetch('/api/auth/status');
-  const {needs_setup} = await r.json();
-  $('gate-msg').textContent = needs_setup ? 'Set a password (first run):' : 'Enter password:';
-  $('gate-btn').textContent = needs_setup ? 'Set password' : 'Log in';
-  $('gate-btn').onclick = () => needs_setup ? doInit() : doLogin();
-}
-
-async function doInit() {
-  const password = $('pw').value;
-  const r = await fetch('/api/auth/init', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password})});
-  if (!r.ok) { $('err').textContent = (await r.json()).error; return; }
-  doLogin();
-}
-
-async function doLogin() {
-  const password = $('pw').value;
-  const r = await fetch('/api/auth/login', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password})});
-  if (!r.ok) { $('err').textContent = (await r.json()).error; return; }
-  token = (await r.json()).token;
-  $('gate').style.display = 'none';
-  $('app').style.display = 'block';
-}
 
 $('run').onclick = async () => {
   const f = $('file').files[0];
@@ -178,15 +81,13 @@ $('run').onclick = async () => {
   const fd = new FormData();
   fd.append('image', f);
   fd.append('size', $('size').value);
-  const r = await fetch('/api/pose', {method:'POST', headers:{'Authorization':'Bearer ' + token}, body: fd});
+  const r = await fetch('/api/pose', {method:'POST', body: fd});
   const data = await r.json();
   if (!r.ok) { $('status').textContent = 'error: ' + data.error; return; }
   $('status').textContent = 'done';
   $('out').src = data.image;
   $('kp').textContent = JSON.stringify(data.keypoints, null, 1);
 };
-
-refreshGate();
 </script>
 </body>
 </html>

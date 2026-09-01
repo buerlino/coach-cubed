@@ -1,11 +1,20 @@
 #!/bin/bash
-# Starts what coach needs: app.py (waitress, loopback 8080) + Caddy (443, LAN/
-# tailnet). Same two-process shape as tecna's run_tecna.sh, minus the ComfyUI
-# hop. Only one of tecna/coach's Caddy can hold :443 at a time — that's fine,
-# they're never run together (see COACH_DEPLOY.md).
+# Starts what coach needs. Two modes:
+#   full  — app.py (waitress, loopback 8080) + Caddy (443, LAN/tailnet). Same
+#           two-process shape as tecna's tecna_launch.sh, minus the ComfyUI
+#           hop. coach, ../tecna and ../llm-server all want :8080/:443/:80 on
+#           this one box and are never run together (see COACH_DEPLOY.md) —
+#           free_ports.sh stops every known neighbor (tecna/llm-server run
+#           under systemd; coach itself has no units, so the other two
+#           scripts stop it with a direct pkill instead).
+#   local — app.py only, loopback 8080, no Caddy/TLS/LAN exposure. For
+#           working on the box itself without minting certs or fighting
+#           tecna/llm-server for :443.
 #
-# Usage:  ./run_coach.sh          start everything
-#         ./run_coach.sh stop     stop everything
+# Usage:  ./coach_launch.sh          prompts for full/local
+#         ./coach_launch.sh full     start app + Caddy (LAN/tailnet reachable)
+#         ./coach_launch.sh local    start app only (127.0.0.1:8080)
+#         ./coach_launch.sh stop     stop everything (either mode)
 set -e
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
@@ -21,7 +30,10 @@ fi
 echo "python: $COACH_PYTHON"
 
 if [ "$1" = "stop" ]; then
-	pkill -f "python app.py" 2>/dev/null || true
+	# Matched by the env's own interpreter path, not the bare "python app.py" —
+	# tecna and llm-server invoke their own app.py the same way, and a loose
+	# pattern here would kill whichever of the three happens to also be up.
+	pkill -f "envs/coach/bin/python app.py" 2>/dev/null || true
 	"$HOME/.local/bin/caddy" stop 2>/dev/null \
 		|| pkill -f "caddy run" 2>/dev/null \
 		|| sudo pkill -f "caddy run" 2>/dev/null \
@@ -30,8 +42,29 @@ if [ "$1" = "stop" ]; then
 	exit 0
 fi
 
+MODE="$1"
+if [ -z "$MODE" ]; then
+	if [ -t 0 ]; then
+		echo "how should coach be reachable?"
+		select choice in "full (Caddy, LAN/tailnet — as before)" "local (127.0.0.1:8080 only)"; do
+			case "$REPLY" in
+				1) MODE=full; break ;;
+				2) MODE=local; break ;;
+				*) echo "pick 1 or 2" ;;
+			esac
+		done
+	else
+		MODE=full   # non-interactive (e.g. cron, systemd): keep prior default behavior
+	fi
+fi
+case "$MODE" in
+	full|local) ;;
+	*) echo "!! unknown mode '$MODE' — expected 'full', 'local', or 'stop'" >&2; exit 1 ;;
+esac
+echo "mode: $MODE"
+
 if [ ! -f "$HOME/models/easy_vitpose/torch/coco/vitpose-l-coco.pth" ]; then
-	echo "!! checkpoints missing under ~/models/easy_vitpose — see download step" >&2
+	echo "!! checkpoints missing under ~/models/easy_vitpose — run ./download_models.sh" >&2
 	exit 1
 fi
 
@@ -39,8 +72,15 @@ fi
 
 echo "=== app (8080, loopback) ==="
 nohup "$COACH_PYTHON" app.py > log/app.log 2>&1 &
-until curl -sf --max-time 2 http://127.0.0.1:8080/api/auth/status > /dev/null; do sleep 1; done
+until curl -sf --max-time 2 http://127.0.0.1:8080/ > /dev/null; do sleep 1; done
 echo "  up"
+
+if [ "$MODE" = "local" ]; then
+	echo
+	echo "ready:  http://127.0.0.1:8080"
+	echo "  logs  $ROOT/log/"
+	exit 0
+fi
 
 echo "=== caddy (443) ==="
 CADDY="$HOME/.local/bin/caddy"

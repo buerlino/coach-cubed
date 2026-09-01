@@ -2,6 +2,5 @@ __pycache__/
 *.pyc
 .tmp/
 log/*.log
-.auth_password
 .caddy/
 vendor/easy_ViTPose/easy_ViTPose.egg-info/
