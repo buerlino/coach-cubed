@@ -175,9 +175,11 @@ def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4"):
     Returns (keypoints_by_frame, meta):
       keypoints_by_frame: {frame_index (str): {person_id (str): Nx3 keypoints}},
         present only for frames that were actually run through the model.
-      meta: fps/width/height/frame_count of the source video, the skeleton
-        edge list for the dataset in use (pairs of keypoint indices, 0-indexed
-        to match the keypoints arrays), frame_stride, and frames_processed.
+      meta: fps/width/height of the source video and its actual frame_count
+        (counted while reading, not trusted from container metadata — see
+        below), the skeleton edge list for the dataset in use (pairs of
+        keypoint indices, 0-indexed to match the keypoints arrays),
+        frame_stride, and frames_processed.
     """
     if frame_stride < 1:
         raise ValueError("frame_stride must be >= 1")
@@ -196,7 +198,10 @@ def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4"):
         fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        # NOT cv2.CAP_PROP_FRAME_COUNT: that's container metadata, and it's
+        # garbage (seen: a huge negative number) for streamed/index-less
+        # webm like MediaRecorder output — there's no seek index to read a
+        # count from. Count frames by actually reading them below instead.
 
         keypoints_by_frame = {}
         with _infer_lock:
@@ -215,6 +220,7 @@ def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4"):
                     }
                 idx += 1
         cap.release()
+        frame_count = idx   # actual count, not the (possibly bogus) metadata one
 
     meta = {
         "fps": fps,

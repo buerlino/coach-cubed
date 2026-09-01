@@ -116,6 +116,7 @@ INDEX_HTML = """<!doctype html>
 <h2>video</h2>
 <div id="vapp">
   <input id="vfile" type="file" accept="video/*">
+  <button id="vcam" type="button">record from camera</button>
   <select id="vsize"><option value="l">l (large, ~1.2GB)</option><option value="h">h (huge, ~2.5GB)</option></select>
   <label style="font-size:14px;color:#9ab">frame stride
     <input id="vstride" type="number" value="1" min="1" style="width:4em">
@@ -163,6 +164,10 @@ $('run').onclick = async () => {
 // video file back instead.
 const vvideo = $('vout'), vcanvas = $('voverlay'), vctx = vcanvas.getContext('2d');
 let vKeypoints = null, vMeta = null, vRafId = null;
+// vSource is whichever video is queued to run — a picked file or a camera
+// recording — normalized to {blob, filename} so the run handler doesn't
+// care which one it came from.
+let vSource = null, vObjectUrl = null, vCamStream = null, vRecorder = null, vChunks = [], vCamTimerId = null, vRecordStart = 0;
 
 const PALETTE = ['#e6194b','#3cb44b','#ffe119','#4363d8','#f58231','#911eb4','#46f0f0','#f032e6'];
 const CONF_THRESHOLD = 0.3;
@@ -221,20 +226,80 @@ vvideo.addEventListener('pause', () => { cancelAnimationFrame(vRafId); drawOverl
 vvideo.addEventListener('seeked', drawOverlay);
 $('vspeed').onchange = () => { vvideo.playbackRate = parseFloat($('vspeed').value); };
 
+function setVideoSrc(blob) {
+  if (vObjectUrl) URL.revokeObjectURL(vObjectUrl);
+  vvideo.srcObject = null;
+  vObjectUrl = URL.createObjectURL(blob);
+  vvideo.src = vObjectUrl;
+}
+
+function stopCameraStream() {
+  if (vCamStream) { vCamStream.getTracks().forEach(t => t.stop()); vCamStream = null; }
+}
+
 $('vfile').onchange = () => {
   const f = $('vfile').files[0];
   if (!f) return;
+  stopCameraStream();
+  vSource = { blob: f, filename: f.name };
   vKeypoints = null; vMeta = null;
   $('vsummary').textContent = '';
-  vvideo.src = URL.createObjectURL(f);
+  setVideoSrc(f);
+};
+
+// Record-then-run, same as picking a file: getUserMedia previews live, a
+// click on the same button stops MediaRecorder, and the resulting blob
+// becomes vSource exactly like an uploaded file — coach never streams
+// frames to the model live, it just fills in the file-picker step.
+$('vcam').onclick = async () => {
+  if (vRecorder && vRecorder.state === 'recording') { vRecorder.stop(); return; }
+
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+  } catch (e) {
+    $('vstatus').textContent = 'camera error: ' + e.message;
+    return;
+  }
+  vCamStream = stream;
+  $('vfile').value = '';
+  vSource = null; vKeypoints = null; vMeta = null;
+  $('vsummary').textContent = '';
+  if (vObjectUrl) { URL.revokeObjectURL(vObjectUrl); vObjectUrl = null; }
+  vvideo.src = '';
+  vvideo.srcObject = stream;
+  vvideo.muted = true;
+  await vvideo.play();
+
+  const mimeCandidates = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
+  const mime = mimeCandidates.find(m => window.MediaRecorder && MediaRecorder.isTypeSupported(m));
+  vChunks = [];
+  vRecorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+  vRecorder.ondataavailable = e => { if (e.data.size) vChunks.push(e.data); };
+  vRecorder.onstop = () => {
+    stopCameraStream();
+    clearInterval(vCamTimerId);
+    const blob = new Blob(vChunks, { type: vRecorder.mimeType || 'video/webm' });
+    const ext = (blob.type.split('/')[1] || 'webm').split(';')[0];
+    vSource = { blob, filename: `camera-recording.${ext}` };
+    setVideoSrc(blob);
+    vvideo.muted = true;
+    $('vcam').textContent = 'record from camera';
+    $('vstatus').textContent = `recorded ${Math.round((Date.now() - vRecordStart) / 1000)}s — ready to run`;
+  };
+  vRecordStart = Date.now();
+  vRecorder.start();
+  $('vcam').textContent = '■ stop (0s)';
+  vCamTimerId = setInterval(() => {
+    $('vcam').textContent = `■ stop (${Math.round((Date.now() - vRecordStart) / 1000)}s)`;
+  }, 500);
 };
 
 $('vrun').onclick = async () => {
-  const f = $('vfile').files[0];
-  if (!f) { $('vstatus').textContent = 'pick a video first'; return; }
+  if (!vSource) { $('vstatus').textContent = 'pick a video or record from camera first'; return; }
   $('vstatus').textContent = 'running (this can take a while — every sampled frame goes through the model)...';
   const fd = new FormData();
-  fd.append('video', f);
+  fd.append('video', vSource.blob, vSource.filename);
   fd.append('size', $('vsize').value);
   fd.append('frame_stride', $('vstride').value || '1');
   const r = await fetch('/api/pose/video', {method:'POST', body: fd});
