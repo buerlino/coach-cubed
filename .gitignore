@@ -4,3 +4,5 @@ __pycache__/
 log/*.log
 .caddy/
 vendor/easy_ViTPose/easy_ViTPose.egg-info/
+.venv
+**/.venv/
