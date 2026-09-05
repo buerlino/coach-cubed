@@ -195,7 +195,9 @@ def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4"):
             cap.release()
             raise ValueError("could not open the uploaded file as a video")
 
-        fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        if not fps or fps != fps or fps <= 0:   # 0, None or NaN from the container
+            fps = 30.0
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         # NOT cv2.CAP_PROP_FRAME_COUNT: that's container metadata, and it's
@@ -204,6 +206,8 @@ def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4"):
         # count from. Count frames by actually reading them below instead.
 
         keypoints_by_frame = {}
+        frame_indices = []      # indices of the frames actually run, in order
+        frame_times_ms = []     # each of those frames' own presentation time
         with _infer_lock:
             model.reset()   # fresh tracker + frame counter — model instances
                              # are cached and reused across requests
@@ -213,6 +217,11 @@ def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4"):
                 if not ok:
                     break
                 if idx % frame_stride == 0:
+                    # Queried *after* read(): that's the pts of the frame just
+                    # decoded (before read() it's still the previous frame's,
+                    # and it reads 0 twice at the start).
+                    frame_times_ms.append(cap.get(cv2.CAP_PROP_POS_MSEC))
+                    frame_indices.append(idx)
                     frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
                     keypoints = model.inference(frame_rgb)
                     keypoints_by_frame[str(idx)] = {
@@ -222,6 +231,17 @@ def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4"):
         cap.release()
         frame_count = idx   # actual count, not the (possibly bogus) metadata one
 
+    # Timestamps are what the frontend lines the overlay up with, so only hand
+    # them over if the decoder actually produced a usable (strictly increasing,
+    # non-degenerate) track — some containers report 0.0 for every frame, and
+    # silently syncing against that would pin the overlay to one pose. The
+    # frontend falls back to index = time * fps when this is null.
+    usable_times = (
+        len(frame_times_ms) > 1
+        and all(b > a for a, b in zip(frame_times_ms, frame_times_ms[1:]))
+        and frame_times_ms[-1] > 0
+    )
+
     meta = {
         "fps": fps,
         "width": width,
@@ -229,6 +249,8 @@ def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4"):
         "frame_count": frame_count,
         "frames_processed": len(keypoints_by_frame),
         "frame_stride": frame_stride,
+        "frame_indices": frame_indices,
+        "frame_times_ms": frame_times_ms if usable_times else None,
         "skeleton": joints_dict()[DATASET]["skeleton"],
     }
     return keypoints_by_frame, meta

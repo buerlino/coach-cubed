@@ -138,6 +138,9 @@ INDEX_HTML = """<!doctype html>
     </select>
   </label>
   <p id="vsummary" style="font-size:12px;color:#9c9"></p>
+  <!-- live sync readout: if the overlay ever looks frozen, this says whether
+       playback time is stuck or the frame lookup is. -->
+  <p id="vsync" style="font-size:12px;color:#789"></p>
 </div>
 
 <script>
@@ -182,13 +185,37 @@ function syncCanvasSize() {
   vcanvas.height = vvideo.videoHeight || vMeta?.height || 0;
 }
 
-function drawOverlay() {
+// Which processed frame belongs on screen at time t (seconds) -> its position
+// in vMeta.frame_indices. Timestamps from the decoder are the authority when
+// we have them: idx = t * fps silently desyncs on variable-frame-rate captures
+// (phone video, MediaRecorder) and breaks outright when the container lies
+// about fps — both of which show up as a mesh frozen on a single pose.
+function slotForTime(t) {
+  const times = vMeta.frame_times_ms;
+  if (!times) {   // no usable timestamps — fall back to nominal fps
+    const slot = Math.floor((t * vMeta.fps) / vMeta.frame_stride);
+    return Math.max(0, Math.min(slot, vMeta.frame_indices.length - 1));
+  }
+  const ms = t * 1000;
+  let lo = 0, hi = times.length - 1;   // last frame whose pts <= ms
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (times[mid] <= ms) lo = mid; else hi = mid - 1;
+  }
+  return lo;
+}
+
+function drawOverlay(t) {
   vctx.clearRect(0, 0, vcanvas.width, vcanvas.height);
   if (!vKeypoints || !vMeta) return;
 
-  let idx = Math.floor(vvideo.currentTime * vMeta.fps);
-  idx -= idx % vMeta.frame_stride;
-  idx = Math.max(0, Math.min(idx, vMeta.frame_count - 1));
+  const time = (typeof t === 'number' && isFinite(t)) ? t : vvideo.currentTime;
+  const slot = slotForTime(time);
+  const idx = vMeta.frame_indices[slot];
+  $('vsync').textContent =
+    `t=${time.toFixed(2)}s → frame ${idx} of ${vMeta.frame_count} ` +
+    `(sample ${slot + 1}/${vMeta.frame_indices.length}` +
+    `${vMeta.frame_times_ms ? ', decoder timestamps' : ', fps estimate'})`;
   const frame = vKeypoints[String(idx)];
   if (!frame) return;
 
@@ -215,15 +242,30 @@ function drawOverlay() {
   }
 }
 
-function overlayLoop() {
-  drawOverlay();
-  if (!vvideo.paused && !vvideo.ended) vRafId = requestAnimationFrame(overlayLoop);
+// requestVideoFrameCallback hands us the exact mediaTime of the frame the
+// compositor is about to show, so the skeleton lands on the frame it was
+// computed from instead of on whatever currentTime happens to read mid-rAF.
+const HAS_RVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
+
+function overlayLoop(now, metadata) {
+  drawOverlay(metadata ? metadata.mediaTime : undefined);
+  if (vvideo.paused || vvideo.ended) { vRafId = null; return; }
+  vRafId = HAS_RVFC ? vvideo.requestVideoFrameCallback(overlayLoop)
+                    : requestAnimationFrame(overlayLoop);
+}
+
+function stopOverlayLoop() {
+  if (vRafId === null) return;
+  if (HAS_RVFC) vvideo.cancelVideoFrameCallback(vRafId);
+  else cancelAnimationFrame(vRafId);
+  vRafId = null;
 }
 
 vvideo.addEventListener('loadedmetadata', () => { syncCanvasSize(); vvideo.playbackRate = parseFloat($('vspeed').value); });
-vvideo.addEventListener('play', () => { cancelAnimationFrame(vRafId); overlayLoop(); });
-vvideo.addEventListener('pause', () => { cancelAnimationFrame(vRafId); drawOverlay(); });
-vvideo.addEventListener('seeked', drawOverlay);
+vvideo.addEventListener('play', () => { stopOverlayLoop(); overlayLoop(); });
+vvideo.addEventListener('pause', () => { stopOverlayLoop(); drawOverlay(); });
+vvideo.addEventListener('seeked', () => drawOverlay());
+vvideo.addEventListener('timeupdate', () => { if (vvideo.paused) drawOverlay(); });
 $('vspeed').onchange = () => { vvideo.playbackRate = parseFloat($('vspeed').value); };
 
 function setVideoSrc(blob) {
@@ -244,6 +286,7 @@ $('vfile').onchange = () => {
   vSource = { blob: f, filename: f.name };
   vKeypoints = null; vMeta = null;
   $('vsummary').textContent = '';
+  $('vsync').textContent = '';
   setVideoSrc(f);
 };
 
@@ -265,6 +308,7 @@ $('vcam').onclick = async () => {
   $('vfile').value = '';
   vSource = null; vKeypoints = null; vMeta = null;
   $('vsummary').textContent = '';
+  $('vsync').textContent = '';
   if (vObjectUrl) { URL.revokeObjectURL(vObjectUrl); vObjectUrl = null; }
   vvideo.src = '';
   vvideo.srcObject = stream;
@@ -308,7 +352,10 @@ $('vrun').onclick = async () => {
   vKeypoints = data.keypoints;
   vMeta = data.meta;
   syncCanvasSize();
-  drawOverlay();
+  // if the video was already rolling when the run finished, the loop it
+  // started was drawing nothing — restart it now that there's a track.
+  if (!vvideo.paused && !vvideo.ended) { stopOverlayLoop(); overlayLoop(); }
+  else drawOverlay();
   const ids = new Set();
   for (const frame of Object.values(vKeypoints)) for (const id of Object.keys(frame)) ids.add(id);
   $('vstatus').textContent = 'done';
