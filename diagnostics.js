@@ -169,18 +169,195 @@ function torsoScale(samples) {
 
 // --- geometry -----------------------------------------------------------
 
+function centroid(p, idxs) {
+  let sx = 0, sy = 0, n = 0;
+  for (const i of idxs) {
+    const q = p[i];
+    if (!q) continue;
+    sx += q.x; sy += q.y; n++;
+  }
+  return n ? { x: sx / n, y: sy / n } : null;
+}
+
+const kneePoint = p => centroid(p, [KP.lKnee, KP.rKnee]);
+const hipPoint = p => centroid(p, [KP.lHip, KP.rHip]);
+const wristCentroid = p => centroid(p, [KP.lWri, KP.rWri]);
+
+
+// --- the bar axis -------------------------------------------------------
+//
+// One direction per clip: where "along the bar" points in the image, and hence
+// where "up" is.
+//
+// Read off the LIFTER, not the bar. Every left/right pair — shoulders, hips,
+// knees, ankles — is separated across the platform, i.e. along the bar, so each
+// pair is an independent reading of the same direction. The wrists are a pair
+// too and are deliberately not used: the hands are what the plates hide, and a
+// wrist that has snapped to a plate rim tilts its line by tens of degrees.
+//
+// From ONE frame — the setup, the last still frame before the bar moves — and
+// not an average over the clip. The direction is constant, but the body is not:
+// the lifter twists, joints occlude each other and then reappear, and each of
+// those turns into a wrong slope that an average over frames mixes in rather
+// than cancels out. At the setup the lifter is square to the camera, motionless
+// and unoccluded, which makes it the one frame in the clip worth trusting.
+// Several pairs at that instant give the redundancy that several frames were
+// supposed to give, without the movement.
+//
+// Everything downstream measures against this axis rather than the image axes —
+// heights (the bar/knee crossing, peak hip elevation), the trunk's inclination,
+// and every rule drawn across the frame — so a camera that isn't quite level
+// doesn't tilt the numbers or the marks that explain them.
+const AXIS_PAIRS = [
+  [KP.lSho, KP.rSho, 'shoulders'],
+  [KP.lHip, KP.rHip, 'hips'],
+  [KP.lKnee, KP.rKnee, 'knees'],
+  [KP.lAnk, KP.rAnk, 'ankles'],
+];
+const AXIS_MIN_SEP = 0.05;   // torso-lengths a pair must span before its line carries a direction
+const AXIS_PAIR_TOL = 12;    // degrees a pair may sit from the median before it is an outlier
+const AXIS_MIN_PAIRS = 2;    // pairs that must agree before the frame can set the axis
+const AXIS_SEARCH = 5;       // frames forward to try if the setup frame can't
+const AXIS_MAX_TILT = 25;    // degrees; beyond this the estimate is not believed at all
+
+function axisFrom(deg, info) {
+  const th = deg * Math.PI / 180;
+  return Object.assign({
+    deg,
+    ux: Math.cos(th), uy: Math.sin(th),    // unit vector along the bar, pointing right
+    dx: -Math.sin(th), dy: Math.cos(th),   // unit vector "down" — perpendicular to it
+    fallback: false, reason: null,
+  }, info);
+}
+
+// The image axes themselves: what every height meant before this existed, and
+// what they fall back to when the body can't say otherwise.
+const IMAGE_AXIS = axisFrom(0, { fallback: true, reason: 'not-estimated', pairs: [], used: [] });
+
+// Every left/right pair visible in one frame, as an angle off the image
+// horizontal plus the baseline it was measured over.
+function pairSlopes(raw, scale) {
+  const out = [];
+  for (const [li, ri, name] of AXIS_PAIRS) {
+    // Raw detections only: a gap-filled point is the mean of its neighbours, so
+    // it would vote for a direction it never independently saw.
+    const a = raw[li], b = raw[ri];
+    if (!a || !b) continue;
+    let dx = b.x - a.x, dy = b.y - a.y;
+    const sep = Math.hypot(dx, dy);
+    // A pair a few px wide is jitter pointing somewhere random, and its angular
+    // error is unbounded rather than merely large.
+    if (sep < AXIS_MIN_SEP * scale) continue;
+    if (dx < 0) { dx = -dx; dy = -dy; }   // the bar has no left end; keep one orientation
+    out.push({ name, deg: Math.atan2(dy, dx) * 180 / Math.PI, sep });
+  }
+  return out;
+}
+
+// `anchorIdx` is the setup frame. If it can't produce two pairs that agree, the
+// next few frames are tried before giving up — a single dropped detection at the
+// setup shouldn't cost the whole clip its axis — and how far it had to walk is
+// reported, since a frame taken mid-pull is a weaker claim than the setup.
+function bodyAxis(samples, scale, anchorIdx, anchored) {
+  const start = Math.max(0, anchorIdx);
+  let reason = 'no-pairs';
+  for (let k = start; k < Math.min(samples.length, start + AXIS_SEARCH + 1); k++) {
+    const found = pairSlopes(samples[k].raw, scale);
+    if (found.length < AXIS_MIN_PAIRS) continue;
+
+    // Median, then drop what sits far from it: with three or four pairs one
+    // badly-placed joint would otherwise drag a plain mean along with it.
+    const sorted = found.map(f => f.deg).sort((a, b) => a - b);
+    const mid = sorted.length >> 1;
+    const med = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    // A majority of the pairs that ARE visible has to agree, not just two of
+    // them: with four pairs on the frame, two happening to line up while the
+    // other two point elsewhere is a coincidence, not a direction.
+    const keep = found.filter(f => Math.abs(f.deg - med) <= AXIS_PAIR_TOL);
+    if (keep.length < AXIS_MIN_PAIRS || keep.length * 2 <= found.length) { reason = 'inconsistent'; continue; }
+
+    // The filter is one-sided around the median, so what survives it can still
+    // span twice the tolerance. What matters is whether the pairs that remain
+    // agree with each OTHER: two joints pointing 20° apart have not identified a
+    // direction, they have averaged two wrong ones.
+    const degs = keep.map(f => f.deg);
+    const spread = Math.max.apply(null, degs) - Math.min.apply(null, degs);
+    if (spread > AXIS_PAIR_TOL) { reason = 'inconsistent'; continue; }
+
+    // Weighted by baseline: a pair's angular error goes as its pixel error over
+    // its separation, so the shoulders outvote the ankles when the ankles are
+    // nearly on top of each other.
+    const wsum = keep.reduce((a, f) => a + f.sep, 0);
+    const deg = keep.reduce((a, f) => a + f.deg * f.sep, 0) / wsum;
+    const info = {
+      frame: samples[k].frame, slot: k, walked: k - start, anchored: !!anchored,
+      pairs: found.map(f => f.name), used: keep.map(f => f.name), spread,
+    };
+    if (!isFinite(deg) || Math.abs(deg) > AXIS_MAX_TILT) {
+      return Object.assign({}, IMAGE_AXIS, info, { reason: 'implausible', measuredDeg: deg });
+    }
+    return axisFrom(deg, info);
+  }
+  return Object.assign({}, IMAGE_AXIS, { reason, anchored: !!anchored, frame: samples[start] ? samples[start].frame : null });
+}
+
+// The same bullet in every diagnostic's transparency block: they all measure
+// against this one direction, so they all have to expose which frame and which
+// joints set it, and how well those joints agreed.
+function axisNote(ax) {
+  const head = '<strong>Bar axis</strong> — ';
+  const list = a => a.length < 2 ? (a[0] || 'nothing')
+    : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+  if (!ax || ax.fallback) {
+    const why = !ax || ax.reason === 'no-pairs'
+      ? 'no frame at the start of the lift had two left/right joint pairs detected far enough apart to carry a direction'
+      : ax.reason === 'inconsistent'
+        ? 'the left/right pairs at the start of the lift disagreed with each other by more than ' +
+          fmt(AXIS_PAIR_TOL, 0) + '°, which is what an occluded joint looks like'
+        : 'the pairs settled on ' + fmt(ax.measuredDeg, 1) + '°, past the ' +
+          fmt(AXIS_MAX_TILT, 0) + '° of camera roll this is willing to believe';
+    return head + 'not estimated — ' + why + '. Heights and rules fall back to the image horizontal, ' +
+      'which is right if the camera was level and wrong by exactly its tilt if it was not.';
+  }
+  return head + 'the bar reads ' + fmt(ax.deg, 1) + '° off the image horizontal, from the ' +
+    list(ax.used) + ' at frame ' + ax.frame + ' — ' +
+    (ax.anchored
+      ? (ax.walked ? 'the ' + ax.walked + ' frame(s) after the setup, the setup itself not having enough joints visible'
+                   : 'the setup, the last still frame before the bar moves')
+      : 'the start of the clip, the setup not having been found') +
+    '. Those pairs agreed to within ' + fmt(ax.spread, 1) + '°' +
+    (ax.used.length < ax.pairs.length
+      ? ', after dropping the ' + list(ax.pairs.filter(n => ax.used.indexOf(n) < 0)) +
+        (ax.pairs.length - ax.used.length > 1 ? ' as outliers' : ' as an outlier') : '') +
+    '. Measured on one frame, not averaged over the clip: left/right pairs are only square to the bar while ' +
+    'the lifter is set over it. One direction for the whole clip — heights, the trunk angle and every rule ' +
+    'drawn on the frame are measured against it.';
+}
+
+// A point in bar coordinates: .x along the bar, .y down from it. Identical to
+// the image coordinates when the axis is the image's own.
+const toBar = (pt, ax) => ({ x: pt.x * ax.ux + pt.y * ax.uy, y: pt.x * ax.dx + pt.y * ax.dy });
+const fromBar = (a, h, ax) => ({ x: a * ax.ux + h * ax.dx, y: a * ax.uy + h * ax.dy });
+
+// Height, still growing downward like image y — so every existing comparison
+// ("A is above B" is A < B) reads the same as it did.
+const elev = (pt, ax) => pt ? (pt.x * ax.dx + pt.y * ax.dy) : null;
+
 // ViTPose has no bar keypoint. The hand wraps the bar, so the bar centre sits
-// below the wrist joint centre by roughly a sixth of the forearm length; taken
-// as a vertical offset in elevation. Averaged over whichever sides are visible.
-function barPoint(p) {
+// below the wrist joint centre by roughly a sixth of the forearm length —
+// "below" along the bar axis's own down, not the image's. Averaged over
+// whichever sides are visible.
+function barPoint(p, ax) {
   const est = [];
   let noForearm = false;
   for (const [w, e] of [[KP.lWri, KP.lElb], [KP.rWri, KP.rElb]]) {
     const pw = p[w];
     if (!pw) continue;
     const pe = p[e];
-    if (pe) est.push({ x: pw.x, y: pw.y + Math.hypot(pw.x - pe.x, pw.y - pe.y) / 6 });
-    else { est.push({ x: pw.x, y: pw.y }); noForearm = true; }
+    if (pe) {
+      const d = Math.hypot(pw.x - pe.x, pw.y - pe.y) / 6;
+      est.push({ x: pw.x + ax.dx * d, y: pw.y + ax.dy * d });
+    } else { est.push({ x: pw.x, y: pw.y }); noForearm = true; }
   }
   if (!est.length) return null;
   return {
@@ -191,26 +368,15 @@ function barPoint(p) {
   };
 }
 
-function meanOf(p, idxs, key) {
-  const v = [];
-  for (const i of idxs) if (p[i]) v.push(p[i][key]);
-  return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
-}
-
-function kneeY(p) { return meanOf(p, [KP.lKnee, KP.rKnee], 'y'); }
-
-function wristCentroid(p) {
-  const x = meanOf(p, [KP.lWri, KP.rWri], 'x');
-  const y = meanOf(p, [KP.lWri, KP.rWri], 'y');
-  return (x == null || y == null) ? null : { x, y };
-}
-
-// Angle of the hip->shoulder segment to the floor, in the image plane.
-// 0deg = horizontal trunk, 90deg = vertical. |dx| makes it independent of which
-// way the lifter faces, so left- and right-facing videos score alike.
-function trunkAngle(hip, sho) {
+// Angle of the hip->shoulder segment to the floor, in the image plane, where
+// "the floor" is the bar axis rather than the image's bottom edge. 0deg =
+// trunk parallel to the bar, 90deg = perpendicular to it. |dx| makes it
+// independent of which way the lifter faces, so left- and right-facing videos
+// score alike.
+function trunkAngle(hip, sho, ax) {
   if (!hip || !sho) return null;
-  return Math.atan2(hip.y - sho.y, Math.abs(sho.x - hip.x)) * 180 / Math.PI;
+  const h = toBar(hip, ax), s = toBar(sho, ax);
+  return Math.atan2(h.y - s.y, Math.abs(s.x - h.x)) * 180 / Math.PI;
 }
 
 // Interior angle at `joint` between rays to `a` and `b`, in degrees. 180deg
@@ -238,12 +404,31 @@ function jointAngle(joint, a, b) {
 // an actual pull runs ~2, which is the margin the trigger needs.
 const SPEED_SMOOTH = 9, SPEED_HALF = 2;
 
-// A 9-wide centred mean of a scalar-per-sample signal, tolerant of holes. Same
-// smoothing window as wristSpeed's centroid, reused here for a position signal
-// (hip elevation) rather than a derived speed, so a peak found on it has the
-// same jitter immunity as the speed trigger does.
-function smoothSeries(raw) {
-  const half = (SPEED_SMOOTH - 1) >> 1;
+// The smoothing window that finds a peak has to be fixed in TIME, not in
+// samples. Nine samples is 0.3s at 30fps and stride 1, which is what it was
+// tuned as; at stride 3 the same nine samples span 27 frames, which flattens the
+// peak they are being used to find and pushes the phase end most of a second
+// late. Expressed in seconds it means the same thing at every stride.
+const SMOOTH_SECONDS = SPEED_SMOOTH / 30;
+
+function smoothWindow(samples) {
+  const dts = [];
+  for (let i = 1; i < samples.length; i++) {
+    const d = samples[i].t - samples[i - 1].t;
+    if (d > 0) dts.push(d);
+  }
+  if (!dts.length) return SPEED_SMOOTH;
+  dts.sort((a, b) => a - b);
+  const n = Math.round(SMOOTH_SECONDS / dts[dts.length >> 1]);   // median spacing
+  return Math.max(3, n % 2 ? n : n + 1);                         // odd, at least 3
+}
+
+// A centred mean of a scalar-per-sample signal, tolerant of holes, over `win`
+// samples (see smoothWindow). Used for a position signal (hip elevation) whose
+// extremum is a trigger, so how wide this is directly sets how late that
+// trigger fires.
+function smoothSeries(raw, win) {
+  const half = ((win || SPEED_SMOOTH) - 1) >> 1;
   return raw.map((_, k) => {
     let sum = 0, n = 0;
     for (let j = Math.max(0, k - half); j <= Math.min(raw.length - 1, k + half); j++) {
@@ -253,8 +438,6 @@ function smoothSeries(raw) {
     return n ? sum / n : null;
   });
 }
-
-function hipElevation(p) { return meanOf(p, [KP.lHip, KP.rHip], 'y'); }
 
 function wristSpeed(samples, scale) {
   const raw = samples.map(s => wristCentroid(s.p));
@@ -277,17 +460,21 @@ function wristSpeed(samples, scale) {
   return out;
 }
 
-const RUN = 3;   // samples a threshold (or its release) must hold for
+const RUN = 3;             // samples a threshold (or its release) must hold for
+const MOVE_ONSET = 0.15;   // torso-lengths/s — provisional
 
 // The bar (wrist + 1/6 forearm) crossing from below knee height to above it,
 // confirmed by persistence. This single event is both the end of the first
 // pull and the start of the second by definition, so both diagnostics anchor
 // on the same computation rather than each re-deriving it.
-function barKneeCrossing(samples) {
-  const bar = samples.map(s => barPoint(s.p));
-  const knee = samples.map(s => kneeY(s.p));
-  const above = i => bar[i] && knee[i] != null && bar[i].y < knee[i];
-  const below = i => bar[i] && knee[i] != null && bar[i].y > knee[i];
+function barKneeCrossing(samples, ax) {
+  const bar = samples.map(s => barPoint(s.p, ax));
+  const knee = samples.map(s => kneePoint(s.p));
+  // Compared as heights along the bar axis, not as image y: on a camera that
+  // isn't level the two are not the same crossing, and this one is the event
+  // both diagnostics' phases are defined by.
+  const above = i => bar[i] && knee[i] && elev(bar[i], ax) < elev(knee[i], ax);
+  const below = i => bar[i] && knee[i] && elev(bar[i], ax) > elev(knee[i], ax);
 
   // Start scanning from where the bar is actually below the knee, so a clip
   // that opens with the bar already overhead doesn't "end" at sample 0.
@@ -304,10 +491,65 @@ function barKneeCrossing(samples) {
   return { bar, knee, idx: -1, reason: 'no-cross' };
 }
 
+// The first pull's window: the bar/knee crossing that ends it, and the last
+// stillness before that crossing, which is where the lift starts.
+//
+// Anchored on the END trigger, which is a crisp geometric crossing, then
+// searched backwards for the start, which is a soft threshold on noisy velocity.
+// Searching forwards from frame 0 for "the hands start moving" finds the setup
+// instead — grip adjustments, the hook re-set, the lifter rocking into position
+// all clear a motion threshold before the pull starts.
+//
+// Shared rather than left inside diagnostic 1, because the bar axis is read at
+// the start frame this returns: two versions of "where the lift starts" drifting
+// apart would put the axis on a different frame than the phase it belongs to,
+// and each would look right on its own.
+function firstPullWindow(samples, scale, ax) {
+  const cross = barKneeCrossing(samples, ax);
+  if (cross.idx < 0) return { cross, startIdx: -1, endIdx: -1, clamped: false, onsetSpeed: null };
+  const endIdx = cross.idx;
+  const speed = wristSpeed(samples, scale);
+
+  let startIdx = -1;
+  for (let i = endIdx - 1; i >= RUN - 1; i--) {
+    let quiet = true;
+    for (let j = 0; j < RUN; j++) {
+      const v = speed[i - j];
+      if (v == null || v >= MOVE_ONSET) { quiet = false; break; }
+    }
+    if (quiet) { startIdx = i; break; }
+  }
+  const clamped = startIdx < 0;   // clip probably starts mid-pull
+  if (clamped) startIdx = 0;
+
+  let onsetSpeed = null;
+  for (let i = startIdx + 1; i <= endIdx; i++) {
+    if (speed[i] != null && speed[i] >= MOVE_ONSET) { onsetSpeed = speed[i]; break; }
+  }
+  return { cross, startIdx, endIdx, clamped, onsetSpeed };
+}
+
+// A rule through `pt` spanning the frame, parallel to the bar — the drawn form
+// of a height. Purple in every diagnostic that uses it: a rule says which
+// heights a trigger compared, not how the lift went. Drawn from the axis rather
+// than as a horizontal line so the mark agrees with the number it explains.
+function barRule(ctx, pt, ax, dash, alpha, width) {
+  if (!pt) return;
+  const span = ctx.canvas.width + ctx.canvas.height;   // crosses the frame at any tilt
+  ctx.save();
+  ctx.strokeStyle = phaseColor(alpha);
+  ctx.setLineDash(dash || []);
+  if (width) ctx.lineWidth = width;
+  ctx.beginPath();
+  ctx.moveTo(pt.x - ax.ux * span, pt.y - ax.uy * span);
+  ctx.lineTo(pt.x + ax.ux * span, pt.y + ax.uy * span);
+  ctx.stroke();
+  ctx.restore();
+}
+
 
 // --- diagnostic 1: first pull, constant back angle ----------------------
 
-const MOVE_ONSET = 0.15;   // torso-lengths/s — provisional
 const TRAIL = 4;           // sampled frames of history drawn behind the current one
 const TRAIL_ALPHA = 0.22;  // alpha of the newest trail frame; older ones fade from it
 const SD_GOOD = 2.5, SD_WARN = 5.0;   // degrees — provisional, see the note
@@ -334,52 +576,31 @@ const firstPullBackAngle = {
   cue: 'Through the first pull the back angle to the floor stays constant: the knees open and the bar rises, but the trunk keeps its inclination.',
   unit: '°',
 
-  // Active phase: floor to bar-past-knee.
-  //
-  // Anchored on the END trigger, which is a crisp geometric crossing, then
-  // searched backwards for the start, which is a soft threshold on noisy
-  // velocity. Searching forwards from frame 0 for "the hands start moving"
-  // finds the setup instead — grip adjustments, the hook re-set, the lifter
-  // rocking into position all clear a motion threshold before the pull starts.
-  phase(samples, scale) {
+  // Active phase: floor to bar-past-knee — both triggers come from
+  // firstPullWindow, which is shared with the bar-axis estimate (see there for
+  // why the start is searched backwards from the end).
+  phase(samples, scale, ax) {
     const notes = [];
-    const cross = barKneeCrossing(samples);
-    if (cross.idx < 0) {
-      return { error: cross.reason === 'no-below'
+    const w = firstPullWindow(samples, scale, ax);
+    if (w.cross.idx < 0) {
+      return { error: w.cross.reason === 'no-below'
         ? 'The bar never sits below knee height in this clip — there is no first pull to score.'
         : 'The bar never crosses knee height — the first pull has no end trigger in this clip.' };
     }
-    const endIdx = cross.idx, bar = cross.bar, knee = cross.knee;
-
-    const speed = wristSpeed(samples, scale);
-    let startIdx = -1;
-    for (let i = endIdx - 1; i >= RUN - 1; i--) {
-      let quiet = true;
-      for (let j = 0; j < RUN; j++) {
-        const v = speed[i - j];
-        if (v == null || v >= MOVE_ONSET) { quiet = false; break; }
-      }
-      if (quiet) { startIdx = i; break; }
-    }
-    if (startIdx < 0) {
-      startIdx = 0;
+    const { startIdx, endIdx } = w, bar = w.cross.bar, knee = w.cross.knee;
+    if (w.clamped) {
       notes.push('No still period was found before the bar reached the knee — the clip probably starts mid-pull. The phase start is clamped to the first frame, so the beginning of the first pull may be missing.');
     }
     if (endIdx - startIdx < RUN) {
       return { error: `The first pull resolved to only ${endIdx - startIdx + 1} sampled frame(s) — too short to score. Try a lower frame stride.` };
     }
 
-    let onsetSpeed = null;
-    for (let i = startIdx + 1; i <= endIdx; i++) {
-      if (speed[i] != null && speed[i] >= MOVE_ONSET) { onsetSpeed = speed[i]; break; }
-    }
-
-    const gapPx = knee[endIdx] - bar[endIdx].y;
+    const gapPx = elev(knee[endIdx], ax) - elev(bar[endIdx], ax);
     return {
       startIdx, endIdx, notes,
       triggers: {
-        onsetSpeed,
-        clamped: startIdx === 0 && notes.length > 0,
+        onsetSpeed: w.onsetSpeed,
+        clamped: w.clamped,
         crossGapPx: gapPx,
         crossGapTorso: gapPx / scale,
       },
@@ -390,15 +611,15 @@ const firstPullBackAngle = {
   // Two independent estimates from disjoint keypoints: left hip->shoulder and
   // right hip->shoulder. Their mean is the reported angle; their absolute
   // difference is the uncertainty band.
-  measure(samples, phase) {
+  measure(samples, phase, ax) {
     const notes = [];
     const series = [];
     let both = 0, interp = 0, noForearm = 0;
 
     for (let i = phase.startIdx; i <= phase.endIdx; i++) {
       const p = samples[i].p;
-      const aL = trunkAngle(p[KP.lHip], p[KP.lSho]);
-      const aR = trunkAngle(p[KP.rHip], p[KP.rSho]);
+      const aL = trunkAngle(p[KP.lHip], p[KP.lSho], ax);
+      const aR = trunkAngle(p[KP.rHip], p[KP.rSho], ax);
       const vals = [aL, aR].filter(v => v != null);
       if (!vals.length) continue;
       if (vals.length === 2) both++;
@@ -487,6 +708,7 @@ const firstPullBackAngle = {
       '<strong>Measurement</strong> — left and right hip→shoulder scored separately; ' +
         pct(s.bothSides) + ' of frames had both sides visible, ' + pct(s.interpFrac) +
         ' relied on a detection filled in from neighbouring frames.',
+      axisNote(ctxExtra.axis),
       '<strong>Time smoothing</strong> — ' + (ctxExtra.smoothingMs
         ? 'trajectories were smoothed with a Gaussian of σ = ' + ctxExtra.smoothingMs +
           ' ms before scoring (the slider under the video). Widening it lowers the SD ' +
@@ -507,26 +729,21 @@ const firstPullBackAngle = {
   // sampled frame: view.p are the points now, view.at(t) the points at any other
   // instant inside the phase, view.dt the mean spacing of processed frames.
   overlay(ctx, view, phase, res, size) {
-    const p = view.p;
+    const p = view.p, ax = view.axis;
     // Recomputed from the points being drawn rather than indexed out of the
-    // phase arrays. At a processed frame these are the same two numbers — same
-    // functions, same points — and in between them the rules track the bar
+    // phase arrays. At a processed frame these are the same two points — same
+    // functions, same axis — and in between them the rules track the bar
     // instead of holding the last frame's height, so the crossing the phase end
     // is defined by is visible at the moment it happens.
-    const bar = barPoint(p), knee = kneeY(p);
+    const bar = barPoint(p, ax), knee = kneePoint(p);
     const lw = Math.max(2, size / 260);
 
-    // Both hip->shoulder segments carry the ramp at this frame's own departure
-    // from the setup angle, so the mark that IS the measurement is also the
-    // readout of it: it starts green and reddens as the chest comes up.
+    // Both hip->shoulder segments carry the lift's colour: the mark that IS the
+    // measurement is also the readout of it, so the frame and the plot cannot
+    // disagree about how the pull scored.
     const segments = pp => [[KP.lHip, KP.lSho], [KP.rHip, KP.rSho]]
       .map(([h, sh]) => [pp[h], pp[sh]])
       .filter(([a, b]) => a && b);
-    const angleOf = pp => {
-      const seen = [trunkAngle(pp[KP.lHip], pp[KP.lSho]),
-                    trunkAngle(pp[KP.rHip], pp[KP.rSho])].filter(v => v != null);
-      return seen.length ? seen.reduce((a, b) => a + b, 0) / seen.length : null;
-    };
     const stroke = pp => {
       for (const [a, b] of segments(pp)) {
         ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
@@ -561,36 +778,23 @@ const firstPullBackAngle = {
     stroke(p);
 
     // Phase-end trigger: the two heights it compares, each as a hairline right
-    // across the frame. Purple, not ramped — these say WHEN the phase ends, they
-    // are not a judgement of the lift, and hue is what separates the two roles.
-    // Solid at full strength is the bar estimate the trigger actually uses
-    // (wrist dropped by a sixth of the forearm); dashed is the bare wrist it was
-    // corrected from, so the size of that correction is visible rather than
-    // taken on trust; the knee reference sits behind both at half strength.
-    // Unlabelled — with all three spanning the frame it's weight, not length,
-    // that separates the measurement from its reference.
+    // across the frame, parallel to the bar. Purple, not ramped — these say WHEN
+    // the phase ends, they are not a judgement of the lift, and hue is what
+    // separates the two roles. Solid at full strength is the bar estimate the
+    // trigger actually uses (wrist dropped by a sixth of the forearm); dashed is
+    // the bare wrist it was corrected from, so the size of that correction is
+    // visible rather than taken on trust; the knee reference sits behind both at
+    // half strength. Unlabelled — with all three spanning the frame it's weight,
+    // not length, that separates the measurement from its reference.
     const wrist = wristCentroid(p);
-    if (knee != null || bar || wrist) {
-      const W = ctx.canvas.width;
-      const thin = Math.max(1, lw * 0.35);
-      ctx.save();
-      ctx.lineWidth = thin;
-
-      const rule = (y, dash, alpha) => {
-        ctx.strokeStyle = phaseColor(alpha);
-        ctx.setLineDash(dash);
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-      };
-
-      if (knee != null) rule(knee, [], 0.5);
-      // Skip the uncorrected rule when it would land under the corrected one —
-      // on a frame where the elbow was missing they are the same estimate.
-      if (wrist && bar && Math.abs(wrist.y - bar.y) > Math.max(thin * 2, size / 200)) {
-        rule(wrist.y, [thin * 4, thin * 4], 0.55);
-      }
-      if (bar) rule(bar.y, [], 1);
-      ctx.restore();
+    const thin = Math.max(1, lw * 0.35);
+    barRule(ctx, knee, ax, [], 0.5, thin);
+    // Skip the uncorrected rule when it would land under the corrected one — on
+    // a frame where the elbow was missing they are the same estimate.
+    if (wrist && bar && Math.abs(elev(wrist, ax) - elev(bar, ax)) > Math.max(thin * 2, size / 200)) {
+      barRule(ctx, wrist, ax, [thin * 4, thin * 4], 0.55, thin);
     }
+    barRule(ctx, bar, ax, [], 1, thin);
   },
 };
 
@@ -634,23 +838,27 @@ const secondPullTripleExtension = {
   // crossing, so it needs the persistence check described above rather than a
   // single "is this the max so far" test, which would fire on the first noisy
   // sample that happens to jitter upward.
-  phase(samples, scale) {
+  phase(samples, scale, ax) {
     const notes = [];
-    const cross = barKneeCrossing(samples);
+    const cross = barKneeCrossing(samples, ax);
     if (cross.idx < 0) {
       return { error: 'The bar never crosses knee height — there is no second pull to score without the first pull\'s end trigger.' };
     }
     const startIdx = cross.idx;
-    const elev = smoothSeries(samples.map(s => hipElevation(s.p)));   // smaller y = higher hip
+    // Height along the bar axis, not image y: on a tilted camera a hip that
+    // travels sideways would otherwise read as rising or falling.
+    const hips = samples.map(s => hipPoint(s.p));
+    const win = smoothWindow(samples);
+    const height = smoothSeries(hips.map(h => elev(h, ax)), win);   // smaller = higher hip
 
     let bestIdx = -1, bestY = Infinity, endIdx = -1;
     for (let i = startIdx; i < samples.length; i++) {
-      if (elev[i] == null) continue;
-      if (elev[i] < bestY) { bestY = elev[i]; bestIdx = i; continue; }
-      if (bestIdx < 0 || elev[i] - bestY <= EXT_CONFIRM_RISE * scale) continue;
+      if (height[i] == null) continue;
+      if (height[i] < bestY) { bestY = height[i]; bestIdx = i; continue; }
+      if (bestIdx < 0 || height[i] - bestY <= EXT_CONFIRM_RISE * scale) continue;
       let holds = true;
       for (let j = i; j < Math.min(i + RUN, samples.length); j++) {
-        if (elev[j] == null || elev[j] - bestY <= EXT_CONFIRM_RISE * scale) { holds = false; break; }
+        if (height[j] == null || height[j] - bestY <= EXT_CONFIRM_RISE * scale) { holds = false; break; }
       }
       if (holds) { endIdx = bestIdx; break; }
     }
@@ -669,9 +877,17 @@ const secondPullTripleExtension = {
 
     return {
       startIdx, endIdx, notes,
-      peakElevPx: bestY,
+      // Where the rule marking the peak is drawn: the hip as MEASURED at the
+      // frame the trigger chose. The smoothed signal's job is to pick that frame
+      // without a noisy sample stealing it; its value is a mean over the
+      // window either side, which sits below the hip by however far the hip
+      // travelled during it — and a rule labelled "peak hip height" drawn below
+      // the hips is just wrong.
+      peakPoint: hips[endIdx] || null,
+      smoothWin: win,
       triggers: {
-        crossGapPx: cross.bar[startIdx] ? (cross.knee[startIdx] - cross.bar[startIdx].y) : null,
+        crossGapPx: (cross.bar[startIdx] && cross.knee[startIdx])
+          ? (elev(cross.knee[startIdx], ax) - elev(cross.bar[startIdx], ax)) : null,
         confirmed: !notes.length,
       },
     };
@@ -794,12 +1010,15 @@ const secondPullTripleExtension = {
       '<strong>Start trigger</strong> — bar (wrist + 1/6 forearm) crossing knee height' +
         (tr.crossGapPx != null ? ', clearing it by ' + fmt(tr.crossGapPx, 0) + 'px' : '') +
         ' — the same event that ends the first pull.',
-      '<strong>End trigger</strong> — smoothed hip elevation reaching its highest point' +
+      '<strong>End trigger</strong> — hip elevation, smoothed over ' + ph.smoothWin +
+        ' sampled frames (' + fmt(SMOOTH_SECONDS, 2) + 's, fixed in time so the frame stride ' +
+        'does not move it), reaching its highest point' +
         (tr.confirmed
           ? ', confirmed by the hip dropping back at least ' + fmt(EXT_CONFIRM_RISE, 2) + ' torso-lengths afterward.'
           : ' (unconfirmed in this clip — see note below).'),
       '<strong>Measurement</strong> — hip angle (shoulder–hip–knee) scored per side; knee angle (hip–knee–ankle) scored per side alongside it. ' +
         pct(s.bothSides) + ' of frames had both hip-side estimates, ' + pct(s.interpFrac) + ' relied on a detection filled in from neighbouring frames.',
+      axisNote(ctxExtra.axis),
       '<strong>Peak reading</strong> — the extension numbers are the mean of the last ' + Math.min(3, s.n) +
         ' sampled frames of the phase, not one raw sample, since the phase end itself comes from a smoothed signal.',
       '<strong>Time smoothing</strong> — ' + (ctxExtra.smoothingMs
@@ -838,18 +1057,19 @@ const secondPullTripleExtension = {
     }
 
     // Purple, like diagnostic 1's trigger rules: this height is where the phase
-    // ends, not a judgement of the lift.
-    if (phase.peakElevPx != null) {
-      const y = phase.peakElevPx;
-      ctx.save();
-      ctx.strokeStyle = phaseColor(0.85); ctx.lineWidth = Math.max(1, lw * 0.6);
-      ctx.setLineDash([lw, lw * 1.5]);
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(ctx.canvas.width, y); ctx.stroke();
-      ctx.restore();
+    // ends, not a judgement of the lift. Parallel to the bar rather than to the
+    // frame's bottom edge — it marks a height, and a height is only horizontal
+    // if the camera was level.
+    if (phase.peakPoint) {
+      const ax = view.axis, pk = phase.peakPoint;
+      barRule(ctx, pk, ax, [lw, lw * 1.5], 0.85, Math.max(1, lw * 0.6));
+      // Sits on the rule at the left edge, so the label doesn't drift off it as
+      // the tilt grows.
+      const x = 6;
       ctx.fillStyle = phaseColor(1);
       ctx.font = Math.max(9, size / 62) + 'px system-ui, sans-serif';
       ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
-      ctx.fillText('peak hip height', 6, y - 4);
+      ctx.fillText('peak hip height', x, pk.y + (x - pk.x) * (ax.uy / ax.ux) - 4);
     }
   },
 };
@@ -901,11 +1121,23 @@ function run() {
     return;
   }
   state.scale = scale;
+  // One axis for the whole clip, computed here rather than inside any one
+  // diagnostic: two diagnostics disagreeing about which way is up would be the
+  // same class of bug as two of them re-deriving the bar/knee crossing.
+  //
+  // It is read at the setup frame, so the lift start has to be found before any
+  // diagnostic runs. That trigger needs an axis of its own for the bar/knee
+  // crossing, and the image axis stands in for it here — safe, because the
+  // crossing frame moves by at most a frame or two under any roll the axis will
+  // accept, and the setup frame it leads to is a still one either way.
+  const anchor = firstPullWindow(samples, scale, IMAGE_AXIS);
+  const axis = bodyAxis(samples, scale, anchor.startIdx, anchor.startIdx >= 0 && !anchor.clamped);
+  state.axis = axis;
 
   for (const d of DIAGNOSTICS) {
-    const phase = d.phase(samples, scale);
+    const phase = d.phase(samples, scale, axis);
     if (phase.error) { state.results[d.id] = { error: phase.error }; continue; }
-    const m = d.measure(samples, phase);
+    const m = d.measure(samples, phase, axis);
     if (m.error) { state.results[d.id] = { error: m.error }; continue; }
     state.results[d.id] = {
       phase,
@@ -1173,7 +1405,7 @@ function drawPanels(d, ds, ctxExtra) {
 }
 
 function redrawAll() {
-  const ctxExtra = { smoothingMs, scale: state && state.scale };
+  const ctxExtra = { smoothingMs, scale: state && state.scale, axis: state && state.axis };
   for (const d of DIAGNOSTICS) {
     const ds = diagState[d.id];
     if (!ds) continue;
@@ -1371,6 +1603,7 @@ const Diagnostics = {
       const steps = ph.endIdx - ph.startIdx;
       const view = {
         t, p,
+        axis: state.axis || IMAGE_AXIS,          // the clip's one bar direction
         dt: steps > 0 ? (t1 - t0) / steps : 0,   // mean processed-frame spacing
         at: u => (u < t0 || u > t1) ? null : pointsAtTime(u),
       };

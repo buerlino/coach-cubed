@@ -45,8 +45,8 @@ array. The object's shape *is* the three-part structure:
   phaseLabel: 'first pull',        // short label for the chart heading and overlay
   cue: 'Keep the back angle to the floor constant until the bar passes the knee.',
   unit: '°',
-  phase(track, scale)        -> { startIdx, endIdx, notes[], ... }  | { error }
-  measure(track, phase)      -> { series[], summary{}, notes[] }    | { error }
+  phase(track, scale, axis)  -> { startIdx, endIdx, notes[], ... }  | { error }
+  measure(track, phase, axis)-> { series[], summary{}, notes[] }    | { error }
   verdict(summary)           -> { label, status }         // status: good|warning|critical
   score(summary)             -> badness in [0,1] | null   // one constant per lift, drives the ramp
   referenceLine(summary)     -> { value, label } | null   // the plot's dashed line
@@ -58,7 +58,8 @@ array. The object's shape *is* the three-part structure:
 
 `overlay` is handed a `view`, not a sampled frame: `view.p` is the track
 interpolated to the playhead's actual time, `view.at(t)` the same at any other
-instant inside the phase, `view.dt` the mean spacing of processed frames. It
+instant inside the phase, `view.dt` the mean spacing of processed frames, and
+`view.axis` the clip's bar axis (below). It
 has to be continuous because the marks sit on top of `app.py`'s wireframe,
 which is itself interpolated — marks pinned to the nearest sampled frame
 visibly trail the body they claim to measure.
@@ -126,6 +127,66 @@ These come from `vitpose_backend.infer_video` and are easy to get backwards.
   the camera axis). It is only meaningful when filming square to the lifter's
   side; out-of-plane rotation shortens segments and biases the angle. Say this
   in the notes rather than pretending the number is 3-D.
+
+## The bar axis
+
+Every "height" in coach is measured against the **bar axis**, not against the
+image's bottom edge, and every rule drawn across the frame is parallel to it.
+It is one direction per clip, computed once in `run()` (`barAxis`) and handed to
+every `phase`/`measure`/`overlay` — the same reason `barKneeCrossing` is shared:
+two diagnostics disagreeing about which way is up is a bug that looks correct in
+each one alone.
+
+It is read off the **lifter**, not the bar, and from **one frame**, not an
+average over the clip. Every left/right pair — shoulders, hips, knees, ankles —
+is separated across the platform, i.e. along the bar, so each pair is an
+independent reading of the same direction, and several pairs at one instant give
+the redundancy that several frames would, without the movement in between.
+
+Two things follow from that, and both were arrived at the hard way:
+
+- **Not the wrists.** They are a left/right pair like the others, but the hands
+  are what the plates hide: a wrist snapped to a plate rim tilts its line by
+  tens of degrees, and it happens on the frames where the bar matters most.
+- **Not averaged over frames.** The direction is constant; the body is not. The
+  lifter twists, joints occlude each other and reappear, and each of those is a
+  wrong slope that an average over frames mixes in rather than cancels. The
+  setup frame — the last still frame before the bar moves, from
+  `firstPullWindow` — is square to the camera, motionless and unoccluded, and is
+  the one frame worth trusting.
+
+Within that frame: median of the pairs, drop anything more than 12° off it, then
+a **baseline-weighted** mean of what survives (a pair's angular error goes as its
+pixel error over its separation, so the shoulders outvote a pair of ankles
+standing nearly on top of each other).
+
+Four things stop it being estimated, and each falls back to the image axes and
+says so in the transparency block rather than tilting everything by a guess:
+fewer than two pairs detected far enough apart; the surviving pairs not being a
+*majority* of the visible ones (two of four agreeing is a coincidence, not a
+direction); the survivors spanning more than 12° between themselves; and a
+result past 25°, which is more camera roll than a gym video plausibly has. If
+the setup frame itself can't produce an answer, the next five frames are tried
+and how far it walked is reported.
+
+The API:
+
+| | |
+| --- | --- |
+| `axis.deg` | tilt off the image horizontal; `.ux/.uy` along the bar, `.dx/.dy` down |
+| `elev(pt, axis)` | height, still growing downward like image `y`, so `A above B` stays `A < B` |
+| `toBar(pt, axis)` / `fromBar(a, h, axis)` | into and out of bar coordinates |
+| `barRule(ctx, pt, axis, dash, alpha, w)` | a full-frame rule through a point, parallel to the bar |
+| `axisNote(axis)` | the transparency bullet — every diagnostic includes it |
+
+A joint angle (`jointAngle`) is rotation-invariant and needs none of this. A
+segment's tilt (`trunkAngle`) does, and takes the axis as an argument.
+
+The one ordering constraint in `run()`: the axis needs the setup frame, and the
+setup frame comes from a trigger that needs an axis. `firstPullWindow` is run
+once against `IMAGE_AXIS` to break the cycle — safe, because the bar/knee
+crossing moves by at most a frame or two under any roll the axis will accept,
+and the still frame it leads back to is still a still frame.
 
 ## Writing the active phase
 

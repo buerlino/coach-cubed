@@ -114,16 +114,26 @@ tracks the interpolated mesh underneath it:
 - Both hip→shoulder segments — the measurement itself — in the score colour,
   behind a short fading trail of the previous few processed frames. A chest
   that rises leaves a spreading fan; one that holds leaves a tight bundle.
-- The end trigger's geometry in purple, spanning the frame: the knee height at
-  half strength, the bar estimate (wrist + 1/6 forearm) as a solid rule, and
-  the bare wrist it was corrected from as a dashed one, so the size of that
-  correction is visible rather than taken on trust. Weight, not hue, separates
-  the measurement from its reference — they are all the same role.
+- The end trigger's geometry in purple, spanning the frame **parallel to the bar
+  axis**: the knee height at half strength, the bar estimate (wrist + 1/6
+  forearm) as a solid rule, and the bare wrist it was corrected from as a dashed
+  one, so the size of that correction is visible rather than taken on trust.
+  Weight, not hue, separates the measurement from its reference — they are all
+  the same role.
+
+The angle is measured to the bar axis rather than to the image's bottom edge,
+and the bar/knee crossing compares heights along it — so camera roll shifts
+neither the number nor the marks that explain it. The forearm correction is
+applied along that axis's own "down" for the same reason. See "The bar axis" in
+the skill; note that this diagnostic's start trigger is what locates the frame
+the axis is read from, via the shared `firstPullWindow`.
 
 **Transparency block** reports: the phase's frame range and duration; the wrist
 speed at onset and the bar–knee gap at the crossing; samples measured; the
 fraction interpolated across dropped detections; the fraction with both sides
-visible; and the mean left–right disagreement.
+visible; the mean left–right disagreement; and the bar axis — its tilt, which
+joint pairs and which frame set it, how well they agreed, and which were dropped
+as outliers.
 
 ### Reading the uncertainty
 
@@ -143,7 +153,10 @@ than a single ± number.
 ## Known limitations
 
 - Requires a side-on camera. Front-on video makes `|dx|` collapse and the angle
-  saturates near 90° regardless of technique.
+  saturates near 90° regardless of technique. Camera *roll* is corrected for via
+  the bar axis; when that can't be estimated the angle carries the roll as a
+  constant offset — harmless to the SD and the drift, which are what the cue is
+  actually about, but visible in the mean.
 - The bar estimate assumes the hands are *on* a bar. It reports nonsense for
   dumbbell or unloaded movement, and nothing detects that.
 - Pixel-plane only: a lifter moving toward or away from the camera during the

@@ -4,23 +4,41 @@ Technical note on `coach`: the pose model, the deployment, the smoothing math,
 and the geometry of each diagnostic. Source of truth for the numbers is the
 code itself (`vitpose_backend.py`, `app.py`'s `smoothKeypoints` /
 `retimeAlongPath` / `cubicAt`, and `diagnostics.js`) — if a threshold moves
-there, it moves here.
+there, it moves here and in the notebook.
 
 | File | Role |
 | --- | --- |
-| `report.tex` | The whole document. Self-contained: `thebibliography`, no `.bib`, no figures. |
+| `report.tex` | The whole document. Self-contained: `thebibliography`, no `.bib`. |
+| `analysis.ipynb` | Makes the three figures. A line-for-line Python port of the browser's smoothing and diagnostics, run over the example clip. |
+| `extract_track.py` | Runs the real pipeline (YOLOv8 → ViTPose → SORT → main-person filter) on a clip and caches `<clip>.track.json`, the same payload `/api/pose/video` returns. |
+| `examples/` | `athlete-a-trim.mp4` and its cached track. |
+| `figures/` | `smoothing.pdf`, `first-pull.pdf`, `second-pull.pdf` — notebook output, tracked so the PDF builds without a GPU. |
 | `Makefile` | `make` -> `report.pdf`, `make clean` drops the aux files. |
 
-## Building
+## Building the PDF
 
 ```sh
 make          # in this directory
 ```
 
-Needs a LaTeX toolchain. The preamble uses only `amsmath`, `geometry`,
-`booktabs`, `microtype` and `hyperref`, so the three base texlive packages are
-enough — no `texlive-latex-extra` (~500 MB) required:
+Needs `texlive-latex-base texlive-latex-recommended texlive-fonts-recommended`
+(the preamble uses `amsmath`, `geometry`, `lmodern`, `microtype`, `graphicx`,
+`hyperref`). `lmodern` is there because `microtype`'s font expansion needs
+outline fonts and the bitmap CM set isn't installed.
+
+## Regenerating the figures
 
 ```sh
-sudo apt-get install -y texlive-latex-base texlive-latex-recommended texlive-fonts-recommended
+jupyter nbconvert --to notebook --execute --inplace analysis.ipynb
 ```
+
+The notebook only needs numpy + matplotlib (any env). If
+`examples/athlete-a-trim.track.json` is missing it calls `extract_track.py`
+through the `coach` conda interpreter, which needs the torch/ROCm stack and
+the checkpoints in `~/models/easy_vitpose`. To use a different clip, point
+`CLIP` in the first code cell at it.
+
+The port in the notebook is deliberately not vectorised or tidied: it keeps the
+JS's constants, names and loop structure so a diff against `app.py` /
+`diagnostics.js` is mechanical. If the browser code changes, change the port
+the same way, re-execute, rebuild.

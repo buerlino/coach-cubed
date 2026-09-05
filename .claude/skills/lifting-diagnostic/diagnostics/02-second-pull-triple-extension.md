@@ -66,10 +66,17 @@ crossing: the elevation must give back at least **0.08 torso-lengths** from
 its running minimum and stay given back for **3 consecutive samples** before
 that minimum is accepted as the peak. Without this, the first noisy upward
 jitter right after the true peak — or even a jitter *before* it — would end
-the phase early. The elevation signal itself is smoothed with the same
-9-sample mean used for the first pull's wrist speed, for the same reason:
-raw per-frame position jitter is larger than a single frame of real motion at
-30fps.
+the phase early. The elevation signal itself is smoothed first, for the same
+reason the wrist-speed trigger is: raw per-frame position jitter is larger than
+a single frame of real motion at 30fps.
+
+That smoothing window is fixed in **time (0.3s)**, not in samples. It began as
+the same 9-sample mean the wrist speed uses — which *is* 0.3s at 30fps and
+stride 1, but spans 27 frames at stride 3, flattening the very peak it is used
+to find. On a synthetic pull whose hips peak at frame 70, the sample-based
+window ended the phase at frame 72/76/81 for stride 1/2/3; time-based it is
+frame 72 at all three. The wrist-speed trigger still uses a sample-based window
+and has the same latent stride sensitivity, less visibly.
 
 Verified stable (±1 frame across 12 seeded noise draws of ±2px) against
 synthetic tracks built the same way the wrist-speed trigger describes
@@ -113,6 +120,18 @@ hip height the end trigger found — the same role as diagnostic 1's knee/bar
 rules, sized for a signal whose geometry spans the whole frame rather than a
 hand's-width region.
 
+That rule is drawn **parallel to the bar axis**, not horizontal — a height is
+only horizontal if the camera was level, and drawn flat on a rolled clip the
+line visibly disagrees with the bar and the plates it is meant to be a height
+above. Peak hip elevation is measured along the same axis, so the mark and the
+trigger are the same number. See "The bar axis" in the skill.
+
+It sits at the hip **as measured** at the frame the trigger chose, not at the
+smoothed signal's value there. The smoothing exists to pick the frame without a
+noisy sample stealing it; its value at that frame is a mean over the window
+either side, which sits below the hip by however far the hip travelled during it.
+A rule labelled "peak hip height" drawn below the hips is simply wrong.
+
 **Score** (what the ramp shows): the worse of the hip and knee deficits, full
 red at 45° short of straight. Deliberately the worse of the two rather than the
 headline hip number — "triple extension" is not met by opening the hip alone,
@@ -142,7 +161,9 @@ one is an unreliable pose track.
   hip/knee extension but never rises onto their toes will still read as
   fully extended here.
 - Requires a side-on camera, same as diagnostic 1, and for the same reason:
-  both joint angles are computed from 2-D image-plane coordinates.
+  both joint angles are computed from 2-D image-plane coordinates. Camera
+  *roll* is handled — heights and rules use the bar axis — but out-of-plane
+  rotation still is not.
 - The peak-elevation end trigger assumes the hips are genuinely at their
   highest point at peak extension (true for a well-executed pull) — a lift
   where the hips keep rising after the legs and hips have extended (e.g. the

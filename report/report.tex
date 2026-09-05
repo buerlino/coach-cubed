@@ -1,8 +1,11 @@
 \documentclass[10pt,a4paper]{article}
 \usepackage[margin=2.2cm]{geometry}
 \usepackage{amsmath,amssymb}
-\usepackage{booktabs}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}   % scalable CM clone: microtype's font expansion needs
+                       % outline fonts, and the bitmap CM set isn't installed
 \usepackage{microtype}
+\usepackage{graphicx}
 \usepackage[hidelinks]{hyperref}
 
 \newcommand{\Lt}{L}                      % torso scale
@@ -23,7 +26,9 @@ estimation over every frame, and turns individual coaching cues into scalars
 computed from the resulting keypoint track. This note records the model, the
 deployment, the temporal filtering applied to the track, and the geometry of
 each implemented diagnostic. Every threshold below is provisional: none has
-been fitted to labelled lifts.
+been fitted to labelled lifts. Figures are produced by \texttt{analysis.ipynb}
+from one example clip (\texttt{examples/athlete-a-trim.mp4}, 107 frames at
+30\,fps) through a line-for-line Python port of the browser code.
 \end{abstract}
 
 \section{Model}
@@ -169,6 +174,25 @@ cannot be restored by reparametrizing a curve that no longer reaches it. In
 exchange, the pass is a pure reparametrization --- $Q$ never leaves the smoothed
 polyline, so it cannot invent a position the smoothing did not already propose.
 
+Fig.~\ref{fig:smooth} shows both passes on the example clip's wrist. Inside
+the pull the raw peak speed is $9.2\,\Lt/\mathrm{s}$; the Gaussian alone leaves
+$3.3$ ($36\%$), the retiming brings it back to $5.2$ ($56\%$). The bottom panel
+is the reason for the low-frequency cut: $e$ steps up by $\approx200\,\mathrm{px}$
+at the turnover --- the corner the smoothed path cut --- and stays there, while
+the band-passed $\hat{e}$ that is actually applied returns to zero.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]{figures/smoothing.pdf}
+  \caption{Temporal smoothing on one wrist keypoint, $\sigma=50\,\mathrm{ms}$.
+  Top: elevation --- the retimed track lies on the Gaussian path but reaches
+  each height at the raw track's time. Middle: speed along the track; the raw
+  spike at the turnover is a one-frame detection jump, not motion. Bottom: the
+  retiming residual $e=\Pi-A$ and its band-passed form $\hat{e}$. Purple band:
+  the pull (first-pull start to second-pull end).}
+  \label{fig:smooth}
+\end{figure}
+
 \subsection{Render-time interpolation}
 
 The overlay is evaluated at the playhead's continuous time, not at the nearest
@@ -276,6 +300,23 @@ the ramp and invited reading a single frame as a verdict. A trunk mean above
 $75^\circ$ triggers a warning that the clip is filmed front-on, where the angle
 saturates and the score is meaningless.
 
+Fig.~\ref{fig:fp} is the example clip. It starts mid-pull: no still window
+precedes the bar/knee crossing, so the start clamps to frame 0 and the
+diagnostic says so --- a $0.47\,\mathrm{s}$ window over which the trunk drops
+from $62^\circ$ to $32^\circ$ ($\Delta=-30.5^\circ$, $\mathrm{SD}=11.8^\circ$,
+L/R disagreement $4.5^\circ$).
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]{figures/first-pull.pdf}
+  \caption{First pull on the example clip. Top: the two heights the end
+  trigger compares; the phase ends where the bar estimate first clears the knee
+  for $R$ samples. Middle: the wrist-centroid speed the start trigger searches
+  backwards through. Bottom: trunk angle, mean of the two sides, band
+  $=|\theta_L-\theta_R|$; SD and drift are read inside the band only.}
+  \label{fig:fp}
+\end{figure}
+
 \subsubsection{Second pull --- full triple extension (implemented)}
 
 \emph{Cue:} at the top of the second pull the hips and knees open fully before
@@ -310,6 +351,21 @@ hips has split it even if each joint individually reaches a good angle.
 
 \emph{Known gap:} ankle plantarflexion is not measured. COCO-17 has no foot
 keypoint, so only two of the three joints in ``triple extension'' are scored.
+
+On the example clip (Fig.~\ref{fig:sp}) the peak is confirmed, the hip ends
+$14.3^\circ$ and the knee $20.7^\circ$ short of straight (verdict: partial),
+and the knee peaks $67\,\mathrm{ms}$ before the hip.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]{figures/second-pull.pdf}
+  \caption{Second pull on the example clip. Top: hip elevation per sample and
+  its 9-sample mean, on which the peak is found and confirmed once the hip gives
+  back $0.08\,\Lt$. Bottom: hip and knee interior angles against the
+  $180^\circ$ reference; band $=$ L/R hip disagreement; ticks at the top mark
+  each joint's own peak.}
+  \label{fig:sp}
+\end{figure}
 
 \subsubsection{Turnover and receiving (not implemented)}
 
@@ -346,12 +402,12 @@ so lifts are only comparable at one setting --- which is why the applied
 $\sigma$ is printed with every score.
 
 \begin{thebibliography}{9}\small
-\bibitem{vitpose} Y.~Xu, J.~Zhang, Q.~Zhang, D.~Tao. \emph{ViTPose: Simple Vision Transformer Baselines for Human Pose Estimation.} NeurIPS, 2022. \texttt{arXiv:2204.12484}. Implementation: \texttt{JunkyByte/easy\_ViTPose}.
-\bibitem{vit} A.~Dosovitskiy et al. \emph{An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale.} ICLR, 2021.
-\bibitem{mae} K.~He et al. \emph{Masked Autoencoders Are Scalable Vision Learners.} CVPR, 2022.
-\bibitem{yolov8} G.~Jocher, A.~Chaurasia, J.~Qiu. \emph{Ultralytics YOLOv8.} 2023.
-\bibitem{sort} A.~Bewley et al. \emph{Simple Online and Realtime Tracking.} ICIP, 2016.
-\bibitem{fc} F.~N.~Fritsch, R.~E.~Carlson. \emph{Monotone Piecewise Cubic Interpolation.} SIAM J.\ Numer.\ Anal.\ 17(2), 1980.
+\bibitem{vitpose} Y.~Xu, J.~Zhang, Q.~Zhang, D.~Tao. \emph{ViTPose: Simple Vision Transformer Baselines for Human Pose Estimation.} NeurIPS 35, 2022. arXiv:2204.12484. Implementation used: \texttt{github.com/JunkyByte/easy\_ViTPose}.
+\bibitem{vit} A.~Dosovitskiy, L.~Beyer, A.~Kolesnikov, D.~Weissenborn, X.~Zhai, T.~Unterthiner, M.~Dehghani, M.~Minderer, G.~Heigold, S.~Gelly, J.~Uszkoreit, N.~Houlsby. \emph{An Image is Worth 16$\times$16 Words: Transformers for Image Recognition at Scale.} ICLR, 2021. arXiv:2010.11929.
+\bibitem{mae} K.~He, X.~Chen, S.~Xie, Y.~Li, P.~Doll\'ar, R.~Girshick. \emph{Masked Autoencoders Are Scalable Vision Learners.} CVPR, 2022. arXiv:2111.06377.
+\bibitem{yolov8} G.~Jocher, A.~Chaurasia, J.~Qiu. \emph{Ultralytics YOLOv8} (v8.0.0), 2023. \texttt{github.com/ultralytics/ultralytics}.
+\bibitem{sort} A.~Bewley, Z.~Ge, L.~Ott, F.~Ramos, B.~Upcroft. \emph{Simple Online and Realtime Tracking.} IEEE ICIP, 2016. arXiv:1602.00763.
+\bibitem{fc} F.~N.~Fritsch, R.~E.~Carlson. \emph{Monotone Piecewise Cubic Interpolation.} SIAM J.\ Numer.\ Anal.\ 17(2):238--246, 1980. doi:10.1137/0717021.
 \end{thebibliography}
 
 \end{document}

@@ -6,9 +6,16 @@
 TEX   := pdflatex
 FLAGS := -interaction=nonstopmode -halt-on-error
 
-report.pdf: report.tex
+FIGS := $(wildcard figures/*.pdf)
+
+report.pdf: report.tex $(FIGS)
 	$(TEX) $(FLAGS) report.tex
 	$(TEX) $(FLAGS) report.tex
+
+# figures come from the notebook; `make figures` re-executes it (numpy +
+# matplotlib only, unless the track cache is missing — see README.md)
+figures: analysis.ipynb
+	jupyter nbconvert --to notebook --execute --inplace analysis.ipynb
 
 clean:
 	rm -f report.aux report.log report.out report.toc
@@ -16,4 +23,4 @@ clean:
 distclean: clean
 	rm -f report.pdf
 
-.PHONY: clean distclean
+.PHONY: figures clean distclean
