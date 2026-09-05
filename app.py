@@ -13,6 +13,7 @@ the rest of the deploy.
 """
 import base64
 import os
+from pathlib import Path
 
 from flask import Flask, request, jsonify, Response
 
@@ -80,6 +81,20 @@ def api_pose_video():
     return jsonify({"keypoints": keypoints, "meta": meta})
 
 
+# --- diagnostics ----------------------------------------------------------
+# The lifting diagnostics (cue -> number, scored over a detected phase of the
+# lift) live in their own file rather than inline in INDEX_HTML: there will be
+# one per coaching cue, and they're the part that gets iterated on. Read per
+# request so a JS edit needs only a browser reload — restart.sh is for app.py
+# changes. See .claude/skills/lifting-diagnostic/ for the contract.
+DIAGNOSTICS_JS = Path(__file__).parent / "diagnostics.js"
+
+
+@app.route("/diagnostics.js")
+def diagnostics_js():
+    return Response(DIAGNOSTICS_JS.read_text(), mimetype="application/javascript")
+
+
 @app.route("/")
 def index():
     return Response(INDEX_HTML, mimetype="text/html")
@@ -99,6 +114,22 @@ INDEX_HTML = """<!doctype html>
   #videoWrap { position:relative; max-width:100%; width:fit-content; margin-top:16px; }
   #videoWrap video { max-width:100%; display:block; border-radius:8px; }
   #videoWrap canvas { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+  /* diagnostics — dark chart surface + ink tokens from the validated palette */
+  #diagWrap { display:none; }
+  .diag-toggles { margin:8px 0 0; display:flex; flex-direction:column; gap:4px; }
+  .diag-toggle { font-size:13px; color:#c3c2b7; display:flex; align-items:center; gap:6px; cursor:pointer; }
+  .diag-toggle input { margin:0; font-size:inherit; padding:0; }
+  .diag-tiles { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
+  .diag-tile { flex:1 1 120px; background:#1a1a19; border:1px solid rgba(255,255,255,0.10);
+               border-radius:8px; padding:10px 12px; }
+  .diag-tile-label { font-size:11px; color:#898781; }
+  .diag-tile-value { font-size:22px; font-weight:600; margin:2px 0; }
+  .diag-tile-sub { font-size:11px; color:#c3c2b7; }
+  .diag-cue { font-size:13px; color:#c3c2b7; margin:12px 0 8px; }
+  .diag-notes { font-size:12px; color:#898781; padding-left:18px; margin:0; }
+  .diag-notes li { margin-bottom:5px; }
+  .diag-notes strong { color:#c3c2b7; font-weight:600; }
+  .diag-note { font-size:13px; color:#898781; }
 </style>
 </head>
 <body>
@@ -137,10 +168,33 @@ INDEX_HTML = """<!doctype html>
       <option value="2">2x</option>
     </select>
   </label>
+  <!-- Gaussian sigma, in milliseconds of video time. Applied client-side to the
+       track already in memory, so dragging it is instant — no re-run. -->
+  <label style="font-size:14px;color:#9ab;margin-left:12px">time smoothing
+    <input id="vsmooth" type="range" min="0" max="300" step="5" value="50" style="vertical-align:middle;width:140px">
+    <span id="vsmoothVal" style="display:inline-block;min-width:8em">&sigma; = 50 ms</span>
+  </label>
   <p id="vsummary" style="font-size:12px;color:#9c9"></p>
   <!-- live sync readout: if the overlay ever looks frozen, this says whether
        playback time is stuck or the frame lookup is. -->
   <p id="vsync" style="font-size:12px;color:#789"></p>
+</div>
+
+<!-- Diagnostics sit directly under the video and share its time axis, so any
+     point on the curve can be put back on the frame that produced it. -->
+<h2>diagnostics</h2>
+<div id="diagWrap">
+  <label style="font-size:14px;color:#9ab">lifter
+    <select id="diagPersonSelect"></select>
+  </label>
+  <!-- one tickbox per diagnostic: whether it draws on the video. Scoring and
+       the plot below are unaffected. -->
+  <div id="diagToggles" class="diag-toggles"></div>
+  <div id="diagStats" class="diag-tiles"></div>
+  <div style="background:#1a1a19; border-radius:8px; border:1px solid #333; padding:8px; box-sizing:border-box;">
+    <canvas id="diagCanvas" width="620" height="240" style="width:100%; height:auto; display:block; cursor:pointer;"></canvas>
+  </div>
+  <div id="diagNotes"></div>
 </div>
 
 <h3>keypoint plot</h3>
@@ -180,6 +234,7 @@ INDEX_HTML = """<!doctype html>
   <canvas id="plotCanvas" width="600" height="200" style="width:100%; height:auto; display:block; cursor:pointer;"></canvas>
 </div>
 
+<script src="/diagnostics.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 
@@ -203,7 +258,14 @@ $('run').onclick = async () => {
 // See vitpose_backend.infer_video for why coach doesn't ship an annotated
 // video file back instead.
 const vvideo = $('vout'), vcanvas = $('voverlay'), vctx = vcanvas.getContext('2d');
-let vKeypoints = null, vMeta = null, vRafId = null;
+// vKeypointsRaw is exactly what the model returned; vKeypoints is the smoothed
+// track every consumer (overlay, plot, diagnostics) reads. Keeping the raw one
+// means the smoothing width stays adjustable without re-running inference.
+let vKeypointsRaw = null, vKeypoints = null, vMeta = null, vRafId = null;
+let vSigmaMs = 0;   // smoothing width the painted overlay was built with
+// Liveness of the overlay loop: when it last painted, and how often the
+// watchdog below has had to revive it. Both surface in the #vsync readout.
+let vLastDrawMs = 0, vLoopRestarts = 0;
 // vSource is whichever video is queued to run — a picked file or a camera
 // recording — normalized to {blob, filename} so the run handler doesn't
 // care which one it came from.
@@ -212,8 +274,116 @@ let vSource = null, vObjectUrl = null, vCamStream = null, vRecorder = null, vChu
 const PALETTE = ['#e6194b','#3cb44b','#ffe119','#4363d8','#f58231','#911eb4','#46f0f0','#f032e6'];
 const CONF_THRESHOLD = 0.3;
 
+// --- temporal smoothing ---------------------------------------------------
+// The model sees each frame independently, with no temporal prior at all, so a
+// joint the lifter is holding perfectly still still wanders a few px per frame.
+// Every keypoint's trajectory therefore gets a Gaussian-weighted running mean
+// over its neighbouring frames before anything draws or measures it.
+//
+// The window is in TIME, not in samples: under a variable frame rate (phone
+// capture, MediaRecorder) or a frame_stride > 1, a fixed number of samples is a
+// different number of seconds at different points in the clip, and the same
+// slider position would then mean different amounts of smoothing per video.
+//
+// Two rules keep the mean honest rather than merely pretty:
+//   - sub-threshold neighbours are excluded and the rest are weighted by their
+//     confidence, so a wrist the model guessed at while occluded doesn't drag
+//     the frames either side of it;
+//   - the smoothed point keeps its OWN frame's confidence, so smoothing moves
+//     points that were already being drawn and never conjures a joint that the
+//     confidence gate was hiding.
+const SIGMA_CUTOFF = 3;   // truncate the kernel at 3σ; beyond that the weights
+                          // are <1.2% of the centre and cost more than they say
+
+// sigma in seconds; 0 (or less) returns the track untouched.
+function smoothKeypoints(raw, meta, sigma) {
+  if (!raw || !meta || !(sigma > 0)) return raw;
+
+  const frames = (meta.frame_indices && meta.frame_indices.length)
+    ? meta.frame_indices
+    : Object.keys(raw).map(Number).sort((a, b) => a - b);
+  // Decoder timestamps are the authority when we have them — same reasoning as
+  // slotForTime below.
+  const times = frames.map((f, slot) =>
+    (meta.frame_times_ms && meta.frame_times_ms[slot] != null)
+      ? meta.frame_times_ms[slot] / 1000
+      : f / (meta.fps || 30));
+
+  const cutoff = SIGMA_CUTOFF * sigma, denom = 2 * sigma * sigma;
+  const out = {};
+
+  for (let k = 0; k < frames.length; k++) {
+    const src = raw[String(frames[k])];
+    if (!src) continue;
+    const dst = out[String(frames[k])] = {};
+    for (const [id, points] of Object.entries(src)) {
+      dst[id] = points.map((pt, i) => {
+        if (!pt || pt[2] < CONF_THRESHOLD) return pt;
+        let sy = 0, sx = 0, w = 0;
+        // walk outwards from the centre in both directions, stopping as soon as
+        // the kernel has decayed past the cutoff
+        for (const dir of [1, -1]) {
+          for (let j = k; j >= 0 && j < frames.length; j += dir) {
+            if (dir === -1 && j === k) continue;   // centre counted once
+            const dt = Math.abs(times[j] - times[k]);
+            if (dt > cutoff) break;
+            const q = raw[String(frames[j])]?.[id]?.[i];
+            if (!q || q[2] < CONF_THRESHOLD) continue;
+            const g = Math.exp(-(dt * dt) / denom) * q[2];
+            sy += g * q[0]; sx += g * q[1]; w += g;
+          }
+        }
+        return w > 0 ? [sy / w, sx / w, pt[2]] : pt;
+      });
+    }
+  }
+  return out;
+}
+
+// The ONLY place vKeypoints is ever built — the run handler calls this too
+// rather than smoothing inline, so a slider drag and a fresh model run can't
+// disagree about what the overlay is showing.
+//
+// Everything it needs is already in the browser: vKeypointsRaw and vMeta. No
+// request is made and the model is not re-run; changing the width is a pure
+// recomputation over the points already computed. Cheap enough (a few hundred
+// samples × 17 keypoints × a handful of neighbours) to run straight off the
+// slider's input event, which is why the slider is continuous rather than an
+// apply button.
+function applySmoothing() {
+  vSigmaMs = parseFloat($('vsmooth').value) || 0;
+  $('vsmoothVal').innerHTML = vSigmaMs ? 'σ = ' + vSigmaMs + ' ms' : 'off (raw)';
+  if (!vKeypointsRaw || !vMeta) { vKeypoints = vKeypointsRaw; return; }
+  vKeypoints = smoothKeypoints(vKeypointsRaw, vMeta, vSigmaMs / 1000);
+  // Overlay and plot before diagnostics: diagnostics.js is the file under
+  // active iteration, and a throw from a half-written cue must not be able to
+  // strand the slider looking dead.
+  updatePlotControls();
+  drawOverlay();
+  Diagnostics.setTrack(vKeypoints, vMeta, { smoothingMs: vSigmaMs });
+}
+
+$('vsmooth').addEventListener('input', applySmoothing);
+
 // --- plot canvas ---
 const pcanvas = $('plotCanvas'), pctx = pcanvas.getContext('2d');
+
+// --- diagnostics --- (see diagnostics.js; it owns its own canvas and panels)
+// Stubbed if that script failed to load, so a ReferenceError here doesn't take
+// the rest of the page's handlers down with it.
+const Diagnostics = window.Diagnostics ||
+  { mount(){}, setTrack(){}, draw(){}, overlay(){} };
+Diagnostics.mount({
+  canvas: $('diagCanvas'),
+  stats: $('diagStats'),
+  notes: $('diagNotes'),
+  select: $('diagPersonSelect'),
+  toggles: $('diagToggles'),
+  wrap: $('diagWrap'),
+  video: () => vvideo,
+  redraw: () => drawOverlay(),   // toggling a tickbox has to repaint the
+                                 // overlay even while the video is paused
+});
 
 function updatePlotControls() {
   if (!vKeypoints) {
@@ -409,10 +579,17 @@ function drawOverlay(t) {
   $('vsync').textContent =
     `t=${time.toFixed(2)}s → frame ${idx} of ${vMeta.frame_count} ` +
     `(sample ${slot + 1}/${vMeta.frame_indices.length}` +
-    `${vMeta.frame_times_ms ? ', decoder timestamps' : ', fps estimate'})`;
+    `${vMeta.frame_times_ms ? ', decoder timestamps' : ', fps estimate'})` +
+    // which smoothing width these joints were built with, so "is this the σ I
+    // just dragged to?" is answerable without re-running anything
+    ` · σ ${vSigmaMs ? vSigmaMs + 'ms' : 'off'}` +
+    `${vLoopRestarts ? ` · overlay revived ${vLoopRestarts}×` : ''}`;
   const frame = vKeypoints[String(idx)];
 
   drawPlot(); // Update playhead line on plot canvas
+  Diagnostics.draw();
+  Diagnostics.overlay(vctx, idx);   // phase geometry on the frame itself —
+                                    // no-ops outside the active phase
 
   if (!frame) return;
 
@@ -445,10 +622,15 @@ function drawOverlay(t) {
 const HAS_RVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
 
 function overlayLoop(now, metadata) {
-  drawOverlay(metadata ? metadata.mediaTime : undefined);
-  if (vvideo.paused || vvideo.ended) { vRafId = null; return; }
-  vRafId = HAS_RVFC ? vvideo.requestVideoFrameCallback(overlayLoop)
-                    : requestAnimationFrame(overlayLoop);
+  const t = metadata ? metadata.mediaTime : undefined;
+  vLastDrawMs = performance.now();
+  // Re-arm BEFORE drawing, not after: drawOverlay pulls in drawPlot and the
+  // diagnostics renderer, and re-arming afterwards means the first exception
+  // any of them throws kills the overlay for the rest of the session.
+  if (vvideo.paused || vvideo.ended) vRafId = null;
+  else vRafId = HAS_RVFC ? vvideo.requestVideoFrameCallback(overlayLoop)
+                         : requestAnimationFrame(overlayLoop);
+  drawOverlay(t);
 }
 
 function stopOverlayLoop() {
@@ -458,11 +640,35 @@ function stopOverlayLoop() {
   vRafId = null;
 }
 
+// A looping <video> never fires 'play' again when it wraps — playback just
+// continues — so 'play' cannot be the only thing that starts this loop. When
+// the per-frame callback is dropped at the wrap, nothing restarts it and the
+// last frame's skeleton stays painted over the whole replay.
+//
+// A pending rVFC handle is not proof of life either: a callback that is never
+// delivered leaves vRafId non-null forever. So the test has to be staleness,
+// not vRafId === null. 'timeupdate' fires at ~4Hz throughout playback including
+// across the wrap, which makes it the heartbeat. Restarting is idempotent, so a
+// spurious kick (at 0.1x speed the gap between frames can legitimately exceed
+// the threshold) costs nothing.
+const OVERLAY_STALL_MS = 500;
+
+function kickOverlayLoop() {
+  if (vvideo.paused || vvideo.ended) return;
+  if (vRafId !== null && performance.now() - vLastDrawMs < OVERLAY_STALL_MS) return;
+  vLoopRestarts++;
+  stopOverlayLoop();
+  overlayLoop();
+}
+
 vvideo.addEventListener('loadedmetadata', () => { syncCanvasSize(); vvideo.playbackRate = parseFloat($('vspeed').value); });
 vvideo.addEventListener('play', () => { stopOverlayLoop(); overlayLoop(); });
+vvideo.addEventListener('playing', kickOverlayLoop);
 vvideo.addEventListener('pause', () => { stopOverlayLoop(); drawOverlay(); });
-vvideo.addEventListener('seeked', () => drawOverlay());
-vvideo.addEventListener('timeupdate', () => { if (vvideo.paused) drawOverlay(); });
+vvideo.addEventListener('seeked', () => { drawOverlay(); kickOverlayLoop(); });
+vvideo.addEventListener('timeupdate', () => {
+  if (vvideo.paused) drawOverlay(); else kickOverlayLoop();
+});
 $('vspeed').onchange = () => { vvideo.playbackRate = parseFloat($('vspeed').value); };
 
 function setVideoSrc(blob) {
@@ -481,7 +687,9 @@ $('vfile').onchange = () => {
   if (!f) return;
   stopCameraStream();
   vSource = { blob: f, filename: f.name };
-  vKeypoints = null; vMeta = null;
+  vKeypointsRaw = null; vKeypoints = null; vMeta = null;
+  updatePlotControls();
+  Diagnostics.setTrack(null, null);
   $('vsummary').textContent = '';
   $('vsync').textContent = '';
   setVideoSrc(f);
@@ -503,7 +711,9 @@ $('vcam').onclick = async () => {
   }
   vCamStream = stream;
   $('vfile').value = '';
-  vSource = null; vKeypoints = null; vMeta = null;
+  vSource = null; vKeypointsRaw = null; vKeypoints = null; vMeta = null;
+  updatePlotControls();
+  Diagnostics.setTrack(null, null);
   $('vsummary').textContent = '';
   $('vsync').textContent = '';
   if (vObjectUrl) { URL.revokeObjectURL(vObjectUrl); vObjectUrl = null; }
@@ -546,13 +756,14 @@ $('vrun').onclick = async () => {
   const r = await fetch('/api/pose/video', {method:'POST', body: fd});
   const data = await r.json();
   if (!r.ok) { $('vstatus').textContent = 'error: ' + data.error; return; }
-  vKeypoints = data.keypoints;
+  vKeypointsRaw = data.keypoints;
   vMeta = data.meta;
   syncCanvasSize();
+  applySmoothing();   // builds vKeypoints and refreshes every view, exactly as
+                      // a slider drag does — the run only supplies raw points
   // if the video was already rolling when the run finished, the loop it
   // started was drawing nothing — restart it now that there's a track.
   if (!vvideo.paused && !vvideo.ended) { stopOverlayLoop(); overlayLoop(); }
-  else drawOverlay();
   const ids = new Set();
   for (const frame of Object.values(vKeypoints)) for (const id of Object.keys(frame)) ids.add(id);
   $('vstatus').textContent = 'done';
