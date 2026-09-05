@@ -42,22 +42,45 @@ array. The object's shape *is* the three-part structure:
 {
   id: 'first-pull-back-angle',
   title: 'First pull — constant back angle',
+  phaseLabel: 'first pull',        // short label for the chart heading and overlay
   cue: 'Keep the back angle to the floor constant until the bar passes the knee.',
   unit: '°',
-  phase(track, scale)        -> { startIdx, endIdx, notes[] } | { error }
-  measure(track, phase)      -> { series[], summary{}, notes[] }
+  phase(track, scale)        -> { startIdx, endIdx, notes[], ... }  | { error }
+  measure(track, phase)      -> { series[], summary{}, notes[] }    | { error }
   verdict(summary)           -> { label, status }         // status: good|warning|critical
-  overlay(ctx, sample, ...)  -> void                      // optional per-frame drawing
+  referenceLine(summary)     -> { value, label } | null   // the plot's dashed line
+  tiles(summary, verdict)    -> [{ label, value, sub, status? }]   // stat tiles
+  transparencyLines(res, track, ctxExtra) -> [htmlString]  // the transparency block's bullets
+  overlay(ctx, sample, phase, res, size)  -> void          // per-frame drawing
 }
 ```
 
-Each entry in `DIAGNOSTICS` automatically gets a tickbox above the plot,
+The first four functions (`phase`/`measure`/`verdict`/`overlay`) are the
+three-part structure itself and are documented in detail below.
+`referenceLine`/`tiles`/`transparencyLines` exist because **every diagnostic
+always gets its own plot, stat tiles and notes block** — added once there was
+a second diagnostic and the shared renderer needed each one's chart mean/target
+line, headline numbers and transparency prose to differ without duplicating
+the chart/panel drawing code itself. Keep them thin: they return data
+(numbers, strings), the shared renderer in `diagnostics.js`'s "rendering"
+section does the actual drawing.
+
+Each entry in `DIAGNOSTICS` automatically gets a tickbox above the plots,
 labelled with its `title`, controlling whether its `overlay()` draws on the
 video. The tickbox gates **only** the overlay — an unticked diagnostic is still
-computed, plotted and scored, because it's about the frame getting crowded
-once there are several, not about what's being measured. New diagnostics
-default to ticked; otherwise one would ship invisible. Toggling calls back into
-`app.py` to repaint, so it works while the video is paused.
+computed, plotted (in its own always-present section) and scored, because it's
+about the frame getting crowded once there are several, not about what's being
+measured. New diagnostics default to ticked; otherwise one would ship
+invisible. Toggling calls back into `app.py` to repaint, so it works while the
+video is paused.
+
+When a new diagnostic's phase depends on another diagnostic's trigger (e.g.
+the second pull starting exactly where the first pull ends), share the
+trigger-finding function rather than letting each diagnostic re-derive it —
+see `barKneeCrossing` in `diagnostics.js`. Two independently-computed versions
+of "the same event" silently drifting apart across diagnostics is a bug that
+is very easy not to notice, because each diagnostic looks correct in
+isolation.
 
 `series` entries are `{ frame, t, value, lo, hi }` — `lo`/`hi` are the two
 independent estimates, not error bars from a model. The shared renderer draws
@@ -151,3 +174,4 @@ there are enough labelled lifts to fit them against.
 | # | Diagnostic | Note |
 | --- | --- | --- |
 | 1 | First pull — constant back angle | [diagnostics/01-first-pull-back-angle.md](diagnostics/01-first-pull-back-angle.md) |
+| 2 | Second pull — full triple extension | [diagnostics/02-second-pull-triple-extension.md](diagnostics/02-second-pull-triple-extension.md) |

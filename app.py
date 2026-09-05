@@ -130,6 +130,12 @@ INDEX_HTML = """<!doctype html>
   .diag-notes li { margin-bottom:5px; }
   .diag-notes strong { color:#c3c2b7; font-weight:600; }
   .diag-note { font-size:13px; color:#898781; }
+  /* one block per diagnostic, stacked — each owns its own tiles/plot/notes */
+  .diag-block { margin-top:24px; padding-top:20px; border-top:1px solid #2c2c2a; }
+  .diag-block:first-child { margin-top:14px; padding-top:0; border-top:none; }
+  .diag-block-title { font-size:14px; font-weight:600; color:#c3c2b7; margin:0; }
+  .diag-canvas-wrap { background:#1a1a19; border-radius:8px; border:1px solid #333; padding:8px; box-sizing:border-box; }
+  .diag-canvas { width:100%; height:auto; display:block; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -194,13 +200,10 @@ INDEX_HTML = """<!doctype html>
     <select id="diagPersonSelect"></select>
   </label>
   <!-- one tickbox per diagnostic: whether it draws on the video. Scoring and
-       the plot below are unaffected. -->
+       its own plot/tiles below (in #diagSections) are unaffected. -->
   <div id="diagToggles" class="diag-toggles"></div>
-  <div id="diagStats" class="diag-tiles"></div>
-  <div style="background:#1a1a19; border-radius:8px; border:1px solid #333; padding:8px; box-sizing:border-box;">
-    <canvas id="diagCanvas" width="620" height="240" style="width:100%; height:auto; display:block; cursor:pointer;"></canvas>
-  </div>
-  <div id="diagNotes"></div>
+  <!-- one block per diagnostic (tiles + plot + notes), built by diagnostics.js -->
+  <div id="diagSections"></div>
 </div>
 
 <h3>keypoint plot</h3>
@@ -503,9 +506,7 @@ const pcanvas = $('plotCanvas'), pctx = pcanvas.getContext('2d');
 const Diagnostics = window.Diagnostics ||
   { mount(){}, setTrack(){}, draw(){}, overlay(){} };
 Diagnostics.mount({
-  canvas: $('diagCanvas'),
-  stats: $('diagStats'),
-  notes: $('diagNotes'),
+  sections: $('diagSections'),
   select: $('diagPersonSelect'),
   toggles: $('diagToggles'),
   wrap: $('diagWrap'),
