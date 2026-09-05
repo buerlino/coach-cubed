@@ -49,6 +49,12 @@ DEVICE = "cuda" if __import__("torch").cuda.is_available() else "cpu"
 
 VIDEO_EXTENSIONS = ("mp4", "mov", "avi", "webm", "mkv")
 
+
+class Cancelled(Exception):
+    """Raised out of infer_video when cancel_cb() reports the caller gave up
+    partway through. Not an error — app.py catches it to mark the job
+    'cancelled' rather than 'error'."""
+
 _models = {}          # size -> VitInference, populated lazily
 # Separate cache from _models: is_video flips on VitInference's SORT tracker
 # at construction time and can't be toggled after, so a video-mode instance
@@ -156,7 +162,44 @@ def infer(image_bytes, size=None):
     return keypoints_json, buf.getvalue()
 
 
-def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4"):
+def count_frames(video_bytes, suffix=".mp4"):
+    """Count a video's frames by decoding to the end — no bar to hand back a
+    result other than "the file counts", so this only reads (cap.grab(), no
+    cvtColor/no model) rather than fully decoding each frame.
+
+    Exists purely to give infer_video's caller an exact denominator for a
+    progress bar *before* the slow pass starts: cv2.CAP_PROP_FRAME_COUNT is
+    container metadata and infer_video already distrusts it for streamed/
+    index-less input (see the comment there), so the only way to get a real
+    count without guessing is to read the whole file once. That's cheap
+    relative to what follows — grab() skips the decode, and decode-without-
+    inference is itself an order of magnitude faster than decode-with-
+    inference — so paying for two reads of the file is worth an exact
+    progress fraction instead of an estimate.
+
+    Returns None (rather than raising) if the file won't open, so a caller
+    can treat "no total available" the same way as a video whose metadata
+    was never trustworthy in the first place — the progress bar just falls
+    back to showing frames-processed with no percentage.
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        in_path = Path(tmpdir) / f"in{suffix}"
+        in_path.write_bytes(video_bytes)
+        cap = cv2.VideoCapture(str(in_path))
+        if not cap.isOpened():
+            cap.release()
+            return None
+        try:
+            n = 0
+            while cap.grab():
+                n += 1
+            return n
+        finally:
+            cap.release()
+
+
+def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4",
+                 progress_cb=None, cancel_cb=None):
     """Run tracked pose estimation over a video's frames.
 
     Deliberately doesn't re-encode and return an annotated video: the coach
@@ -171,6 +214,14 @@ def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4"):
     them; defaults to 1 (every frame) per the "set up all for now" starting
     point — trading it off against framerate/runtime is a frontend decision
     for later.
+
+    progress_cb(processed), if given, is called after every processed frame
+    (post-stride, so its argument matches len(frame_indices)/frames_processed)
+    — a caller uses it to drive a progress bar. cancel_cb(), if given, is
+    polled once per raw frame (pre-stride, so cancellation is checked even
+    when most frames are being skipped) and raises Cancelled the moment it
+    returns true, unwinding out of the model loop with the GPU lock and the
+    video capture still released cleanly (see the try/finally below).
 
     Returns (keypoints_by_frame, meta):
       keypoints_by_frame: {frame_index (str): {person_id (str): Nx3 keypoints}},
@@ -208,27 +259,34 @@ def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4"):
         keypoints_by_frame = {}
         frame_indices = []      # indices of the frames actually run, in order
         frame_times_ms = []     # each of those frames' own presentation time
-        with _infer_lock:
-            model.reset()   # fresh tracker + frame counter — model instances
-                             # are cached and reused across requests
-            idx = 0
-            while True:
-                ok, frame_bgr = cap.read()
-                if not ok:
-                    break
-                if idx % frame_stride == 0:
-                    # Queried *after* read(): that's the pts of the frame just
-                    # decoded (before read() it's still the previous frame's,
-                    # and it reads 0 twice at the start).
-                    frame_times_ms.append(cap.get(cv2.CAP_PROP_POS_MSEC))
-                    frame_indices.append(idx)
-                    frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-                    keypoints = model.inference(frame_rgb)
-                    keypoints_by_frame[str(idx)] = {
-                        str(pid): kp.tolist() for pid, kp in keypoints.items()
-                    }
-                idx += 1
-        cap.release()
+        try:
+            with _infer_lock:
+                model.reset()   # fresh tracker + frame counter — model instances
+                                 # are cached and reused across requests
+                idx = 0
+                while True:
+                    if cancel_cb is not None and cancel_cb():
+                        raise Cancelled()
+                    ok, frame_bgr = cap.read()
+                    if not ok:
+                        break
+                    if idx % frame_stride == 0:
+                        # Queried *after* read(): that's the pts of the frame just
+                        # decoded (before read() it's still the previous frame's,
+                        # and it reads 0 twice at the start).
+                        frame_times_ms.append(cap.get(cv2.CAP_PROP_POS_MSEC))
+                        frame_indices.append(idx)
+                        frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+                        keypoints = model.inference(frame_rgb)
+                        keypoints_by_frame[str(idx)] = {
+                            str(pid): kp.tolist() for pid, kp in keypoints.items()
+                        }
+                        if progress_cb is not None:
+                            progress_cb(len(frame_indices))
+                    idx += 1
+        finally:
+            cap.release()   # must run on the Cancelled path too — a caller
+                             # cancelling repeatedly must not leak capture handles
         frame_count = idx   # actual count, not the (possibly bogus) metadata one
 
     # Timestamps are what the frontend lines the overlay up with, so only hand

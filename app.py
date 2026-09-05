@@ -13,6 +13,8 @@ the rest of the deploy.
 """
 import base64
 import os
+import threading
+import time
 from pathlib import Path
 
 from flask import Flask, request, jsonify, Response
@@ -47,8 +49,38 @@ def api_pose():
 
 
 # --- pose (video) ---------------------------------------------------------
-@app.route("/api/pose/video", methods=["POST"])
-def api_pose_video():
+# Video inference runs in a background thread rather than inline in the
+# request, so the frontend can poll progress and cancel mid-run. There's
+# still only ever one video job at a time — vitpose_backend already
+# serializes video inference behind _infer_lock (one GPU, one model
+# instance per size), so a job registry keyed by id would track concurrency
+# the backend doesn't actually have. A single global slot matches that.
+class _VideoJob:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.status = "idle"          # idle | counting | running | done | error | cancelled
+        self.processed = 0
+        self.total = None             # exact frame count from a pre-count pass, or
+                                       # None if that pass couldn't open the file either
+        self.rate_ema = None          # smoothed frames/sec, for the ETA
+        self._last_tick = None        # (monotonic_time, processed) the EMA was last fed from
+        self.result = None            # {"keypoints":..., "meta":...} once done
+        self.error = None
+        self.cancel_event = threading.Event()
+
+
+_video_job = _VideoJob()
+# Weight on each new throughput sample in the ETA's exponential moving
+# average. Low, same reasoning as every other smoothed signal in this
+# codebase (see diagnostics.js): raw per-frame timing is noisy (frame
+# decode cost varies, thermal throttling, a slow frame with more detected
+# people), so the ETA reads instantaneous speed through a lag rather than
+# swinging with every sample.
+_RATE_EMA_ALPHA = 0.25
+
+
+@app.route("/api/pose/video/start", methods=["POST"])
+def api_pose_video_start():
     if "video" not in request.files:
         return jsonify({"error": "no video field in upload"}), 400
     size = request.form.get("size", vitpose_backend.DEFAULT_SIZE)
@@ -70,15 +102,109 @@ def api_pose_video():
         }), 400
 
     video_bytes = video_file.read()
-    try:
-        keypoints, meta = vitpose_backend.infer_video(
-            video_bytes, size=size, frame_stride=frame_stride, suffix=f".{ext}")
-    except FileNotFoundError as e:
-        return jsonify({"error": str(e)}), 503
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 400
 
-    return jsonify({"keypoints": keypoints, "meta": meta})
+    job = _video_job
+    with job.lock:
+        if job.status in ("counting", "running"):
+            return jsonify({"error": "a video analysis is already running"}), 409
+        job.status = "counting"
+        job.processed = 0
+        job.total = None
+        job.rate_ema = None
+        job._last_tick = None
+        job.result = None
+        job.error = None
+        job.cancel_event = threading.Event()
+    cancel_event = job.cancel_event   # captured now: a later start() swaps in a new one
+
+    def progress_cb(processed):
+        now = time.monotonic()
+        with job.lock:
+            if job._last_tick is not None:
+                dt = now - job._last_tick[0]
+                dn = processed - job._last_tick[1]
+                if dt > 0 and dn > 0:
+                    inst_rate = dn / dt
+                    job.rate_ema = inst_rate if job.rate_ema is None else (
+                        _RATE_EMA_ALPHA * inst_rate + (1 - _RATE_EMA_ALPHA) * job.rate_ema)
+            job._last_tick = (now, processed)
+            job.processed = processed
+
+    def worker():
+        # Best-effort: an exact denominator makes the progress bar and ETA
+        # meaningful, but its own failure isn't fatal — infer_video runs
+        # either way and the frontend falls back to a countless spinner.
+        try:
+            total = vitpose_backend.count_frames(video_bytes, suffix=f".{ext}")
+        except Exception:
+            total = None
+        with job.lock:
+            if job.cancel_event is not cancel_event:
+                return   # superseded by a newer start() while we were counting
+            job.total = total
+            job.status = "running"
+
+        try:
+            keypoints, meta = vitpose_backend.infer_video(
+                video_bytes, size=size, frame_stride=frame_stride, suffix=f".{ext}",
+                progress_cb=progress_cb, cancel_cb=cancel_event.is_set)
+            with job.lock:
+                if job.cancel_event is cancel_event:
+                    job.result = {"keypoints": keypoints, "meta": meta}
+                    job.status = "done"
+        except vitpose_backend.Cancelled:
+            with job.lock:
+                if job.cancel_event is cancel_event:
+                    job.status = "cancelled"
+        except Exception as e:
+            with job.lock:
+                if job.cancel_event is cancel_event:
+                    job.error = str(e)
+                    job.status = "error"
+
+    threading.Thread(target=worker, daemon=True).start()
+    return jsonify({"status": "started"})
+
+
+@app.route("/api/pose/video/progress")
+def api_pose_video_progress():
+    job = _video_job
+    with job.lock:
+        eta = None
+        if job.total is not None and job.rate_ema and job.rate_ema > 0:
+            eta = max(0, job.total - job.processed) / job.rate_ema
+        payload = {
+            "status": job.status,
+            "processed": job.processed,
+            "total": job.total,
+            "rateFps": job.rate_ema,
+            "etaSeconds": eta,
+        }
+        if job.status == "error":
+            payload["error"] = job.error
+    return jsonify(payload)
+
+
+@app.route("/api/pose/video/cancel", methods=["POST"])
+def api_pose_video_cancel():
+    job = _video_job
+    with job.lock:
+        if job.status not in ("counting", "running"):
+            return jsonify({"error": "no analysis is running"}), 409
+        job.cancel_event.set()
+    return jsonify({"status": "cancelling"})
+
+
+@app.route("/api/pose/video/result")
+def api_pose_video_result():
+    job = _video_job
+    with job.lock:
+        if job.status != "done" or job.result is None:
+            return jsonify({"error": "no finished result is available"}), 409
+        result = job.result
+        job.result = None
+        job.status = "idle"
+    return jsonify(result)
 
 
 # --- diagnostics ----------------------------------------------------------
@@ -159,7 +285,11 @@ INDEX_HTML = """<!doctype html>
     <input id="vstride" type="number" value="1" min="1" style="width:4em">
   </label>
   <button id="vrun">Run pose on video</button>
+  <button id="vcancel" type="button" style="display:none;background:#722;color:#fff;">Cancel</button>
   <p id="vstatus"></p>
+  <div id="vprogWrap" style="display:none;max-width:420px;background:#222;border-radius:6px;overflow:hidden;margin:-2px 0 10px;">
+    <div id="vprogBar" style="height:8px;width:0%;background:#4a9;transition:width .2s linear;"></div>
+  </div>
   <div id="videoWrap">
     <video id="vout" controls muted playsinline loop></video>
     <canvas id="voverlay"></canvas>
@@ -903,16 +1033,65 @@ $('vcam').onclick = async () => {
   }, 500);
 };
 
-$('vrun').onclick = async () => {
-  if (!vSource) { $('vstatus').textContent = 'pick a video or record from camera first'; return; }
-  $('vstatus').textContent = 'running (this can take a while — every sampled frame goes through the model)...';
-  const fd = new FormData();
-  fd.append('video', vSource.blob, vSource.filename);
-  fd.append('size', $('vsize').value);
-  fd.append('frame_stride', $('vstride').value || '1');
-  const r = await fetch('/api/pose/video', {method:'POST', body: fd});
-  const data = await r.json();
-  if (!r.ok) { $('vstatus').textContent = 'error: ' + data.error; return; }
+// --- video analysis: progress + cancel ------------------------------------
+// The model run happens in a background thread server-side (see app.py's
+// _VideoJob); this just polls a status endpoint and renders it. There's only
+// ever one job on the server, so vPolling is a plain flag rather than
+// anything keyed by an id.
+let vPolling = false;
+
+function vSetRunning(running) {
+  $('vrun').disabled = running;
+  $('vcancel').style.display = running ? 'inline-block' : 'none';
+  $('vcancel').disabled = false;
+  $('vprogWrap').style.display = running ? 'block' : 'none';
+}
+
+function vRenderProgress(p) {
+  const verb = p.status === 'counting' ? 'counting frames' : 'running';
+  if (p.total) {
+    const pct = Math.max(0, Math.min(100, Math.round(100 * p.processed / p.total)));
+    $('vprogBar').style.width = pct + '%';
+    let txt = `${verb}… ${p.processed}/${p.total} (${pct}%)`;
+    if (p.etaSeconds != null) txt += ` — ~${Math.ceil(p.etaSeconds)}s left`;
+    $('vstatus').textContent = txt;
+  } else {
+    // No total yet (still counting, or the pre-count pass couldn't open the
+    // file — infer_video will likely fail too, but let it say why).
+    $('vprogBar').style.width = '0%';
+    $('vstatus').textContent = p.status === 'counting'
+      ? 'counting frames…'
+      : `running… ${p.processed} frames processed (no total available)`;
+  }
+}
+
+// Polls every 400ms — frequent enough for a smooth-looking bar, cheap enough
+// that it's not worth a websocket for a single-user tailnet app.
+async function vPoll() {
+  if (!vPolling) return;
+  let p;
+  try {
+    p = await (await fetch('/api/pose/video/progress')).json();
+  } catch (e) {
+    setTimeout(vPoll, 800);   // transient fetch error — keep trying, don't drop the job
+    return;
+  }
+  if (p.status === 'counting' || p.status === 'running') {
+    vRenderProgress(p);
+    setTimeout(vPoll, 400);
+    return;
+  }
+
+  vPolling = false;
+  vSetRunning(false);
+
+  if (p.status === 'cancelled') { $('vstatus').textContent = 'cancelled'; return; }
+  if (p.status === 'error') { $('vstatus').textContent = 'error: ' + p.error; return; }
+  if (p.status !== 'done') { $('vstatus').textContent = 'idle'; return; }
+
+  const rr = await fetch('/api/pose/video/result');
+  const data = await rr.json();
+  if (!rr.ok) { $('vstatus').textContent = 'error: ' + data.error; return; }
   vKeypointsRaw = data.keypoints;
   vMeta = data.meta;
   syncCanvasSize();
@@ -927,6 +1106,33 @@ $('vrun').onclick = async () => {
   $('vsummary').textContent =
     `${vMeta.frames_processed}/${vMeta.frame_count} frames processed (stride ${vMeta.frame_stride}), ` +
     `${vMeta.fps.toFixed(2)} fps, ${ids.size} distinct tracked id(s)`;
+}
+
+$('vrun').onclick = async () => {
+  if (!vSource) { $('vstatus').textContent = 'pick a video or record from camera first'; return; }
+  const fd = new FormData();
+  fd.append('video', vSource.blob, vSource.filename);
+  fd.append('size', $('vsize').value);
+  fd.append('frame_stride', $('vstride').value || '1');
+  const r = await fetch('/api/pose/video/start', {method:'POST', body: fd});
+  const data = await r.json();
+  if (!r.ok) { $('vstatus').textContent = 'error: ' + data.error; return; }
+  vSetRunning(true);
+  $('vprogBar').style.width = '0%';
+  $('vstatus').textContent = 'starting…';
+  vPolling = true;
+  vPoll();
+};
+
+$('vcancel').onclick = async () => {
+  if (!confirm('Abort the current video analysis?')) return;
+  $('vcancel').disabled = true;
+  $('vstatus').textContent = 'cancelling…';
+  try {
+    await fetch('/api/pose/video/cancel', {method:'POST'});
+  } catch (e) { /* the next poll tick will surface the real state either way */ }
+  // vPoll (already running on its own timer) will see status flip to
+  // 'cancelled' and call vSetRunning(false) itself.
 };
 </script>
 </body>
