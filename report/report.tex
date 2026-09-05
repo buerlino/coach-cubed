@@ -1,0 +1,357 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{microtype}
+\usepackage[hidelinks]{hyperref}
+
+\newcommand{\Lt}{L}                      % torso scale
+\newcommand{\conf}{c}
+\setlength{\parskip}{2pt}
+
+\title{\textbf{coach}: pose-based technique diagnostics for weightlifting}
+\author{Noah Stauble}
+\date{September 2026}
+
+\begin{document}
+\maketitle
+\vspace{-1.2em}
+\begin{abstract}
+\noindent
+\texttt{coach} takes a phone video of a snatch or clean, runs top-down 2D pose
+estimation over every frame, and turns individual coaching cues into scalars
+computed from the resulting keypoint track. This note records the model, the
+deployment, the temporal filtering applied to the track, and the geometry of
+each implemented diagnostic. Every threshold below is provisional: none has
+been fitted to labelled lifts.
+\end{abstract}
+
+\section{Model}
+
+Pose estimation is two-stage (top-down). A YOLOv8-s detector~\cite{yolov8}
+proposes person boxes at $320\,\mathrm{px}$ input; each box is cropped, resized
+and passed to ViTPose~\cite{vitpose}.
+
+ViTPose is deliberately architecture-poor: a \emph{plain} ViT
+backbone~\cite{vit} (non-hierarchical, no cross-window attention), MAE
+pretrained~\cite{mae}, followed by a lightweight decoder. The crop is split into
+$16\times16$ patches, embedded, and processed by $N$ standard transformer blocks
+($N=24$, $d=1024$ for ViT-L; $N=32$, $d=1280$ for ViT-H --- \texttt{coach} ships
+both, defaulting to L). The decoder is two deconvolution blocks (each
+$2\times$ upsampling, followed by BN and ReLU) and a $1\times1$ convolution,
+producing $K=17$ COCO keypoint heatmaps $H_k\in\mathbb{R}^{h/4\times w/4}$. The
+prediction for joint $k$ is
+\[
+  \hat{u}_k=\arg\max_{u} H_k(u),
+  \qquad
+  \conf_k=H_k(\hat{u}_k)\in[0,1],
+\]
+mapped back through the crop transform to image coordinates. The confidence
+$\conf_k$ is used downstream as a hard gate at $\tau=0.3$ and as a weight in the
+temporal filter (\S\ref{sec:smooth}). The paper's point is that this minimal
+decoder over a plain, MAE-pretrained ViT matches heavily engineered pose
+architectures; the practical consequence here is that the model is a single
+forward pass with no temporal prior whatsoever --- every frame is estimated
+independently, which is the entire reason \S\ref{sec:smooth} exists.
+
+For video, the SORT tracker~\cite{sort} keeps person ids stable across frames.
+\texttt{coach} then discards every track but one, choosing
+\[
+  \hat{p}=\arg\max_{p}\Bigl(\,n_p,\ \textstyle\sum_{f}\sum_{k}\conf_{k}^{(p,f)}\Bigr)
+  \quad\text{lexicographically},
+\]
+i.e.\ longest-lived track, ties broken on total confidence. Longevity is the
+right discriminator: the lifter is in frame for the whole clip because the clip
+exists to show the lift, whereas passers-by and bodies hallucinated out of
+racked plates flicker. The known failure --- SORT splitting one lifter into two
+ids across an occlusion --- is reported rather than hidden: dropped tracks and
+their frame counts are returned in the response metadata.
+
+\section{Website}
+
+Flask~+~waitress on \texttt{:8080} behind Caddy (local CA, tailnet-only, no
+application auth). The model loads in-process rather than behind a sidecar
+service: a single YOLO~+~ViT forward pass has no queue and no per-session state
+to manage, so an HTTP hop would buy nothing. Checkpoints are lazily loaded per
+size and stay resident ($\approx$1.2\,GB for L, 2.5\,GB for H on a W7800 via
+ROCm).
+
+\texttt{POST /api/pose/video} returns JSON --- keypoints per processed frame,
+plus \texttt{fps}, true frame count (counted while decoding, not read from
+container metadata, which is unreliable for MediaRecorder output), per-frame
+presentation timestamps, and the skeleton edge list. No annotated video is
+encoded server-side: the box has no licensed H.264 encoder, so the browser plays
+the original file it already holds and draws the skeleton on a \texttt{<canvas>}
+synced to \texttt{currentTime}. All smoothing, plotting and diagnostic scoring
+run client-side on the returned track, so the smoothing width is a slider rather
+than a re-run.
+
+\section{Smoothing}\label{sec:smooth}
+
+\subsection{Confidence-weighted Gaussian in time}
+
+Let a single keypoint's trajectory be $\mathbf{p}_k\in\mathbb{R}^2$ observed at
+sample times $t_k$ with confidences $\conf_k$. The first pass is
+\[
+  \tilde{\mathbf{p}}_k=\frac{\sum_{j\in\mathcal{N}_k} w_{jk}\,\mathbf{p}_j}{\sum_{j\in\mathcal{N}_k} w_{jk}},
+  \qquad
+  w_{jk}=\exp\!\Bigl(-\tfrac{(t_j-t_k)^2}{2\sigma^2}\Bigr)\,\conf_j,
+  \qquad
+  \mathcal{N}_k=\{j: |t_j-t_k|\le 3\sigma,\ \conf_j\ge\tau\}.
+\]
+Three properties are deliberate. (i) The kernel is in \emph{time}, not in
+sample index: under variable frame rate or a frame stride $>1$ a fixed sample
+window is a different number of seconds at different points in the clip, and one
+slider position would mean different filtering per video. (ii) Sub-threshold
+neighbours are excluded and the rest weighted by $\conf_j$, so a wrist the model
+guessed at while occluded does not drag its neighbours. (iii) The smoothed point
+inherits its \emph{own} frame's confidence, $\tilde{\conf}_k=\conf_k$: smoothing
+moves points that were already visible and never conjures a joint the gate was
+hiding. Truncation at $3\sigma$ costs $<1.2\%$ of kernel mass.
+
+\subsection{The velocity filter}
+
+Convolution commutes with differentiation, so smoothing positions smooths
+velocity by exactly the same kernel: $\widetilde{\dot{\mathbf{p}}}=g_\sigma*\dot{\mathbf{p}}$.
+The Gaussian's transfer function is
+\[
+  \hat{g}_\sigma(f)=\exp(-2\pi^2\sigma^2f^2),
+\]
+so at $\sigma=50\,\mathrm{ms}$ a speed feature at $5\,\mathrm{Hz}$ (a
+$200\,\mathrm{ms}$ event --- i.e.\ the second pull, or the turnover) retains only
+$\exp(-1.23)\approx29\%$ of its amplitude. The lift comes out slower and more
+drawn-out than it was. The smoothed \emph{path} is fine; it is the timing along
+it that has been blurred.
+
+The second pass therefore keeps the path and re-times the points along it. Let
+$P_m$ be the smoothed polyline and $R_m$ the raw track over the same times.
+Define cumulative arc length and unit tangents
+\[
+  A_m=\sum_{i\le m}\lVert P_i-P_{i-1}\rVert,
+  \qquad
+  \hat{T}_m=\frac{P_m-P_{m-1}}{\lVert P_m-P_{m-1}\rVert},
+\]
+and the raw track's \emph{progress along that path}, its frame-to-frame
+displacement projected onto the tangent:
+\[
+  \Pi_m=\sum_{i\le m}\bigl\langle R_i-R_{i-1},\ \hat{T}_i\bigr\rangle,
+  \qquad
+  e_m=\Pi_m-A_m .
+\]
+Projection is what makes $\Pi$ usable: jitter perpendicular to the path is not
+motion along it and is discarded, while jitter along the path telescopes in the
+sum, so $\Pi$ is not a random walk. The residual $e_m$ is how far ahead the raw
+track is at sample $m$; the corrected point is the point at arc length
+$A_m+e_m$.
+
+$e$ is band-passed before use, as a difference of two Gaussians,
+\[
+  \hat{e}=g_{\sigma/2}*e\;-\;g_{4\sigma}*e,
+  \qquad
+  s_m=\mathrm{clip}\bigl(A_m+\hat{e}_m,\ 0,\ A_{n-1}\bigr),
+\]
+and $Q_m$ is $P$ evaluated at arc length $s_m$ by linear interpolation within
+the containing segment. Both cutoffs carry an argument:
+\begin{itemize}\itemsep1pt
+\item \textbf{High-frequency removal ($\le\sigma/2$).} Wobble in $e$ at frame
+  scale is the raw jitter's along-path component. Handing it back would undo the
+  smoothing along the tangent direction. What is restored is the shape of the
+  speed profile at the timescale the Gaussian damaged, not per-frame noise.
+\item \textbf{Low-frequency removal ($\ge4\sigma$).} At a sharp reversal the
+  smoothed path genuinely cuts the corner and is shorter than the raw one, so
+  $e$ gains that shortfall going in and again coming out, permanently. Left in,
+  every reversal would shove all later points forward along the path;
+  high-passed, it becomes a local correction that keeps speed up into and out of
+  the corner.
+\end{itemize}
+The limit is structural and worth stating: speed at the apex of a cut corner
+cannot be restored by reparametrizing a curve that no longer reaches it. In
+exchange, the pass is a pure reparametrization --- $Q$ never leaves the smoothed
+polyline, so it cannot invent a position the smoothing did not already propose.
+
+\subsection{Render-time interpolation}
+
+The overlay is evaluated at the playhead's continuous time, not at the nearest
+sampled frame. Interpolation is monotone cubic Hermite on uneven knots: on
+$[t_1,t_2]$ with $h=t_2-t_1$, $d=(v_2-v_1)/h$,
+\[
+  v(u)=(2u^3-3u^2+1)v_1+(u^3-2u^2+u)h\,m_1+(-2u^3+3u^2)v_2+(u^3-u^2)h\,m_2 ,
+\]
+with tangents from the three-point slope, Fritsch--Carlson limited~\cite{fc}:
+\[
+  m=\frac{d_A h_B+d_B h_A}{h_A+h_B},\qquad
+  |m|\le 3\min(|d_A|,|d_B|),\qquad
+  m=0 \text{ if } d_A d_B\le 0 .
+\]
+Linear interpolation is $C^0$ but not $C^1$, so the mesh changes direction at
+every sample --- the same stepping the interpolation is meant to remove.
+Clamping matters for exactly the moments a lift is judged on: an unclamped
+spline overshoots the turnaround at the bottom of a squat and draws the athlete
+deeper than any frame shows them. Zeroing the tangent at a local extremum keeps
+the curve inside its samples, so interpolation cannot invent a new depth, a new
+lockout, or a new peak speed. Neighbours below $\tau$ do not shape the curve,
+and a joint confident on only one side of a gap is not blended at all --- the
+nearer sample stands until $u=0.5$.
+
+\subsection{Preparation for scoring, and scale}
+
+Inside \texttt{diagnostics.js} the gated track is \emph{not} smoothed again.
+Holes left by the gate are filled by a 5-sample centred mean of whichever
+neighbours survive, and filled points are flagged so the transparency block can
+count them; they are not measurements. A second smoothing pass here would
+silently mute the user's slider, since a fixed 5-frame mean removes most
+per-frame jitter on its own.
+
+All pixel thresholds are normalized by a body scale --- the median hip-to-shoulder
+distance over the clip,
+\[
+  \Lt=\operatorname{median}_k \tfrac{1}{|S_k|}\textstyle\sum_{s\in S_k}\lVert \mathbf{p}^{\,\mathrm{hip}}_{s,k}-\mathbf{p}^{\,\mathrm{sho}}_{s,k}\rVert ,
+\]
+so a threshold survives the lifter standing closer to the camera. There is no
+metric scale anywhere: everything is pixels in the image plane, which also means
+every angle below assumes a side-on camera.
+
+\section{Diagnostics}
+
+A diagnostic maps one coaching cue to one scalar, and is written in three parts:
+the cue and its scalar; an \emph{active phase} defined by triggers computable
+from keypoints; and a visualization plus everything needed to distrust it.
+Scoring a cue outside its phase is noise --- the back angle is \emph{supposed}
+to change once the bar passes the knee.
+
+Two conventions are shared. Keypoints are $[y,x,\conf]$ with $y$ growing
+downward, so ``$A$ above $B$'' is $y_A<y_B$. And every measurement is computed
+twice from disjoint keypoints (left side, right side); their mean is the reported
+value and $|\theta_L-\theta_R|$ is the plotted uncertainty band. A persistent
+L/R offset means the camera is not square (real signal); a jittery one means the
+pose track is unreliable.
+
+Two derived quantities recur. There is no bar keypoint in COCO-17, so the bar is
+estimated from the hand wrapping it,
+\[
+  \mathbf{b}=\Bigl(x_w,\; y_w+\tfrac{1}{6}\lVert \mathbf{p}_w-\mathbf{p}_e\rVert\Bigr),
+\]
+averaged over visible sides ($w$ wrist, $e$ elbow). And wrist-centroid speed is
+measured on a 9-sample centred mean $\bar{c}$ over a $\pm2$-sample baseline,
+\[
+  v_i=\frac{\lVert \bar{c}_{i+2}-\bar{c}_{i-2}\rVert}{(t_{i+2}-t_{i-2})\,\Lt}
+  \quad[\Lt/\mathrm{s}],
+\]
+for signal-to-noise reasons: a few px of per-frame jitter over $1/30\,\mathrm{s}$
+reads as $\approx0.5\,\Lt/\mathrm{s}$, several times the onset threshold, so a
+one-frame difference finds ``motion'' in a lifter standing perfectly still. Over
+the wider baseline the same jitter lands near $0.07$ while a real pull runs
+$\approx2$. Every threshold crossing must additionally hold for $R=3$ consecutive
+samples before it counts.
+
+\subsection{Snatch}
+
+\subsubsection{First pull --- constant back angle (implemented)}
+
+\emph{Cue:} through the first pull the trunk keeps its inclination to the floor;
+the knees open and the bar rises, but the back angle holds.
+
+\emph{Phase:} floor to bar-past-knee. The phase is anchored on its \emph{end},
+a crisp geometric crossing: the first $i$ with $b_y(i)<y_{\text{knee}}(i)$
+holding for $R$ samples, scanned from the first sample where the bar is
+genuinely below the knee. The start is then searched \emph{backwards} for the
+last window of $R$ samples with $v<0.15\,\Lt/\mathrm{s}$. Searching forwards
+from frame 0 finds the setup instead --- grip adjustments, the hook re-set and
+rocking into position all clear a motion threshold before the pull starts. If no
+stillness is found the start clamps to frame 0 and says so.
+
+\emph{Measure:} the trunk's inclination to the floor, per side,
+\[
+  \theta=\operatorname{atan2}\bigl(y_{\text{hip}}-y_{\text{sho}},\ |x_{\text{sho}}-x_{\text{hip}}|\bigr),
+\]
+$0^\circ$ horizontal, $90^\circ$ vertical. The absolute value on $\Delta x$ makes
+this independent of facing, so left- and right-facing videos score alike.
+Reported: $\mathrm{SD}(\theta)$ over the phase (the verdict, bands
+$2.5^\circ/5.0^\circ$), and drift $\Delta=\theta_{\text{end}}-\theta_{\text{start}}$,
+which drives the colour ramp as $t=\min(1,|\Delta|/90^\circ)$. The cue is about
+\emph{holding}, so nothing is coloured by the absolute angle: a lifter setting up
+at $25^\circ$ and one at $45^\circ$ are both correct. Colour is one constant per
+lift, not per frame --- recolouring frame by frame made the mark flicker through
+the ramp and invited reading a single frame as a verdict. A trunk mean above
+$75^\circ$ triggers a warning that the clip is filmed front-on, where the angle
+saturates and the score is meaningless.
+
+\subsubsection{Second pull --- full triple extension (implemented)}
+
+\emph{Cue:} at the top of the second pull the hips and knees open fully before
+the arms bend into the turnover.
+
+\emph{Phase:} bar-past-knee to peak hip elevation. The start is the
+\emph{same computation} that ends the first pull --- one event, computed once, so
+two triggers cannot drift apart. The end is a smoothed extremum rather than a
+crossing, so it needs confirmation: the running minimum of the smoothed hip
+elevation counts as the peak only once the hip has given back
+$\ge0.08\,\Lt$ and held that for $R$ samples. A clip ending at peak extension
+reports the best point found, flagged unconfirmed.
+
+\emph{Measure:} interior joint angles via the normalized dot product,
+\[
+  \angle(j;a,b)=\arccos\frac{\langle a-j,\ b-j\rangle}{\lVert a-j\rVert\,\lVert b-j\rVert},
+\]
+which needs no reference axis (unlike $\theta$ above) and is therefore the right
+measure for a joint rather than a segment's tilt; $180^\circ$ is a straight, fully
+extended joint. Hip is $\angle(\text{hip};\text{sho},\text{knee})$, knee is
+$\angle(\text{knee};\text{hip},\text{ankle})$, each per side. Peak values are the
+mean of the last $3$ samples of the phase, since the phase end itself came from
+a smoothed signal. Deficits $\delta=180^\circ-\text{peak}$ give the verdict
+(bands $10^\circ/20^\circ$) and the ramp,
+\[
+  t=\min\bigl(1,\ \max(\delta_{\text{hip}},\delta_{\text{knee}})/45^\circ\bigr),
+\]
+worst-joint, because triple extension is not met by extending only the hip.
+Synchrony is reported alongside as $|t^*_{\text{hip}}-t^*_{\text{knee}}|$: the cue
+names a simultaneous event, so a lifter who extends the knees well before the
+hips has split it even if each joint individually reaches a good angle.
+
+\emph{Known gap:} ankle plantarflexion is not measured. COCO-17 has no foot
+keypoint, so only two of the three joints in ``triple extension'' are scored.
+
+\subsubsection{Turnover and receiving (not implemented)}
+
+Candidate triggers exist in the same vocabulary --- elbow angle leaving
+$180^\circ$ for the turnover, the bar's vertical velocity zero-crossing, hip
+elevation's second minimum for the catch --- but nothing is written yet, and no
+number is shown for this window.
+
+\subsection{Clean}
+
+The two diagnostics above are lift-agnostic as written: both triggers (bar
+crossing knee height, peak hip elevation) and both measurements (trunk
+inclination, hip/knee joint angles) are grip-independent, so a clean is scored
+today by the same code as a snatch. The wider grip of the snatch changes the bar
+height at the crossing but not the geometry of the trigger.
+
+What is \emph{not} covered is everything after the pull: the rack position, the
+elbow whip, and the front-squat recovery have no diagnostic. Racking in
+particular would need the bar estimate to survive the wrist rotating under the
+bar, which the current $\tfrac{1}{6}$-forearm offset does not model.
+
+\subsection{Jerk}
+
+Not implemented.
+
+\section*{Caveats}
+
+Every band in this note ($2.5^\circ/5.0^\circ$ SD, $10^\circ/20^\circ$ short of
+extension, $0.15\,\Lt/\mathrm{s}$ onset, $0.08\,\Lt$ peak confirmation) is
+provisional and was set by inspection, not fitted to labelled lifts. All angles
+are in the image plane and assume a side-on camera. Widening the smoothing
+$\sigma$ lowers the first pull's SD whether or not the back angle actually held,
+so lifts are only comparable at one setting --- which is why the applied
+$\sigma$ is printed with every score.
+
+\begin{thebibliography}{9}\small
+\bibitem{vitpose} Y.~Xu, J.~Zhang, Q.~Zhang, D.~Tao. \emph{ViTPose: Simple Vision Transformer Baselines for Human Pose Estimation.} NeurIPS, 2022. \texttt{arXiv:2204.12484}. Implementation: \texttt{JunkyByte/easy\_ViTPose}.
+\bibitem{vit} A.~Dosovitskiy et al. \emph{An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale.} ICLR, 2021.
+\bibitem{mae} K.~He et al. \emph{Masked Autoencoders Are Scalable Vision Learners.} CVPR, 2022.
+\bibitem{yolov8} G.~Jocher, A.~Chaurasia, J.~Qiu. \emph{Ultralytics YOLOv8.} 2023.
+\bibitem{sort} A.~Bewley et al. \emph{Simple Online and Realtime Tracking.} ICIP, 2016.
+\bibitem{fc} F.~N.~Fritsch, R.~E.~Carlson. \emph{Monotone Piecewise Cubic Interpolation.} SIAM J.\ Numer.\ Anal.\ 17(2), 1980.
+\end{thebibliography}
+
+\end{document}

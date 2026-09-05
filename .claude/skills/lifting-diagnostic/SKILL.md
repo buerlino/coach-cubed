@@ -48,12 +48,20 @@ array. The object's shape *is* the three-part structure:
   phase(track, scale)        -> { startIdx, endIdx, notes[], ... }  | { error }
   measure(track, phase)      -> { series[], summary{}, notes[] }    | { error }
   verdict(summary)           -> { label, status }         // status: good|warning|critical
+  score(summary)             -> badness in [0,1] | null   // one constant per lift, drives the ramp
   referenceLine(summary)     -> { value, label } | null   // the plot's dashed line
   tiles(summary, verdict)    -> [{ label, value, sub, status? }]   // stat tiles
   transparencyLines(res, track, ctxExtra) -> [htmlString]  // the transparency block's bullets
-  overlay(ctx, sample, phase, res, size)  -> void          // per-frame drawing
+  overlay(ctx, view, phase, res, size)    -> void          // drawing, at the playhead's own time
 }
 ```
+
+`overlay` is handed a `view`, not a sampled frame: `view.p` is the track
+interpolated to the playhead's actual time, `view.at(t)` the same at any other
+instant inside the phase, `view.dt` the mean spacing of processed frames. It
+has to be continuous because the marks sit on top of `app.py`'s wireframe,
+which is itself interpolated — marks pinned to the nearest sampled frame
+visibly trail the body they claim to measure.
 
 The first four functions (`phase`/`measure`/`verdict`/`overlay`) are the
 three-part structure itself and are documented in detail below.
@@ -96,6 +104,13 @@ These come from `vitpose_backend.infer_video` and are easy to get backwards.
   Elevation is therefore `-y`. "A is above B" is `A.y < B.y`.
 - COCO-17 indices: 5/6 shoulder L/R, 7/8 elbow, 9/10 wrist, 11/12 hip,
   13/14 knee, 15/16 ankle. Odd = left, even = right.
+- **There is only ever one person in the track.** `infer_video` keeps the
+  tracked body detected in the most frames and discards the rest
+  (`vitpose_backend._keep_main_person`) — a gym has bystanders in it, and YOLO
+  also hallucinates bodies out of equipment. A diagnostic never has to decide
+  who the lifter is. `meta.tracks` says who was kept and what was dropped; a
+  dropped track nearly as long as the kept one means the tracker split the
+  lifter in two, and the surviving half is missing part of the lift.
 - `vMeta.frame_indices[i]` is the source frame for sample `i`;
   `vMeta.frame_times_ms[i]` is that frame's own presentation time and is the
   authority for time when non-null (see the comment on `slotForTime` in
@@ -149,11 +164,33 @@ any point on the curve back on the frame that produced it.
   at low alpha. It is *not* a second series and gets no legend entry.
 - The headline number is a stat tile, not a point on the chart.
 
-Colors come from the validated dark palette (see the `dataviz` skill,
-`references/palette.md`): series `#3987e5`, reference geometry `#d95926`,
-status good/warning/critical `#0ca30c` / `#fab219` / `#d03b3b`, muted ink
-`#898781`, gridline `#2c2c2a`. Status is never carried by color alone — it
-ships with its label.
+### Color scheme
+
+Three roles, three fixed treatments, on the video and on the plot alike.
+**Nothing else gets a hue** — a new diagnostic that introduces a fourth colour
+is the bug, not the palette. Values come from the validated dark palette (see
+the `dataviz` skill, `references/palette.md`) and live in `C` in
+`diagnostics.js`.
+
+| Role | Treatment | Why |
+| --- | --- | --- |
+| **The skeleton** — the pose track drawn on the frame | white `#ffffff` | It is a measurement of the lifter, not a judgement of them. It says where the body was, and nothing about whether that was good. |
+| **The diagnostic** — the mark that *is* the measurement, its trace, its uncertainty band, its trail | green→amber→red `#0ca30c` / `#fab219` / `#d03b3b`, via `scoreColor(score(summary))` | The mark carrying the number is also the readout of it, so the frame and the plot cannot disagree about how the lift scored. |
+| **Phase and interpretability indicators** — phase shading and edges, trigger geometry (the heights a crossing compares, the extremum a phase ended on), their labels | purple `#b39ddb`, via `phaseColor(alpha)` | These say *when* and *why*, not *how well*. On the ramp their edges would read as "good" or "bad" — a phase boundary is neither. |
+
+Grid, axes, playhead, tooltips and prose stay neutral (`C.ink` / `C.ink2` /
+`C.muted` / `C.grid` / `C.axis`). Status is never carried by color alone — it
+ships with its label. Weight and dash pattern, not hue, separate a measurement
+from its reference *inside* a role: diagnostic 1's bar estimate is a solid
+purple rule and the raw wrist it was corrected from is a dashed one.
+
+`score()` is what drives the ramp, and it is one constant for the whole lift,
+not a per-frame value: recolouring frame by frame makes the mark flicker
+through the ramp during playback and invites reading a single frame's colour as
+a verdict. It can differ from `verdict()` — diagnostic 1 scores SD but colours
+total drift — so say so in the transparency block when it does, and give the
+number the ramp is built from its own stat tile in that colour, since that tile
+is the only legend the ramp gets.
 
 The transparency block under the plot is mandatory and lists, at minimum:
 which frames the phase spans and which trigger values chose them; how many
@@ -168,6 +205,20 @@ The good/warning/critical cutoffs in each diagnostic are first guesses, not
 sports-science findings. Label them as such wherever they surface, and record
 in the diagnostic's note what they were based on. They should be re-fit once
 there are enough labelled lifts to fit them against.
+
+## TODO
+
+- **Recognize the start position from rough keypoint posture.** Detect the
+  frame where the lifter is set over the bar — bar on the floor, hips below
+  shoulders, knees flexed, hands outside the knees — from the keypoint
+  configuration alone, without reference to motion. Every phase trigger so far
+  is a motion or crossing threshold, which is why they all need a smoothed
+  signal and a backwards search from an anchor. A posture match is a per-frame
+  classification instead: it holds on a *stationary* lifter, which is exactly
+  where velocity triggers are weakest, and it gives the first pull a real start
+  anchor rather than the current "walk back until the wrists go quiet". It also
+  gates the diagnostics on the clip actually being a lift, which nothing
+  currently checks.
 
 ## Diagnostics
 

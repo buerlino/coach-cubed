@@ -104,13 +104,20 @@ video only gates that diagnostic's overlay, not whether it's shown here):
 **Stat tiles**: hip extension deficit with its verdict, knee extension
 deficit, synchrony gap (with which joint led), and left/right disagreement.
 
-**Overlay**, on the video, only while the playhead is inside the phase: the
-full shoulder–hip–knee–ankle chain on each side in the series color (so both
-joint angles being scored are visible on the frame as the segments that form
-them), and a full-width horizontal reference line at the peak hip height the
-end trigger found, labeled — the same idea as diagnostic 1's knee/bar ticks,
-sized for a signal whose geometry spans the whole frame rather than a
+**Overlay**, on the video, only while the playhead is inside the phase, drawn
+at the playhead's own time: the full shoulder–hip–knee–ankle chain on each side
+in the score colour (both joint angles being scored are visible on the frame as
+the segments that form them, and the chain that carries the measurement carries
+its reading too), plus a labeled full-width dashed rule in purple at the peak
+hip height the end trigger found — the same role as diagnostic 1's knee/bar
+rules, sized for a signal whose geometry spans the whole frame rather than a
 hand's-width region.
+
+**Score** (what the ramp shows): the worse of the hip and knee deficits, full
+red at 45° short of straight. Deliberately the worse of the two rather than the
+headline hip number — "triple extension" is not met by opening the hip alone,
+so the colour can read redder than the hip tile when it is the knees that
+stayed bent. Provisional, like every threshold here.
 
 **Transparency block** reports: the phase's frame range and duration; that
 the start trigger is shared with diagnostic 1; whether the end trigger's peak

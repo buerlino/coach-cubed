@@ -232,11 +232,38 @@ INDEX_HTML = """<!doctype html>
 <meta charset="utf-8">
 <title>coach</title>
 <style>
-  body { background:#111; color:#eee; font-family:system-ui,sans-serif; max-width:640px; margin:40px auto; padding:0 16px; }
+  body { background:#111; color:#eee; font-family:system-ui,sans-serif; max-width:1240px; margin:40px auto; padding:0 16px; }
   h1 { font-weight:600; }
   h2 { font-weight:600; font-size:18px; border-top:1px solid #333; padding-top:24px; margin-top:32px; }
   input,button,select { font-size:16px; padding:8px; margin:4px 0; }
   img { max-width:100%; margin-top:16px; border-radius:8px; }
+  [hidden] { display:none !important; }   /* beats the display: on .tabs etc. */
+
+  /* image | video is a choice, not two stacked sections: only the selected
+     medium's view and its settings are in the DOM flow at all. */
+  .tabs { display:flex; gap:4px; border-bottom:1px solid #333; margin:24px 0 20px; }
+  .tab { font-size:15px; background:none; border:none; border-bottom:2px solid transparent;
+         color:#898781; padding:8px 14px; margin:0 0 -1px; cursor:pointer; }
+  .tab:hover { color:#c3c2b7; }
+  .tab[aria-selected="true"] { color:#eee; border-bottom-color:#eee; }
+
+  /* Desktop: the view sits beside its settings + everything derived from it,
+     and stays put while the panel scrolls — the diagnostics are read against
+     the frame on screen, so scrolling the video out of view defeats them.
+     Below 900px it collapses back to the single column. */
+  .layout { display:grid; gap:28px; align-items:start; }
+  @media (min-width: 900px) {
+    .layout { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); }
+    .col-view { position:sticky; top:24px; }
+  }
+  .panel-h { font-weight:600; font-size:18px; border-top:1px solid #333;
+             padding-top:20px; margin:28px 0 12px; }
+  .panel-h:first-child { border-top:none; padding-top:0; margin-top:0; }
+  .settings { display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
+  .settings label { font-size:14px; color:#c3c2b7; display:flex; align-items:center;
+                    gap:8px; flex-wrap:wrap; }
+  .settings input[type=file] { max-width:100%; }
+  .settings .row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   #videoWrap { position:relative; max-width:100%; width:fit-content; margin-top:16px; }
   #videoWrap video { max-width:100%; display:block; border-radius:8px; }
   #videoWrap canvas { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
@@ -267,81 +294,116 @@ INDEX_HTML = """<!doctype html>
 <body>
 <h1>coach</h1>
 
-<div id="app">
-  <input id="file" type="file" accept="image/*">
-  <select id="size"><option value="l">l (large, ~1.2GB)</option><option value="h">h (huge, ~2.5GB)</option></select>
-  <button id="run">Run pose</button>
-  <p id="status"></p>
-  <img id="out">
-  <pre id="kp" style="white-space:pre-wrap;font-size:12px;color:#9c9"></pre>
+<div class="tabs" role="tablist">
+  <button id="tabImage" class="tab" type="button" role="tab" aria-selected="false" aria-controls="imageView">image</button>
+  <button id="tabVideo" class="tab" type="button" role="tab" aria-selected="true" aria-controls="videoView">video</button>
 </div>
 
-<h2>video</h2>
-<div id="vapp">
-  <input id="vfile" type="file" accept="video/*">
-  <button id="vcam" type="button">record from camera</button>
-  <select id="vsize"><option value="l">l (large, ~1.2GB)</option><option value="h">h (huge, ~2.5GB)</option></select>
-  <label style="font-size:14px;color:#9ab">frame stride
-    <input id="vstride" type="number" value="1" min="1" style="width:4em">
-  </label>
-  <button id="vrun">Run pose on video</button>
-  <button id="vcancel" type="button" style="display:none;background:#722;color:#fff;">Cancel</button>
-  <p id="vstatus"></p>
-  <div id="vprogWrap" style="display:none;max-width:420px;background:#222;border-radius:6px;overflow:hidden;margin:-2px 0 10px;">
-    <div id="vprogBar" style="height:8px;width:0%;background:#4a9;transition:width .2s linear;"></div>
+<div class="layout">
+
+<!-- left: the selected medium, and only the readouts that annotate the frame
+     itself. Everything you can turn a knob on lives in the panel beside it. -->
+<div class="col-view">
+  <div id="imageView" hidden>
+    <img id="out">
+    <pre id="kp" style="white-space:pre-wrap;font-size:12px;color:#c3c2b7"></pre>
   </div>
-  <div id="videoWrap">
-    <video id="vout" controls muted playsinline loop></video>
-    <canvas id="voverlay"></canvas>
+  <div id="videoView">
+    <div id="videoWrap">
+      <video id="vout" controls muted playsinline loop></video>
+      <canvas id="voverlay"></canvas>
+    </div>
+    <p id="vsummary" style="font-size:12px;color:#c3c2b7"></p>
+    <!-- live sync readout: if the overlay ever looks frozen, this says whether
+         playback time is stuck or the frame lookup is. -->
+    <p id="vsync" style="font-size:12px;color:#898781"></p>
   </div>
-  <label style="font-size:14px;color:#9ab">speed
-    <select id="vspeed">
-      <option value="0.1">0.1x</option>
-      <option value="0.25">0.25x</option>
-      <option value="0.5">0.5x</option>
-      <option value="1" selected>1x</option>
-      <option value="1.5">1.5x</option>
-      <option value="2">2x</option>
-    </select>
-  </label>
-  <!-- Gaussian sigma, in milliseconds of video time. Applied client-side to the
-       track already in memory, so dragging it is instant — no re-run. -->
-  <label style="font-size:14px;color:#9ab;margin-left:12px">time smoothing
-    <input id="vsmooth" type="range" min="0" max="300" step="5" value="50" style="vertical-align:middle;width:140px">
-    <span id="vsmoothVal" style="display:inline-block;min-width:8em">&sigma; = 50 ms</span>
-  </label>
-  <!-- second pass of the smoothing: keep the smoothed path, re-time the points
-       along it so speed follows the raw track (smoothKeypoints). A tickbox so
-       the two can be compared on the speed plot below. -->
-  <label style="font-size:14px;color:#9ab;margin-left:12px;white-space:nowrap">
-    <input id="vkeepvel" type="checkbox" checked style="vertical-align:middle;margin:0 4px 0 0"> preserve velocity
-  </label>
-  <p id="vsummary" style="font-size:12px;color:#9c9"></p>
-  <!-- live sync readout: if the overlay ever looks frozen, this says whether
-       playback time is stuck or the frame lookup is. -->
-  <p id="vsync" style="font-size:12px;color:#789"></p>
 </div>
 
-<!-- Diagnostics sit directly under the video and share its time axis, so any
-     point on the curve can be put back on the frame that produced it. -->
-<h2>diagnostics</h2>
-<div id="diagWrap">
-  <label style="font-size:14px;color:#9ab">lifter
-    <select id="diagPersonSelect"></select>
-  </label>
-  <!-- one tickbox per diagnostic: whether it draws on the video. Scoring and
-       its own plot/tiles below (in #diagSections) are unaffected. -->
-  <div id="diagToggles" class="diag-toggles"></div>
-  <!-- one block per diagnostic (tiles + plot + notes), built by diagnostics.js -->
-  <div id="diagSections"></div>
-</div>
+<div class="col-panel">
 
-<h3>keypoint plot</h3>
+  <div id="imagePanel" hidden>
+    <h2 class="panel-h">settings</h2>
+    <div class="settings">
+      <input id="file" type="file" accept="image/*">
+      <label>model
+        <select id="size"><option value="l">l (large, ~1.2GB)</option><option value="h">h (huge, ~2.5GB)</option></select>
+      </label>
+      <button id="run">Run pose</button>
+    </div>
+    <p id="status"></p>
+  </div>
+
+  <div id="videoPanel">
+    <h2 class="panel-h">settings</h2>
+    <div class="settings">
+      <input id="vfile" type="file" accept="video/*">
+      <button id="vcam" type="button">record from camera</button>
+      <label>model
+        <select id="vsize"><option value="l">l (large, ~1.2GB)</option><option value="h">h (huge, ~2.5GB)</option></select>
+      </label>
+      <label>frame stride
+        <input id="vstride" type="number" value="1" min="1" style="width:4em">
+      </label>
+      <button id="vrun">Run pose on video</button>
+      <button id="vcancel" type="button" style="display:none;background:#722;color:#fff;">Cancel</button>
+      <div id="vprogWrap" style="display:none;width:100%;max-width:420px;background:#222;border-radius:6px;overflow:hidden;">
+        <div id="vprogBar" style="height:8px;width:0%;background:#4a9;transition:width .2s linear;"></div>
+      </div>
+      <label>speed
+        <select id="vspeed">
+          <option value="0.1">0.1x</option>
+          <option value="0.25">0.25x</option>
+          <option value="0.5">0.5x</option>
+          <option value="1" selected>1x</option>
+          <option value="1.5">1.5x</option>
+          <option value="2">2x</option>
+        </select>
+      </label>
+      <!-- Gaussian sigma, in milliseconds of video time. Applied client-side to
+           the track already in memory, so dragging it is instant — no re-run. -->
+      <label>time smoothing
+        <input id="vsmooth" type="range" min="0" max="300" step="5" value="50" style="vertical-align:middle;width:140px">
+        <span id="vsmoothVal" style="display:inline-block;min-width:8em">&sigma; = 50 ms</span>
+      </label>
+      <!-- second pass of the smoothing: keep the smoothed path, re-time the
+           points along it so speed follows the raw track (smoothKeypoints). A
+           tickbox so the two can be compared on the speed plot below. -->
+      <label style="white-space:nowrap">
+        <input id="vkeepvel" type="checkbox" checked style="vertical-align:middle;margin:0 4px 0 0"> preserve velocity
+      </label>
+      <!-- draw the mesh at the playhead's exact time instead of at the nearest
+           processed frame (poseAtTime). Off = every painted pose is one the
+           model actually produced; on = the in-between poses are inferred. -->
+      <label style="white-space:nowrap" title="Interpolate the mesh between processed frames so it glides instead of stepping. In-between poses are computed, not detected.">
+        <input id="vinterp" type="checkbox" checked style="vertical-align:middle;margin:0 4px 0 0"> smooth motion
+      </label>
+    </div>
+    <p id="vstatus"></p>
+
+    <!-- Diagnostics share the video's time axis, so any point on a curve can be
+         put back on the frame that produced it — which is why the frame stays
+         pinned beside them on desktop. -->
+    <h2 class="panel-h">diagnostics</h2>
+    <div id="diagWrap">
+      <label style="font-size:14px;color:#c3c2b7">lifter
+        <select id="diagPersonSelect"></select>
+      </label>
+      <!-- one tickbox per diagnostic: whether it draws on the video. Scoring and
+           its own block below are unaffected. -->
+      <div id="diagToggles" class="diag-toggles"></div>
+      <!-- one block per diagnostic (tiles + plot + notes), built by
+           diagnostics.js from its DIAGNOSTICS registry — the page holds no
+           per-diagnostic markup, so adding one there needs no change here. -->
+      <div id="diagSections"></div>
+    </div>
+
+    <h2 class="panel-h">keypoint plot</h2>
 <div id="plotControls" style="display:none; margin-bottom:12px;">
-  <label style="font-size:14px;color:#9ab">person id
+  <label style="font-size:14px;color:#c3c2b7">person id
     <select id="plotPersonSelect"></select>
   </label>
-  <label style="font-size:14px;color:#9ab;margin-left:12px">keypoint
+  <label style="font-size:14px;color:#c3c2b7;margin-left:12px">keypoint
     <select id="plotKeypointSelect">
       <option value="0">0: nose</option>
       <option value="1">1: left_eye</option>
@@ -362,7 +424,7 @@ INDEX_HTML = """<!doctype html>
       <option value="16">16: right_ankle</option>
     </select>
   </label>
-  <label style="font-size:14px;color:#9ab;margin-left:12px">axis
+  <label style="font-size:14px;color:#c3c2b7;margin-left:12px">axis
     <select id="plotAxisSelect">
       <option value="y" selected>Y position (vertical)</option>
       <option value="x">X position (horizontal)</option>
@@ -373,6 +435,11 @@ INDEX_HTML = """<!doctype html>
 <div id="plotWrap" style="position:relative; width:100%; max-width:640px; background:#1a1a1a; border-radius:8px; border:1px solid #333; padding:8px; box-sizing:border-box;">
   <canvas id="plotCanvas" width="600" height="200" style="width:100%; height:auto; display:block; cursor:pointer;"></canvas>
 </div>
+
+  </div><!-- /videoPanel -->
+</div><!-- /col-panel -->
+
+</div><!-- /layout -->
 
 <script src="/diagnostics.js"></script>
 <script>
@@ -404,6 +471,10 @@ const vvideo = $('vout'), vcanvas = $('voverlay'), vctx = vcanvas.getContext('2d
 let vKeypointsRaw = null, vKeypoints = null, vMeta = null, vRafId = null;
 let vSigmaMs = 0;   // smoothing width the painted overlay was built with
 let vKeepVel = true;   // ...and whether its timing was re-fitted to the raw speed
+let vInterp = true;    // ...and whether poses between samples are interpolated
+// {frames, times} of the track in memory, rebuilt whenever the track is (see
+// applySmoothing). Every time->pose lookup goes through it.
+let vSample = null;
 // Liveness of the overlay loop: when it last painted, and how often the
 // watchdog below has had to revive it. Both surface in the #vsync readout.
 let vLastDrawMs = 0, vLoopRestarts = 0;
@@ -412,7 +483,11 @@ let vLastDrawMs = 0, vLoopRestarts = 0;
 // care which one it came from.
 let vSource = null, vObjectUrl = null, vCamStream = null, vRecorder = null, vChunks = [], vCamTimerId = null, vRecordStart = 0;
 
-const PALETTE = ['#e6194b','#3cb44b','#ffe119','#4363d8','#f58231','#911eb4','#46f0f0','#f032e6'];
+// Colour means one thing in coach: how well a diagnostic's cue is being met
+// (diagnostics.js owns that green->red ramp). The pose track itself is not a
+// score and carries no hue — white for every person, so a coloured mark on the
+// frame is always a diagnostic and never a track id.
+const SKELETON = '#ffffff';
 const CONF_THRESHOLD = 0.3;
 
 // --- temporal smoothing ---------------------------------------------------
@@ -614,8 +689,10 @@ function applySmoothing() {
   vSigmaMs = parseFloat($('vsmooth').value) || 0;
   vKeepVel = $('vkeepvel').checked;
   $('vsmoothVal').innerHTML = vSigmaMs ? 'σ = ' + vSigmaMs + ' ms' : 'off (raw)';
-  if (!vKeypointsRaw || !vMeta) { vKeypoints = vKeypointsRaw; return; }
+  if (!vKeypointsRaw || !vMeta) { vKeypoints = vKeypointsRaw; vSample = null; return; }
   vKeypoints = smoothKeypoints(vKeypointsRaw, vMeta, vSigmaMs / 1000, vKeepVel);
+  vSample = sampleTimes(vMeta, vKeypoints);   // the grid slotForTime/poseAtTime
+                                              // look poses up on
   // Overlay and plot before diagnostics: diagnostics.js is the file under
   // active iteration, and a throw from a half-written cue must not be able to
   // strand the slider looking dead.
@@ -643,6 +720,12 @@ Diagnostics.mount({
   video: () => vvideo,
   redraw: () => drawOverlay(),   // toggling a tickbox has to repaint the
                                  // overlay even while the video is paused
+  // The overlay's own interpolator, handed over rather than reimplemented:
+  // the diagnostic marks sit on top of the mesh, and two interpolators that
+  // drift apart would show up as the measurement sliding off the joint it is
+  // measuring. smoothMotion() is the tickbox, so both obey it together.
+  smoothMotion: () => vInterp,
+  cubic: cubicAt,
 });
 
 function updatePlotControls() {
@@ -693,7 +776,11 @@ function plotSeries(kp, personId, kpIdx, axis) {
   return out;
 }
 
-function drawPlot() {
+// `time` is the playhead position to mark, in seconds. Passed in rather than
+// read off the video so the playhead sits where the mesh is: video.currentTime
+// is quantized to the displayed frame, which made this line judder against a
+// smoothly moving overlay.
+function drawPlot(time) {
   pctx.clearRect(0, 0, pcanvas.width, pcanvas.height);
   if (!vKeypoints || !vMeta) return;
 
@@ -788,15 +875,16 @@ function drawPlot() {
     pctx.lineWidth = 1;
     trace(rawPoints);
   }
-  // Line color matching person palette
-  pctx.strokeStyle = colorForId(personId);
+  pctx.strokeStyle = SKELETON;
   pctx.lineWidth = 2;
   trace(points);
 
   // Draw current playhead position
   if (vvideo && vvideo.duration) {
-    const currentFrame = Math.floor(vvideo.currentTime * vMeta.fps);
-    const playheadX = getX(currentFrame);
+    const at = (typeof time === 'number' && isFinite(time)) ? time : vvideo.currentTime;
+    const playheadX = getX(at * vMeta.fps);   // fractional frame: the playhead
+                                              // moves with the mesh, not in
+                                              // whole-frame steps
 
     pctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
     pctx.lineWidth = 1.5;
@@ -826,64 +914,154 @@ pcanvas.onclick = (e) => {
   vvideo.currentTime = targetTime;
 };
 
-function colorForId(id) {
-  const n = parseInt(id, 10);
-  return PALETTE[(Number.isFinite(n) ? n : 0) % PALETTE.length];
-}
-
 function syncCanvasSize() {
   vcanvas.width = vvideo.videoWidth || vMeta?.width || 0;
   vcanvas.height = vvideo.videoHeight || vMeta?.height || 0;
 }
 
-// Which processed frame belongs on screen at time t (seconds) -> its position
-// in vMeta.frame_indices. Timestamps from the decoder are the authority when
-// we have them: idx = t * fps silently desyncs on variable-frame-rate captures
-// (phone video, MediaRecorder) and breaks outright when the container lies
-// about fps — both of which show up as a mesh frozen on a single pose.
+// Which processed sample belongs on screen at time t (seconds) -> its position
+// in vSample. Decoder timestamps are the authority when we have them (that
+// choice lives in sampleTimes): idx = t * fps silently desyncs on
+// variable-frame-rate captures (phone video, MediaRecorder) and breaks outright
+// when the container lies about fps — both of which show up as a mesh frozen on
+// a single pose.
 function slotForTime(t) {
-  const times = vMeta.frame_times_ms;
-  if (!times) {   // no usable timestamps — fall back to nominal fps
-    const slot = Math.floor((t * vMeta.fps) / vMeta.frame_stride);
-    return Math.max(0, Math.min(slot, vMeta.frame_indices.length - 1));
-  }
-  const ms = t * 1000;
-  let lo = 0, hi = times.length - 1;   // last frame whose pts <= ms
+  const times = vSample.times;
+  let lo = 0, hi = times.length - 1;   // last sample whose time <= t
   while (lo < hi) {
     const mid = (lo + hi + 1) >> 1;
-    if (times[mid] <= ms) lo = mid; else hi = mid - 1;
+    if (times[mid] <= t) lo = mid; else hi = mid - 1;
   }
   return lo;
 }
 
+// --- sub-frame interpolation ----------------------------------------------
+// Smoothing fixes where a joint is; this fixes when. The overlay only ever had
+// poses at the processed frames, so between them it held the last one and then
+// jumped — at 0.25x playback, or with a frame stride above 1, that step is what
+// reads as a jumpy mesh. Below, the mesh is evaluated at the playhead's actual
+// time and the in-between poses are interpolated.
+//
+// Cubic, not linear: linear interpolation is continuous in position but not in
+// velocity, so the mesh visibly changes direction at every sample — the very
+// stepping this is meant to remove, just smaller. A Hermite spline through the
+// two bracketing samples with tangents estimated from their neighbours is
+// smooth across the joins.
+//
+// The tangents are clamped the monotone (Fritsch-Carlson) way, which matters
+// for exactly the moments a lift is judged on: at the bottom of a squat an
+// unclamped spline overshoots the turnaround and draws the athlete deeper than
+// any frame shows them. Flattening the tangent at a local extremum keeps the
+// curve inside the samples it was built from, so interpolation can never invent
+// a new depth, a new lockout, or a new peak speed.
+function monoTangent(dA, hA, dB, hB) {
+  if (dA * dB <= 0) return 0;   // local extremum: flat, so no overshoot past it
+  const m = (dA * hB + dB * hA) / (hA + hB);   // 3-point slope, uneven spacing
+  const lim = 3 * Math.min(Math.abs(dA), Math.abs(dB));
+  return Math.sign(m) * Math.min(Math.abs(m), lim);
+}
+
+// One coordinate on the segment v1..v2, at fraction u. v0/v3 are the outer
+// neighbours and may be null at the ends of the track (then that end's tangent
+// falls back to the segment's own slope, i.e. the curve just meets it straight).
+function cubicAt(v0, v1, v2, v3, t0, t1, t2, t3, u) {
+  const h = t2 - t1;
+  if (!(h > 1e-9)) return v1;
+  const d = (v2 - v1) / h;
+  let m1 = d, m2 = d;
+  if (v0 != null && t1 - t0 > 1e-9) m1 = monoTangent((v1 - v0) / (t1 - t0), t1 - t0, d, h);
+  if (v3 != null && t3 - t2 > 1e-9) m2 = monoTangent(d, h, (v3 - v2) / (t3 - t2), t3 - t2);
+  const u2 = u * u, u3 = u2 * u;
+  return (2 * u3 - 3 * u2 + 1) * v1 + (u3 - 2 * u2 + u) * h * m1
+       + (-2 * u3 + 3 * u2) * v2 + (u3 - u2) * h * m2;
+}
+
+// The pose to draw at time t: {personId: points}, interpolated between samples
+// when 'smooth motion' is on and the exact sampled pose when it is off.
+//
+// Anything the confidence gate is uncertain about is NOT interpolated — a joint
+// the model only found on one side of the gap, or a person present in only one
+// of the two frames, snaps at the halfway point instead. Fading between a
+// detection and a guess would draw a limb sliding through positions the model
+// never proposed, which on this overlay is indistinguishable from a real
+// movement of the athlete.
+function poseAtTime(t, slot) {
+  const { frames, times } = vSample;
+  const n = frames.length;
+  const at = k => (k >= 0 && k < n) ? vKeypoints[String(frames[k])] : null;
+  const A = at(slot);
+  if (!vInterp || n < 2 || slot + 1 >= n) return A;
+
+  const span = times[slot + 1] - times[slot];
+  const u = span > 1e-9 ? Math.min(Math.max((t - times[slot]) / span, 0), 1) : 0;
+  const B = at(slot + 1);
+  if (!A || !B) return u < 0.5 ? A : B;
+
+  const P = at(slot - 1), Q = at(slot + 2);
+  const t0 = times[slot - 1], t1 = times[slot], t2 = times[slot + 1], t3 = times[slot + 2];
+  const out = {};
+  for (const id of new Set([...Object.keys(A), ...Object.keys(B)])) {
+    const pa = A[id], pb = B[id];
+    if (!pa || !pb) { const near = u < 0.5 ? pa : pb; if (near) out[id] = near; continue; }
+    const p0 = P && P[id], p3 = Q && Q[id];
+    const pts = [];
+    for (let k = 0; k < pa.length; k++) {
+      const a = pa[k], b = pb[k];
+      if (!a || !b || a[2] < CONF_THRESHOLD || b[2] < CONF_THRESHOLD) {
+        pts.push(u < 0.5 ? a : b);
+        continue;
+      }
+      // Outer neighbours only shape the curve if they were confident too;
+      // otherwise this segment is interpolated as if it were at the end of the
+      // track, rather than being steered by a joint the model was guessing at.
+      const q0 = p0 && p0[k], q3 = p3 && p3[k];
+      const c0 = (q0 && q0[2] >= CONF_THRESHOLD) ? q0 : null;
+      const c3 = (q3 && q3[2] >= CONF_THRESHOLD) ? q3 : null;
+      pts.push([
+        cubicAt(c0 && c0[0], a[0], b[0], c3 && c3[0], t0, t1, t2, t3, u),
+        cubicAt(c0 && c0[1], a[1], b[1], c3 && c3[1], t0, t1, t2, t3, u),
+        // an interpolated joint is only as trustworthy as the weaker end it
+        // was drawn from, so the gate keeps applying mid-segment
+        Math.min(a[2], b[2]),
+      ]);
+    }
+    out[id] = pts;
+  }
+  return out;
+}
+
 function drawOverlay(t) {
   vctx.clearRect(0, 0, vcanvas.width, vcanvas.height);
-  if (!vKeypoints || !vMeta) return;
+  if (!vKeypoints || !vMeta || !vSample) return;
 
   const time = (typeof t === 'number' && isFinite(t)) ? t : vvideo.currentTime;
   const slot = slotForTime(time);
-  const idx = vMeta.frame_indices[slot];
+  const idx = vSample.frames[slot];
   $('vsync').textContent =
     `t=${time.toFixed(2)}s → frame ${idx} of ${vMeta.frame_count} ` +
-    `(sample ${slot + 1}/${vMeta.frame_indices.length}` +
+    `(sample ${slot + 1}/${vSample.frames.length}` +
     `${vMeta.frame_times_ms ? ', decoder timestamps' : ', fps estimate'})` +
     // which smoothing width these joints were built with, so "is this the σ I
     // just dragged to?" is answerable without re-running anything
     ` · σ ${vSigmaMs ? vSigmaMs + 'ms' + (vKeepVel ? ', velocity kept' : '') : 'off'}` +
+    // and whether what's painted is a detected pose or an interpolated one
+    `${vInterp ? ' · interpolated' : ''}` +
     `${vLoopRestarts ? ` · overlay revived ${vLoopRestarts}×` : ''}`;
-  const frame = vKeypoints[String(idx)];
+  const frame = poseAtTime(time, slot);
 
-  drawPlot(); // Update playhead line on plot canvas
-  Diagnostics.draw();
-  Diagnostics.overlay(vctx, idx);   // phase geometry on the frame itself —
-                                    // no-ops outside the active phase
+  drawPlot(time); // Update playhead line on plot canvas
+  Diagnostics.draw(time);
+  // Phase geometry on the frame itself — no-ops outside the active phase.
+  // Given the time rather than the frame index: the marks are drawn on top of
+  // the mesh, so they have to be interpolated on the same clock, or the thing
+  // measuring the lifter steps while the lifter glides.
+  Diagnostics.overlay(vctx, time);
 
   if (!frame) return;
 
-  for (const [id, points] of Object.entries(frame)) {
-    const color = colorForId(id);
-    vctx.strokeStyle = color;
-    vctx.fillStyle = color;
+  for (const points of Object.values(frame)) {
+    vctx.strokeStyle = SKELETON;
+    vctx.fillStyle = SKELETON;
     vctx.lineWidth = 2;
 
     for (const [a, b] of vMeta.skeleton) {
@@ -908,23 +1086,86 @@ function drawOverlay(t) {
 // computed from instead of on whatever currentTime happens to read mid-rAF.
 const HAS_RVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
 
+// --- the playback clock ---------------------------------------------------
+// Painting on rVFC means one paint per VIDEO frame: at 0.25x a 30fps clip that
+// is 7 mesh updates a second, correct on every frame it draws and still visibly
+// stepping — the slower the playback, the worse it looks, which is the opposite
+// of what slow motion is for. So with interpolation on, the paint loop runs on
+// requestAnimationFrame (display rate) and asks this clock what time it is.
+//
+// video.currentTime cannot be that clock: it is quantized to the frame on
+// screen, so reading it 4 times while one frame is held returns the same number
+// 4 times — the staircase we are trying to get off. The clock is instead the
+// last frame the compositor reported, plus wall time since, scaled by the
+// playback rate.
+let vClock = null;   // {media, wall, gap}: the last presented frame's media
+                     // time, when it was presented, and the media-time gap from
+                     // the frame before it
+let vVfcId = null;   // rVFC subscription kept purely to anchor the clock
+let vRafKind = null; // which scheduler vRafId belongs to ('vfc' | 'raf'), since
+                     // the toggle can change it between arming and cancelling
+
+function noteFrame(media) {
+  const gap = (vClock && media > vClock.media) ? media - vClock.media
+                                               : (vClock && vClock.gap);
+  vClock = { media, wall: performance.now(),
+             gap: gap || 1 / ((vMeta && vMeta.fps) || 30) };
+}
+
+function clockTime() {
+  if (!vClock) return vvideo.currentTime;
+  const ahead = (performance.now() - vClock.wall) / 1000 * (vvideo.playbackRate || 1);
+  // Centred on the frame being shown rather than running forward from it. A
+  // held frame is a still picture, so a mesh that moves during it must part
+  // company with the picture; centring splits that into half a frame of lag
+  // then half a frame of lead instead of a whole frame of lead, and keeps the
+  // mesh on the athlete in the middle of every frame's time on screen.
+  // Clamped to one gap so a stalled decoder can't walk the mesh into the
+  // future on its own — extrapolation is a guess about frames not yet shown.
+  return vClock.media + Math.min(Math.max(ahead, 0), vClock.gap) - vClock.gap / 2;
+}
+
+// Runs only while interpolating: rVFC is then no longer the paint loop, but it
+// is still the only accurate report of which frame is on screen and when.
+function anchorLoop(now, metadata) {
+  noteFrame(metadata.mediaTime);
+  vVfcId = (vvideo.paused || vvideo.ended) ? null
+         : vvideo.requestVideoFrameCallback(anchorLoop);
+}
+
 function overlayLoop(now, metadata) {
-  const t = metadata ? metadata.mediaTime : undefined;
   vLastDrawMs = performance.now();
+  if (metadata) noteFrame(metadata.mediaTime);
   // Re-arm BEFORE drawing, not after: drawOverlay pulls in drawPlot and the
   // diagnostics renderer, and re-arming afterwards means the first exception
   // any of them throws kills the overlay for the rest of the session.
-  if (vvideo.paused || vvideo.ended) vRafId = null;
-  else vRafId = HAS_RVFC ? vvideo.requestVideoFrameCallback(overlayLoop)
-                         : requestAnimationFrame(overlayLoop);
-  drawOverlay(t);
+  if (vvideo.paused || vvideo.ended) { vRafId = null; vRafKind = null; }
+  else if (HAS_RVFC && !vInterp) {
+    vRafKind = 'vfc'; vRafId = vvideo.requestVideoFrameCallback(overlayLoop);
+  } else {
+    vRafKind = 'raf'; vRafId = requestAnimationFrame(overlayLoop);
+  }
+  // No rVFC (Firefox): nothing reports presentation, so currentTime stands in.
+  // It is useless as a clock but fine as a "a new frame just appeared" edge,
+  // which is all noteFrame needs to anchor from.
+  if (vInterp && !HAS_RVFC && (!vClock || vvideo.currentTime !== vClock.media)) {
+    noteFrame(vvideo.currentTime);
+  }
+  drawOverlay(vInterp ? clockTime() : (metadata ? metadata.mediaTime : undefined));
+}
+
+function startOverlayLoop() {
+  stopOverlayLoop();
+  if (HAS_RVFC && vInterp) vVfcId = vvideo.requestVideoFrameCallback(anchorLoop);
+  overlayLoop();
 }
 
 function stopOverlayLoop() {
+  if (vVfcId !== null) { vvideo.cancelVideoFrameCallback(vVfcId); vVfcId = null; }
   if (vRafId === null) return;
-  if (HAS_RVFC) vvideo.cancelVideoFrameCallback(vRafId);
+  if (vRafKind === 'vfc') vvideo.cancelVideoFrameCallback(vRafId);
   else cancelAnimationFrame(vRafId);
-  vRafId = null;
+  vRafId = null; vRafKind = null;
 }
 
 // A looping <video> never fires 'play' again when it wraps — playback just
@@ -944,19 +1185,27 @@ function kickOverlayLoop() {
   if (vvideo.paused || vvideo.ended) return;
   if (vRafId !== null && performance.now() - vLastDrawMs < OVERLAY_STALL_MS) return;
   vLoopRestarts++;
-  stopOverlayLoop();
-  overlayLoop();
+  startOverlayLoop();
 }
 
 vvideo.addEventListener('loadedmetadata', () => { syncCanvasSize(); vvideo.playbackRate = parseFloat($('vspeed').value); });
-vvideo.addEventListener('play', () => { stopOverlayLoop(); overlayLoop(); });
+vvideo.addEventListener('play', startOverlayLoop);
 vvideo.addEventListener('playing', kickOverlayLoop);
-vvideo.addEventListener('pause', () => { stopOverlayLoop(); drawOverlay(); });
-vvideo.addEventListener('seeked', () => { drawOverlay(); kickOverlayLoop(); });
+// Both of these leave the playhead somewhere the clock knows nothing about, so
+// it is dropped rather than extrapolated from; drawOverlay then falls back to
+// currentTime, which is exact while nothing is moving.
+vvideo.addEventListener('pause', () => { stopOverlayLoop(); vClock = null; drawOverlay(); });
+vvideo.addEventListener('seeked', () => { vClock = null; drawOverlay(); kickOverlayLoop(); });
 vvideo.addEventListener('timeupdate', () => {
   if (vvideo.paused) drawOverlay(); else kickOverlayLoop();
 });
 $('vspeed').onchange = () => { vvideo.playbackRate = parseFloat($('vspeed').value); };
+// Toggling this swaps which scheduler drives the paint loop (rVFC vs rAF), so
+// a running loop has to be restarted, not just left to notice on its next tick.
+$('vinterp').addEventListener('change', () => {
+  vInterp = $('vinterp').checked;
+  if (vvideo.paused || vvideo.ended) drawOverlay(); else startOverlayLoop();
+});
 
 function setVideoSrc(blob) {
   if (vObjectUrl) URL.revokeObjectURL(vObjectUrl);
@@ -974,7 +1223,7 @@ $('vfile').onchange = () => {
   if (!f) return;
   stopCameraStream();
   vSource = { blob: f, filename: f.name };
-  vKeypointsRaw = null; vKeypoints = null; vMeta = null;
+  vKeypointsRaw = null; vKeypoints = null; vMeta = null; vSample = null; vClock = null;
   updatePlotControls();
   Diagnostics.setTrack(null, null);
   $('vsummary').textContent = '';
@@ -998,7 +1247,7 @@ $('vcam').onclick = async () => {
   }
   vCamStream = stream;
   $('vfile').value = '';
-  vSource = null; vKeypointsRaw = null; vKeypoints = null; vMeta = null;
+  vSource = null; vKeypointsRaw = null; vKeypoints = null; vMeta = null; vSample = null; vClock = null;
   updatePlotControls();
   Diagnostics.setTrack(null, null);
   $('vsummary').textContent = '';
@@ -1099,13 +1348,11 @@ async function vPoll() {
                       // a slider drag does — the run only supplies raw points
   // if the video was already rolling when the run finished, the loop it
   // started was drawing nothing — restart it now that there's a track.
-  if (!vvideo.paused && !vvideo.ended) { stopOverlayLoop(); overlayLoop(); }
-  const ids = new Set();
-  for (const frame of Object.values(vKeypoints)) for (const id of Object.keys(frame)) ids.add(id);
+  if (!vvideo.paused && !vvideo.ended) startOverlayLoop();
   $('vstatus').textContent = 'done';
   $('vsummary').textContent =
     `${vMeta.frames_processed}/${vMeta.frame_count} frames processed (stride ${vMeta.frame_stride}), ` +
-    `${vMeta.fps.toFixed(2)} fps, ${ids.size} distinct tracked id(s)`;
+    `${vMeta.fps.toFixed(2)} fps · ` + subjectLine(vMeta);
 }
 
 $('vrun').onclick = async () => {
@@ -1134,6 +1381,46 @@ $('vcancel').onclick = async () => {
   // vPoll (already running on its own timer) will see status flip to
   // 'cancelled' and call vSetRunning(false) itself.
 };
+
+// The backend keeps only the longest-lived tracked body and throws the rest
+// away (vitpose_backend._keep_main_person). Say which one survived and what
+// went with it — a background body silently deciding the diagnostics is
+// exactly the failure this is meant to prevent, so it can't also be invisible.
+function subjectLine(meta) {
+  const tr = (meta && meta.tracks) || {};
+  const dropped = tr.dropped || [];
+  if (tr.kept == null) return 'no person detected';
+  let s = `subject: person ${tr.kept} (${tr.kept_frames}/${meta.frames_processed} frames)`;
+  if (!dropped.length) return s;
+  const shown = dropped.slice(0, 4).map(d => `${d.id}:${d.frames}f`).join(', ');
+  s += ` · dropped ${dropped.length} other${dropped.length > 1 ? 's' : ''} (` +
+       shown + (dropped.length > 4 ? ', …' : '') + ')';
+  // A dropped track nearly as long as the kept one usually isn't a bystander —
+  // it's the tracker having split the lifter in two, in which case half the
+  // lift just went in the bin.
+  if (dropped[0].frames >= 0.4 * tr.kept_frames) s += ' ⚠ possible split track';
+  return s;
+}
+
+// --- image | video mode ---------------------------------------------------
+// One medium at a time. The view goes in the left column and its settings —
+// plus, for video, everything computed from the track — go in the right one.
+function setMode(mode) {
+  const video = mode === 'video';
+  $('imageView').hidden = video;
+  $('imagePanel').hidden = video;
+  $('videoView').hidden = !video;
+  $('videoPanel').hidden = !video;
+  $('tabImage').setAttribute('aria-selected', String(!video));
+  $('tabVideo').setAttribute('aria-selected', String(video));
+  // Leaving the video tab pauses playback. A display:none <video> stops
+  // delivering frame callbacks, so the overlay watchdog would otherwise spend
+  // the whole time reviving a loop that has nothing to paint on.
+  if (!video && !(vRecorder && vRecorder.state === 'recording')) vvideo.pause();
+}
+$('tabImage').onclick = () => setMode('image');
+$('tabVideo').onclick = () => setMode('video');
+setMode('video');   // the diagnostics live here; the image path is the side trip
 </script>
 </body>
 </html>

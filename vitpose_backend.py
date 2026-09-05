@@ -198,6 +198,58 @@ def count_frames(video_bytes, suffix=".mp4"):
             cap.release()
 
 
+def _keep_main_person(keypoints_by_frame):
+    """Drop every tracked person except the one detected in the most frames.
+
+    A gym has other people in it. YOLO finds the spotter, the lifter waiting
+    behind the platform, someone walking past — and it also invents bodies out
+    of racked plates and equipment silhouettes. All of them arrive as extra
+    person ids alongside the lifter, and every one of them is noise for a
+    diagnostic: they crowd the overlay, they show up in the keypoint plot's
+    person picker, and a background body that happens to outlive a dropped
+    detection can be picked up as the subject.
+
+    Longevity is the discriminator that works here. The lifter is in frame for
+    the whole clip because the clip exists to show the lift; a passer-by is in
+    it for a second, and a hallucinated body flickers. Ties break on total
+    keypoint confidence — between two tracks of equal length, the one the model
+    was more sure about.
+
+    The failure this can't see: SORT sometimes splits one person across two
+    ids (an occlusion, a fast turnover). The lifter is then two shorter tracks
+    and only the longer half survives. The dropped-track report in meta is how
+    that stays visible — two long tracks in one clip is the signature.
+
+    Mutates nothing; returns (filtered, report).
+    """
+    counts, conf = {}, {}
+    for frame in keypoints_by_frame.values():
+        for pid, kp in frame.items():
+            counts[pid] = counts.get(pid, 0) + 1
+            conf[pid] = conf.get(pid, 0.0) + sum(float(p[2]) for p in kp)
+
+    if not counts:
+        return keypoints_by_frame, {"kept": None, "kept_frames": 0, "dropped": []}
+
+    kept = max(counts, key=lambda pid: (counts[pid], conf[pid]))
+    # Keep every processed frame as a key even when the subject is missing from
+    # it: frames_processed is len() of this, and the frontend reads a missing
+    # person in a present frame as a dropped detection to interpolate across.
+    filtered = {
+        idx: ({kept: frame[kept]} if kept in frame else {})
+        for idx, frame in keypoints_by_frame.items()
+    }
+    report = {
+        "kept": kept,
+        "kept_frames": counts[kept],
+        "dropped": sorted(
+            ({"id": pid, "frames": n} for pid, n in counts.items() if pid != kept),
+            key=lambda d: -d["frames"],
+        ),
+    }
+    return filtered, report
+
+
 def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4",
                  progress_cb=None, cancel_cb=None):
     """Run tracked pose estimation over a video's frames.
@@ -223,14 +275,19 @@ def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4",
     returns true, unwinding out of the model loop with the GPU lock and the
     video capture still released cleanly (see the try/finally below).
 
+    Only one person survives: everything the tracker found other than the
+    longest-lived body is discarded before returning (see _keep_main_person).
+    What was thrown away is reported in meta["tracks"] rather than silently.
+
     Returns (keypoints_by_frame, meta):
       keypoints_by_frame: {frame_index (str): {person_id (str): Nx3 keypoints}},
-        present only for frames that were actually run through the model.
+        present only for frames that were actually run through the model, and
+        holding at most the one kept person.
       meta: fps/width/height of the source video and its actual frame_count
         (counted while reading, not trusted from container metadata — see
         below), the skeleton edge list for the dataset in use (pairs of
         keypoint indices, 0-indexed to match the keypoints arrays),
-        frame_stride, and frames_processed.
+        frame_stride, frames_processed, and tracks (kept id + dropped ones).
     """
     if frame_stride < 1:
         raise ValueError("frame_stride must be >= 1")
@@ -289,6 +346,11 @@ def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4",
                              # cancelling repeatedly must not leak capture handles
         frame_count = idx   # actual count, not the (possibly bogus) metadata one
 
+    # Filter here, not in the frontend: the overlay, the keypoint plot and the
+    # diagnostics each pick a person independently, so leaving the extras in
+    # the payload lets them disagree about who the lifter is.
+    keypoints_by_frame, tracks = _keep_main_person(keypoints_by_frame)
+
     # Timestamps are what the frontend lines the overlay up with, so only hand
     # them over if the decoder actually produced a usable (strictly increasing,
     # non-degenerate) track — some containers report 0.0 for every frame, and
@@ -310,5 +372,6 @@ def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4",
         "frame_indices": frame_indices,
         "frame_times_ms": frame_times_ms if usable_times else None,
         "skeleton": joints_dict()[DATASET]["skeleton"],
+        "tracks": tracks,
     }
     return keypoints_by_frame, meta

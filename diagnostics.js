@@ -44,17 +44,43 @@ const DIAG_CONF = 0.3;   // same gate the overlay uses
 const FILL_WIN = 5;      // how far a gap fill may reach for neighbours
 
 // Validated dark palette (see the dataviz skill's references/palette.md).
-// One series per plot, so no legend box — the band is uncertainty, not a
-// second series.
+//
+// Three roles, three fixed treatments, and nothing else gets a hue:
+//
+//   white   the pose track — a measurement of the lifter, not a judgement
+//   ramp    how well the cue is being met, green->amber->red (scoreColor)
+//   purple  where the phase starts and ends — a boundary, not a score, so it
+//           must not read as green ("good") or red ("bad") at its edges
+//
+// The grid, axes, playhead and annotations stay neutral. One series per plot,
+// so no legend box — the band is uncertainty, not a second series.
 const C = {
-  series: '#3987e5',
-  band: 'rgba(57,135,229,0.20)',
-  ref: '#d95926',
   good: '#0ca30c', warning: '#fab219', critical: '#d03b3b',
+  phase: '#b39ddb',
   ink: '#ffffff', ink2: '#c3c2b7', muted: '#898781',
   grid: '#2c2c2a', axis: '#383835', surface: '#1a1a19',
-  phase: 'rgba(255,255,255,0.045)',
 };
+
+const rgbOf = h => [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16));
+const RAMP_RGB = [C.good, C.warning, C.critical].map(rgbOf);
+const PHASE_RGB = rgbOf(C.phase);
+
+// C.phase at an alpha, for the fills and hairlines that mark the phase out.
+function phaseColor(alpha) {
+  return 'rgba(' + PHASE_RGB.join(',') + ',' + (alpha == null ? 1 : alpha) + ')';
+}
+
+// t is badness in [0,1]: 0 = the cue is met, 1 = it is not. Each diagnostic maps
+// its own measurement onto that (see .score) so this ramp reads the same way
+// across all of them. Null/NaN lands mid-ramp rather than looking like a pass.
+function scoreColor(t, alpha) {
+  t = (t == null || !isFinite(t)) ? 0.5 : Math.max(0, Math.min(1, t));
+  const seg = t >= 0.5 ? 1 : 0;
+  const f = t * 2 - seg;
+  const a = RAMP_RGB[seg], b = RAMP_RGB[seg + 1];
+  const c = a.map((v, i) => Math.round(v + (b[i] - v) * f));
+  return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (alpha == null ? 1 : alpha) + ')';
+}
 
 const fmt = (v, d) => (v == null || !isFinite(v)) ? '—' : v.toFixed(d == null ? 1 : d);
 
@@ -282,7 +308,24 @@ function barKneeCrossing(samples) {
 // --- diagnostic 1: first pull, constant back angle ----------------------
 
 const MOVE_ONSET = 0.15;   // torso-lengths/s — provisional
+const TRAIL = 4;           // sampled frames of history drawn behind the current one
+const TRAIL_ALPHA = 0.22;  // alpha of the newest trail frame; older ones fade from it
 const SD_GOOD = 2.5, SD_WARN = 5.0;   // degrees — provisional, see the note
+
+// The cue is that the back angle HOLDS, so the colour tracks change, not the
+// angle itself: a lifter who sets up at 25° and one who sets up at 45° are both
+// doing it right, and colouring the absolute value marked the second one red for
+// their build and their bar height.
+//
+// It is one constant per lift — total drift over the pull, 0° green to 90° red —
+// not a per-frame value. Recolouring frame by frame made the mark flicker
+// through the ramp during playback and invited reading a single frame's colour
+// as a verdict; what the cue is actually about is how far the trunk ended up
+// from where it started, which is a property of the whole pull.
+const DRIFT_RED = 90;   // degrees of drift at the red end of the ramp
+const driftScore = summary =>
+  (!summary || summary.drift == null || !isFinite(summary.drift)) ? null
+    : Math.max(0, Math.min(1, Math.abs(summary.drift) / DRIFT_RED));
 
 const firstPullBackAngle = {
   id: 'first-pull-back-angle',
@@ -402,6 +445,9 @@ const firstPullBackAngle = {
     return { series, summary, notes };
   },
 
+  // A missing summary scores null (mid-ramp) rather than a false pass.
+  score: driftScore,
+
   verdict(summary) {
     if (summary.sd <= SD_GOOD) return { label: 'holds well', status: 'good' };
     if (summary.sd <= SD_WARN) return { label: 'some rise', status: 'warning' };
@@ -418,7 +464,10 @@ const firstPullBackAngle = {
     return [
       { label: 'Back-angle constancy', value: fmt(summary.sd) + '°',
         sub: verdict.label + ' · SD over the pull', status: verdict.status },
-      { label: 'Drift', value: (summary.drift >= 0 ? '+' : '') + fmt(summary.drift) + '°', sub: 'end minus start' },
+      // The tile that names the number the ramp is built from carries the ramp
+      // colour itself, so the plot's hue has a legend somewhere.
+      { label: 'Drift', value: (summary.drift >= 0 ? '+' : '') + fmt(summary.drift) + '°',
+        sub: 'end minus start', status: scoreColor(driftScore(summary)) },
       { label: 'Mean angle', value: fmt(summary.mean) + '°', sub: 'to the floor' },
       { label: 'L/R disagreement', value: summary.meanSpread == null ? '—' : '±' + fmt(summary.meanSpread) + '°', sub: 'uncertainty' },
     ];
@@ -445,57 +494,101 @@ const firstPullBackAngle = {
         : 'off — scored on raw per-frame detections, so pose jitter is counted as ' +
           'back-angle movement and the SD reads high.'),
       '<strong>Caveat</strong> — angles are in the image plane, so this assumes a side-on camera. The good/warning bands (' +
-        fmt(SD_GOOD, 1) + '° / ' + fmt(SD_WARN, 1) + '° SD) are provisional and not fitted to labelled lifts.',
+        fmt(SD_GOOD, 1) + '° / ' + fmt(SD_WARN, 1) + '° SD) are provisional and not fitted to labelled lifts. ' +
+        'The green-to-red colour is a separate reading — total drift, full red at ' + fmt(DRIFT_RED, 0) +
+        '° — so a lift can score red on constancy while the colour stays green, if the angle wandered and came back.',
     ].concat(res.notes.map(n => '<strong>Note</strong> — ' + n));
   },
 
   // Everything the two triggers and the measurement rest on, drawn on the frame
   // itself while the playhead is inside the phase.
-  overlay(ctx, sample, phase, res, size) {
-    const p = sample.p;
-    const bar = phase.bar[sample.i], knee = phase.knee[sample.i];
+  //
+  // `view` is the track at the playhead's actual time (see pointsAtTime), not a
+  // sampled frame: view.p are the points now, view.at(t) the points at any other
+  // instant inside the phase, view.dt the mean spacing of processed frames.
+  overlay(ctx, view, phase, res, size) {
+    const p = view.p;
+    // Recomputed from the points being drawn rather than indexed out of the
+    // phase arrays. At a processed frame these are the same two numbers — same
+    // functions, same points — and in between them the rules track the bar
+    // instead of holding the last frame's height, so the crossing the phase end
+    // is defined by is visible at the moment it happens.
+    const bar = barPoint(p), knee = kneeY(p);
     const lw = Math.max(2, size / 260);
 
-    for (const [h, s] of [[KP.lHip, KP.lSho], [KP.rHip, KP.rSho]]) {
-      const a = p[h], b = p[s];
-      if (!a || !b) continue;
-      ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = lw * 3.2;   // ring for legibility
-      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-      ctx.strokeStyle = C.series; ctx.lineWidth = lw * 1.8;
-      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    // Both hip->shoulder segments carry the ramp at this frame's own departure
+    // from the setup angle, so the mark that IS the measurement is also the
+    // readout of it: it starts green and reddens as the chest comes up.
+    const segments = pp => [[KP.lHip, KP.lSho], [KP.rHip, KP.rSho]]
+      .map(([h, sh]) => [pp[h], pp[sh]])
+      .filter(([a, b]) => a && b);
+    const angleOf = pp => {
+      const seen = [trunkAngle(pp[KP.lHip], pp[KP.lSho]),
+                    trunkAngle(pp[KP.rHip], pp[KP.rSho])].filter(v => v != null);
+      return seen.length ? seen.reduce((a, b) => a + b, 0) / seen.length : null;
+    };
+    const stroke = pp => {
+      for (const [a, b] of segments(pp)) {
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+      }
+    };
+    const col = alpha => scoreColor(this.score(res.summary), alpha);
+
+    // A short trail of the previous few sampled frames, in the same colour at a
+    // fading alpha: a chest that rises leaves a spreading fan, one that holds
+    // leaves a tight bundle. Kept faint and clipped to the phase — it is context
+    // for the current frame, not a second reading of it, and it must not compete
+    // with the white pose track underneath.
+    //
+    // Spaced one processed frame apart in TIME rather than taken at the last
+    // few sample indices, so the whole fan slides with the playhead instead of
+    // popping a new segment in each time a frame is crossed.
+    if (view.dt > 0) {
+      ctx.save();
+      ctx.lineWidth = lw * 1.2;
+      for (let k = TRAIL; k >= 1; k--) {
+        const pp = view.at(view.t - k * view.dt);   // null before the phase starts
+        if (!pp) continue;
+        ctx.strokeStyle = col(TRAIL_ALPHA * (1 - k / (TRAIL + 1)));
+        stroke(pp);
+      }
+      ctx.restore();
     }
 
-    // Phase-end trigger, as short ticks lying along the bar rather than a rule
-    // across the frame and a ring around the hand: what the trigger compares is
-    // two heights a hand's width apart, so drawing it at that scale keeps the
-    // eye on the lifter. Solid is the bar estimate the trigger actually uses
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = lw * 3.2;   // ring for legibility
+    stroke(p);
+    ctx.strokeStyle = col(1); ctx.lineWidth = lw * 1.8;
+    stroke(p);
+
+    // Phase-end trigger: the two heights it compares, each as a hairline right
+    // across the frame. Purple, not ramped — these say WHEN the phase ends, they
+    // are not a judgement of the lift, and hue is what separates the two roles.
+    // Solid at full strength is the bar estimate the trigger actually uses
     // (wrist dropped by a sixth of the forearm); dashed is the bare wrist it was
     // corrected from, so the size of that correction is visible rather than
-    // taken on trust.
+    // taken on trust; the knee reference sits behind both at half strength.
+    // Unlabelled — with all three spanning the frame it's weight, not length,
+    // that separates the measurement from its reference.
     const wrist = wristCentroid(p);
-    const cx = bar ? bar.x : (wrist ? wrist.x : null);
-    if (cx != null) {
-      const half = Math.max(9, size / 22);
-      const thin = Math.max(1, lw * 0.6);
+    if (knee != null || bar || wrist) {
+      const W = ctx.canvas.width;
+      const thin = Math.max(1, lw * 0.35);
       ctx.save();
-      ctx.strokeStyle = C.ref; ctx.fillStyle = C.ref; ctx.lineWidth = thin;
-      ctx.font = Math.max(9, size / 62) + 'px system-ui, sans-serif';
-      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.lineWidth = thin;
 
-      const tick = (y, len, dash, text, alpha) => {
-        ctx.globalAlpha = alpha;
+      const rule = (y, dash, alpha) => {
+        ctx.strokeStyle = phaseColor(alpha);
         ctx.setLineDash(dash);
-        ctx.beginPath(); ctx.moveTo(cx - len, y); ctx.lineTo(cx + len, y); ctx.stroke();
-        ctx.fillText(text, cx + len + 4, y);
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
       };
 
-      if (knee != null) tick(knee, half, [], 'knee', 0.85);
-      // Skip the uncorrected tick when it would land under the corrected one —
+      if (knee != null) rule(knee, [], 0.5);
+      // Skip the uncorrected rule when it would land under the corrected one —
       // on a frame where the elbow was missing they are the same estimate.
-      if (wrist && bar && Math.abs(wrist.y - bar.y) > thin * 2) {
-        tick(wrist.y, half * 0.6, [thin * 3, thin * 3], 'wrist', 0.55);
+      if (wrist && bar && Math.abs(wrist.y - bar.y) > Math.max(thin * 2, size / 200)) {
+        rule(wrist.y, [thin * 4, thin * 4], 0.55);
       }
-      if (bar) tick(bar.y, half, [], 'bar', 1);
+      if (bar) rule(bar.y, [], 1);
       ctx.restore();
     }
   },
@@ -511,6 +604,18 @@ const firstPullBackAngle = {
 // — a still-rising hip that dips one noisy sample must not end the phase.
 const EXT_CONFIRM_RISE = 0.08;
 const EXT_GOOD = 10, EXT_WARN = 20;   // degrees short of full extension — provisional
+
+// One constant per lift for the shared green->amber->red ramp, same contract as
+// diagnostic 1's driftScore: the worst of the two measured joints, since
+// "triple extension" is not met by extending only the hip. Full red at a joint
+// left this far short of straight — a pull abandoned around the hip crease.
+const EXT_RED = 45;
+const extensionScore = summary => {
+  if (!summary) return null;
+  const d = [summary.hipDeficit, summary.kneeDeficit].filter(v => v != null && isFinite(v));
+  if (!d.length) return null;
+  return Math.max(0, Math.min(1, Math.max.apply(null, d) / EXT_RED));
+};
 
 const secondPullTripleExtension = {
   id: 'second-pull-triple-extension',
@@ -651,6 +756,8 @@ const secondPullTripleExtension = {
     return { series, summary, notes };
   },
 
+  score: extensionScore,
+
   verdict(summary) {
     const deficits = [summary.hipDeficit].concat(summary.kneeDeficit != null ? [summary.kneeDeficit] : []);
     const worst = Math.max.apply(null, deficits);
@@ -699,22 +806,30 @@ const secondPullTripleExtension = {
         ? 'trajectories were smoothed with a Gaussian of σ = ' + ctxExtra.smoothingMs + ' ms before scoring (the slider under the video).'
         : 'off — scored on raw per-frame detections.'),
       '<strong>Caveat</strong> — angles are in the image plane (side-on camera assumed) and ankle extension is not measured (no foot keypoint). The extension bands (' +
-        fmt(EXT_GOOD, 0) + '°/' + fmt(EXT_WARN, 0) + '° short of straight) are provisional and not fitted to labelled lifts.',
+        fmt(EXT_GOOD, 0) + '°/' + fmt(EXT_WARN, 0) + '° short of straight) are provisional and not fitted to labelled lifts. ' +
+        'The green-to-red colour is the worse of the hip and knee deficits, full red at ' + fmt(EXT_RED, 0) +
+        '° short, so it can read redder than the headline hip number when the knees are what stayed bent.',
     ].concat(res.notes.map(n => '<strong>Note</strong> — ' + n));
   },
 
   // The shoulder-hip-knee-ankle chain on each side, plus a full-width
   // reference line at the peak hip height the end trigger found — so the
   // extremum the phase ended on is visible on the frame, the same way
-  // diagnostic 1 draws its knee/bar ticks.
-  overlay(ctx, sample, phase, res, size) {
-    const p = sample.p;
+  // diagnostic 1 draws its knee/bar rules.
+  //
+  // `view` is the track at the playhead's actual time, not a sampled frame —
+  // see diagnostic 1's overlay and pointsAtTime.
+  overlay(ctx, view, phase, res, size) {
+    const p = view.p;
     const lw = Math.max(2, size / 260);
+    // The chain IS the measurement (both joint angles are read off it), so it
+    // carries the ramp, exactly as the trunk segments do in diagnostic 1.
+    const col = alpha => scoreColor(this.score(res.summary), alpha);
 
     for (const [sh, hip, knee, ank] of [[KP.lSho, KP.lHip, KP.lKnee, KP.lAnk], [KP.rSho, KP.rHip, KP.rKnee, KP.rAnk]]) {
       const chain = [p[sh], p[hip], p[knee], p[ank]];
       if (chain.some(pt => !pt)) continue;
-      for (const [w, style] of [[lw * 3.2, 'rgba(0,0,0,0.55)'], [lw * 1.8, C.series]]) {
+      for (const [w, style] of [[lw * 3.2, 'rgba(0,0,0,0.55)'], [lw * 1.8, col(1)]]) {
         ctx.strokeStyle = style; ctx.lineWidth = w;
         ctx.beginPath(); ctx.moveTo(chain[0].x, chain[0].y);
         for (let k = 1; k < chain.length; k++) ctx.lineTo(chain[k].x, chain[k].y);
@@ -722,14 +837,16 @@ const secondPullTripleExtension = {
       }
     }
 
+    // Purple, like diagnostic 1's trigger rules: this height is where the phase
+    // ends, not a judgement of the lift.
     if (phase.peakElevPx != null) {
       const y = phase.peakElevPx;
       ctx.save();
-      ctx.strokeStyle = C.ref; ctx.globalAlpha = 0.85; ctx.lineWidth = Math.max(1, lw * 0.6);
+      ctx.strokeStyle = phaseColor(0.85); ctx.lineWidth = Math.max(1, lw * 0.6);
       ctx.setLineDash([lw, lw * 1.5]);
       ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(ctx.canvas.width, y); ctx.stroke();
       ctx.restore();
-      ctx.fillStyle = C.ref;
+      ctx.fillStyle = phaseColor(1);
       ctx.font = Math.max(9, size / 62) + 'px system-ui, sans-serif';
       ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
       ctx.fillText('peak hip height', 6, y - 4);
@@ -784,7 +901,6 @@ function run() {
     return;
   }
   state.scale = scale;
-  samples.forEach((s, i) => { s.i = i; });
 
   for (const d of DIAGNOSTICS) {
     const phase = d.phase(samples, scale);
@@ -802,6 +918,61 @@ function run() {
 }
 
 
+// --- continuous-time lookup ---------------------------------------------
+
+// The video overlay hands this file a TIME, not a frame index. What it draws
+// sits directly on top of app.py's wireframe, which is interpolated between
+// processed frames, so marks placed at the nearest sampled frame would visibly
+// trail it — the trunk segments would sit off the trunk for most of each
+// frame's time on screen. A measurement drawn somewhere the joint isn't is
+// worse than either layer stepping alone, so both move on the same clock.
+//
+// The interpolator is app.py's own (el.cubic), passed in rather than
+// reimplemented so the two can't drift apart, and el.smoothMotion() is the same
+// tickbox the mesh obeys. Linear if this is ever mounted without them.
+function mixAt(v0, v1, v2, v3, t0, t1, t2, t3, u) {
+  return el.cubic ? el.cubic(v0, v1, v2, v3, t0, t1, t2, t3, u) : v1 + (v2 - v1) * u;
+}
+
+function slotAtTime(samples, t) {
+  let lo = 0, hi = samples.length - 1;   // last sample at or before t
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (samples[mid].t <= t) lo = mid; else hi = mid - 1;
+  }
+  return lo;
+}
+
+// The prepared points at an arbitrary time. A keypoint missing on either side
+// of the gap is NOT blended — the nearer sample's value stands until halfway,
+// exactly as the mesh does it — so an interpolated mark is never built out of a
+// detection that isn't there.
+function pointsAtTime(t) {
+  const samples = state.samples;
+  if (!samples || !samples.length || !samples[0].p) return null;
+  const k = slotAtTime(samples, t);
+  const a = samples[k], b = samples[k + 1];
+  if (!b || !(el.smoothMotion && el.smoothMotion())) return a.p;
+  const span = b.t - a.t;
+  const u = span > 1e-9 ? Math.min(Math.max((t - a.t) / span, 0), 1) : 0;
+  const prev = samples[k - 1], next = samples[k + 2];
+  const t0 = prev ? prev.t : 0, t3 = next ? next.t : 0;
+  const out = {};
+  for (const i of USED) {
+    const qa = a.p[i], qb = b.p[i];
+    if (!qa || !qb) { out[i] = u < 0.5 ? qa : qb; continue; }
+    const q0 = prev && prev.p[i], q3 = next && next.p[i];
+    out[i] = {
+      x: mixAt(q0 && q0.x, qa.x, qb.x, q3 && q3.x, t0, a.t, b.t, t3, u),
+      y: mixAt(q0 && q0.y, qa.y, qb.y, q3 && q3.y, t0, a.t, b.t, t3, u),
+      // a filled point on either side taints everything between them
+      interp: qa.interp || qb.interp,
+    };
+  }
+  return out;
+}
+
+
 // --- rendering ----------------------------------------------------------
 
 const PAD = { l: 48, r: 18, t: 24, b: 30 };
@@ -813,7 +984,9 @@ function tDomain() {
   return Math.max(last, byCount, 0.001);
 }
 
-function drawChart(d, ds) {
+// `time` is where to put the playhead, in seconds; the video's own currentTime
+// when the caller doesn't say (hover redraws, a fresh track).
+function drawChart(d, ds, time) {
   const cv = ds.canvas, ctx = ds.ctx;
   ctx.clearRect(0, 0, cv.width, cv.height);
   ds.geom = null;
@@ -846,11 +1019,23 @@ function drawChart(d, ds) {
   const Y = v => PAD.t + (1 - (v - vMin) / (vMax - vMin)) * gh;
   ds.geom = { X, Y, tMax, vMin, vMax, gw, gh };
 
-  // active phase, shaded — the rest of the clip stays visible as context so the
-  // phase's position in the lift is legible
+  // One colour for the whole diagnostic, from the lift's total drift — the same
+  // hue the overlay draws on the frame, so the plot and the video can't disagree
+  // about how the lift scored.
+  const col = alpha => scoreColor(d.score(res.summary), alpha);
+
+  // active phase: shaded, and delimited by a hairline at each edge. Purple —
+  // the boundary is not a verdict, and the ramp's own colours are spoken for.
   const t0 = res.series[0].t, t1 = res.series[res.series.length - 1].t;
-  ctx.fillStyle = C.phase;
+  ctx.fillStyle = phaseColor(0.10);
   ctx.fillRect(X(t0), PAD.t, Math.max(1, X(t1) - X(t0)), gh);
+  ctx.save();
+  ctx.strokeStyle = phaseColor(0.75); ctx.lineWidth = 1;
+  for (const t of [t0, t1]) {
+    const x = Math.round(X(t)) + 0.5;
+    ctx.beginPath(); ctx.moveTo(x, PAD.t); ctx.lineTo(x, PAD.t + gh); ctx.stroke();
+  }
+  ctx.restore();
 
   ctx.font = '10px system-ui, sans-serif';
   ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
@@ -867,11 +1052,12 @@ function drawChart(d, ds) {
   ctx.fillStyle = C.muted;
   ctx.fillText('0s', PAD.l, h - 8);
   ctx.fillText(fmt(tMax) + 's', w - PAD.r, h - 8);
+  ctx.fillStyle = phaseColor(1);
   ctx.fillText(d.phaseLabel || d.title, (X(t0) + X(t1)) / 2, PAD.t - 9);
 
-  // uncertainty band: the left-side and right-side estimates. Same hue as the
+  // uncertainty band: the left-side and right-side estimates. Same colour as the
   // trace at low alpha — it is not a second series.
-  ctx.fillStyle = C.band;
+  ctx.fillStyle = col(0.22);
   ctx.beginPath();
   res.series.forEach((s, i) => { const x = X(s.t), y = Y(s.hi); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
   for (let i = res.series.length - 1; i >= 0; i--) ctx.lineTo(X(res.series[i].t), Y(res.series[i].lo));
@@ -890,20 +1076,22 @@ function drawChart(d, ds) {
     ctx.fillText(ref.label, Math.min(X(t1) + 4, w - PAD.r - 70), ry - 4);
   }
 
-  ctx.strokeStyle = C.series; ctx.lineWidth = 2;
+  ctx.strokeStyle = col(1); ctx.lineWidth = 2;
   ctx.lineJoin = 'round';
   ctx.beginPath();
   res.series.forEach((s, i) => { const x = X(s.t), y = Y(s.value); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
   ctx.stroke();
 
   for (const s of [res.series[0], res.series[res.series.length - 1]]) {
-    ctx.fillStyle = C.series;
+    ctx.fillStyle = col(1);
     ctx.beginPath(); ctx.arc(X(s.t), Y(s.value), 4, 0, 2 * Math.PI); ctx.fill();
   }
 
   const v = el.video();
-  if (v && isFinite(v.currentTime)) {
-    const x = X(Math.min(v.currentTime, tMax));
+  const at = (typeof time === 'number' && isFinite(time)) ? time
+           : (v && isFinite(v.currentTime) ? v.currentTime : null);
+  if (at != null) {
+    const x = X(Math.min(at, tMax));
     ctx.save();
     ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]);
     ctx.beginPath(); ctx.moveTo(x, PAD.t); ctx.lineTo(x, PAD.t + gh); ctx.stroke();
@@ -921,7 +1109,7 @@ function drawTooltip(ctx, res, w, h, ds, d) {
   ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(x, PAD.t); ctx.lineTo(x, PAD.t + ds.geom.gh); ctx.stroke();
   ctx.restore();
-  ctx.fillStyle = C.series;
+  ctx.fillStyle = scoreColor(d.score(res.summary));
   ctx.beginPath(); ctx.arc(x, y, 4.5, 0, 2 * Math.PI); ctx.fill();
   ctx.strokeStyle = C.surface; ctx.lineWidth = 2; ctx.stroke();
 
@@ -959,8 +1147,11 @@ function wrapText(ctx, text, cx, cy, maxW, lh) {
   lines.forEach((l, i) => ctx.fillText(l, cx, top + i * lh));
 }
 
+// status is either a verdict key (good/warning/critical) or a colour straight
+// off the ramp — both come from the same three anchors, so a tile never
+// introduces a hue the plot and the overlay don't already use.
 function tile(label, value, sub, status) {
-  const color = status ? C[status] : C.ink;
+  const color = status ? (C[status] || status) : C.ink;
   return '<div class="diag-tile">' +
     '<div class="diag-tile-label">' + label + '</div>' +
     '<div class="diag-tile-value" style="color:' + color + '">' + value + '</div>' +
@@ -1143,18 +1334,27 @@ const Diagnostics = {
     redrawAll();
   },
 
-  draw() {
+  draw(time) {
     for (const d of DIAGNOSTICS) {
       const ds = diagState[d.id];
-      if (ds) drawChart(d, ds);
+      if (ds) drawChart(d, ds, time);
     }
   },
 
-  // Called from the video overlay loop with the source frame index on screen.
-  // Every enabled diagnostic whose phase covers this frame draws; their phase
+  // Called from the video overlay loop with the playhead time, in seconds.
+  // Every enabled diagnostic whose phase covers that instant draws; their phase
   // labels stack rather than overwrite so more than one can be visible at once.
-  overlay(ctx, frameIdx) {
-    if (!state || !state.results) return;
+  overlay(ctx, time) {
+    if (!state || !state.results || !state.samples) return;
+    const v = el.video();
+    const t = (typeof time === 'number' && isFinite(time)) ? time
+            : (v && isFinite(v.currentTime) ? v.currentTime : null);
+    if (t == null) return;
+    // Interpolated once and shared: every diagnostic drawing this instant is
+    // drawing the same body, so they cannot disagree about where it is.
+    const p = pointsAtTime(t);
+    if (!p) return;
+    const samples = state.samples;
     const size = ctx.canvas.height || 720;
     let shown = 0;
     for (const d of DIAGNOSTICS) {
@@ -1162,15 +1362,20 @@ const Diagnostics = {
       const res = state.results[d.id];
       if (!res || res.error) continue;
       const ph = res.phase;
-      const a = state.samples[ph.startIdx].frame, b = state.samples[ph.endIdx].frame;
-      if (frameIdx < a || frameIdx > b) continue;
-      let sample = null;
-      for (let i = ph.startIdx; i <= ph.endIdx; i++) {
-        if (state.samples[i].frame === frameIdx) { sample = state.samples[i]; break; }
-      }
-      if (!sample) continue;
-      d.overlay(ctx, sample, ph, res, size);
-      ctx.fillStyle = C.series;
+      // The phase is bounded by the times its triggers fired, so the marks come
+      // up at the instant the pull starts rather than at the next processed
+      // frame. On a coarse frame stride that boundary used to be a tenth of a
+      // second out, which is enough to see against the video.
+      const t0 = samples[ph.startIdx].t, t1 = samples[ph.endIdx].t;
+      if (t < t0 || t > t1) continue;
+      const steps = ph.endIdx - ph.startIdx;
+      const view = {
+        t, p,
+        dt: steps > 0 ? (t1 - t0) / steps : 0,   // mean processed-frame spacing
+        at: u => (u < t0 || u > t1) ? null : pointsAtTime(u),
+      };
+      d.overlay(ctx, view, ph, res, size);
+      ctx.fillStyle = phaseColor(1);
       ctx.font = Math.max(12, size / 38) + 'px system-ui, sans-serif';
       ctx.textAlign = 'left';
       ctx.fillText(d.phaseLabel || d.title, 8, Math.max(16, size / 30) + shown * (size / 26));
