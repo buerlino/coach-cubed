@@ -174,6 +174,12 @@ INDEX_HTML = """<!doctype html>
     <input id="vsmooth" type="range" min="0" max="300" step="5" value="50" style="vertical-align:middle;width:140px">
     <span id="vsmoothVal" style="display:inline-block;min-width:8em">&sigma; = 50 ms</span>
   </label>
+  <!-- second pass of the smoothing: keep the smoothed path, re-time the points
+       along it so speed follows the raw track (smoothKeypoints). A tickbox so
+       the two can be compared on the speed plot below. -->
+  <label style="font-size:14px;color:#9ab;margin-left:12px;white-space:nowrap">
+    <input id="vkeepvel" type="checkbox" checked style="vertical-align:middle;margin:0 4px 0 0"> preserve velocity
+  </label>
   <p id="vsummary" style="font-size:12px;color:#9c9"></p>
   <!-- live sync readout: if the overlay ever looks frozen, this says whether
        playback time is stuck or the frame lookup is. -->
@@ -227,6 +233,7 @@ INDEX_HTML = """<!doctype html>
     <select id="plotAxisSelect">
       <option value="y" selected>Y position (vertical)</option>
       <option value="x">X position (horizontal)</option>
+      <option value="v">speed (px/s)</option>
     </select>
   </label>
 </div>
@@ -263,6 +270,7 @@ const vvideo = $('vout'), vcanvas = $('voverlay'), vctx = vcanvas.getContext('2d
 // means the smoothing width stays adjustable without re-running inference.
 let vKeypointsRaw = null, vKeypoints = null, vMeta = null, vRafId = null;
 let vSigmaMs = 0;   // smoothing width the painted overlay was built with
+let vKeepVel = true;   // ...and whether its timing was re-fitted to the raw speed
 // Liveness of the overlay loop: when it last painted, and how often the
 // watchdog below has had to revive it. Both surface in the #vsync readout.
 let vLastDrawMs = 0, vLoopRestarts = 0;
@@ -295,20 +303,34 @@ const CONF_THRESHOLD = 0.3;
 const SIGMA_CUTOFF = 3;   // truncate the kernel at 3σ; beyond that the weights
                           // are <1.2% of the centre and cost more than they say
 
-// sigma in seconds; 0 (or less) returns the track untouched.
-function smoothKeypoints(raw, meta, sigma) {
-  if (!raw || !meta || !(sigma > 0)) return raw;
-
+// The sampled frames in order, and the video time (seconds) of each. Decoder
+// timestamps are the authority when we have them — same reasoning as
+// slotForTime below.
+function sampleTimes(meta, kp) {
   const frames = (meta.frame_indices && meta.frame_indices.length)
     ? meta.frame_indices
-    : Object.keys(raw).map(Number).sort((a, b) => a - b);
-  // Decoder timestamps are the authority when we have them — same reasoning as
-  // slotForTime below.
+    : Object.keys(kp).map(Number).sort((a, b) => a - b);
   const times = frames.map((f, slot) =>
     (meta.frame_times_ms && meta.frame_times_ms[slot] != null)
       ? meta.frame_times_ms[slot] / 1000
       : f / (meta.fps || 30));
+  return { frames, times };
+}
 
+// sigma in seconds; 0 (or less) returns the track untouched.
+//
+// Two passes. The first is the Gaussian mean of each keypoint's position. The
+// second (keepVelocity) corrects what that does to speed: averaging positions
+// also averages the velocity, so a fast phase — the second pull, the turnover —
+// comes out slower and more drawn-out than the raw track had it. The smoothed
+// PATH is fine, it's the timing along it that's been blurred. So the second
+// pass keeps the path and re-times the points along it: where the raw track
+// says the joint was moving faster than the smoothed one does, consecutive
+// points are moved apart along the curve, and bunched where it was slower.
+function smoothKeypoints(raw, meta, sigma, keepVelocity) {
+  if (!raw || !meta || !(sigma > 0)) return raw;
+
+  const { frames, times } = sampleTimes(meta, raw);
   const cutoff = SIGMA_CUTOFF * sigma, denom = 2 * sigma * sigma;
   const out = {};
 
@@ -337,6 +359,111 @@ function smoothKeypoints(raw, meta, sigma) {
       });
     }
   }
+  if (!keepVelocity) return out;
+
+  // Second pass, one trajectory at a time: every (person, keypoint) that was
+  // confident in at least three sampled frames.
+  const ids = new Set();
+  for (const f of frames) { const fr = out[String(f)]; if (fr) for (const id of Object.keys(fr)) ids.add(id); }
+  for (const id of ids) {
+    let nKp = 0;
+    for (const f of frames) { const p = out[String(f)]?.[id]; if (p) { nKp = p.length; break; } }
+    for (let i = 0; i < nKp; i++) {
+      const ks = [];
+      for (let k = 0; k < frames.length; k++) {
+        const q = raw[String(frames[k])]?.[id]?.[i];
+        if (q && q[2] >= CONF_THRESHOLD) ks.push(k);
+      }
+      if (ks.length < 3) continue;
+      const R = ks.map(k => raw[String(frames[k])][id][i]);
+      const P = ks.map(k => out[String(frames[k])][id][i]);
+      const T = ks.map(k => times[k]);
+      const Q = retimeAlongPath(R, P, T, sigma);
+      ks.forEach((k, m) => { out[String(frames[k])][id][i] = Q[m]; });
+    }
+  }
+  return out;
+}
+
+// Slide the smoothed points P back/forward along their own polyline so that the
+// speed along it follows the raw track R. Both are [y, x, conf] over the same
+// sample times T.
+//
+// The measure of "how far along" is arc length. Two piecewise-linear curves are
+// compared: the smoothed path's arc length A(k), and the raw track's progress
+// R(k) — its frame-to-frame displacement projected onto the smoothed path's
+// direction, summed. Projecting matters: raw jitter perpendicular to the path
+// is not motion along it and is discarded, while jitter along the path
+// telescopes away in the sum, so R(k) is not a random walk. Their difference
+// e(k) = R(k) − A(k) is how far ahead the raw track is at sample k, and the
+// corrected point is the one at arc length A(k) + e(k) on the smoothed path.
+//
+// e is band-passed before use, and that's where the honesty lives:
+//   - frame-scale wobble in e (σ/2 and below) is the raw jitter's along-path
+//     component. Handing it back would undo the smoothing along one axis, so
+//     it's removed. The velocity restored is the shape of the speed profile at
+//     the timescale the Gaussian damaged, not the per-frame noise.
+//   - very slow drift in e (E_COARSE·σ and above) is removed too. At a sharp
+//     reversal the smoothed path is genuinely shorter than the raw one (it
+//     cuts the corner) and e grows by that shortfall on the way in and again on
+//     the way out, permanently. Left in, every reversal would shove all later
+//     points forward along the path; high-passed, it becomes a local correction
+//     that keeps the speed up going into the corner and coming out of it,
+//     which is the most the path itself allows. Speed at the apex of a cut
+//     corner cannot be restored by moving along a curve that no longer reaches
+//     it — that's the limit of this method, by construction.
+const E_FINE = 0.5, E_COARSE = 4;
+
+function retimeAlongPath(R, P, T, sigma) {
+  const n = P.length;
+  const A = new Float64Array(n), ty = new Float64Array(n), tx = new Float64Array(n);
+  for (let m = 1; m < n; m++) {
+    const dy = P[m][0] - P[m - 1][0], dx = P[m][1] - P[m - 1][1];
+    const len = Math.hypot(dy, dx);
+    A[m] = A[m - 1] + len;
+    if (len > 1e-9) { ty[m] = dy / len; tx[m] = dx / len; }   // unit tangent of segment m-1 → m
+  }
+  const e = new Float64Array(n);
+  let prog = 0;
+  for (let m = 1; m < n; m++) {
+    prog += (R[m][0] - R[m - 1][0]) * ty[m] + (R[m][1] - R[m - 1][1]) * tx[m];
+    e[m] = prog - A[m];
+  }
+  const fine = gauss1d(e, T, sigma * E_FINE), coarse = gauss1d(e, T, sigma * E_COARSE);
+
+  const total = A[n - 1];
+  const Q = new Array(n);
+  for (let m = 0; m < n; m++) {
+    const target = Math.max(0, Math.min(total, A[m] + (fine[m] - coarse[m])));
+    // segment containing that arc length: last s with A[s] <= target
+    let lo = 0, hi = n - 1;
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (A[mid] <= target) lo = mid; else hi = mid - 1; }
+    const s = Math.min(lo, n - 2), seg = A[s + 1] - A[s];
+    const u = seg > 1e-9 ? (target - A[s]) / seg : 0;
+    Q[m] = [P[s][0] + u * (P[s + 1][0] - P[s][0]),
+            P[s][1] + u * (P[s + 1][1] - P[s][1]),
+            P[m][2]];
+  }
+  return Q;
+}
+
+// Gaussian smoothing of a scalar series over its (possibly uneven) sample times.
+function gauss1d(v, T, s) {
+  const n = v.length, out = new Float64Array(n);
+  if (!(s > 0)) { out.set(v); return out; }
+  const cutoff = SIGMA_CUTOFF * s, denom = 2 * s * s;
+  for (let k = 0; k < n; k++) {
+    let acc = 0, w = 0;
+    for (let j = k; j < n; j++) {
+      const dt = T[j] - T[k]; if (dt > cutoff) break;
+      const g = Math.exp(-(dt * dt) / denom); acc += g * v[j]; w += g;
+    }
+    for (let j = k - 1; j >= 0; j--) {
+      const dt = T[k] - T[j]; if (dt > cutoff) break;
+      const g = Math.exp(-(dt * dt) / denom); acc += g * v[j]; w += g;
+    }
+    out[k] = w > 0 ? acc / w : v[k];
+  }
   return out;
 }
 
@@ -352,9 +479,10 @@ function smoothKeypoints(raw, meta, sigma) {
 // apply button.
 function applySmoothing() {
   vSigmaMs = parseFloat($('vsmooth').value) || 0;
+  vKeepVel = $('vkeepvel').checked;
   $('vsmoothVal').innerHTML = vSigmaMs ? 'σ = ' + vSigmaMs + ' ms' : 'off (raw)';
   if (!vKeypointsRaw || !vMeta) { vKeypoints = vKeypointsRaw; return; }
-  vKeypoints = smoothKeypoints(vKeypointsRaw, vMeta, vSigmaMs / 1000);
+  vKeypoints = smoothKeypoints(vKeypointsRaw, vMeta, vSigmaMs / 1000, vKeepVel);
   // Overlay and plot before diagnostics: diagnostics.js is the file under
   // active iteration, and a throw from a half-written cue must not be able to
   // strand the slider looking dead.
@@ -364,6 +492,7 @@ function applySmoothing() {
 }
 
 $('vsmooth').addEventListener('input', applySmoothing);
+$('vkeepvel').addEventListener('change', applySmoothing);
 
 // --- plot canvas ---
 const pcanvas = $('plotCanvas'), pctx = pcanvas.getContext('2d');
@@ -412,28 +541,47 @@ function updatePlotControls() {
   drawPlot();
 }
 
+// One trace for the keypoint plot: the chosen coordinate, or the point's speed
+// in px/s (central difference across its confident neighbours, over decoder
+// time, so a variable frame rate doesn't read as a speed change).
+function plotSeries(kp, personId, kpIdx, axis) {
+  const { frames, times } = sampleTimes(vMeta, kp);
+  const pts = [];
+  for (let k = 0; k < frames.length; k++) {
+    const p = kp[String(frames[k])]?.[personId]?.[kpIdx];
+    if (!p || p[2] < CONF_THRESHOLD) continue;
+    pts.push({ frame: frames[k], t: times[k], y: p[0], x: p[1] });
+  }
+  if (axis !== 'v') return pts.map(p => ({ frame: p.frame, t: p.t, val: axis === 'y' ? p.y : p.x }));
+  const out = [];
+  for (let m = 1; m < pts.length - 1; m++) {
+    const a = pts[m - 1], b = pts[m + 1], dt = b.t - a.t;
+    if (!(dt > 0)) continue;
+    out.push({ frame: pts[m].frame, t: pts[m].t, val: Math.hypot(b.y - a.y, b.x - a.x) / dt });
+  }
+  return out;
+}
+
 function drawPlot() {
   pctx.clearRect(0, 0, pcanvas.width, pcanvas.height);
   if (!vKeypoints || !vMeta) return;
 
   const personId = $('plotPersonSelect').value;
   const kpIdx = parseInt($('plotKeypointSelect').value, 10);
-  const axis = $('plotAxisSelect').value; // 'y' (index 0) or 'x' (index 1)
-  const coordIdx = axis === 'y' ? 0 : 1;
+  const axis = $('plotAxisSelect').value; // 'y', 'x', or 'v' (speed)
 
   if (!personId) return;
 
   const frameKeys = Object.keys(vKeypoints).map(Number).sort((a,b) => a - b);
   if (frameKeys.length === 0) return;
 
-  const points = [];
-  for (const f of frameKeys) {
-    const frameData = vKeypoints[String(f)];
-    const p = frameData?.[personId]?.[kpIdx];
-    if (p && p[2] >= CONF_THRESHOLD) {
-      points.push({ frame: f, val: p[coordIdx], t: f / vMeta.fps });
-    }
-  }
+  const points = plotSeries(vKeypoints, personId, kpIdx, axis);
+  // The raw track underneath, faint, whenever smoothing has changed it: this
+  // plot is the direct view of what the slider (and the velocity pass) is doing
+  // to a trajectory, and on the speed axis it's the only way to check that the
+  // re-timing brought the profile back towards the raw one.
+  const rawPoints = (vKeypointsRaw && vKeypointsRaw !== vKeypoints)
+    ? plotSeries(vKeypointsRaw, personId, kpIdx, axis) : null;
 
   const w = pcanvas.width, h = pcanvas.height;
   const padL = 40, padR = 15, padT = 20, padB = 25;
@@ -455,8 +603,9 @@ function drawPlot() {
     return;
   }
 
-  let minVal = Math.min(...points.map(p => p.val));
-  let maxVal = Math.max(...points.map(p => p.val));
+  const allVals = points.concat(rawPoints || []).map(p => p.val);
+  let minVal = Math.min(...allVals);
+  let maxVal = Math.max(...allVals);
   if (minVal === maxVal) { minVal -= 10; maxVal += 10; }
   const valMargin = (maxVal - minVal) * 0.05;
   minVal -= valMargin;
@@ -482,11 +631,8 @@ function drawPlot() {
   pctx.fillText('0s', padL, h - 5);
   pctx.fillText(`${(maxFrame / vMeta.fps).toFixed(1)}s`, w - padR, h - 5);
 
-  // Line color matching person palette
-  const color = colorForId(personId);
-  pctx.strokeStyle = color;
-  pctx.lineWidth = 2;
-  pctx.beginPath();
+  pctx.textAlign = 'left';
+  pctx.fillText(axis === 'v' ? 'px/s' : 'px', padL, padT - 8);
 
   const getX = (f) => padL + (f / maxFrame) * graphW;
   const getY = (val) => {
@@ -497,14 +643,24 @@ function drawPlot() {
       return padT + (1 - (val - minVal) / (maxVal - minVal)) * graphH;
     }
   };
+  const trace = (pts) => {
+    pctx.beginPath();
+    pts.forEach((pt, i) => {
+      const x = getX(pt.frame), y = getY(pt.val);
+      if (i === 0) pctx.moveTo(x, y); else pctx.lineTo(x, y);
+    });
+    pctx.stroke();
+  };
 
-  points.forEach((pt, i) => {
-    const x = getX(pt.frame);
-    const y = getY(pt.val);
-    if (i === 0) pctx.moveTo(x, y);
-    else pctx.lineTo(x, y);
-  });
-  pctx.stroke();
+  if (rawPoints) {   // raw first, so the smoothed trace sits on top of it
+    pctx.strokeStyle = 'rgba(255,255,255,0.28)';
+    pctx.lineWidth = 1;
+    trace(rawPoints);
+  }
+  // Line color matching person palette
+  pctx.strokeStyle = colorForId(personId);
+  pctx.lineWidth = 2;
+  trace(points);
 
   // Draw current playhead position
   if (vvideo && vvideo.duration) {
@@ -582,7 +738,7 @@ function drawOverlay(t) {
     `${vMeta.frame_times_ms ? ', decoder timestamps' : ', fps estimate'})` +
     // which smoothing width these joints were built with, so "is this the σ I
     // just dragged to?" is answerable without re-running anything
-    ` · σ ${vSigmaMs ? vSigmaMs + 'ms' : 'off'}` +
+    ` · σ ${vSigmaMs ? vSigmaMs + 'ms' + (vKeepVel ? ', velocity kept' : '') : 'off'}` +
     `${vLoopRestarts ? ` · overlay revived ${vLoopRestarts}×` : ''}`;
   const frame = vKeypoints[String(idx)];
 

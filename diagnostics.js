@@ -364,16 +364,6 @@ const firstPullBackAngle = {
     const bar = phase.bar[sample.i], knee = phase.knee[sample.i];
     const lw = Math.max(2, size / 260);
 
-    if (knee != null) {
-      ctx.save();
-      ctx.strokeStyle = C.ref; ctx.lineWidth = lw; ctx.setLineDash([lw * 4, lw * 4]);
-      ctx.beginPath(); ctx.moveTo(0, knee); ctx.lineTo(ctx.canvas.width, knee); ctx.stroke();
-      ctx.restore();
-      ctx.fillStyle = C.ref;
-      ctx.font = Math.max(11, size / 45) + 'px system-ui, sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillText('knee', 6, knee - 5);
-    }
     for (const [h, s] of [[KP.lHip, KP.lSho], [KP.rHip, KP.rSho]]) {
       const a = p[h], b = p[s];
       if (!a || !b) continue;
@@ -382,9 +372,39 @@ const firstPullBackAngle = {
       ctx.strokeStyle = C.series; ctx.lineWidth = lw * 1.8;
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
     }
-    if (bar) {
-      ctx.strokeStyle = C.ref; ctx.lineWidth = lw * 1.5;
-      ctx.beginPath(); ctx.arc(bar.x, bar.y, Math.max(5, size / 90), 0, 2 * Math.PI); ctx.stroke();
+
+    // Phase-end trigger, as short ticks lying along the bar rather than a rule
+    // across the frame and a ring around the hand: what the trigger compares is
+    // two heights a hand's width apart, so drawing it at that scale keeps the
+    // eye on the lifter. Solid is the bar estimate the trigger actually uses
+    // (wrist dropped by a sixth of the forearm); dashed is the bare wrist it was
+    // corrected from, so the size of that correction is visible rather than
+    // taken on trust.
+    const wrist = wristCentroid(p);
+    const cx = bar ? bar.x : (wrist ? wrist.x : null);
+    if (cx != null) {
+      const half = Math.max(9, size / 22);
+      const thin = Math.max(1, lw * 0.6);
+      ctx.save();
+      ctx.strokeStyle = C.ref; ctx.fillStyle = C.ref; ctx.lineWidth = thin;
+      ctx.font = Math.max(9, size / 62) + 'px system-ui, sans-serif';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+
+      const tick = (y, len, dash, text, alpha) => {
+        ctx.globalAlpha = alpha;
+        ctx.setLineDash(dash);
+        ctx.beginPath(); ctx.moveTo(cx - len, y); ctx.lineTo(cx + len, y); ctx.stroke();
+        ctx.fillText(text, cx + len + 4, y);
+      };
+
+      if (knee != null) tick(knee, half, [], 'knee', 0.85);
+      // Skip the uncorrected tick when it would land under the corrected one —
+      // on a frame where the elbow was missing they are the same estimate.
+      if (wrist && bar && Math.abs(wrist.y - bar.y) > thin * 2) {
+        tick(wrist.y, half * 0.6, [thin * 3, thin * 3], 'wrist', 0.55);
+      }
+      if (bar) tick(bar.y, half, [], 'bar', 1);
+      ctx.restore();
     }
   },
 };
