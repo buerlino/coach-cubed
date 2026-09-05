@@ -42,22 +42,53 @@ array. The object's shape *is* the three-part structure:
 {
   id: 'first-pull-back-angle',
   title: 'First pull — constant back angle',
+  phaseLabel: 'first pull',        // short label for the chart heading and overlay
   cue: 'Keep the back angle to the floor constant until the bar passes the knee.',
   unit: '°',
-  phase(track, scale)        -> { startIdx, endIdx, notes[] } | { error }
-  measure(track, phase)      -> { series[], summary{}, notes[] }
+  phase(track, scale)        -> { startIdx, endIdx, notes[], ... }  | { error }
+  measure(track, phase)      -> { series[], summary{}, notes[] }    | { error }
   verdict(summary)           -> { label, status }         // status: good|warning|critical
-  overlay(ctx, sample, ...)  -> void                      // optional per-frame drawing
+  score(summary)             -> badness in [0,1] | null   // one constant per lift, drives the ramp
+  referenceLine(summary)     -> { value, label } | null   // the plot's dashed line
+  tiles(summary, verdict)    -> [{ label, value, sub, status? }]   // stat tiles
+  transparencyLines(res, track, ctxExtra) -> [htmlString]  // the transparency block's bullets
+  overlay(ctx, view, phase, res, size)    -> void          // drawing, at the playhead's own time
 }
 ```
 
-Each entry in `DIAGNOSTICS` automatically gets a tickbox above the plot,
+`overlay` is handed a `view`, not a sampled frame: `view.p` is the track
+interpolated to the playhead's actual time, `view.at(t)` the same at any other
+instant inside the phase, `view.dt` the mean spacing of processed frames. It
+has to be continuous because the marks sit on top of `app.py`'s wireframe,
+which is itself interpolated — marks pinned to the nearest sampled frame
+visibly trail the body they claim to measure.
+
+The first four functions (`phase`/`measure`/`verdict`/`overlay`) are the
+three-part structure itself and are documented in detail below.
+`referenceLine`/`tiles`/`transparencyLines` exist because **every diagnostic
+always gets its own plot, stat tiles and notes block** — added once there was
+a second diagnostic and the shared renderer needed each one's chart mean/target
+line, headline numbers and transparency prose to differ without duplicating
+the chart/panel drawing code itself. Keep them thin: they return data
+(numbers, strings), the shared renderer in `diagnostics.js`'s "rendering"
+section does the actual drawing.
+
+Each entry in `DIAGNOSTICS` automatically gets a tickbox above the plots,
 labelled with its `title`, controlling whether its `overlay()` draws on the
 video. The tickbox gates **only** the overlay — an unticked diagnostic is still
-computed, plotted and scored, because it's about the frame getting crowded
-once there are several, not about what's being measured. New diagnostics
-default to ticked; otherwise one would ship invisible. Toggling calls back into
-`app.py` to repaint, so it works while the video is paused.
+computed, plotted (in its own always-present section) and scored, because it's
+about the frame getting crowded once there are several, not about what's being
+measured. New diagnostics default to ticked; otherwise one would ship
+invisible. Toggling calls back into `app.py` to repaint, so it works while the
+video is paused.
+
+When a new diagnostic's phase depends on another diagnostic's trigger (e.g.
+the second pull starting exactly where the first pull ends), share the
+trigger-finding function rather than letting each diagnostic re-derive it —
+see `barKneeCrossing` in `diagnostics.js`. Two independently-computed versions
+of "the same event" silently drifting apart across diagnostics is a bug that
+is very easy not to notice, because each diagnostic looks correct in
+isolation.
 
 `series` entries are `{ frame, t, value, lo, hi }` — `lo`/`hi` are the two
 independent estimates, not error bars from a model. The shared renderer draws
@@ -133,11 +164,33 @@ any point on the curve back on the frame that produced it.
   at low alpha. It is *not* a second series and gets no legend entry.
 - The headline number is a stat tile, not a point on the chart.
 
-Colors come from the validated dark palette (see the `dataviz` skill,
-`references/palette.md`): series `#3987e5`, reference geometry `#d95926`,
-status good/warning/critical `#0ca30c` / `#fab219` / `#d03b3b`, muted ink
-`#898781`, gridline `#2c2c2a`. Status is never carried by color alone — it
-ships with its label.
+### Color scheme
+
+Three roles, three fixed treatments, on the video and on the plot alike.
+**Nothing else gets a hue** — a new diagnostic that introduces a fourth colour
+is the bug, not the palette. Values come from the validated dark palette (see
+the `dataviz` skill, `references/palette.md`) and live in `C` in
+`diagnostics.js`.
+
+| Role | Treatment | Why |
+| --- | --- | --- |
+| **The skeleton** — the pose track drawn on the frame | white `#ffffff` | It is a measurement of the lifter, not a judgement of them. It says where the body was, and nothing about whether that was good. |
+| **The diagnostic** — the mark that *is* the measurement, its trace, its uncertainty band, its trail | green→amber→red `#0ca30c` / `#fab219` / `#d03b3b`, via `scoreColor(score(summary))` | The mark carrying the number is also the readout of it, so the frame and the plot cannot disagree about how the lift scored. |
+| **Phase and interpretability indicators** — phase shading and edges, trigger geometry (the heights a crossing compares, the extremum a phase ended on), their labels | purple `#b39ddb`, via `phaseColor(alpha)` | These say *when* and *why*, not *how well*. On the ramp their edges would read as "good" or "bad" — a phase boundary is neither. |
+
+Grid, axes, playhead, tooltips and prose stay neutral (`C.ink` / `C.ink2` /
+`C.muted` / `C.grid` / `C.axis`). Status is never carried by color alone — it
+ships with its label. Weight and dash pattern, not hue, separate a measurement
+from its reference *inside* a role: diagnostic 1's bar estimate is a solid
+purple rule and the raw wrist it was corrected from is a dashed one.
+
+`score()` is what drives the ramp, and it is one constant for the whole lift,
+not a per-frame value: recolouring frame by frame makes the mark flicker
+through the ramp during playback and invites reading a single frame's colour as
+a verdict. It can differ from `verdict()` — diagnostic 1 scores SD but colours
+total drift — so say so in the transparency block when it does, and give the
+number the ramp is built from its own stat tile in that colour, since that tile
+is the only legend the ramp gets.
 
 The transparency block under the plot is mandatory and lists, at minimum:
 which frames the phase spans and which trigger values chose them; how many
@@ -172,3 +225,4 @@ there are enough labelled lifts to fit them against.
 | # | Diagnostic | Note |
 | --- | --- | --- |
 | 1 | First pull — constant back angle | [diagnostics/01-first-pull-back-angle.md](diagnostics/01-first-pull-back-angle.md) |
+| 2 | Second pull — full triple extension | [diagnostics/02-second-pull-triple-extension.md](diagnostics/02-second-pull-triple-extension.md) |

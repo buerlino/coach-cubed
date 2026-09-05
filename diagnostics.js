@@ -22,6 +22,12 @@
  * and "A is above B" is A.y < B.y. Everything here is pixels in the image
  * plane; there is no metric scale, so every distance/speed threshold is
  * normalized by torso length.
+ *
+ * Every diagnostic gets its own plot, stat tiles and notes block, always —
+ * the tickbox above each plot gates only whether that diagnostic's overlay()
+ * draws on the video (so several diagnostics' overlays don't compete for the
+ * same frame). Rendering is shared: DIAGNOSTICS is iterated to build one
+ * section per entry (see buildSections/run/redrawAll below).
  */
 (function () {
 'use strict';
@@ -32,7 +38,7 @@ const KP = {
   lHip: 11, rHip: 12, lKnee: 13, rKnee: 14, lAnk: 15, rAnk: 16,
 };
 const USED = [KP.lSho, KP.rSho, KP.lElb, KP.rElb, KP.lWri, KP.rWri,
-              KP.lHip, KP.rHip, KP.lKnee, KP.rKnee];
+              KP.lHip, KP.rHip, KP.lKnee, KP.rKnee, KP.lAnk, KP.rAnk];
 
 const DIAG_CONF = 0.3;   // same gate the overlay uses
 const FILL_WIN = 5;      // how far a gap fill may reach for neighbours
@@ -46,7 +52,8 @@ const FILL_WIN = 5;      // how far a gap fill may reach for neighbours
 //   purple  where the phase starts and ends — a boundary, not a score, so it
 //           must not read as green ("good") or red ("bad") at its edges
 //
-// The grid, axes, playhead and annotations stay neutral.
+// The grid, axes, playhead and annotations stay neutral. One series per plot,
+// so no legend box — the band is uncertainty, not a second series.
 const C = {
   good: '#0ca30c', warning: '#fab219', critical: '#d03b3b',
   phase: '#b39ddb',
@@ -206,6 +213,21 @@ function trunkAngle(hip, sho) {
   return Math.atan2(hip.y - sho.y, Math.abs(sho.x - hip.x)) * 180 / Math.PI;
 }
 
+// Interior angle at `joint` between rays to `a` and `b`, in degrees. 180deg
+// means joint/a/b are collinear — a straight line through the joint, i.e. that
+// joint is fully extended — regardless of how the segments are oriented in the
+// image plane. Unlike trunkAngle this needs no reference axis, so it is the
+// right measure for a joint angle (hip, knee) rather than a segment's tilt.
+function jointAngle(joint, a, b) {
+  if (!joint || !a || !b) return null;
+  const v1x = a.x - joint.x, v1y = a.y - joint.y;
+  const v2x = b.x - joint.x, v2y = b.y - joint.y;
+  const m1 = Math.hypot(v1x, v1y), m2 = Math.hypot(v2x, v2y);
+  if (!m1 || !m2) return null;
+  const cos = Math.max(-1, Math.min(1, (v1x * v2x + v1y * v2y) / (m1 * m2)));
+  return Math.acos(cos) * 180 / Math.PI;
+}
+
 // Wrist-centroid speed in torso-lengths per second.
 //
 // Deliberately measured on an extra-smoothed centroid over a wider baseline
@@ -215,6 +237,24 @@ function trunkAngle(hip, sho) {
 // Over ±2 samples of a 9-wide mean, that same jitter lands around 0.07 while
 // an actual pull runs ~2, which is the margin the trigger needs.
 const SPEED_SMOOTH = 9, SPEED_HALF = 2;
+
+// A 9-wide centred mean of a scalar-per-sample signal, tolerant of holes. Same
+// smoothing window as wristSpeed's centroid, reused here for a position signal
+// (hip elevation) rather than a derived speed, so a peak found on it has the
+// same jitter immunity as the speed trigger does.
+function smoothSeries(raw) {
+  const half = (SPEED_SMOOTH - 1) >> 1;
+  return raw.map((_, k) => {
+    let sum = 0, n = 0;
+    for (let j = Math.max(0, k - half); j <= Math.min(raw.length - 1, k + half); j++) {
+      if (raw[j] == null) continue;
+      sum += raw[j]; n++;
+    }
+    return n ? sum / n : null;
+  });
+}
+
+function hipElevation(p) { return meanOf(p, [KP.lHip, KP.rHip], 'y'); }
 
 function wristSpeed(samples, scale) {
   const raw = samples.map(s => wristCentroid(s.p));
@@ -237,11 +277,37 @@ function wristSpeed(samples, scale) {
   return out;
 }
 
+const RUN = 3;   // samples a threshold (or its release) must hold for
+
+// The bar (wrist + 1/6 forearm) crossing from below knee height to above it,
+// confirmed by persistence. This single event is both the end of the first
+// pull and the start of the second by definition, so both diagnostics anchor
+// on the same computation rather than each re-deriving it.
+function barKneeCrossing(samples) {
+  const bar = samples.map(s => barPoint(s.p));
+  const knee = samples.map(s => kneeY(s.p));
+  const above = i => bar[i] && knee[i] != null && bar[i].y < knee[i];
+  const below = i => bar[i] && knee[i] != null && bar[i].y > knee[i];
+
+  // Start scanning from where the bar is actually below the knee, so a clip
+  // that opens with the bar already overhead doesn't "end" at sample 0.
+  let first = -1;
+  for (let i = 0; i < samples.length; i++) if (below(i)) { first = i; break; }
+  if (first < 0) return { bar, knee, idx: -1, reason: 'no-below' };
+
+  for (let i = first + 1; i < samples.length; i++) {
+    if (!above(i)) continue;
+    let holds = true;   // require persistence: one stray frame is not a crossing
+    for (let j = i; j < Math.min(i + RUN, samples.length); j++) if (!above(j)) { holds = false; break; }
+    if (holds) return { bar, knee, idx: i, reason: null };
+  }
+  return { bar, knee, idx: -1, reason: 'no-cross' };
+}
+
 
 // --- diagnostic 1: first pull, constant back angle ----------------------
 
 const MOVE_ONSET = 0.15;   // torso-lengths/s — provisional
-const RUN = 3;             // samples a threshold must hold for
 const TRAIL = 4;           // sampled frames of history drawn behind the current one
 const TRAIL_ALPHA = 0.22;  // alpha of the newest trail frame; older ones fade from it
 const SD_GOOD = 2.5, SD_WARN = 5.0;   // degrees — provisional, see the note
@@ -264,6 +330,7 @@ const driftScore = summary =>
 const firstPullBackAngle = {
   id: 'first-pull-back-angle',
   title: 'First pull — constant back angle',
+  phaseLabel: 'first pull',
   cue: 'Through the first pull the back angle to the floor stays constant: the knees open and the bar rises, but the trunk keeps its inclination.',
   unit: '°',
 
@@ -276,29 +343,13 @@ const firstPullBackAngle = {
   // rocking into position all clear a motion threshold before the pull starts.
   phase(samples, scale) {
     const notes = [];
-    const bar = samples.map(s => barPoint(s.p));
-    const knee = samples.map(s => kneeY(s.p));
-    const above = i => bar[i] && knee[i] != null && bar[i].y < knee[i];
-    const below = i => bar[i] && knee[i] != null && bar[i].y > knee[i];
-
-    // Start scanning from where the bar is actually below the knee, so a clip
-    // that opens with the bar already overhead doesn't "end" at sample 0.
-    let first = -1;
-    for (let i = 0; i < samples.length; i++) if (below(i)) { first = i; break; }
-    if (first < 0) {
-      return { error: 'The bar never sits below knee height in this clip — there is no first pull to score.' };
+    const cross = barKneeCrossing(samples);
+    if (cross.idx < 0) {
+      return { error: cross.reason === 'no-below'
+        ? 'The bar never sits below knee height in this clip — there is no first pull to score.'
+        : 'The bar never crosses knee height — the first pull has no end trigger in this clip.' };
     }
-
-    let endIdx = -1;
-    for (let i = first + 1; i < samples.length; i++) {
-      if (!above(i)) continue;
-      let holds = true;   // require persistence: one stray frame is not a crossing
-      for (let j = i; j < Math.min(i + RUN, samples.length); j++) if (!above(j)) { holds = false; break; }
-      if (holds) { endIdx = i; break; }
-    }
-    if (endIdx < 0) {
-      return { error: 'The bar never crosses knee height — the first pull has no end trigger in this clip.' };
-    }
+    const endIdx = cross.idx, bar = cross.bar, knee = cross.knee;
 
     const speed = wristSpeed(samples, scale);
     let startIdx = -1;
@@ -403,6 +454,52 @@ const firstPullBackAngle = {
     return { label: 'chest rises early', status: 'critical' };
   },
 
+  // Dashed reference line: the phase's own mean, since the cue is about
+  // constancy relative to the lift itself, not a fixed external target.
+  referenceLine(summary) {
+    return { value: summary.mean, label: 'mean ' + fmt(summary.mean) + '°' };
+  },
+
+  tiles(summary, verdict) {
+    return [
+      { label: 'Back-angle constancy', value: fmt(summary.sd) + '°',
+        sub: verdict.label + ' · SD over the pull', status: verdict.status },
+      // The tile that names the number the ramp is built from carries the ramp
+      // colour itself, so the plot's hue has a legend somewhere.
+      { label: 'Drift', value: (summary.drift >= 0 ? '+' : '') + fmt(summary.drift) + '°',
+        sub: 'end minus start', status: scoreColor(driftScore(summary)) },
+      { label: 'Mean angle', value: fmt(summary.mean) + '°', sub: 'to the floor' },
+      { label: 'L/R disagreement', value: summary.meanSpread == null ? '—' : '±' + fmt(summary.meanSpread) + '°', sub: 'uncertainty' },
+    ];
+  },
+
+  transparencyLines(res, samples, ctxExtra) {
+    const s = res.summary, ph = res.phase, tr = ph.triggers;
+    const pct = v => Math.round(v * 100) + '%';
+    return [
+      '<strong>Phase</strong> — frames ' + samples[ph.startIdx].frame + '–' +
+        samples[ph.endIdx].frame + ', ' + fmt(s.duration, 2) + 's, ' + s.n + ' sampled frames measured.',
+      '<strong>Start trigger</strong> — last stillness before the pull' +
+        (tr.clamped ? ' (not found; clamped to the first frame)'
+                    : ', wrist speed then rising past ' + fmt(MOVE_ONSET, 2) + ' torso-lengths/s (measured ' + fmt(tr.onsetSpeed, 2) + ').'),
+      '<strong>End trigger</strong> — estimated bar (wrist + 1/6 forearm) crossed knee height, clearing it by ' +
+        fmt(tr.crossGapPx, 0) + 'px (' + fmt(tr.crossGapTorso, 2) + ' torso-lengths).',
+      '<strong>Measurement</strong> — left and right hip→shoulder scored separately; ' +
+        pct(s.bothSides) + ' of frames had both sides visible, ' + pct(s.interpFrac) +
+        ' relied on a detection filled in from neighbouring frames.',
+      '<strong>Time smoothing</strong> — ' + (ctxExtra.smoothingMs
+        ? 'trajectories were smoothed with a Gaussian of σ = ' + ctxExtra.smoothingMs +
+          ' ms before scoring (the slider under the video). Widening it lowers the SD ' +
+          'above whether or not the back angle actually held, so compare lifts at one setting.'
+        : 'off — scored on raw per-frame detections, so pose jitter is counted as ' +
+          'back-angle movement and the SD reads high.'),
+      '<strong>Caveat</strong> — angles are in the image plane, so this assumes a side-on camera. The good/warning bands (' +
+        fmt(SD_GOOD, 1) + '° / ' + fmt(SD_WARN, 1) + '° SD) are provisional and not fitted to labelled lifts. ' +
+        'The green-to-red colour is a separate reading — total drift, full red at ' + fmt(DRIFT_RED, 0) +
+        '° — so a lift can score red on constancy while the colour stays green, if the angle wandered and came back.',
+    ].concat(res.notes.map(n => '<strong>Note</strong> — ' + n));
+  },
+
   // Everything the two triggers and the measurement rest on, drawn on the frame
   // itself while the playhead is inside the phase.
   //
@@ -497,7 +594,267 @@ const firstPullBackAngle = {
   },
 };
 
-const DIAGNOSTICS = [firstPullBackAngle];
+
+// --- diagnostic 2: second pull, full triple extension --------------------
+
+// Fraction of a torso-length the smoothed hip elevation must give back from its
+// running minimum, and hold given back for RUN samples, before that minimum
+// counts as the peak. Same "require persistence" idea as the first pull's
+// motion trigger, applied to confirming a peak instead of a threshold crossing
+// — a still-rising hip that dips one noisy sample must not end the phase.
+const EXT_CONFIRM_RISE = 0.08;
+const EXT_GOOD = 10, EXT_WARN = 20;   // degrees short of full extension — provisional
+
+// One constant per lift for the shared green->amber->red ramp, same contract as
+// diagnostic 1's driftScore: the worst of the two measured joints, since
+// "triple extension" is not met by extending only the hip. Full red at a joint
+// left this far short of straight — a pull abandoned around the hip crease.
+const EXT_RED = 45;
+const extensionScore = summary => {
+  if (!summary) return null;
+  const d = [summary.hipDeficit, summary.kneeDeficit].filter(v => v != null && isFinite(v));
+  if (!d.length) return null;
+  return Math.max(0, Math.min(1, Math.max.apply(null, d) / EXT_RED));
+};
+
+const secondPullTripleExtension = {
+  id: 'second-pull-triple-extension',
+  title: 'Second pull — full triple extension',
+  phaseLabel: 'second pull',
+  cue: 'At the top of the second pull the hips and knees open fully — "triple extension" — before the arms bend into the turnover.',
+  unit: '°',
+
+  // Active phase: bar-past-knee (the first pull's own end trigger) to peak hip
+  // elevation.
+  //
+  // Anchored on the same bar/knee crossing diagnostic 1 ends on — it is the
+  // same event by definition, so both diagnostics compute it once via
+  // barKneeCrossing rather than risking two triggers drifting apart. The end
+  // trigger here is softer: hip elevation is a smoothed extremum, not a crisp
+  // crossing, so it needs the persistence check described above rather than a
+  // single "is this the max so far" test, which would fire on the first noisy
+  // sample that happens to jitter upward.
+  phase(samples, scale) {
+    const notes = [];
+    const cross = barKneeCrossing(samples);
+    if (cross.idx < 0) {
+      return { error: 'The bar never crosses knee height — there is no second pull to score without the first pull\'s end trigger.' };
+    }
+    const startIdx = cross.idx;
+    const elev = smoothSeries(samples.map(s => hipElevation(s.p)));   // smaller y = higher hip
+
+    let bestIdx = -1, bestY = Infinity, endIdx = -1;
+    for (let i = startIdx; i < samples.length; i++) {
+      if (elev[i] == null) continue;
+      if (elev[i] < bestY) { bestY = elev[i]; bestIdx = i; continue; }
+      if (bestIdx < 0 || elev[i] - bestY <= EXT_CONFIRM_RISE * scale) continue;
+      let holds = true;
+      for (let j = i; j < Math.min(i + RUN, samples.length); j++) {
+        if (elev[j] == null || elev[j] - bestY <= EXT_CONFIRM_RISE * scale) { holds = false; break; }
+      }
+      if (holds) { endIdx = bestIdx; break; }
+    }
+    if (endIdx < 0) {
+      if (bestIdx < 0) {
+        return { error: 'The hips were never confidently tracked after the bar passed the knee — there is no second pull to score.' };
+      }
+      // The clip may simply end at or near peak extension — report the best
+      // point found so far rather than nothing, flagged as unconfirmed.
+      endIdx = bestIdx;
+      notes.push('The hip never confirmed a descent after its highest point in this clip — it may end right at peak extension. The phase end is the highest point found so far, not a confirmed peak, so it may be a little early.');
+    }
+    if (endIdx - startIdx < RUN) {
+      return { error: `The second pull resolved to only ${endIdx - startIdx + 1} sampled frame(s) — too short to score. Try a lower frame stride.` };
+    }
+
+    return {
+      startIdx, endIdx, notes,
+      peakElevPx: bestY,
+      triggers: {
+        crossGapPx: cross.bar[startIdx] ? (cross.knee[startIdx] - cross.bar[startIdx].y) : null,
+        confirmed: !notes.length,
+      },
+    };
+  },
+
+  // Hip angle (shoulder–hip–knee) is the headline, scored per side — two
+  // independent estimates sharing no keypoints, same contract as diagnostic 1.
+  // Knee angle (hip–knee–ankle) is tracked alongside it as the second of the
+  // three joints "triple extension" names; ankle/plantarflexion is not
+  // measured at all (see the note below — COCO-17 has no foot keypoint).
+  measure(samples, phase) {
+    const notes = [];
+    const series = [];
+    const kneeSeries = [];
+    let both = 0, interp = 0;
+
+    for (let i = phase.startIdx; i <= phase.endIdx; i++) {
+      const p = samples[i].p;
+      const hL = jointAngle(p[KP.lHip], p[KP.lSho], p[KP.lKnee]);
+      const hR = jointAngle(p[KP.rHip], p[KP.rSho], p[KP.rKnee]);
+      const hVals = [hL, hR].filter(v => v != null);
+      if (!hVals.length) continue;
+      if (hVals.length === 2) both++;
+      if ([KP.lHip, KP.lSho, KP.lKnee, KP.rHip, KP.rSho, KP.rKnee].some(k => p[k] && p[k].interp)) interp++;
+      series.push({
+        idx: i, frame: samples[i].frame, t: samples[i].t,
+        value: hVals.reduce((a, b) => a + b, 0) / hVals.length,
+        lo: Math.min.apply(null, hVals),
+        hi: Math.max.apply(null, hVals),
+        spread: hVals.length === 2 ? Math.abs(hL - hR) : null,
+      });
+
+      const kL = jointAngle(p[KP.lKnee], p[KP.lHip], p[KP.lAnk]);
+      const kR = jointAngle(p[KP.rKnee], p[KP.rHip], p[KP.rAnk]);
+      const kVals = [kL, kR].filter(v => v != null);
+      kneeSeries.push({ t: samples[i].t, value: kVals.length ? kVals.reduce((a, b) => a + b, 0) / kVals.length : null });
+    }
+    if (series.length < RUN) {
+      return { error: 'Neither hip could be tracked with its shoulder and knee for long enough inside the second pull.' };
+    }
+
+    // Peak values are read from the last few samples of the phase rather than
+    // the single last one: the phase end itself comes from a smoothed signal,
+    // so one raw sample at that index can be noisy.
+    const tailN = Math.min(3, series.length);
+    const hipPeak = series.slice(-tailN).reduce((a, s) => a + s.value, 0) / tailN;
+    const kneeTail = kneeSeries.slice(-tailN).filter(s => s.value != null);
+    const kneePeak = kneeTail.length ? kneeTail.reduce((a, s) => a + s.value, 0) / kneeTail.length : null;
+
+    // Synchrony: how far apart in time the hip and the knee each reach their
+    // own maximum extension within the phase. "Triple extension" names a
+    // simultaneous event — a lifter who extends the knees well before (or
+    // after) the hips has split what the cue asks to happen together, even if
+    // each joint individually reaches a good angle.
+    let hipPeakIdx = 0, hipPeakVal = -Infinity;
+    series.forEach((s, k) => { if (s.value > hipPeakVal) { hipPeakVal = s.value; hipPeakIdx = k; } });
+    let kneePeakIdx = -1, kneePeakVal = -Infinity;
+    kneeSeries.forEach((s, k) => { if (s.value != null && s.value > kneePeakVal) { kneePeakVal = s.value; kneePeakIdx = k; } });
+    const syncGap = kneePeakIdx >= 0 ? Math.abs(series[hipPeakIdx].t - kneeSeries[kneePeakIdx].t) : null;
+
+    const spreads = series.map(s => s.spread).filter(v => v != null);
+    const summary = {
+      hipPeak, kneePeak,
+      hipDeficit: 180 - hipPeak,
+      kneeDeficit: kneePeak == null ? null : 180 - kneePeak,
+      syncGap,
+      kneeLeadsHip: syncGap != null ? (kneeSeries[kneePeakIdx].t < series[hipPeakIdx].t) : null,
+      meanSpread: spreads.length ? spreads.reduce((a, b) => a + b, 0) / spreads.length : null,
+      n: series.length,
+      bothSides: both / series.length,
+      interpFrac: interp / series.length,
+      duration: series[series.length - 1].t - series[0].t,
+    };
+
+    notes.push('Ankle extension (rising onto the toes) is not measured: ViTPose\'s COCO-17 output has no foot keypoint, so only two of the three joints in "triple extension" — hip and knee — are scored here.');
+    if (summary.kneeDeficit == null) {
+      notes.push('The knee angle could not be measured for enough of the phase (hip, knee or ankle confidence too low near the top) — only hip extension is scored this time.');
+    }
+    if (summary.meanSpread != null && summary.meanSpread > 8) {
+      notes.push('The two sides\' hip angles disagree by ' + fmt(summary.meanSpread) + '° on average. A steady offset points to the camera not being square to the lifter (or the lifter twisted on the bar); a jittery one points to an unreliable pose track — check the band on the plot.');
+    }
+    return { series, summary, notes };
+  },
+
+  score: extensionScore,
+
+  verdict(summary) {
+    const deficits = [summary.hipDeficit].concat(summary.kneeDeficit != null ? [summary.kneeDeficit] : []);
+    const worst = Math.max.apply(null, deficits);
+    if (worst <= EXT_GOOD) return { label: 'full extension', status: 'good' };
+    if (worst <= EXT_WARN) return { label: 'partial extension', status: 'warning' };
+    return { label: 'pull cut short', status: 'critical' };
+  },
+
+  // Dashed reference line at the anatomical target itself (a straight joint),
+  // not at the phase's own mean — unlike diagnostic 1, the cue here is
+  // distance from a fixed reference, not internal constancy.
+  referenceLine() {
+    return { value: 180, label: 'full extension' };
+  },
+
+  tiles(summary, verdict) {
+    return [
+      { label: 'Hip extension', value: fmt(summary.hipDeficit) + '° short',
+        sub: verdict.label, status: verdict.status },
+      { label: 'Knee extension', value: summary.kneeDeficit == null ? '—' : fmt(summary.kneeDeficit) + '° short',
+        sub: 'from full extension' },
+      { label: 'Synchrony', value: summary.syncGap == null ? '—' : fmt(summary.syncGap * 1000, 0) + ' ms',
+        sub: summary.kneeLeadsHip == null ? 'hip/knee peak gap' : (summary.kneeLeadsHip ? 'knee leads hip' : 'hip leads knee') },
+      { label: 'L/R disagreement', value: summary.meanSpread == null ? '—' : '±' + fmt(summary.meanSpread) + '°', sub: 'hip angle uncertainty' },
+    ];
+  },
+
+  transparencyLines(res, samples, ctxExtra) {
+    const s = res.summary, ph = res.phase, tr = ph.triggers;
+    const pct = v => Math.round(v * 100) + '%';
+    return [
+      '<strong>Phase</strong> — frames ' + samples[ph.startIdx].frame + '–' +
+        samples[ph.endIdx].frame + ', ' + fmt(s.duration, 2) + 's, ' + s.n + ' sampled frames measured.',
+      '<strong>Start trigger</strong> — bar (wrist + 1/6 forearm) crossing knee height' +
+        (tr.crossGapPx != null ? ', clearing it by ' + fmt(tr.crossGapPx, 0) + 'px' : '') +
+        ' — the same event that ends the first pull.',
+      '<strong>End trigger</strong> — smoothed hip elevation reaching its highest point' +
+        (tr.confirmed
+          ? ', confirmed by the hip dropping back at least ' + fmt(EXT_CONFIRM_RISE, 2) + ' torso-lengths afterward.'
+          : ' (unconfirmed in this clip — see note below).'),
+      '<strong>Measurement</strong> — hip angle (shoulder–hip–knee) scored per side; knee angle (hip–knee–ankle) scored per side alongside it. ' +
+        pct(s.bothSides) + ' of frames had both hip-side estimates, ' + pct(s.interpFrac) + ' relied on a detection filled in from neighbouring frames.',
+      '<strong>Peak reading</strong> — the extension numbers are the mean of the last ' + Math.min(3, s.n) +
+        ' sampled frames of the phase, not one raw sample, since the phase end itself comes from a smoothed signal.',
+      '<strong>Time smoothing</strong> — ' + (ctxExtra.smoothingMs
+        ? 'trajectories were smoothed with a Gaussian of σ = ' + ctxExtra.smoothingMs + ' ms before scoring (the slider under the video).'
+        : 'off — scored on raw per-frame detections.'),
+      '<strong>Caveat</strong> — angles are in the image plane (side-on camera assumed) and ankle extension is not measured (no foot keypoint). The extension bands (' +
+        fmt(EXT_GOOD, 0) + '°/' + fmt(EXT_WARN, 0) + '° short of straight) are provisional and not fitted to labelled lifts. ' +
+        'The green-to-red colour is the worse of the hip and knee deficits, full red at ' + fmt(EXT_RED, 0) +
+        '° short, so it can read redder than the headline hip number when the knees are what stayed bent.',
+    ].concat(res.notes.map(n => '<strong>Note</strong> — ' + n));
+  },
+
+  // The shoulder-hip-knee-ankle chain on each side, plus a full-width
+  // reference line at the peak hip height the end trigger found — so the
+  // extremum the phase ended on is visible on the frame, the same way
+  // diagnostic 1 draws its knee/bar rules.
+  //
+  // `view` is the track at the playhead's actual time, not a sampled frame —
+  // see diagnostic 1's overlay and pointsAtTime.
+  overlay(ctx, view, phase, res, size) {
+    const p = view.p;
+    const lw = Math.max(2, size / 260);
+    // The chain IS the measurement (both joint angles are read off it), so it
+    // carries the ramp, exactly as the trunk segments do in diagnostic 1.
+    const col = alpha => scoreColor(this.score(res.summary), alpha);
+
+    for (const [sh, hip, knee, ank] of [[KP.lSho, KP.lHip, KP.lKnee, KP.lAnk], [KP.rSho, KP.rHip, KP.rKnee, KP.rAnk]]) {
+      const chain = [p[sh], p[hip], p[knee], p[ank]];
+      if (chain.some(pt => !pt)) continue;
+      for (const [w, style] of [[lw * 3.2, 'rgba(0,0,0,0.55)'], [lw * 1.8, col(1)]]) {
+        ctx.strokeStyle = style; ctx.lineWidth = w;
+        ctx.beginPath(); ctx.moveTo(chain[0].x, chain[0].y);
+        for (let k = 1; k < chain.length; k++) ctx.lineTo(chain[k].x, chain[k].y);
+        ctx.stroke();
+      }
+    }
+
+    // Purple, like diagnostic 1's trigger rules: this height is where the phase
+    // ends, not a judgement of the lift.
+    if (phase.peakElevPx != null) {
+      const y = phase.peakElevPx;
+      ctx.save();
+      ctx.strokeStyle = phaseColor(0.85); ctx.lineWidth = Math.max(1, lw * 0.6);
+      ctx.setLineDash([lw, lw * 1.5]);
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(ctx.canvas.width, y); ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = phaseColor(1);
+      ctx.font = Math.max(9, size / 62) + 'px system-ui, sans-serif';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+      ctx.fillText('peak hip height', 6, y - 4);
+    }
+  },
+};
+
+const DIAGNOSTICS = [firstPullBackAngle, secondPullTripleExtension];
 
 // Which diagnostics draw on the video. Only gates the overlay — a diagnostic
 // that's switched off is still computed, plotted and scored, since the tickbox
@@ -510,8 +867,9 @@ const enabled = new Set(DIAGNOSTICS.map(d => d.id));
 // --- runner -------------------------------------------------------------
 
 let el = null;              // mounted elements
-let state = null;           // { keypoints, meta, personId, samples, result }
+let state = null;           // { keypoints, meta, personId, samples, scale, results }
 let smoothingMs = 0;        // time smoothing already applied to the track
+let diagState = {};         // per-diagnostic render state: { canvas, ctx, stats, notes, geom, hover }
 
 function personIds(kpByFrame) {
   const counts = new Map();
@@ -521,40 +879,42 @@ function personIds(kpByFrame) {
   return Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || (+a[0]) - (+b[0]));
 }
 
+// Scores every diagnostic against the same prepared track. Diagnostics are
+// independent: one erroring (no clean phase found) does not stop the others
+// from being computed.
 function run() {
   if (!state || !state.keypoints || !state.meta || !state.personId) return;
-  const d = DIAGNOSTICS[0];   // one diagnostic for now; the section grows a
-                              // selector when there are several
   const samples = buildTrack(state.keypoints, state.meta, state.personId);
   state.samples = samples;
-  state.diag = d;
+  state.results = {};
 
   if (samples.length < FILL_WIN) {
-    state.result = { error: `Person ${state.personId} was detected in only ${samples.length} sampled frame(s).` };
+    const err = { error: `Person ${state.personId} was detected in only ${samples.length} sampled frame(s).` };
+    for (const d of DIAGNOSTICS) state.results[d.id] = err;
     return;
   }
   preparePoints(samples);
   const scale = torsoScale(samples);
   if (!scale) {
-    state.result = { error: 'No frame had a confident hip and shoulder on the same side, so there is no body scale to work from.' };
+    const err = { error: 'No frame had a confident hip and shoulder on the same side, so there is no body scale to work from.' };
+    for (const d of DIAGNOSTICS) state.results[d.id] = err;
     return;
   }
   state.scale = scale;
 
-  const phase = d.phase(samples, scale);
-  if (phase.error) { state.result = { error: phase.error }; return; }
-  phase.knee = phase.knee || [];
-
-  const m = d.measure(samples, phase);
-  if (m.error) { state.result = { error: m.error }; return; }
-
-  state.result = {
-    phase,
-    series: m.series,
-    summary: m.summary,
-    verdict: d.verdict(m.summary),
-    notes: (phase.notes || []).concat(m.notes || []),
-  };
+  for (const d of DIAGNOSTICS) {
+    const phase = d.phase(samples, scale);
+    if (phase.error) { state.results[d.id] = { error: phase.error }; continue; }
+    const m = d.measure(samples, phase);
+    if (m.error) { state.results[d.id] = { error: m.error }; continue; }
+    state.results[d.id] = {
+      phase,
+      series: m.series,
+      summary: m.summary,
+      verdict: d.verdict(m.summary),
+      notes: (phase.notes || []).concat(m.notes || []),
+    };
+  }
 }
 
 
@@ -616,8 +976,6 @@ function pointsAtTime(t) {
 // --- rendering ----------------------------------------------------------
 
 const PAD = { l: 48, r: 18, t: 24, b: 30 };
-let geom = null;            // last-drawn scales, for hover hit-testing
-let hover = null;
 
 function tDomain() {
   const meta = state.meta, samples = state.samples;
@@ -628,13 +986,12 @@ function tDomain() {
 
 // `time` is where to put the playhead, in seconds; the video's own currentTime
 // when the caller doesn't say (hover redraws, a fresh track).
-function drawChart(time) {
-  const cv = el.canvas, ctx = cv.getContext('2d');
+function drawChart(d, ds, time) {
+  const cv = ds.canvas, ctx = ds.ctx;
   ctx.clearRect(0, 0, cv.width, cv.height);
-  geom = null;
-  if (!state || !state.result) return;
-
-  const res = state.result;
+  ds.geom = null;
+  const res = state && state.results ? state.results[d.id] : null;
+  if (!res) return;
   if (res.error) {
     ctx.fillStyle = C.muted;
     ctx.font = '13px system-ui, sans-serif';
@@ -647,10 +1004,12 @@ function drawChart(time) {
   const gw = w - PAD.l - PAD.r, gh = h - PAD.t - PAD.b;
   const tMax = tDomain();
 
-  // y domain: at least a 10° window, so a genuinely flat trace isn't magnified
-  // into something that looks like wobble.
+  // y domain: at least a 10-unit window (so a flat trace isn't magnified into
+  // apparent wobble), and wide enough to include the reference line.
   let vMin = Infinity, vMax = -Infinity;
   for (const s of res.series) { vMin = Math.min(vMin, s.lo); vMax = Math.max(vMax, s.hi); }
+  const ref = d.referenceLine ? d.referenceLine(res.summary) : null;
+  if (ref) { vMin = Math.min(vMin, ref.value); vMax = Math.max(vMax, ref.value); }
   const span = Math.max(vMax - vMin, 10);
   const mid = (vMin + vMax) / 2;
   vMin = mid - span / 2 - span * 0.08;
@@ -658,12 +1017,12 @@ function drawChart(time) {
 
   const X = t => PAD.l + (t / tMax) * gw;
   const Y = v => PAD.t + (1 - (v - vMin) / (vMax - vMin)) * gh;
-  geom = { X, Y, tMax, vMin, vMax, gw, gh };
+  ds.geom = { X, Y, tMax, vMin, vMax, gw, gh };
 
   // One colour for the whole diagnostic, from the lift's total drift — the same
   // hue the overlay draws on the frame, so the plot and the video can't disagree
   // about how the lift scored.
-  const col = alpha => scoreColor(state.diag.score(res.summary), alpha);
+  const col = alpha => scoreColor(d.score(res.summary), alpha);
 
   // active phase: shaded, and delimited by a hairline at each edge. Purple —
   // the boundary is not a verdict, and the ramp's own colours are spoken for.
@@ -684,7 +1043,7 @@ function drawChart(time) {
   for (let i = 0; i <= 4; i++) {
     const v = vMin + (i / 4) * (vMax - vMin), y = Math.round(Y(v)) + 0.5;
     ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(w - PAD.r, y); ctx.stroke();
-    ctx.fillText(fmt(v, 0) + '°', PAD.l - 6, y + 3);
+    ctx.fillText(fmt(v, 0) + d.unit, PAD.l - 6, y + 3);
   }
   ctx.strokeStyle = C.axis;
   ctx.beginPath(); ctx.moveTo(PAD.l, PAD.t); ctx.lineTo(PAD.l, PAD.t + gh); ctx.stroke();
@@ -694,7 +1053,7 @@ function drawChart(time) {
   ctx.fillText('0s', PAD.l, h - 8);
   ctx.fillText(fmt(tMax) + 's', w - PAD.r, h - 8);
   ctx.fillStyle = phaseColor(1);
-  ctx.fillText('first pull', (X(t0) + X(t1)) / 2, PAD.t - 9);
+  ctx.fillText(d.phaseLabel || d.title, (X(t0) + X(t1)) / 2, PAD.t - 9);
 
   // uncertainty band: the left-side and right-side estimates. Same colour as the
   // trace at low alpha — it is not a second series.
@@ -704,14 +1063,18 @@ function drawChart(time) {
   for (let i = res.series.length - 1; i >= 0; i--) ctx.lineTo(X(res.series[i].t), Y(res.series[i].lo));
   ctx.closePath(); ctx.fill();
 
-  // mean over the phase, direct-labeled
-  const my = Y(res.summary.mean);
-  ctx.save();
-  ctx.strokeStyle = C.ink2; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
-  ctx.beginPath(); ctx.moveTo(X(t0), my); ctx.lineTo(X(t1), my); ctx.stroke();
-  ctx.restore();
-  ctx.fillStyle = C.ink2; ctx.textAlign = 'left';
-  ctx.fillText('mean ' + fmt(res.summary.mean) + '°', Math.min(X(t1) + 4, w - PAD.r - 46), my - 4);
+  // reference line, direct-labeled — the phase mean (diagnostic 1) or a fixed
+  // anatomical target (diagnostic 2); each diagnostic decides which is
+  // meaningful for its own cue.
+  if (ref) {
+    const ry = Y(ref.value);
+    ctx.save();
+    ctx.strokeStyle = C.ink2; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(X(t0), ry); ctx.lineTo(X(t1), ry); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = C.ink2; ctx.textAlign = 'left';
+    ctx.fillText(ref.label, Math.min(X(t1) + 4, w - PAD.r - 70), ry - 4);
+  }
 
   ctx.strokeStyle = col(1); ctx.lineWidth = 2;
   ctx.lineJoin = 'round';
@@ -735,25 +1098,25 @@ function drawChart(time) {
     ctx.restore();
   }
 
-  if (hover != null) drawTooltip(ctx, res, w, h);
+  if (ds.hover != null) drawTooltip(ctx, res, w, h, ds, d);
 }
 
-function drawTooltip(ctx, res, w, h) {
-  const s = res.series[hover];
+function drawTooltip(ctx, res, w, h, ds, d) {
+  const s = res.series[ds.hover];
   if (!s) return;
-  const x = geom.X(s.t), y = geom.Y(s.value);
+  const x = ds.geom.X(s.t), y = ds.geom.Y(s.value);
   ctx.save();
   ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(x, PAD.t); ctx.lineTo(x, PAD.t + geom.gh); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x, PAD.t); ctx.lineTo(x, PAD.t + ds.geom.gh); ctx.stroke();
   ctx.restore();
-  ctx.fillStyle = scoreColor(state.diag.score(res.summary));
+  ctx.fillStyle = scoreColor(d.score(res.summary));
   ctx.beginPath(); ctx.arc(x, y, 4.5, 0, 2 * Math.PI); ctx.fill();
   ctx.strokeStyle = C.surface; ctx.lineWidth = 2; ctx.stroke();
 
   const lines = [
     fmt(s.t, 2) + 's · frame ' + s.frame,
-    fmt(s.value) + '° to floor',
-    s.spread == null ? 'one side only' : 'L/R differ ' + fmt(s.spread) + '°',
+    fmt(s.value) + d.unit,
+    s.spread == null ? 'single estimate' : 'L/R differ ' + fmt(s.spread) + d.unit,
   ];
   ctx.font = '11px system-ui, sans-serif';
   const bw = Math.max.apply(null, lines.map(l => ctx.measureText(l).width)) + 16;
@@ -795,52 +1158,28 @@ function tile(label, value, sub, status) {
     '<div class="diag-tile-sub">' + (sub || '') + '</div></div>';
 }
 
-function drawPanels() {
-  if (!state || !state.result) { el.stats.innerHTML = ''; el.notes.innerHTML = ''; return; }
-  const res = state.result;
-  const d = state.diag;
-
+function drawPanels(d, ds, ctxExtra) {
+  const res = state && state.results ? state.results[d.id] : null;
+  if (!res) { ds.stats.innerHTML = ''; ds.notes.innerHTML = ''; return; }
   if (res.error) {
-    el.stats.innerHTML = '';
-    el.notes.innerHTML = '<p class="diag-note"><strong>Not scored.</strong> ' + res.error + '</p>';
+    ds.stats.innerHTML = '';
+    ds.notes.innerHTML = '<p class="diag-note"><strong>Not scored.</strong> ' + res.error + '</p>';
     return;
   }
-  const s = res.summary, ph = res.phase, tr = ph.triggers;
-  const pct = v => Math.round(v * 100) + '%';
-
-  el.stats.innerHTML =
-    tile('Back-angle constancy', fmt(s.sd) + '°',
-         res.verdict.label + ' · SD over the pull', res.verdict.status) +
-    tile('Drift', (s.drift >= 0 ? '+' : '') + fmt(s.drift) + '°', 'end minus start',
-         scoreColor(d.score(s))) +
-    tile('Mean angle', fmt(s.mean) + '°', 'to the floor') +
-    tile('L/R disagreement', s.meanSpread == null ? '—' : '±' + fmt(s.meanSpread) + '°', 'uncertainty');
-
-  const items = [
-    '<strong>Phase</strong> — frames ' + state.samples[ph.startIdx].frame + '–' +
-      state.samples[ph.endIdx].frame + ', ' + fmt(s.duration, 2) + 's, ' + s.n + ' sampled frames measured.',
-    '<strong>Start trigger</strong> — last stillness before the pull' +
-      (tr.clamped ? ' (not found; clamped to the first frame)'
-                  : ', wrist speed then rising past ' + fmt(MOVE_ONSET, 2) + ' torso-lengths/s (measured ' + fmt(tr.onsetSpeed, 2) + ').'),
-    '<strong>End trigger</strong> — estimated bar (wrist + 1/6 forearm) crossed knee height, clearing it by ' +
-      fmt(tr.crossGapPx, 0) + 'px (' + fmt(tr.crossGapTorso, 2) + ' torso-lengths).',
-    '<strong>Measurement</strong> — left and right hip→shoulder scored separately; ' +
-      pct(s.bothSides) + ' of frames had both sides visible, ' + pct(s.interpFrac) +
-      ' relied on a detection filled in from neighbouring frames.',
-    '<strong>Time smoothing</strong> — ' + (smoothingMs
-      ? 'trajectories were smoothed with a Gaussian of σ = ' + smoothingMs +
-        ' ms before scoring (the slider under the video). Widening it lowers the SD ' +
-        'above whether or not the back angle actually held, so compare lifts at one setting.'
-      : 'off — scored on raw per-frame detections, so pose jitter is counted as ' +
-        'back-angle movement and the SD reads high.'),
-    '<strong>Caveat</strong> — angles are in the image plane, so this assumes a side-on camera. The good/warning bands (' +
-      fmt(SD_GOOD, 1) + '° / ' + fmt(SD_WARN, 1) + '° SD) are provisional and not fitted to labelled lifts. ' +
-      'The green-to-red colour is a separate reading — total drift, full red at ' + fmt(DRIFT_RED, 0) +
-      '° — so a lift can score red on constancy while the colour stays green, if the angle wandered and came back.',
-  ].concat(res.notes.map(n => '<strong>Note</strong> — ' + n));
-
-  el.notes.innerHTML = '<p class="diag-cue">' + d.cue + '</p><ul class="diag-notes">' +
+  ds.stats.innerHTML = d.tiles(res.summary, res.verdict).map(t => tile(t.label, t.value, t.sub, t.status)).join('');
+  const items = d.transparencyLines(res, state.samples, ctxExtra);
+  ds.notes.innerHTML = '<p class="diag-cue">' + d.cue + '</p><ul class="diag-notes">' +
     items.map(i => '<li>' + i + '</li>').join('') + '</ul>';
+}
+
+function redrawAll() {
+  const ctxExtra = { smoothingMs, scale: state && state.scale };
+  for (const d of DIAGNOSTICS) {
+    const ds = diagState[d.id];
+    if (!ds) continue;
+    drawChart(d, ds);
+    drawPanels(d, ds, ctxExtra);
+  }
 }
 
 
@@ -868,41 +1207,83 @@ function buildToggles() {
   }
 }
 
-function nearestSample(clientX) {
-  if (!geom || !state || !state.result || state.result.error) return null;
-  const rect = el.canvas.getBoundingClientRect();
-  const x = (clientX - rect.left) * (el.canvas.width / rect.width);
+function nearestSample(ds, res, clientX) {
+  if (!ds.geom || !res || res.error) return null;
+  const rect = ds.canvas.getBoundingClientRect();
+  const x = (clientX - rect.left) * (ds.canvas.width / rect.width);
   let best = null, bestD = Infinity;
-  state.result.series.forEach((s, i) => {
-    const d = Math.abs(geom.X(s.t) - x);
+  res.series.forEach((s, i) => {
+    const d = Math.abs(ds.geom.X(s.t) - x);
     if (d < bestD) { bestD = d; best = i; }
   });
   return bestD <= 24 ? best : null;
+}
+
+// One section per diagnostic — its own tiles, canvas and notes — built into
+// el.sections. A diagnostic's tickbox (buildToggles, above) only ever gates
+// its video overlay; its section here is always present.
+function buildSections() {
+  if (!el.sections) return;
+  el.sections.innerHTML = '';
+  diagState = {};
+  for (const d of DIAGNOSTICS) {
+    const block = document.createElement('div');
+    block.className = 'diag-block';
+
+    const h = document.createElement('h4');
+    h.className = 'diag-block-title';
+    h.textContent = d.title;
+
+    const stats = document.createElement('div');
+    stats.className = 'diag-tiles';
+
+    const canvasWrap = document.createElement('div');
+    canvasWrap.className = 'diag-canvas-wrap';
+    const canvas = document.createElement('canvas');
+    canvas.width = 620; canvas.height = 240;
+    canvas.className = 'diag-canvas';
+    canvasWrap.appendChild(canvas);
+
+    const notes = document.createElement('div');
+
+    block.appendChild(h);
+    block.appendChild(stats);
+    block.appendChild(canvasWrap);
+    block.appendChild(notes);
+    el.sections.appendChild(block);
+
+    const ds = { canvas, ctx: canvas.getContext('2d'), stats, notes, geom: null, hover: null };
+    diagState[d.id] = ds;
+
+    canvas.addEventListener('mousemove', e => {
+      const res = state && state.results ? state.results[d.id] : null;
+      const hIdx = nearestSample(ds, res, e.clientX);
+      if (hIdx !== ds.hover) { ds.hover = hIdx; drawChart(d, ds); }
+    });
+    canvas.addEventListener('mouseleave', () => { if (ds.hover != null) { ds.hover = null; drawChart(d, ds); } });
+    // click-to-seek, same contract as the keypoint plot: any point on the curve
+    // goes back to the frame that produced it
+    canvas.addEventListener('click', e => {
+      if (!ds.geom) return;
+      const v = el.video();
+      if (!v) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+      const ratio = Math.max(0, Math.min(1, (x - PAD.l) / ds.geom.gw));
+      v.currentTime = ratio * ds.geom.tMax;
+    });
+  }
 }
 
 const Diagnostics = {
   mount(opts) {
     el = opts;
     buildToggles();
-    el.canvas.addEventListener('mousemove', e => {
-      const h = nearestSample(e.clientX);
-      if (h !== hover) { hover = h; drawChart(); }
-    });
-    el.canvas.addEventListener('mouseleave', () => { if (hover != null) { hover = null; drawChart(); } });
-    // click-to-seek, same contract as the keypoint plot: any point on the curve
-    // goes back to the frame that produced it
-    el.canvas.addEventListener('click', e => {
-      if (!geom) return;
-      const v = el.video();
-      if (!v) return;
-      const rect = el.canvas.getBoundingClientRect();
-      const x = (e.clientX - rect.left) * (el.canvas.width / rect.width);
-      const ratio = Math.max(0, Math.min(1, (x - PAD.l) / geom.gw));
-      v.currentTime = ratio * geom.tMax;
-    });
+    buildSections();
     el.select.addEventListener('change', () => {
       state.personId = el.select.value;
-      run(); drawChart(); drawPanels();
+      run();
+      redrawAll();
     });
   },
 
@@ -911,13 +1292,20 @@ const Diagnostics = {
   // belongs with the other things the lifter needs in order to distrust the
   // number.
   setTrack(keypoints, meta, opts) {
-    hover = null; geom = null;
     smoothingMs = (opts && opts.smoothingMs) || 0;
+    for (const d of DIAGNOSTICS) {
+      const ds = diagState[d.id];
+      if (ds) { ds.hover = null; ds.geom = null; }
+    }
     if (!keypoints || !meta) {
       state = null;
       el.wrap.style.display = 'none';
-      el.canvas.getContext('2d').clearRect(0, 0, el.canvas.width, el.canvas.height);
-      el.stats.innerHTML = ''; el.notes.innerHTML = '';
+      for (const d of DIAGNOSTICS) {
+        const ds = diagState[d.id];
+        if (!ds) continue;
+        ds.ctx.clearRect(0, 0, ds.canvas.width, ds.canvas.height);
+        ds.stats.innerHTML = ''; ds.notes.innerHTML = '';
+      }
       return;
     }
     // The same track re-arrives whenever the frontend's time smoothing changes,
@@ -936,42 +1324,63 @@ const Diagnostics = {
     const keep = ids.some(([id]) => id === prev) ? prev : (ids.length ? ids[0][0] : null);
     if (keep != null) el.select.value = keep;
     state = { keypoints, meta, personId: keep };
-    if (!state.personId) state.result = { error: 'No person was detected in any sampled frame.' };
-    else run();
-    drawChart(); drawPanels();
+    if (!state.personId) {
+      state.results = {};
+      const err = { error: 'No person was detected in any sampled frame.' };
+      for (const d of DIAGNOSTICS) state.results[d.id] = err;
+    } else {
+      run();
+    }
+    redrawAll();
   },
 
-  draw(time) { drawChart(time); },
+  draw(time) {
+    for (const d of DIAGNOSTICS) {
+      const ds = diagState[d.id];
+      if (ds) drawChart(d, ds, time);
+    }
+  },
 
   // Called from the video overlay loop with the playhead time, in seconds.
+  // Every enabled diagnostic whose phase covers that instant draws; their phase
+  // labels stack rather than overwrite so more than one can be visible at once.
   overlay(ctx, time) {
-    if (!state || !state.result || state.result.error) return;
-    if (!enabled.has(state.diag.id)) return;
-    const res = state.result, ph = res.phase, samples = state.samples;
+    if (!state || !state.results || !state.samples) return;
     const v = el.video();
     const t = (typeof time === 'number' && isFinite(time)) ? time
             : (v && isFinite(v.currentTime) ? v.currentTime : null);
     if (t == null) return;
-    // The phase is bounded by the times its triggers fired, so the marks come
-    // up at the instant the pull starts rather than at the next processed
-    // frame. On a coarse frame stride that boundary used to be a tenth of a
-    // second out, which is enough to see against the video.
-    const t0 = samples[ph.startIdx].t, t1 = samples[ph.endIdx].t;
-    if (t < t0 || t > t1) return;
+    // Interpolated once and shared: every diagnostic drawing this instant is
+    // drawing the same body, so they cannot disagree about where it is.
     const p = pointsAtTime(t);
     if (!p) return;
-    const steps = ph.endIdx - ph.startIdx;
-    const view = {
-      t, p,
-      dt: steps > 0 ? (t1 - t0) / steps : 0,   // mean processed-frame spacing
-      at: u => (u < t0 || u > t1) ? null : pointsAtTime(u),
-    };
+    const samples = state.samples;
     const size = ctx.canvas.height || 720;
-    state.diag.overlay(ctx, view, ph, res, size);
-    ctx.fillStyle = phaseColor(1);
-    ctx.font = Math.max(12, size / 38) + 'px system-ui, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText('first pull', 8, Math.max(16, size / 30));
+    let shown = 0;
+    for (const d of DIAGNOSTICS) {
+      if (!enabled.has(d.id)) continue;
+      const res = state.results[d.id];
+      if (!res || res.error) continue;
+      const ph = res.phase;
+      // The phase is bounded by the times its triggers fired, so the marks come
+      // up at the instant the pull starts rather than at the next processed
+      // frame. On a coarse frame stride that boundary used to be a tenth of a
+      // second out, which is enough to see against the video.
+      const t0 = samples[ph.startIdx].t, t1 = samples[ph.endIdx].t;
+      if (t < t0 || t > t1) continue;
+      const steps = ph.endIdx - ph.startIdx;
+      const view = {
+        t, p,
+        dt: steps > 0 ? (t1 - t0) / steps : 0,   // mean processed-frame spacing
+        at: u => (u < t0 || u > t1) ? null : pointsAtTime(u),
+      };
+      d.overlay(ctx, view, ph, res, size);
+      ctx.fillStyle = phaseColor(1);
+      ctx.font = Math.max(12, size / 38) + 'px system-ui, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(d.phaseLabel || d.title, 8, Math.max(16, size / 30) + shown * (size / 26));
+      shown++;
+    }
   },
 };
 

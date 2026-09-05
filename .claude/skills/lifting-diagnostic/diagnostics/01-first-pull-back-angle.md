@@ -104,12 +104,21 @@ the bar never passed knee height rather than scoring a partial phase.
 - Active phase shaded; the rest of the video's duration stays visible as
   context so the phase's position in the lift is legible.
 
-**Stat tiles**: constancy (SD) with its verdict, drift, and mean angle.
+**Stat tiles**: constancy (SD) with its verdict, drift (in the ramp colour, the
+only legend the ramp gets), and mean angle.
 
-**Overlay**, on the video, only while the playhead is inside the phase: both
-hip→shoulder segments in the series color, the estimated bar point as a hollow
-marker, and a horizontal knee reference line — so the two triggers and the
-measured segments are all visible on the frame itself.
+**Overlay**, on the video, only while the playhead is inside the phase, drawn
+at the playhead's own time rather than at the nearest sampled frame so it
+tracks the interpolated mesh underneath it:
+
+- Both hip→shoulder segments — the measurement itself — in the score colour,
+  behind a short fading trail of the previous few processed frames. A chest
+  that rises leaves a spreading fan; one that holds leaves a tight bundle.
+- The end trigger's geometry in purple, spanning the frame: the knee height at
+  half strength, the bar estimate (wrist + 1/6 forearm) as a solid rule, and
+  the bare wrist it was corrected from as a dashed one, so the size of that
+  correction is visible rather than taken on trust. Weight, not hue, separates
+  the measurement from its reference — they are all the same role.
 
 **Transparency block** reports: the phase's frame range and duration; the wrist
 speed at onset and the bar–knee gap at the crossing; samples measured; the
