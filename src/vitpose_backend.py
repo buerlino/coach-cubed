@@ -20,6 +20,7 @@ PyTorch's ROCm build maps 'cuda' devices onto HIP, no separate API.
 """
 import io
 import os
+import queue
 import tempfile
 import threading
 from pathlib import Path
@@ -30,6 +31,8 @@ from PIL import Image
 
 from easy_ViTPose import VitInference
 from easy_ViTPose.vit_utils.visualization import joints_dict
+
+import equipment_backend
 
 # Where the just-downloaded checkpoints live — see the huggingface pull that
 # grabbed torch/coco/vitpose-{l,h}-coco.pth and yolov8/yolov8s.pt (not the
@@ -250,8 +253,73 @@ def _keep_main_person(keypoints_by_frame):
     return filtered, report
 
 
+class _EquipmentWorker:
+    """Runs equipment_backend.detect over frames on its own thread.
+
+    A thread rather than a second call inline in the frame loop, because the
+    two models are busy in different places: ViTPose spends real time on
+    CPU-side letterboxing and keypoint decode around its GPU pass, and CLIPSeg
+    spends its own on resize/normalize and the connected-components pass over
+    the mask. Run in sequence those CPU stretches leave the GPU idle and
+    vice-versa; run on two threads each one overlaps the other's GPU work.
+    Torch releases the GIL for the duration of a forward pass, so this is real
+    overlap and not just interleaved bookkeeping.
+
+    The queue is small on purpose. It's backpressure, not a buffer: full
+    frames are ~6MB at 1080p, and letting the decoder run arbitrarily far ahead
+    of the slower of the two models would trade memory for nothing. Four deep
+    is enough to absorb a frame that takes unusually long without ever letting
+    the two stages drift far apart.
+
+    A detection failure is recorded and the run continues -- equipment is an
+    annotation on top of the pose track, and losing it should not cost the
+    caller the pose track it actually asked for.
+    """
+
+    def __init__(self):
+        self.q = queue.Queue(maxsize=4)
+        self.results = {}
+        self.error = None
+        self.thread = threading.Thread(target=self._run, daemon=True)
+        self.thread.start()
+
+    def _run(self):
+        while True:
+            item = self.q.get()
+            if item is None:
+                return
+            idx, frame_rgb = item
+            try:
+                self.results[str(idx)] = equipment_backend.detect(frame_rgb)
+            except Exception as e:      # first failure wins; see class docstring
+                if self.error is None:
+                    self.error = str(e)
+
+    def submit(self, idx, frame_rgb):
+        self.q.put((idx, frame_rgb))
+
+    def finish(self):
+        """Drain, stop the thread, hand back what it managed to detect.
+
+        Called from a finally: on the cancelled path the queue may still hold
+        frames, and the sentinel has to get behind them for the thread to see
+        it — so make room rather than block forever on a full queue.
+        """
+        while True:
+            try:
+                self.q.put(None, timeout=0.5)
+                break
+            except queue.Full:
+                try:
+                    self.q.get_nowait()
+                except queue.Empty:
+                    pass
+        self.thread.join(timeout=30)
+        return self.results, self.error
+
+
 def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4",
-                 progress_cb=None, cancel_cb=None):
+                 progress_cb=None, cancel_cb=None, detect_equipment=False):
     """Run tracked pose estimation over a video's frames.
 
     Deliberately doesn't re-encode and return an annotated video: the coach
@@ -274,6 +342,12 @@ def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4",
     when most frames are being skipped) and raises Cancelled the moment it
     returns true, unwinding out of the model loop with the GPU lock and the
     video capture still released cleanly (see the try/finally below).
+
+    detect_equipment additionally runs CLIPSeg over the same frames on a second
+    thread (see _EquipmentWorker) to locate the barbell and its plates, landing
+    in meta["equipment"] as {frame_index (str): {"plates": [...], "bar": ...}}.
+    Off by default: it roughly halves throughput, and a caller that only wants
+    a pose track shouldn't pay for equipment it will never draw.
 
     Only one person survives: everything the tracker found other than the
     longest-lived body is discarded before returning (see _keep_main_person).
@@ -316,6 +390,8 @@ def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4",
         keypoints_by_frame = {}
         frame_indices = []      # indices of the frames actually run, in order
         frame_times_ms = []     # each of those frames' own presentation time
+        equipment = _EquipmentWorker() if detect_equipment else None
+        equipment_by_frame, equipment_error = None, None
         try:
             with _infer_lock:
                 model.reset()   # fresh tracker + frame counter — model instances
@@ -334,6 +410,13 @@ def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4",
                         frame_times_ms.append(cap.get(cv2.CAP_PROP_POS_MSEC))
                         frame_indices.append(idx)
                         frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+                        # Handed over BEFORE pose runs, so the equipment thread
+                        # has work queued while this one is in ViTPose rather
+                        # than starting only once ViTPose has finished. cvtColor
+                        # allocated this array, so the two threads never share
+                        # one buffer.
+                        if equipment is not None:
+                            equipment.submit(idx, frame_rgb)
                         keypoints = model.inference(frame_rgb)
                         keypoints_by_frame[str(idx)] = {
                             str(pid): kp.tolist() for pid, kp in keypoints.items()
@@ -344,6 +427,11 @@ def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4",
         finally:
             cap.release()   # must run on the Cancelled path too — a caller
                              # cancelling repeatedly must not leak capture handles
+            if equipment is not None:
+                # Also on the Cancelled path: the worker is a daemon, but its
+                # queue is still holding decoded frames and the GPU is about to
+                # be handed to the next request.
+                equipment_by_frame, equipment_error = equipment.finish()
         frame_count = idx   # actual count, not the (possibly bogus) metadata one
 
     # Filter here, not in the frontend: the overlay, the keypoint plot and the
@@ -373,5 +461,11 @@ def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4",
         "frame_times_ms": frame_times_ms if usable_times else None,
         "skeleton": joints_dict()[DATASET]["skeleton"],
         "tracks": tracks,
+        # Rides in meta rather than as a third return value so the existing
+        # two-tuple callers (app.py, report/extract_track.py) keep working, and
+        # so a run with detection off is simply a run with these set to None.
+        "equipment": equipment_by_frame,
+        "equipment_prompts": equipment_backend.prompts() if detect_equipment else None,
+        "equipment_error": equipment_error,
     }
     return keypoints_by_frame, meta

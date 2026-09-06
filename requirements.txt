@@ -18,3 +18,4 @@ scikit-image  # imported at module load by sort.py, even though inference never 
 matplotlib    # ditto — sort.py and vit_utils/visualization.py import it unconditionally
 munkres       # vit_utils/transform.py's bottom-up keypoint grouping (wholebody path)
 ffmpeg-python # vit_utils/visualization.py's video export helper — import-time only here
+transformers  # CLIPSeg (CIDAS/clipseg-rd64-refined) — text-prompted bar/plate masks for the 3D anchor

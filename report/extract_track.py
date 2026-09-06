@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))            # vitpose_backend lives in the repo root
+sys.path.insert(0, str(ROOT / "src"))    # vitpose_backend lives in src/
 
 import vitpose_backend  # noqa: E402
 

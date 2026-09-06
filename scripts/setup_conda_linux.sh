@@ -8,10 +8,10 @@
 # a machine with an NVIDIA GPU instead — COACH_CUDA_INDEX picks the CUDA
 # build (default cu126; override for an older/newer driver, e.g. cu121).
 #
-# Usage:  ./setup_conda_linux.sh          ROCm 7.1 (default, this box)
-#         ./setup_conda_linux.sh --cuda   CUDA wheels instead
+# Usage:  ./scripts/setup_conda_linux.sh          ROCm 7.1 (default, this box)
+#         ./scripts/setup_conda_linux.sh --cuda   CUDA wheels instead
 set -e
-ROOT="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 BACKEND=rocm
@@ -57,7 +57,7 @@ conda run -n $ENV pip install -e vendor/easy_ViTPose --no-deps   # code only; de
 echo "=== [5/5] verify torch + the checkpoints are where vitpose_backend.py expects ==="
 cat > "$TMPDIR/verify.py" <<PY
 import sys
-sys.path.insert(0, "$ROOT")   # python auto-adds the *script's* dir (.tmp), not this one
+sys.path.insert(0, "$ROOT/src")   # python auto-adds the *script's* dir (.tmp), not this one
 import torch
 if "$BACKEND" == "rocm":
     assert torch.version.hip, f"NOT a ROCm build: {torch.__version__}"
@@ -69,12 +69,15 @@ print("gpu    :", torch.cuda.get_device_name(0))
 import vitpose_backend
 print("checkpoints:", vitpose_backend.available())
 print("device :", vitpose_backend.DEVICE)
+import equipment_backend
+print("clipseg:", equipment_backend.model_source() if equipment_backend.available()
+      else "MISSING (optional — see download_models.sh)")
 PY
 conda run -n $ENV python "$TMPDIR/verify.py"
 
 echo
 if [ -f "${COACH_MODEL_DIR:-$HOME/models/easy_vitpose}/torch/coco/vitpose-l-coco.pth" ]; then
-	echo "done. run:  ./coach_launch.sh"
+	echo "done. run:  ./scripts/coach_launch.sh"
 else
-	echo "done. checkpoints missing — run:  ./download_models.sh"
+	echo "done. checkpoints missing — run:  ./scripts/download_models.sh"
 fi

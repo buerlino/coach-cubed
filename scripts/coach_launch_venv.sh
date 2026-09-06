@@ -3,12 +3,12 @@
 #   full  — app.py (waitress, loopback 8080) + Caddy (443, LAN/tailnet).
 #   local — app.py only, loopback 8080, no Caddy/TLS/LAN exposure.
 #
-# Usage:  ./coach_launch.sh          prompts for full/local
-#         ./coach_launch.sh local    start app only (127.0.0.1:8080)
-#         ./coach_launch.sh full     start app + Caddy
-#         ./coach_launch.sh stop     stop everything
+# Usage:  ./scripts/coach_launch.sh          prompts for full/local
+#         ./scripts/coach_launch.sh local    start app only (127.0.0.1:8080)
+#         ./scripts/coach_launch.sh full     start app + Caddy
+#         ./scripts/coach_launch.sh stop     stop everything
 set -e
-ROOT="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 mkdir -p log pki-public
 
@@ -29,8 +29,8 @@ fi
 echo "python: $COACH_PYTHON"
 
 if [ "$1" = "stop" ]; then
-	pkill -f "$ROOT/.venv/bin/python app.py" 2>/dev/null || true
-	pkill -f "envs/coach/bin/python app.py" 2>/dev/null || true
+	pkill -f "$ROOT/.venv/bin/python src/app.py" 2>/dev/null || true
+	pkill -f "envs/coach/bin/python src/app.py" 2>/dev/null || true
 	"$HOME/.local/bin/caddy" stop 2>/dev/null \
 		|| pkill -f "caddy run" 2>/dev/null \
 		|| sudo pkill -f "caddy run" 2>/dev/null \
@@ -62,17 +62,17 @@ esac
 echo "mode: $MODE"
 
 if [ ! -f "$HOME/models/easy_vitpose/torch/coco/vitpose-l-coco.pth" ]; then
-	echo "!! checkpoints missing under ~/models/easy_vitpose — run ./download_models.sh" >&2
+	echo "!! checkpoints missing under ~/models/easy_vitpose — run ./scripts/download_models.sh" >&2
 	exit 1
 fi
 
-if [ -f "$ROOT/free_ports.sh" ]; then
-	chmod +x "$ROOT/free_ports.sh"
-	"$ROOT/free_ports.sh"
+if [ -f "$ROOT/scripts/free_ports.sh" ]; then
+	chmod +x "$ROOT/scripts/free_ports.sh"
+	"$ROOT/scripts/free_ports.sh"
 fi
 
 echo "=== app (8080, loopback) ==="
-nohup "$COACH_PYTHON" app.py > log/app.log 2>&1 &
+nohup "$COACH_PYTHON" src/app.py > log/app.log 2>&1 &
 until curl -sf --max-time 2 http://127.0.0.1:8080/ > /dev/null; do sleep 1; done
 echo "  up"
 

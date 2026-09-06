@@ -28,12 +28,13 @@ behind the platform), and the failure looks exactly like a technique fault.
 
 | File | Role |
 | --- | --- |
-| `diagnostics.js` | All diagnostic logic + rendering. Served verbatim at `/diagnostics.js`. |
-| `app.py` | `INDEX_HTML` hosts the section; the route re-reads the file per request. |
+| `src/diagnostics.js` | All diagnostic logic + rendering. Served verbatim at `/diagnostics.js`. |
+| `src/app.py` | `INDEX_HTML` hosts the section; the route re-reads the file per request. |
 | `.claude/skills/lifting-diagnostic/diagnostics/` | One note per diagnostic — the spec, in prose. |
 
-`app.py` re-reads `diagnostics.js` on every request, so a JS edit needs only a
-browser reload. A change to `app.py` itself needs `./restart.sh`.
+`src/app.py` re-reads `src/diagnostics.js` on every request, so a JS edit needs
+only a browser reload. A change to `src/app.py` itself needs
+`./scripts/restart.sh`.
 
 Add a diagnostic by writing one object and appending it to the `DIAGNOSTICS`
 array. The object's shape *is* the three-part structure:
@@ -60,7 +61,7 @@ array. The object's shape *is* the three-part structure:
 interpolated to the playhead's actual time, `view.at(t)` the same at any other
 instant inside the phase, `view.dt` the mean spacing of processed frames, and
 `view.axis` the clip's bar axis (below). It
-has to be continuous because the marks sit on top of `app.py`'s wireframe,
+has to be continuous because the marks sit on top of `src/app.py`'s wireframe,
 which is itself interpolated — marks pinned to the nearest sampled frame
 visibly trail the body they claim to measure.
 
@@ -71,7 +72,7 @@ always gets its own plot, stat tiles and notes block** — added once there was
 a second diagnostic and the shared renderer needed each one's chart mean/target
 line, headline numbers and transparency prose to differ without duplicating
 the chart/panel drawing code itself. Keep them thin: they return data
-(numbers, strings), the shared renderer in `diagnostics.js`'s "rendering"
+(numbers, strings), the shared renderer in `src/diagnostics.js`'s "rendering"
 section does the actual drawing.
 
 Each entry in `DIAGNOSTICS` automatically gets a tickbox above the plots,
@@ -80,13 +81,13 @@ video. The tickbox gates **only** the overlay — an unticked diagnostic is stil
 computed, plotted (in its own always-present section) and scored, because it's
 about the frame getting crowded once there are several, not about what's being
 measured. New diagnostics default to ticked; otherwise one would ship
-invisible. Toggling calls back into `app.py` to repaint, so it works while the
+invisible. Toggling calls back into `src/app.py` to repaint, so it works while the
 video is paused.
 
 When a new diagnostic's phase depends on another diagnostic's trigger (e.g.
 the second pull starting exactly where the first pull ends), share the
 trigger-finding function rather than letting each diagnostic re-derive it —
-see `barKneeCrossing` in `diagnostics.js`. Two independently-computed versions
+see `barKneeCrossing` in `src/diagnostics.js`. Two independently-computed versions
 of "the same event" silently drifting apart across diagnostics is a bug that
 is very easy not to notice, because each diagnostic looks correct in
 isolation.
@@ -115,7 +116,7 @@ These come from `vitpose_backend.infer_video` and are easy to get backwards.
 - `vMeta.frame_indices[i]` is the source frame for sample `i`;
   `vMeta.frame_times_ms[i]` is that frame's own presentation time and is the
   authority for time when non-null (see the comment on `slotForTime` in
-  `app.py` — deriving time from `fps` desyncs on phone/MediaRecorder video).
+  `src/app.py` — deriving time from `fps` desyncs on phone/MediaRecorder video).
 - Drop keypoints below `DIAG_CONF` (0.3) rather than trusting a low-confidence
   position. Then smooth: raw per-frame keypoints jitter by several pixels, which
   a velocity trigger reads as motion.
@@ -216,7 +217,7 @@ silently return a phase that starts at 0.
 ## Visualization and transparency
 
 The plot goes **below the video**, shares its time axis, and is click-to-seek —
-same contract as the keypoint plot already in `app.py`, so the lifter can put
+same contract as the keypoint plot already in `src/app.py`, so the lifter can put
 any point on the curve back on the frame that produced it.
 
 - The active phase is shaded; the trace is drawn only inside it.
@@ -231,7 +232,7 @@ Three roles, three fixed treatments, on the video and on the plot alike.
 **Nothing else gets a hue** — a new diagnostic that introduces a fourth colour
 is the bug, not the palette. Values come from the validated dark palette (see
 the `dataviz` skill, `references/palette.md`) and live in `C` in
-`diagnostics.js`.
+`src/diagnostics.js`.
 
 | Role | Treatment | Why |
 | --- | --- | --- |

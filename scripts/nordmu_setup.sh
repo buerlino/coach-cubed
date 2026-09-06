@@ -3,7 +3,7 @@
 set -e
 
 # Anchor execution to project root
-ROOT="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 echo "=== [1/6] Initializing submodules ==="
@@ -24,17 +24,17 @@ pip install -r requirements.txt
 pip install -e vendor/easy_ViTPose --no-deps
 
 echo "=== [5/6] Downloading model checkpoints ==="
-if [ -f "./download_models.sh" ]; then
-    chmod +x ./download_models.sh
-    ./download_models.sh
+if [ -f "./scripts/download_models.sh" ]; then
+    chmod +x ./scripts/download_models.sh
+    ./scripts/download_models.sh
 else
-    echo "Warning: ./download_models.sh not found, skipping."
+    echo "Warning: ./scripts/download_models.sh not found, skipping."
 fi
 
 echo "=== [6/6] Verifying environment ==="
 python -c "
 import sys
-sys.path.insert(0, '$ROOT')
+sys.path.insert(0, '$ROOT/src')
 import torch
 print('torch version   :', torch.__version__)
 print('CUDA/ROCm active:', torch.cuda.is_available())

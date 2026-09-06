@@ -11,29 +11,29 @@
 #           working on the box itself without minting certs or fighting
 #           tecna/llm-server for :443.
 #
-# Usage:  ./coach_launch.sh          prompts for full/local
-#         ./coach_launch.sh full     start app + Caddy (LAN/tailnet reachable)
-#         ./coach_launch.sh local    start app only (127.0.0.1:8080)
-#         ./coach_launch.sh stop     stop everything (either mode)
+# Usage:  ./scripts/coach_launch.sh          prompts for full/local
+#         ./scripts/coach_launch.sh full     start app + Caddy (LAN/tailnet reachable)
+#         ./scripts/coach_launch.sh local    start app only (127.0.0.1:8080)
+#         ./scripts/coach_launch.sh stop     stop everything (either mode)
 set -e
-ROOT="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 mkdir -p log pki-public
 
 if [ -z "$COACH_PYTHON" ]; then
 	CONDA_BASE="$(conda info --base 2>/dev/null || true)"
-	[ -n "$CONDA_BASE" ] || { echo "!! conda not found — run ./setup_conda_linux.sh" >&2; exit 1; }
+	[ -n "$CONDA_BASE" ] || { echo "!! conda not found — run ./scripts/setup_conda_linux.sh" >&2; exit 1; }
 	COACH_PYTHON="$CONDA_BASE/envs/coach/bin/python"
 fi
 [ -x "$COACH_PYTHON" ] || {
-	echo "!! no python at $COACH_PYTHON — run ./setup_conda_linux.sh" >&2; exit 1; }
+	echo "!! no python at $COACH_PYTHON — run ./scripts/setup_conda_linux.sh" >&2; exit 1; }
 echo "python: $COACH_PYTHON"
 
 if [ "$1" = "stop" ]; then
 	# Matched by the env's own interpreter path, not the bare "python app.py" —
 	# tecna and llm-server invoke their own app.py the same way, and a loose
 	# pattern here would kill whichever of the three happens to also be up.
-	pkill -f "envs/coach/bin/python app.py" 2>/dev/null || true
+	pkill -f "envs/coach/bin/python src/app.py" 2>/dev/null || true
 	"$HOME/.local/bin/caddy" stop 2>/dev/null \
 		|| pkill -f "caddy run" 2>/dev/null \
 		|| sudo pkill -f "caddy run" 2>/dev/null \
@@ -64,14 +64,14 @@ esac
 echo "mode: $MODE"
 
 if [ ! -f "$HOME/models/easy_vitpose/torch/coco/vitpose-l-coco.pth" ]; then
-	echo "!! checkpoints missing under ~/models/easy_vitpose — run ./download_models.sh" >&2
+	echo "!! checkpoints missing under ~/models/easy_vitpose — run ./scripts/download_models.sh" >&2
 	exit 1
 fi
 
-"$ROOT/free_ports.sh"   # stop tecna (or whatever else) so 80/443/8080 are ours
+"$ROOT/scripts/free_ports.sh"   # stop tecna (or whatever else) so 80/443/8080 are ours
 
 echo "=== app (8080, loopback) ==="
-nohup "$COACH_PYTHON" app.py > log/app.log 2>&1 &
+nohup "$COACH_PYTHON" src/app.py > log/app.log 2>&1 &
 until curl -sf --max-time 2 http://127.0.0.1:8080/ > /dev/null; do sleep 1; done
 echo "  up"
 

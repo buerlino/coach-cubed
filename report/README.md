@@ -2,7 +2,7 @@
 
 Technical note on `coach`: the pose model, the deployment, the smoothing math,
 and the geometry of each diagnostic. Source of truth for the numbers is the
-code itself (`vitpose_backend.py`, `app.py`'s `smoothKeypoints` /
+code itself (`src/vitpose_backend.py`, `src/app.py`'s `smoothKeypoints` /
 `retimeAlongPath` / `cubicAt`, and `diagnostics.js`) — if a threshold moves
 there, it moves here and in the notebook.
 
@@ -39,6 +39,6 @@ the checkpoints in `~/models/easy_vitpose`. To use a different clip, point
 `CLIP` in the first code cell at it.
 
 The port in the notebook is deliberately not vectorised or tidied: it keeps the
-JS's constants, names and loop structure so a diff against `app.py` /
+JS's constants, names and loop structure so a diff against `src/app.py` /
 `diagnostics.js` is mechanical. If the browser code changes, change the port
 the same way, re-execute, rebuild.

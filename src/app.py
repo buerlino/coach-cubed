@@ -19,6 +19,7 @@ from pathlib import Path
 
 from flask import Flask, request, jsonify, Response
 
+import equipment_backend
 import vitpose_backend
 
 app = Flask(__name__)
@@ -94,6 +95,16 @@ def api_pose_video_start():
     except (ValueError, AssertionError):
         return jsonify({"error": "frame_stride must be an integer >= 1"}), 400
 
+    # Checkbox on the form, so absent means off — the frontend only sends it
+    # when ticked.
+    detect_equipment = request.form.get("detect_equipment") in ("1", "true", "on")
+    # Checked before the run rather than left to fail inside the worker: the
+    # worker's failure is only reported once the whole pose pass has finished,
+    # which is a long wait to be told about a missing 600MB download.
+    if detect_equipment and not equipment_backend.available():
+        return jsonify({"error": "CLIPSeg is not installed — run "
+                                 "./scripts/download_models.sh"}), 503
+
     video_file = request.files["video"]
     ext = os.path.splitext(video_file.filename or "")[1].lstrip(".").lower()
     if ext not in vitpose_backend.VIDEO_EXTENSIONS:
@@ -147,7 +158,8 @@ def api_pose_video_start():
         try:
             keypoints, meta = vitpose_backend.infer_video(
                 video_bytes, size=size, frame_stride=frame_stride, suffix=f".{ext}",
-                progress_cb=progress_cb, cancel_cb=cancel_event.is_set)
+                progress_cb=progress_cb, cancel_cb=cancel_event.is_set,
+                detect_equipment=detect_equipment)
             with job.lock:
                 if job.cancel_event is cancel_event:
                     job.result = {"keypoints": keypoints, "meta": meta}
@@ -205,6 +217,16 @@ def api_pose_video_result():
         job.result = None
         job.status = "idle"
     return jsonify(result)
+
+
+# --- capabilities ---------------------------------------------------------
+# What this install can actually do, so the page can disable a control rather
+# than offer one that will 503. Only CLIPSeg is optional (the pose weights are
+# a hard requirement the launch scripts check for), so this is a thin route
+# today — but it's the right shape for the next optional model.
+@app.route("/api/capabilities")
+def api_capabilities():
+    return jsonify({"equipment": equipment_backend.available()})
 
 
 # --- diagnostics ----------------------------------------------------------
@@ -378,6 +400,19 @@ INDEX_HTML = """<!doctype html>
       <label style="white-space:nowrap" title="Interpolate the mesh between processed frames so it glides instead of stepping. In-between poses are computed, not detected.">
         <input id="vinterp" type="checkbox" checked style="vertical-align:middle;margin:0 4px 0 0"> smooth motion
       </label>
+      <!-- Equipment detection is part of the run, not a view setting: it costs
+           a second model pass per frame, so it has to be chosen before the run
+           rather than toggled after it. The two overlay tickboxes below are the
+           view settings, and they only do anything once a run has been made
+           with this one on. -->
+      <label style="white-space:nowrap" title="Also locate the barbell and its plates on every processed frame, with CLIPSeg. Roughly halves analysis speed.">
+        <input id="veqrun" type="checkbox" checked style="vertical-align:middle;margin:0 4px 0 0"> detect bar &amp; plates
+      </label>
+      <div class="row" style="gap:14px">
+        <label style="white-space:nowrap"><input id="veqbar" type="checkbox" style="vertical-align:middle;margin:0 4px 0 0"> overlay bar</label>
+        <label style="white-space:nowrap"><input id="veqplates" type="checkbox" style="vertical-align:middle;margin:0 4px 0 0"> overlay plates</label>
+      </div>
+      <p id="veqnote" style="font-size:12px;color:#898781;margin:2px 0 0"></p>
     </div>
     <p id="vstatus"></p>
 
@@ -489,6 +524,17 @@ let vSource = null, vObjectUrl = null, vCamStream = null, vRecorder = null, vChu
 // frame is always a diagnostic and never a track id.
 const SKELETON = '#ffffff';
 const CONF_THRESHOLD = 0.3;
+
+// Equipment is the third thing that can be on the frame, and it is neither the
+// athlete nor a score: it's an object the segmenter located. So it gets its own
+// hues, deliberately off the diagnostics' green->red ramp, and stays off it —
+// a plate box must never be readable as a cue being met well or badly.
+const EQ_PLATE = '#38bdf8';   // sky
+const EQ_BAR = '#c084fc';     // violet
+const EQ_WINDOW = 'rgba(192,132,252,0.35)';   // where the bar was searched for
+// Per-frame equipment boxes from the run, keyed by frame index exactly like the
+// keypoints, plus the prompts that produced them.
+let vEquipment = null, vEqPrompts = null;
 
 // --- temporal smoothing ---------------------------------------------------
 // The model sees each frame independently, with no temporal prior at all, so a
@@ -703,6 +749,36 @@ function applySmoothing() {
 
 $('vsmooth').addEventListener('input', applySmoothing);
 $('vkeepvel').addEventListener('change', applySmoothing);
+
+// Overlay-only, so these repaint rather than recompute — and they have to
+// repaint explicitly, since the paint loop isn't running while the video is
+// paused, which is exactly when you tick them.
+$('veqbar').addEventListener('change', () => drawOverlay());
+$('veqplates').addEventListener('change', () => drawOverlay());
+
+// What the boxes on screen mean: the sentences that produced them, and — when
+// a run found nothing — that it was asked at all. Without this a missing box is
+// ambiguous between "not detected" and "not looked for".
+function vRenderEqNote() {
+  const note = $('veqnote');
+  const on = $('veqbar').checked || $('veqplates').checked;
+  if (!vEquipment) {
+    note.textContent = on && vMeta
+      ? 'no equipment in this run — re-run with "detect bar & plates" ticked'
+      : '';
+    return;
+  }
+  const frames = Object.keys(vEquipment).length;
+  let withPlates = 0, withBar = 0, twoStacks = 0;
+  for (const e of Object.values(vEquipment)) {
+    if (e.plates && e.plates.length) withPlates++;
+    if (e.plates && e.plates.length > 1) twoStacks++;
+    if (e.bar) withBar++;
+  }
+  note.textContent =
+    `plates "${vEqPrompts?.plates}" — found on ${withPlates}/${frames} frames ` +
+    `(both stacks on ${twoStacks}) · bar "${vEqPrompts?.bar}" — ${withBar}/${frames}`;
+}
 
 // --- plot canvas ---
 const pcanvas = $('plotCanvas'), pctx = pcanvas.getContext('2d');
@@ -1030,6 +1106,56 @@ function poseAtTime(t, slot) {
   return out;
 }
 
+// Equipment boxes for one processed frame. Deliberately NOT interpolated the
+// way the mesh is: a box is the extent of a segmentation mask, not a point on a
+// trajectory, and sliding one between two frames would draw an outline around a
+// region no mask ever covered. So this paints the nearest processed frame's
+// boxes and holds them — an equipment box on screen is always one the model
+// actually produced.
+function drawEquipment(idx) {
+  if (!vEquipment) return;
+  const eq = vEquipment[String(idx)];
+  if (!eq) return;
+  const wantBar = $('veqbar').checked, wantPlates = $('veqplates').checked;
+
+  const box = (b, colour, label) => {
+    const [x0, y0, x1, y1] = b;
+    vctx.strokeStyle = colour;
+    vctx.lineWidth = 3;
+    vctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+    if (!label) return;
+    vctx.font = '600 15px system-ui';
+    vctx.fillStyle = colour;
+    // Above the box, unless that would be off the top of the frame.
+    vctx.fillText(label, x0, y0 > 20 ? y0 - 6 : y1 + 18);
+  };
+
+  // The search window first, so the boxes sit on top of it. Shown with the bar
+  // because it is the bar's own story: the bar is only ever looked for inside
+  // this rectangle, so "no bar box" means something different depending on
+  // whether the window is where you expected it.
+  if (wantBar && eq.crop) {
+    const [x0, y0, x1, y1] = eq.crop;
+    vctx.save();
+    vctx.setLineDash([6, 6]);
+    vctx.strokeStyle = EQ_WINDOW;
+    vctx.lineWidth = 2;
+    vctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+    vctx.restore();
+  }
+  if (wantPlates) {
+    for (const p of (eq.plates || [])) {
+      // mm-per-pixel from a 450mm disc — the scale reference this whole
+      // detection exists to produce. Flagged approximate because the short side
+      // of an axis-aligned box under-reads a disc the camera sees at an angle.
+      const mmpx = p.diameter_px ? (450 / p.diameter_px).toFixed(2) : null;
+      box(p.box, EQ_PLATE,
+          `plate ${p.score.toFixed(2)}` + (mmpx ? ` · ~${mmpx} mm/px` : ''));
+    }
+  }
+  if (wantBar && eq.bar) box(eq.bar.box, EQ_BAR, `bar ${eq.bar.score.toFixed(2)}`);
+}
+
 function drawOverlay(t) {
   vctx.clearRect(0, 0, vcanvas.width, vcanvas.height);
   if (!vKeypoints || !vMeta || !vSample) return;
@@ -1056,6 +1182,10 @@ function drawOverlay(t) {
   // the mesh, so they have to be interpolated on the same clock, or the thing
   // measuring the lifter steps while the lifter glides.
   Diagnostics.overlay(vctx, time);
+  // Before the early return below: the plates are in frame whether or not the
+  // pose track has a person on this frame, and a dropped detection is exactly
+  // when you want the equipment still drawn.
+  drawEquipment(idx);
 
   if (!frame) return;
 
@@ -1224,6 +1354,7 @@ $('vfile').onchange = () => {
   stopCameraStream();
   vSource = { blob: f, filename: f.name };
   vKeypointsRaw = null; vKeypoints = null; vMeta = null; vSample = null; vClock = null;
+  vEquipment = null; vEqPrompts = null; vRenderEqNote();
   updatePlotControls();
   Diagnostics.setTrack(null, null);
   $('vsummary').textContent = '';
@@ -1248,6 +1379,7 @@ $('vcam').onclick = async () => {
   vCamStream = stream;
   $('vfile').value = '';
   vSource = null; vKeypointsRaw = null; vKeypoints = null; vMeta = null; vSample = null; vClock = null;
+  vEquipment = null; vEqPrompts = null; vRenderEqNote();
   updatePlotControls();
   Diagnostics.setTrack(null, null);
   $('vsummary').textContent = '';
@@ -1343,13 +1475,22 @@ async function vPoll() {
   if (!rr.ok) { $('vstatus').textContent = 'error: ' + data.error; return; }
   vKeypointsRaw = data.keypoints;
   vMeta = data.meta;
+  vEquipment = vMeta.equipment || null;
+  vEqPrompts = vMeta.equipment_prompts || null;
+  // Tick the overlays for them on the run that produced the boxes — having
+  // asked for detection and then seen nothing appear is a worse default than
+  // showing what was found.
+  if (vEquipment) { $('veqbar').checked = true; $('veqplates').checked = true; }
+  vRenderEqNote();
   syncCanvasSize();
   applySmoothing();   // builds vKeypoints and refreshes every view, exactly as
                       // a slider drag does — the run only supplies raw points
   // if the video was already rolling when the run finished, the loop it
   // started was drawing nothing — restart it now that there's a track.
   if (!vvideo.paused && !vvideo.ended) startOverlayLoop();
-  $('vstatus').textContent = 'done';
+  $('vstatus').textContent = vMeta.equipment_error
+    ? 'done — equipment detection failed: ' + vMeta.equipment_error
+    : 'done';
   $('vsummary').textContent =
     `${vMeta.frames_processed}/${vMeta.frame_count} frames processed (stride ${vMeta.frame_stride}), ` +
     `${vMeta.fps.toFixed(2)} fps · ` + subjectLine(vMeta);
@@ -1361,6 +1502,7 @@ $('vrun').onclick = async () => {
   fd.append('video', vSource.blob, vSource.filename);
   fd.append('size', $('vsize').value);
   fd.append('frame_stride', $('vstride').value || '1');
+  if ($('veqrun').checked) fd.append('detect_equipment', '1');
   const r = await fetch('/api/pose/video/start', {method:'POST', body: fd});
   const data = await r.json();
   if (!r.ok) { $('vstatus').textContent = 'error: ' + data.error; return; }
@@ -1418,6 +1560,20 @@ function setMode(mode) {
   // the whole time reviving a loop that has nothing to paint on.
   if (!video && !(vRecorder && vRecorder.state === 'recording')) vvideo.pause();
 }
+// CLIPSeg is an optional download (scripts/download_models.sh offers it), so on
+// a machine without it the three equipment controls are turned off and say why,
+// rather than being tickable into a 503.
+fetch('/api/capabilities').then(r => r.json()).then(c => {
+  if (c.equipment) return;
+  for (const id of ['veqrun', 'veqbar', 'veqplates']) {
+    $(id).checked = false;
+    $(id).disabled = true;
+    $(id).closest('label').style.opacity = 0.5;
+  }
+  $('veqnote').textContent =
+    'bar & plate detection needs CLIPSeg — run ./scripts/download_models.sh';
+}).catch(() => { /* leave the controls alone; a run would report the real error */ });
+
 $('tabImage').onclick = () => setMode('image');
 $('tabVideo').onclick = () => setMode('video');
 setMode('video');   // the diagnostics live here; the image path is the side trip
@@ -1431,6 +1587,11 @@ def preflight():
     lines = []
     for size, ok in vitpose_backend.available().items():
         lines.append(f"  vitpose-{size}-coco: {'ok' if ok else 'MISSING'}")
+    if equipment_backend.available():
+        lines.append(f"  clipseg: ok ({equipment_backend.model_source()})")
+    else:
+        lines.append("  clipseg: MISSING — 'detect bar & plates' unavailable; "
+                     "run ./scripts/download_models.sh")
     lines.append(f"  device: {vitpose_backend.DEVICE}")
     return lines
 

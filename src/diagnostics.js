@@ -2,7 +2,7 @@
  * the pose track the frontend already has.
  *
  * Served verbatim at /diagnostics.js (app.py re-reads this file per request, so
- * editing it needs only a browser reload, not ./restart.sh).
+ * editing it needs only a browser reload, not ./scripts/restart.sh).
  *
  * Every diagnostic is written in the same three parts, and the object below
  * has exactly that shape:
