@@ -1,4 +1,4 @@
-"""Text-prompted barbell/plate detection: frame in -> boxes out.
+"""Text-prompted barbell/plate detection: frame in -> per-pixel masks (+ boxes) out.
 
 In-process and lazily loaded, same contract as vitpose_backend (see its module
 docstring for why coach doesn't put a model behind an HTTP hop). CLIPSeg is
@@ -54,12 +54,17 @@ prototyped and does fix the background-plate confusion. It is left out of this
 first pass to keep equipment detection independent of pose, which is what lets
 the two models run concurrently instead of in lockstep.
 """
+import contextlib
 import os
 import threading
 from pathlib import Path
 
 import cv2
 import numpy as np
+
+# Let unimplemented MPS (Apple Silicon) ops fall back to CPU instead of raising.
+# Set before torch dispatches; harmless on cuda/cpu. Mirrors vitpose_backend.
+os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 import torch
 
 MODEL_ID = os.environ.get("COACH_CLIPSEG_MODEL", "CIDAS/clipseg-rd64-refined")
@@ -130,7 +135,15 @@ MIN_AREA_FRAC = 3e-4    # blobs smaller than this fraction of the search area
 # in absolute terms, but not in contrast.
 MIN_CONTRAST = 3.0
 
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+# cuda (incl. ROCm/HIP) -> mps (Apple Silicon) -> cpu. Matches
+# vitpose_backend._select_device; see PYTORCH_ENABLE_MPS_FALLBACK there, which
+# it sets at import so unimplemented MPS ops fall back rather than raise.
+if torch.cuda.is_available():
+    DEVICE = "cuda"
+elif getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+    DEVICE = "mps"
+else:
+    DEVICE = "cpu"
 
 _model = None
 _processor = None
@@ -141,6 +154,31 @@ _load_lock = threading.Lock()
 # point of the worker is that the two models overlap, one doing CPU-side pre-
 # and post-processing while the other has the GPU.
 _infer_lock = threading.Lock()
+
+# ...but that overlap has to stop at the GPU submission itself on Apple Silicon.
+# MPSGraph is not thread-safe for concurrent command-buffer encode: two threads
+# reaching Metal at once (ViTPose's forward and CLIPSeg's, from the pose loop
+# and the equipment worker) segfaults inside the driver -- observed as a
+# SIGSEGV on the "metal gpu stream" thread, in softmax, ~15 frames into a run,
+# whenever the two happened to line up. So the two models share ONE lock around
+# the forward pass, held for as short a span as possible. CUDA/ROCm IS safe for
+# concurrent submission from two threads -- that's what makes the worker worth
+# having on the deploy box -- so this only serializes on MPS and is a no-op
+# elsewhere, leaving the CPU-side pre/post overlap intact on both.
+_gpu_submit_lock = threading.Lock()
+
+
+def gpu_submit():
+    """A context manager guarding a single GPU forward pass across both models.
+
+    Real mutual exclusion on MPS (where concurrent Metal submission crashes),
+    a no-op on cuda/cpu (where the worker's whole point is to overlap). Acquired
+    by BOTH equipment_backend and vitpose_backend around their model call, so on
+    MPS the pose forward and the CLIPSeg forward can never encode at once. Kept
+    to the forward itself, not the surrounding CPU work, so the two threads still
+    overlap everywhere it's safe to.
+    """
+    return _gpu_submit_lock if DEVICE == "mps" else contextlib.nullcontext()
 
 
 def available():
@@ -175,7 +213,13 @@ def get_model():
             src = model_source()
             proc = CLIPSegProcessor.from_pretrained(src)
             model = CLIPSegForImageSegmentation.from_pretrained(src)
-            model.to(DEVICE).eval()
+            # The weight copy to the GPU is itself a Metal submission, and it
+            # happens on the worker thread on frame 0 while ViTPose is running
+            # the same frame -- so it has to take the shared lock too, or the
+            # very first frame can hit the concurrent-submission crash before
+            # any forward pass does. See gpu_submit().
+            with gpu_submit():
+                model.to(DEVICE).eval()
             _processor, _model = proc, model
     return _model, _processor
 
@@ -197,7 +241,7 @@ def _probability_map(rgb, prompt):
     small = cv2.resize(rgb, (352, 352), interpolation=cv2.INTER_AREA)
     inputs = proc(text=[prompt], images=[small], padding=True, return_tensors="pt")
     inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
-    with _infer_lock:
+    with _infer_lock, gpu_submit():
         with torch.no_grad():
             logits = model(**inputs).logits
     # A single-prompt batch comes back as (352, 352), a multi-prompt one as
@@ -206,13 +250,41 @@ def _probability_map(rgb, prompt):
     return cv2.resize(prob, (w, h), interpolation=cv2.INTER_LINEAR)
 
 
+def _contour_from_mask(mask_bool):
+    """The blob's outline as a simplified [[x, y], ...] polygon, or None.
+
+    This is the per-pixel prediction made drawable: CLIPSeg's output is a dense
+    mask, and the box is only its bounding extent -- a rectangle around a region
+    that is almost never rectangular (a plate stack is a disc, the bar a thin
+    band). The external contour traces the mask itself, so the overlay can paint
+    where the network actually thinks the object is rather than the smallest box
+    that contains it.
+
+    Only the outer contour is kept (holes inside a disc don't matter to a
+    filled overlay), and it is Douglas-Peucker simplified to a fraction of its
+    perimeter: a 450mm disc at 200px comes back as ~12-20 vertices instead of
+    hundreds of single-pixel steps, which is what keeps the per-frame mask cheap
+    enough to ship in the run's JSON.
+    """
+    m = mask_bool.astype(np.uint8)
+    cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not cnts:
+        return None
+    c = max(cnts, key=cv2.contourArea)
+    c = cv2.approxPolyDP(c, 0.01 * cv2.arcLength(c, True), True)
+    if len(c) < 3:
+        return None
+    return [[int(x), int(y)] for [[x, y]] in c]
+
+
 def _boxes_from_prob(prob, max_boxes):
     """Threshold a probability map and return its biggest blobs as boxes.
 
     Boxes are [x0, y0, x1, y1] in the map's own pixel coordinates, biggest
-    blob first. Each carries the peak probability inside it rather than the
-    frame's peak, so a second, weaker stack is reported as the weaker thing it
-    is instead of inheriting its neighbour's confidence.
+    blob first, each alongside a "polygon" tracing the same blob's per-pixel
+    mask (see _contour_from_mask). Each carries the peak probability inside it
+    rather than the frame's peak, so a second, weaker stack is reported as the
+    weaker thing it is instead of inheriting its neighbour's confidence.
     """
     peak = float(prob.max()) if prob.size else 0.0
     background = float(np.percentile(prob, 95)) if prob.size else 0.0
@@ -230,6 +302,7 @@ def _boxes_from_prob(prob, max_boxes):
                       int(stats[i, cv2.CC_STAT_WIDTH]), int(stats[i, cv2.CC_STAT_HEIGHT]))
         out.append({
             "box": [x, y, x + w, y + h],
+            "polygon": _contour_from_mask(labels == i),
             "score": round(float(prob[labels == i].max()), 4),
             "area": int(stats[i, cv2.CC_STAT_AREA]),
         })
@@ -268,8 +341,9 @@ def detect(frame_rgb):
     """Find the plates and the bar in one RGB frame.
 
     Returns {"plates": [...], "bar": {...} or None, "crop": [...] or None},
-    where each detection is {"box": [x0,y0,x1,y1], "score": float, ...} in the
-    frame's own pixel coordinates. At most two plate stacks come back, ordered
+    where each detection is {"box": [x0,y0,x1,y1], "polygon": [[x,y],...],
+    "score": float, ...} in the frame's own pixel coordinates -- the polygon is
+    the per-pixel mask outline, the box its bounding extent. At most two plate stacks come back, ordered
     LEFT TO RIGHT by box centre so that "plates[0]" means the same end of the
     bar from frame to frame -- an index that reshuffled whenever one stack
     outgrew the other would be useless to difference across time.
@@ -310,6 +384,10 @@ def detect(frame_rgb):
                 bar = found[0]
                 bx0, by0, bx1, by1 = bar["box"]
                 bar["box"] = [bx0 + cx0, by0 + cy0, bx1 + cx0, by1 + cy0]
+                # The bar map was computed on the crop, so its polygon is in
+                # crop coordinates too -- shift it back to the frame like the box.
+                if bar.get("polygon"):
+                    bar["polygon"] = [[px + cx0, py + cy0] for px, py in bar["polygon"]]
 
     return {"plates": plates, "bar": bar, "crop": crop}
 

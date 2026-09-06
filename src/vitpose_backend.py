@@ -48,7 +48,22 @@ DATASET = "coco"  # only dataset variant we pulled; wholebody/animal etc. would
 SIZES = ("l", "h")
 DEFAULT_SIZE = os.environ.get("COACH_DEFAULT_SIZE", "l")
 
-DEVICE = "cuda" if __import__("torch").cuda.is_available() else "cpu"
+# Op-not-implemented on MPS (Apple Silicon) should fall back to CPU rather than
+# raise — set before torch dispatches anything. Harmless on cuda/cpu boxes.
+os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+
+
+def _select_device():
+    # Priority cuda (incl. ROCm/HIP, which reports as cuda) -> mps -> cpu.
+    import torch
+    if torch.cuda.is_available():
+        return "cuda"
+    if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
+
+
+DEVICE = _select_device()
 
 VIDEO_EXTENSIONS = ("mp4", "mov", "avi", "webm", "mkv")
 
@@ -417,7 +432,13 @@ def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4",
                         # one buffer.
                         if equipment is not None:
                             equipment.submit(idx, frame_rgb)
-                        keypoints = model.inference(frame_rgb)
+                        # Serialize the actual GPU submission against the
+                        # equipment worker's CLIPSeg forward: on MPS the two
+                        # encoding a Metal command buffer at once segfaults the
+                        # driver (see equipment_backend.gpu_submit). No-op on
+                        # cuda/rocm, so the worker's overlap is untouched there.
+                        with equipment_backend.gpu_submit():
+                            keypoints = model.inference(frame_rgb)
                         keypoints_by_frame[str(idx)] = {
                             str(pid): kp.tolist() for pid, kp in keypoints.items()
                         }

@@ -22,8 +22,12 @@ mkdir -p log pki-public
 
 if [ -z "$COACH_PYTHON" ]; then
 	CONDA_BASE="$(conda info --base 2>/dev/null || true)"
-	[ -n "$CONDA_BASE" ] || { echo "!! conda not found — run ./scripts/setup_conda_linux.sh" >&2; exit 1; }
-	COACH_PYTHON="$CONDA_BASE/envs/coach/bin/python"
+	[ -n "$CONDA_BASE" ] || { echo "!! conda not found — run ./scripts/setup_conda_linux.sh (or setup_conda_mac.sh)" >&2; exit 1; }
+	# The env doesn't always live under the base prefix: with a configured
+	# envs_dirs (this Mac uses ~/.conda/envs) it's elsewhere. Ask conda where
+	# 'coach' actually is, and only fall back to the base-relative guess.
+	COACH_PYTHON="$(conda run -n coach python -c 'import sys; print(sys.executable)' 2>/dev/null || true)"
+	[ -x "$COACH_PYTHON" ] || COACH_PYTHON="$CONDA_BASE/envs/coach/bin/python"
 fi
 [ -x "$COACH_PYTHON" ] || {
 	echo "!! no python at $COACH_PYTHON — run ./scripts/setup_conda_linux.sh" >&2; exit 1; }

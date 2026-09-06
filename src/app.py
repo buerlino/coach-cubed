@@ -146,7 +146,12 @@ def api_pose_video_start():
         # meaningful, but its own failure isn't fatal — infer_video runs
         # either way and the frontend falls back to a countless spinner.
         try:
-            total = vitpose_backend.count_frames(video_bytes, suffix=f".{ext}")
+            raw_total = vitpose_backend.count_frames(video_bytes, suffix=f".{ext}")
+            # progress_cb reports frames_processed, which is post-stride (infer_video
+            # keeps every Nth frame: idx % frame_stride == 0). The denominator has to
+            # match that, or the bar caps at 1/stride and the ETA runs ~stride× long.
+            # Count of indices in [0, raw_total) divisible by frame_stride = ceil(raw/stride).
+            total = -(-raw_total // frame_stride) if raw_total is not None else None
         except Exception:
             total = None
         with job.lock:
@@ -1106,18 +1111,19 @@ function poseAtTime(t, slot) {
   return out;
 }
 
-// Equipment boxes for one processed frame. Deliberately NOT interpolated the
-// way the mesh is: a box is the extent of a segmentation mask, not a point on a
-// trajectory, and sliding one between two frames would draw an outline around a
-// region no mask ever covered. So this paints the nearest processed frame's
-// boxes and holds them — an equipment box on screen is always one the model
-// actually produced.
+// Equipment masks for one processed frame. Deliberately NOT interpolated the
+// way the mesh is: a mask is the extent of one segmentation, not a point on a
+// trajectory, and sliding one between two frames would draw a region no mask
+// ever covered. So this paints the nearest processed frame's masks and holds
+// them — an equipment overlay on screen is always one the model actually
+// produced.
 function drawEquipment(idx) {
   if (!vEquipment) return;
   const eq = vEquipment[String(idx)];
   if (!eq) return;
   const wantBar = $('veqbar').checked, wantPlates = $('veqplates').checked;
 
+  // Fall back to the bounding box when a detection predates polygon support.
   const box = (b, colour, label) => {
     const [x0, y0, x1, y1] = b;
     vctx.strokeStyle = colour;
@@ -1128,6 +1134,34 @@ function drawEquipment(idx) {
     vctx.fillStyle = colour;
     // Above the box, unless that would be off the top of the frame.
     vctx.fillText(label, x0, y0 > 20 ? y0 - 6 : y1 + 18);
+  };
+
+  // The per-pixel prediction itself: fill the mask outline translucent so the
+  // frame reads through it, then trace the edge. This is what the box was only
+  // ever approximating.
+  const mask = (d, colour, label) => {
+    const pts = d.polygon;
+    if (!pts || pts.length < 3) { box(d.box, colour, label); return; }
+    vctx.beginPath();
+    vctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) vctx.lineTo(pts[i][0], pts[i][1]);
+    vctx.closePath();
+    vctx.save();
+    vctx.globalAlpha = 0.28;
+    vctx.fillStyle = colour;
+    vctx.fill();
+    vctx.restore();
+    vctx.strokeStyle = colour;
+    vctx.lineWidth = 2;
+    vctx.stroke();
+    if (!label) return;
+    // Anchor the label at the mask's topmost vertex, same "above unless it
+    // clips the frame" rule as the box label.
+    let ax = pts[0][0], ay = pts[0][1];
+    for (const [x, y] of pts) if (y < ay) { ay = y; ax = x; }
+    vctx.font = '600 15px system-ui';
+    vctx.fillStyle = colour;
+    vctx.fillText(label, ax, ay > 20 ? ay - 6 : ay + 18);
   };
 
   // The search window first, so the boxes sit on top of it. Shown with the bar
@@ -1149,11 +1183,11 @@ function drawEquipment(idx) {
       // detection exists to produce. Flagged approximate because the short side
       // of an axis-aligned box under-reads a disc the camera sees at an angle.
       const mmpx = p.diameter_px ? (450 / p.diameter_px).toFixed(2) : null;
-      box(p.box, EQ_PLATE,
+      mask(p, EQ_PLATE,
           `plate ${p.score.toFixed(2)}` + (mmpx ? ` · ~${mmpx} mm/px` : ''));
     }
   }
-  if (wantBar && eq.bar) box(eq.bar.box, EQ_BAR, `bar ${eq.bar.score.toFixed(2)}`);
+  if (wantBar && eq.bar) mask(eq.bar, EQ_BAR, `bar ${eq.bar.score.toFixed(2)}`);
 }
 
 function drawOverlay(t) {
