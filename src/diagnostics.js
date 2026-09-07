@@ -1099,28 +1099,28 @@ function personIds(kpByFrame) {
   return Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || (+a[0]) - (+b[0]));
 }
 
-// Scores every diagnostic against the same prepared track. Diagnostics are
-// independent: one erroring (no clean phase found) does not stop the others
-// from being computed.
-function run() {
-  if (!state || !state.keypoints || !state.meta || !state.personId) return;
-  const samples = buildTrack(state.keypoints, state.meta, state.personId);
-  state.samples = samples;
-  state.results = {};
+// Scores every diagnostic against one person's track. Pure function of its
+// arguments — no DOM, no module state — so it is both what run() below calls
+// and the headless entry point Diagnostics.computeResults() exposes for
+// testing against a cached track.json (see tests/diagnostics.test.js) without
+// mounting the canvas/toggle UI. Diagnostics are independent: one erroring
+// (no clean phase found) does not stop the others from being computed.
+function computeResults(keypoints, meta, personId) {
+  const samples = buildTrack(keypoints, meta, personId);
+  const results = {};
 
   if (samples.length < FILL_WIN) {
-    const err = { error: `Person ${state.personId} was detected in only ${samples.length} sampled frame(s).` };
-    for (const d of DIAGNOSTICS) state.results[d.id] = err;
-    return;
+    const err = { error: `Person ${personId} was detected in only ${samples.length} sampled frame(s).` };
+    for (const d of DIAGNOSTICS) results[d.id] = err;
+    return { samples, scale: null, axis: null, results };
   }
   preparePoints(samples);
   const scale = torsoScale(samples);
   if (!scale) {
     const err = { error: 'No frame had a confident hip and shoulder on the same side, so there is no body scale to work from.' };
-    for (const d of DIAGNOSTICS) state.results[d.id] = err;
-    return;
+    for (const d of DIAGNOSTICS) results[d.id] = err;
+    return { samples, scale: null, axis: null, results };
   }
-  state.scale = scale;
   // One axis for the whole clip, computed here rather than inside any one
   // diagnostic: two diagnostics disagreeing about which way is up would be the
   // same class of bug as two of them re-deriving the bar/knee crossing.
@@ -1132,14 +1132,13 @@ function run() {
   // accept, and the setup frame it leads to is a still one either way.
   const anchor = firstPullWindow(samples, scale, IMAGE_AXIS);
   const axis = bodyAxis(samples, scale, anchor.startIdx, anchor.startIdx >= 0 && !anchor.clamped);
-  state.axis = axis;
 
   for (const d of DIAGNOSTICS) {
     const phase = d.phase(samples, scale, axis);
-    if (phase.error) { state.results[d.id] = { error: phase.error }; continue; }
+    if (phase.error) { results[d.id] = { error: phase.error }; continue; }
     const m = d.measure(samples, phase, axis);
-    if (m.error) { state.results[d.id] = { error: m.error }; continue; }
-    state.results[d.id] = {
+    if (m.error) { results[d.id] = { error: m.error }; continue; }
+    results[d.id] = {
       phase,
       series: m.series,
       summary: m.summary,
@@ -1147,6 +1146,16 @@ function run() {
       notes: (phase.notes || []).concat(m.notes || []),
     };
   }
+  return { samples, scale, axis, results };
+}
+
+function run() {
+  if (!state || !state.keypoints || !state.meta || !state.personId) return;
+  const out = computeResults(state.keypoints, state.meta, state.personId);
+  state.samples = out.samples;
+  state.scale = out.scale;
+  state.axis = out.axis;
+  state.results = out.results;
 }
 
 
@@ -1508,6 +1517,15 @@ function buildSections() {
 }
 
 const Diagnostics = {
+  // Headless entry point: scores every diagnostic against one person's track
+  // with no DOM involved, for tests running against a cached track.json (see
+  // tests/diagnostics.test.js). Returns { samples, scale, axis, results } —
+  // the same shape run() stashes onto the (DOM-mounted) module state, minus
+  // the DOM. Not used by the app itself; mount()/setTrack() below are.
+  computeResults(keypoints, meta, personId) {
+    return computeResults(keypoints, meta, personId);
+  },
+
   mount(opts) {
     el = opts;
     buildToggles();
