@@ -245,6 +245,10 @@ def api_capabilities():
 # tests/fixtures/ shows up here for free, no separate registry to maintain.
 FIXTURES_DIR = Path(__file__).parent.parent / "tests" / "fixtures"
 
+# Model sizes the UI offers, largest-effort last. Kept in sync with the #vsize
+# <select> so a track named for a size we no longer serve is simply ignored.
+MODEL_SIZES = ("l", "h")
+
 
 def _load_manifest():
     manifest = FIXTURES_DIR / "manifest.json"
@@ -254,10 +258,9 @@ def _load_manifest():
         return {}
 
 
-def _example_paths(example_id):
-    """Video + track paths for a manifest key, or None if it isn't a real
-    example. Membership in the manifest is the only gate, so a crafted id can't
-    escape FIXTURES_DIR — an unknown key just 404s."""
+def _example_video(example_id):
+    """The clip Path for a manifest key, or None. Membership in the manifest is
+    the only gate, so a crafted id can't escape FIXTURES_DIR — it just 404s."""
     entry = _load_manifest().get(example_id)
     if not entry:
         return None
@@ -265,23 +268,56 @@ def _example_paths(example_id):
     if not src:
         return None
     video = FIXTURES_DIR / Path(example_id).parent / src
-    track = FIXTURES_DIR / (example_id + ".track.json")
-    if not video.exists() or not track.exists():
-        return None
-    return video, track
+    return video if video.exists() else None
+
+
+def _example_tracks(example_id):
+    """Map of model-size -> cached track Path for a manifest key. An example can
+    carry a track from more than one model: a per-size `<id>.<size>.track.json`
+    is the explicit form, and a bare legacy `<id>.track.json` counts as the
+    size named by the manifest's model_size. Explicit per-size files win. Empty
+    if the id isn't a real example or has no cached track."""
+    entry = _load_manifest().get(example_id)
+    if not entry:
+        return {}
+    tracks = {}
+    legacy = FIXTURES_DIR / (example_id + ".track.json")
+    if legacy.exists() and (entry.get("model_size") in MODEL_SIZES):
+        tracks[entry["model_size"]] = legacy
+    for size in MODEL_SIZES:
+        sized = FIXTURES_DIR / (example_id + "." + size + ".track.json")
+        if sized.exists():
+            tracks[size] = sized
+    return tracks
+
+
+def _default_size(example_id, tracks):
+    """Which cached size to serve when the caller doesn't ask for one: the
+    manifest's model_size if it has a track, else the smallest available."""
+    preferred = (_load_manifest().get(example_id) or {}).get("model_size")
+    if preferred in tracks:
+        return preferred
+    for size in MODEL_SIZES:
+        if size in tracks:
+            return size
+    return None
 
 
 @app.route("/api/examples")
 def api_examples():
     out = []
     for key, entry in _load_manifest().items():
-        if not _example_paths(key):
+        tracks = _example_tracks(key)
+        if not _example_video(key) or not tracks:
             continue
         out.append({
             "id": key,
             "label": key,
             "stance": entry.get("stance"),
             "notes": entry.get("notes", ""),
+            # Which model sizes have a cached track, in UI order — the frontend
+            # greys out the rest and only offers to switch overlay to these.
+            "sizes": [s for s in MODEL_SIZES if s in tracks],
         })
     out.sort(key=lambda e: e["id"])
     return jsonify(out)
@@ -289,18 +325,20 @@ def api_examples():
 
 @app.route("/api/examples/<path:example_id>/video")
 def api_example_video(example_id):
-    paths = _example_paths(example_id)
-    if not paths:
+    video = _example_video(example_id)
+    if not video:
         return jsonify({"error": "unknown example"}), 404
-    return send_file(paths[0])
+    return send_file(video)
 
 
 @app.route("/api/examples/<path:example_id>/track")
 def api_example_track(example_id):
-    paths = _example_paths(example_id)
-    if not paths:
-        return jsonify({"error": "unknown example"}), 404
-    return send_file(paths[1], mimetype="application/json")
+    tracks = _example_tracks(example_id)
+    size = request.args.get("size") or _default_size(example_id, tracks)
+    track = tracks.get(size)
+    if not track:
+        return jsonify({"error": "unknown example track"}), 404
+    return send_file(track, mimetype="application/json")
 
 
 # --- diagnostics ----------------------------------------------------------
@@ -442,7 +480,7 @@ INDEX_HTML = """<!doctype html>
         <select id="vexample"><option value="">— pick an example —</option></select>
       </label>
       <label>model
-        <select id="vsize"><option value="l">l (large, ~1.2GB)</option><option value="h">h (huge, ~2.5GB)</option></select>
+        <select id="vsize"><option value="l" data-label="l (large, ~1.2GB)">l (large, ~1.2GB)</option><option value="h" data-label="h (huge, ~2.5GB)">h (huge, ~2.5GB)</option></select>
       </label>
       <label>frame stride
         <input id="vstride" type="number" value="1" min="1" style="width:4em">
@@ -593,6 +631,10 @@ let vSample = null;
 // Liveness of the overlay loop: when it last painted, and how often the
 // watchdog below has had to revive it. Both surface in the #vsync readout.
 let vLastDrawMs = 0, vLoopRestarts = 0;
+// Last currentTime seen by the timeupdate heartbeat, so a backward jump — the
+// loop wrapping from the end back to the start — can be caught the instant it
+// happens instead of after the staleness watchdog times out.
+let vLastTimeupdate = 0;
 // vSource is whichever video is queued to run — a picked file or a camera
 // recording — normalized to {blob, filename} so the run handler doesn't
 // care which one it came from.
@@ -615,6 +657,31 @@ const EQ_WINDOW = 'rgba(192,132,252,0.35)';   // where the bar was searched for
 // Per-frame equipment boxes from the run, keyed by frame index exactly like the
 // keypoints, plus the prompts that produced them.
 let vEquipment = null, vEqPrompts = null;
+
+// The currently-loaded example: its manifest id and which model sizes have a
+// cached track. Lets switching #vsize swap the overlay to that model's version
+// with no pose run. Both null when the source is an upload or a recording.
+let vExampleId = null, vExampleSizes = null;
+
+// Reflect an example's cached sizes onto the #vsize picker: available ones stay
+// selectable, the rest grey out with a note. `sizes` null clears the restriction
+// (a fresh upload/recording can be run at any size). `selected`, if available,
+// becomes the current value.
+function vSetSizeAvailability(sizes, selected) {
+  for (const opt of $('vsize').options) {
+    const ok = !sizes || sizes.includes(opt.value);
+    opt.disabled = !ok;
+    opt.textContent = opt.dataset.label + (ok ? '' : ' — no cached track');
+  }
+  if (selected && (!sizes || sizes.includes(selected))) $('vsize').value = selected;
+}
+
+// Forget the loaded example and restore every size to selectable — for when the
+// source becomes an upload, a recording, or a fresh run.
+function vClearExample() {
+  vExampleId = null; vExampleSizes = null;
+  vSetSizeAvailability(null);
+}
 
 // --- temporal smoothing ---------------------------------------------------
 // The model sees each frame independently, with no temporal prior at all, so a
@@ -1420,23 +1487,46 @@ function stopOverlayLoop() {
 // the threshold) costs nothing.
 const OVERLAY_STALL_MS = 500;
 
-function kickOverlayLoop() {
+// force skips the staleness check: use it for the loop wrap, which is a known
+// restart point rather than a suspected stall, so the mesh follows the video
+// back to the first frame at once instead of hanging on the last for up to
+// OVERLAY_STALL_MS while the watchdog decides the loop is really dead.
+function kickOverlayLoop(force) {
   if (vvideo.paused || vvideo.ended) return;
-  if (vRafId !== null && performance.now() - vLastDrawMs < OVERLAY_STALL_MS) return;
+  if (!force && vRafId !== null && performance.now() - vLastDrawMs < OVERLAY_STALL_MS) return;
   vLoopRestarts++;
   startOverlayLoop();
 }
 
-vvideo.addEventListener('loadedmetadata', () => { syncCanvasSize(); vvideo.playbackRate = parseFloat($('vspeed').value); });
+vvideo.addEventListener('loadedmetadata', () => {
+  syncCanvasSize();
+  vvideo.playbackRate = parseFloat($('vspeed').value);
+  // Picking an example applies its cached track (and paints the overlay, via
+  // applySmoothing) BEFORE the video element has loaded — so the first paint
+  // lands on a canvas that this syncCanvasSize then wipes: assigning
+  // canvas.width/height clears the surface even when the value is unchanged.
+  // Nothing else repaints while the video sits paused at frame 0, so the
+  // wireframe just vanished. Repaint here, now that the real dimensions are in.
+  // (The upload→run path never hits this: its video loaded long before the run
+  // ever produced a track, so no loadedmetadata fires after the paint.)
+  if (vKeypoints && (vvideo.paused || vvideo.ended)) drawOverlay();
+});
 vvideo.addEventListener('play', startOverlayLoop);
 vvideo.addEventListener('playing', kickOverlayLoop);
 // Both of these leave the playhead somewhere the clock knows nothing about, so
 // it is dropped rather than extrapolated from; drawOverlay then falls back to
 // currentTime, which is exact while nothing is moving.
 vvideo.addEventListener('pause', () => { stopOverlayLoop(); vClock = null; drawOverlay(); });
-vvideo.addEventListener('seeked', () => { vClock = null; drawOverlay(); kickOverlayLoop(); });
+vvideo.addEventListener('seeked', () => { vLastTimeupdate = vvideo.currentTime; vClock = null; drawOverlay(); kickOverlayLoop(); });
 vvideo.addEventListener('timeupdate', () => {
-  if (vvideo.paused) drawOverlay(); else kickOverlayLoop();
+  // A looping <video> wraps silently — no 'play', no 'seeked' — so the only
+  // signal that it jumped back to the start is currentTime going backwards.
+  // When it does, force the overlay to restart now: the rVFC paint callback is
+  // routinely dropped across the wrap, and without this the mesh sits frozen on
+  // the last frame over the replayed clip until the staleness watchdog fires.
+  const wrapped = vvideo.currentTime < vLastTimeupdate - 0.05;
+  vLastTimeupdate = vvideo.currentTime;
+  if (vvideo.paused) drawOverlay(); else kickOverlayLoop(wrapped);
 });
 $('vspeed').onchange = () => { vvideo.playbackRate = parseFloat($('vspeed').value); };
 // Toggling this swaps which scheduler drives the paint loop (rVFC vs rAF), so
@@ -1469,6 +1559,7 @@ $('vfile').onchange = () => {
   $('vsummary').textContent = '';
   $('vsync').textContent = '';
   $('vexample').value = '';
+  vClearExample();
   setVideoSrc(f);
 };
 
@@ -1478,6 +1569,8 @@ $('vfile').onchange = () => {
 $('vexample').onchange = async () => {
   const id = $('vexample').value;
   if (!id) return;
+  const opt = $('vexample').selectedOptions[0];
+  const sizes = (opt && opt.dataset.sizes ? opt.dataset.sizes.split(',') : []).filter(Boolean);
   stopCameraStream();
   $('vfile').value = '';
   vSource = null;
@@ -1487,11 +1580,17 @@ $('vexample').onchange = async () => {
   Diagnostics.setTrack(null, null);
   $('vsummary').textContent = '';
   $('vsync').textContent = '';
+  // Keep the current model pick if this example was analysed with it; otherwise
+  // fall to whichever size it does ship. Grey the rest out.
+  vExampleId = id;
+  vExampleSizes = sizes;
+  const size = sizes.includes($('vsize').value) ? $('vsize').value : sizes[0];
+  vSetSizeAvailability(sizes, size);
   $('vstatus').textContent = 'loading example…';
   try {
     const [vr, tr] = await Promise.all([
       fetch(`/api/examples/${encodeURI(id)}/video`),
-      fetch(`/api/examples/${encodeURI(id)}/track`),
+      fetch(`/api/examples/${encodeURI(id)}/track?size=${encodeURIComponent(size)}`),
     ]);
     if (!vr.ok || !tr.ok) throw new Error('example not available');
     const blob = await vr.blob();
@@ -1499,9 +1598,26 @@ $('vexample').onchange = async () => {
     vSource = { blob, filename: id.split('/').pop() + '.mp4' };
     setVideoSrc(blob);
     applyTrack(data);
-    $('vstatus').textContent = 'loaded example — cached track, no run needed';
+    $('vstatus').textContent = 'loaded example — cached ' + size + ' track, no run needed';
   } catch (e) {
     $('vstatus').textContent = 'error loading example: ' + e.message;
+  }
+};
+
+// Switching the model while an example is loaded swaps the overlay to that
+// model's cached track — no pose run, since the example ships one per available
+// size. Greyed-out sizes can't be picked, so a cached hit is guaranteed here.
+$('vsize').onchange = async () => {
+  if (!vExampleId || !vExampleSizes || !vExampleSizes.includes($('vsize').value)) return;
+  const size = $('vsize').value;
+  $('vstatus').textContent = 'switching to ' + size + ' overlay…';
+  try {
+    const r = await fetch(`/api/examples/${encodeURI(vExampleId)}/track?size=${encodeURIComponent(size)}`);
+    if (!r.ok) throw new Error('track not available');
+    applyTrack(await r.json());
+    $('vstatus').textContent = 'loaded example — cached ' + size + ' track, no run needed';
+  } catch (e) {
+    $('vstatus').textContent = 'error switching overlay: ' + e.message;
   }
 };
 
@@ -1521,6 +1637,8 @@ $('vcam').onclick = async () => {
   }
   vCamStream = stream;
   $('vfile').value = '';
+  $('vexample').value = '';
+  vClearExample();
   vSource = null; vKeypointsRaw = null; vKeypoints = null; vMeta = null; vSample = null; vClock = null;
   vEquipment = null; vEqPrompts = null; vRenderEqNote();
   updatePlotControls();
@@ -1656,6 +1774,9 @@ $('vrun').onclick = async () => {
   const r = await fetch('/api/pose/video/start', {method:'POST', body: fd});
   const data = await r.json();
   if (!r.ok) { $('vstatus').textContent = 'error: ' + data.error; return; }
+  // A fresh run supersedes any loaded example: its result is the new overlay, so
+  // a later size switch shouldn't quietly swap back to the cached example track.
+  vClearExample();
   vSetRunning(true);
   $('vprogBar').style.width = '0%';
   $('vstatus').textContent = 'starting…';
@@ -1733,6 +1854,7 @@ fetch('/api/examples').then(r => r.json()).then(list => {
     const opt = document.createElement('option');
     opt.value = ex.id;
     opt.textContent = ex.label;
+    opt.dataset.sizes = (ex.sizes || []).join(',');
     if (ex.notes) opt.title = ex.notes;
     sel.appendChild(opt);
   }
