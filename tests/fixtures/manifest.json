@@ -1,4 +1,30 @@
 {
+  "example/lateral-raise-cable-1": {
+    "detect_equipment": false,
+    "frame_count": 75,
+    "frame_stride": 1,
+    "frames_processed": 75,
+    "generated_at": "2026-09-07T22:14:53+00:00",
+    "kept_person": "1",
+    "labels": [],
+    "model_size": "l",
+    "notes": "Lateral raise (cable). Trimmed to the first 3s of YouTube n77-W0nkuPw. Wireframe from ViTPose large, stride 1.",
+    "source_file": "lateral-raise-cable-1.mp4",
+    "stance": "example"
+  },
+  "example/lateral-raise-cable-2": {
+    "detect_equipment": false,
+    "frame_count": 180,
+    "frame_stride": 1,
+    "frames_processed": 180,
+    "generated_at": "2026-09-07T22:15:05+00:00",
+    "kept_person": "5",
+    "labels": [],
+    "model_size": "l",
+    "notes": "Lateral raise (cable). Trimmed to seconds 6-9 of YouTube f_OGBg2KxgY. Wireframe from ViTPose large, stride 1.",
+    "source_file": "lateral-raise-cable-2.mp4",
+    "stance": "example"
+  },
   "example/athlete-a-trim": {
     "detect_equipment": false,
     "frame_count": 107,

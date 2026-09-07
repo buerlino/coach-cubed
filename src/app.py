@@ -1533,6 +1533,15 @@ vvideo.addEventListener('timeupdate', () => {
   // the last frame over the replayed clip until the staleness watchdog fires.
   const wrapped = vvideo.currentTime < vLastTimeupdate - 0.05;
   vLastTimeupdate = vvideo.currentTime;
+  if (wrapped) {
+    // Drop the interpolation clock at the wrap. It is only re-anchored by the
+    // rVFC callback, which is dropped across the loop, so it stays frozen at the
+    // near-end frame it last saw — and the rAF paint loop then cheerfully keeps
+    // drawing that end time (clamped to the last frame) over the replayed clip,
+    // never going stale. Nulling it makes clockTime() fall back to currentTime
+    // (~0 after the wrap) until a fresh presented frame re-anchors it.
+    vClock = null;
+  }
   if (vvideo.paused) drawOverlay(); else kickOverlayLoop(wrapped);
 });
 $('vspeed').onchange = () => { vvideo.playbackRate = parseFloat($('vspeed').value); };

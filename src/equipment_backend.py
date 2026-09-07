@@ -240,13 +240,22 @@ def _probability_map(rgb, prompt):
     # here, and the result is identical input to the model either way.
     small = cv2.resize(rgb, (352, 352), interpolation=cv2.INTER_AREA)
     inputs = proc(text=[prompt], images=[small], padding=True, return_tensors="pt")
-    inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
+    # EVERY GPU touch goes inside gpu_submit(), not just the forward: the
+    # host->device copy (.to), the sigmoid, and the device->host copy (.cpu)
+    # each encode their own Metal command buffer, and on MPS a buffer encoded
+    # on this worker thread while ViTPose's forward encodes one on the pose
+    # thread segfaults the driver -- the exact crash the lock exists to prevent
+    # (see the gpu_submit() docstring). Scoping the lock to only model(**inputs)
+    # left those three transfers racing, so a run still died a handful of frames
+    # in whenever they lined up. The CPU-side prep above (resize, tokenize) stays
+    # outside, where overlapping the other model's GPU work is safe and the point.
     with _infer_lock, gpu_submit():
+        inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
         with torch.no_grad():
             logits = model(**inputs).logits
-    # A single-prompt batch comes back as (352, 352), a multi-prompt one as
-    # (n, 352, 352) -- normalize so this doesn't depend on the batch shape.
-    prob = torch.sigmoid(logits).squeeze().cpu().numpy().astype(np.float32)
+        # A single-prompt batch comes back as (352, 352), a multi-prompt one as
+        # (n, 352, 352) -- normalize so this doesn't depend on the batch shape.
+        prob = torch.sigmoid(logits).squeeze().cpu().numpy().astype(np.float32)
     return cv2.resize(prob, (w, h), interpolation=cv2.INTER_LINEAR)
 
 
