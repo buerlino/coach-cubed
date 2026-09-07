@@ -484,6 +484,7 @@ INDEX_HTML = """<!doctype html>
       </label>
       <label>frame stride
         <input id="vstride" type="number" value="1" min="1" style="width:4em">
+        <span id="vstrideNote" style="color:#8a8a80;font-size:11px"></span>
       </label>
       <button id="vrun">Run pose on video</button>
       <button id="vcancel" type="button" style="display:none;background:#722;color:#fff;">Cancel</button>
@@ -663,6 +664,10 @@ let vEquipment = null, vEqPrompts = null;
 // with no pose run. Both null when the source is an upload or a recording.
 let vExampleId = null, vExampleSizes = null;
 
+// The loaded track exactly as computed, kept so a display-stride change can
+// decimate a fresh copy of it rather than a previously-decimated one.
+let vTrackFull = null;
+
 // Reflect an example's cached sizes onto the #vsize picker: available ones stay
 // selectable, the rest grey out with a note. `sizes` null clears the restriction
 // (a fresh upload/recording can be run at any size). `selected`, if available,
@@ -681,6 +686,8 @@ function vSetSizeAvailability(sizes, selected) {
 function vClearExample() {
   vExampleId = null; vExampleSizes = null;
   vSetSizeAvailability(null);
+  $('vstride').min = 1;
+  $('vstrideNote').textContent = '';
 }
 
 // --- temporal smoothing ---------------------------------------------------
@@ -1598,6 +1605,7 @@ $('vexample').onchange = async () => {
     vSource = { blob, filename: id.split('/').pop() + '.mp4' };
     setVideoSrc(blob);
     applyTrack(data);
+    vStrideConstrain(vMeta.frame_stride || 1);
     $('vstatus').textContent = 'loaded example — cached ' + size + ' track, no run needed';
   } catch (e) {
     $('vstatus').textContent = 'error loading example: ' + e.message;
@@ -1615,6 +1623,7 @@ $('vsize').onchange = async () => {
     const r = await fetch(`/api/examples/${encodeURI(vExampleId)}/track?size=${encodeURIComponent(size)}`);
     if (!r.ok) throw new Error('track not available');
     applyTrack(await r.json());
+    vStrideConstrain(vMeta.frame_stride || 1);
     $('vstatus').textContent = 'loaded example — cached ' + size + ' track, no run needed';
   } catch (e) {
     $('vstatus').textContent = 'error switching overlay: ' + e.message;
@@ -1744,6 +1753,9 @@ async function vPoll() {
 // pose run (vPoll) and of picking a cached example clip. The caller owns the
 // status line; this only touches the track and what's derived from it.
 function applyTrack(data) {
+  vTrackFull = data;          // the track exactly as computed, at its own stride;
+                              // vApplyExampleStride decimates a copy of this for
+                              // display when a coarser stride is picked.
   vKeypointsRaw = data.keypoints;
   vMeta = data.meta;
   vEquipment = vMeta.equipment || null;
@@ -1759,10 +1771,76 @@ function applyTrack(data) {
   // if the video was already rolling when the run finished, the loop it
   // started was drawing nothing — restart it now that there's a track.
   if (!vvideo.paused && !vvideo.ended) startOverlayLoop();
+  vUpdateSummary();
+}
+
+// The one-line track summary under the video. Split out of applyTrack so a
+// display-stride change, which rewrites vMeta in place, can refresh it too.
+function vUpdateSummary() {
+  if (!vMeta) { $('vsummary').textContent = ''; return; }
   $('vsummary').textContent =
     `${vMeta.frames_processed}/${vMeta.frame_count} frames processed (stride ${vMeta.frame_stride}), ` +
     `${vMeta.fps.toFixed(2)} fps · ` + subjectLine(vMeta);
 }
+
+// Drop the track to a coarser stride for DISPLAY only — no re-run. Keeps every
+// `factor`-th sample of the full track, so a clip analysed at stride 1 can be
+// previewed as it would look at stride 2, 3, … A coarser cached track can't be
+// refined this way, which is why the picker greys out strides below the base.
+function decimateTrack(full, factor) {
+  const fm = full.meta;
+  const frames = (fm.frame_indices && fm.frame_indices.length)
+    ? fm.frame_indices
+    : Object.keys(full.keypoints).map(Number).sort((a, b) => a - b);
+  const haveTimes = fm.frame_times_ms && fm.frame_times_ms.length === frames.length;
+  const keptFrames = [], keptTimes = [], kp = {};
+  for (let slot = 0; slot < frames.length; slot += factor) {
+    const f = frames[slot];
+    keptFrames.push(f);
+    if (haveTimes) keptTimes.push(fm.frame_times_ms[slot]);
+    const pose = full.keypoints[String(f)];
+    if (pose) kp[String(f)] = pose;
+  }
+  const meta = Object.assign({}, fm, {
+    frame_indices: keptFrames,
+    frame_stride: (fm.frame_stride || 1) * factor,
+    frames_processed: keptFrames.length,
+  });
+  if (haveTimes) meta.frame_times_ms = keptTimes; else delete meta.frame_times_ms;
+  return { keypoints: kp, meta };
+}
+
+// Constrain the stride picker to a freshly-loaded example's base stride: set it
+// as the value and the floor, since nothing finer can be reconstructed. A base
+// above 1 is called out so the greyed-out smaller strides aren't a mystery.
+function vStrideConstrain(base) {
+  const s = $('vstride');
+  s.min = base;
+  s.value = base;
+  $('vstrideNote').textContent = base > 1
+    ? `precomputed at stride ${base} — finer unavailable, coarser previews live`
+    : '';
+}
+
+// Apply the picked stride to a loaded example's overlay by decimating its cached
+// track. Below the base it clamps (the field's min already blocks the spinner,
+// but a typed value can still be lower). Non-multiples snap up to the nearest
+// multiple of the base and the field is rewritten so it reads honestly.
+function vApplyExampleStride() {
+  if (!vExampleId || !vTrackFull) return;
+  const base = vTrackFull.meta.frame_stride || 1;
+  let desired = parseInt($('vstride').value, 10);
+  if (!(desired >= base)) desired = base;
+  const factor = Math.max(1, Math.round(desired / base));
+  $('vstride').value = base * factor;   // reflect the realized (snapped) stride
+  const t = factor === 1 ? vTrackFull : decimateTrack(vTrackFull, factor);
+  vKeypointsRaw = t.keypoints;
+  vMeta = t.meta;
+  applySmoothing();
+  vUpdateSummary();
+}
+
+$('vstride').onchange = () => { if (vExampleId) vApplyExampleStride(); };
 
 $('vrun').onclick = async () => {
   if (!vSource) { $('vstatus').textContent = 'pick a video or record from camera first'; return; }
