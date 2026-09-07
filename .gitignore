@@ -6,3 +6,9 @@ log/*.log
 vendor/easy_ViTPose/easy_ViTPose.egg-info/
 .venv
 **/.venv/
+
+# Scratch landing spot for raw clips waiting to be batch-extracted into
+# tests/fixtures/ (see tests/README.md) — only the curated, trimmed output
+# of that process gets committed, not whatever gets dropped in here.
+clips_inbox/*
+!clips_inbox/.gitkeep

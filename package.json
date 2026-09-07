@@ -1,0 +1,8 @@
+{
+  "name": "coach",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  }
+}
