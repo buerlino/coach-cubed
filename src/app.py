@@ -12,12 +12,13 @@ Unauthenticated by design — Caddy/tailnet is the access boundary, same as
 the rest of the deploy.
 """
 import base64
+import json
 import os
 import threading
 import time
 from pathlib import Path
 
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify, Response, send_file
 
 import equipment_backend
 import vitpose_backend
@@ -234,6 +235,74 @@ def api_capabilities():
     return jsonify({"equipment": equipment_backend.available()})
 
 
+# --- examples -------------------------------------------------------------
+# The committed test fixtures (tests/fixtures, see tests/README.md) double as a
+# browsable example gallery, so a fresh checkout has something to run without
+# uploading anything of your own. Each fixture ships vitpose_backend's own
+# cached `.track.json` next to its clip, so selecting one loads a full,
+# already-analysed lift with zero GPU work — the exact shape /api/pose/video
+# returns. The fixture set IS the example set: anything added under
+# tests/fixtures/ shows up here for free, no separate registry to maintain.
+FIXTURES_DIR = Path(__file__).parent.parent / "tests" / "fixtures"
+
+
+def _load_manifest():
+    manifest = FIXTURES_DIR / "manifest.json"
+    try:
+        return json.loads(manifest.read_text())
+    except (ValueError, OSError):
+        return {}
+
+
+def _example_paths(example_id):
+    """Video + track paths for a manifest key, or None if it isn't a real
+    example. Membership in the manifest is the only gate, so a crafted id can't
+    escape FIXTURES_DIR — an unknown key just 404s."""
+    entry = _load_manifest().get(example_id)
+    if not entry:
+        return None
+    src = entry.get("source_file")
+    if not src:
+        return None
+    video = FIXTURES_DIR / Path(example_id).parent / src
+    track = FIXTURES_DIR / (example_id + ".track.json")
+    if not video.exists() or not track.exists():
+        return None
+    return video, track
+
+
+@app.route("/api/examples")
+def api_examples():
+    out = []
+    for key, entry in _load_manifest().items():
+        if not _example_paths(key):
+            continue
+        out.append({
+            "id": key,
+            "label": key,
+            "stance": entry.get("stance"),
+            "notes": entry.get("notes", ""),
+        })
+    out.sort(key=lambda e: e["id"])
+    return jsonify(out)
+
+
+@app.route("/api/examples/<path:example_id>/video")
+def api_example_video(example_id):
+    paths = _example_paths(example_id)
+    if not paths:
+        return jsonify({"error": "unknown example"}), 404
+    return send_file(paths[0])
+
+
+@app.route("/api/examples/<path:example_id>/track")
+def api_example_track(example_id):
+    paths = _example_paths(example_id)
+    if not paths:
+        return jsonify({"error": "unknown example"}), 404
+    return send_file(paths[1], mimetype="application/json")
+
+
 # --- diagnostics ----------------------------------------------------------
 # The lifting diagnostics (cue -> number, scored over a detected phase of the
 # lift) live in their own file rather than inline in INDEX_HTML: there will be
@@ -366,6 +435,12 @@ INDEX_HTML = """<!doctype html>
     <div class="settings">
       <input id="vfile" type="file" accept="video/*">
       <button id="vcam" type="button">record from camera</button>
+      <!-- The committed example clips (tests/fixtures) each ship a cached track,
+           so picking one loads a fully-analysed lift instantly — no upload, no
+           GPU pass. Hidden until /api/examples reports at least one. -->
+      <label id="vexampleWrap" style="display:none">example
+        <select id="vexample"><option value="">— pick an example —</option></select>
+      </label>
       <label>model
         <select id="vsize"><option value="l">l (large, ~1.2GB)</option><option value="h">h (huge, ~2.5GB)</option></select>
       </label>
@@ -1393,7 +1468,41 @@ $('vfile').onchange = () => {
   Diagnostics.setTrack(null, null);
   $('vsummary').textContent = '';
   $('vsync').textContent = '';
+  $('vexample').value = '';
   setVideoSrc(f);
+};
+
+// Picking an example clip: pull down its committed video and its cached track,
+// then load both. No pose run — the track was computed offline and shipped with
+// the clip, so the diagnostics appear the moment the video can be scrubbed.
+$('vexample').onchange = async () => {
+  const id = $('vexample').value;
+  if (!id) return;
+  stopCameraStream();
+  $('vfile').value = '';
+  vSource = null;
+  vKeypointsRaw = null; vKeypoints = null; vMeta = null; vSample = null; vClock = null;
+  vEquipment = null; vEqPrompts = null; vRenderEqNote();
+  updatePlotControls();
+  Diagnostics.setTrack(null, null);
+  $('vsummary').textContent = '';
+  $('vsync').textContent = '';
+  $('vstatus').textContent = 'loading example…';
+  try {
+    const [vr, tr] = await Promise.all([
+      fetch(`/api/examples/${encodeURI(id)}/video`),
+      fetch(`/api/examples/${encodeURI(id)}/track`),
+    ]);
+    if (!vr.ok || !tr.ok) throw new Error('example not available');
+    const blob = await vr.blob();
+    const data = await tr.json();
+    vSource = { blob, filename: id.split('/').pop() + '.mp4' };
+    setVideoSrc(blob);
+    applyTrack(data);
+    $('vstatus').textContent = 'loaded example — cached track, no run needed';
+  } catch (e) {
+    $('vstatus').textContent = 'error loading example: ' + e.message;
+  }
 };
 
 // Record-then-run, same as picking a file: getUserMedia previews live, a
@@ -1507,6 +1616,16 @@ async function vPoll() {
   const rr = await fetch('/api/pose/video/result');
   const data = await rr.json();
   if (!rr.ok) { $('vstatus').textContent = 'error: ' + data.error; return; }
+  applyTrack(data);
+  $('vstatus').textContent = vMeta.equipment_error
+    ? 'done — equipment detection failed: ' + vMeta.equipment_error
+    : 'done';
+}
+
+// Load a {keypoints, meta} track into every view — the shared tail of a fresh
+// pose run (vPoll) and of picking a cached example clip. The caller owns the
+// status line; this only touches the track and what's derived from it.
+function applyTrack(data) {
   vKeypointsRaw = data.keypoints;
   vMeta = data.meta;
   vEquipment = vMeta.equipment || null;
@@ -1522,9 +1641,6 @@ async function vPoll() {
   // if the video was already rolling when the run finished, the loop it
   // started was drawing nothing — restart it now that there's a track.
   if (!vvideo.paused && !vvideo.ended) startOverlayLoop();
-  $('vstatus').textContent = vMeta.equipment_error
-    ? 'done — equipment detection failed: ' + vMeta.equipment_error
-    : 'done';
   $('vsummary').textContent =
     `${vMeta.frames_processed}/${vMeta.frame_count} frames processed (stride ${vMeta.frame_stride}), ` +
     `${vMeta.fps.toFixed(2)} fps · ` + subjectLine(vMeta);
@@ -1607,6 +1723,21 @@ fetch('/api/capabilities').then(r => r.json()).then(c => {
   $('veqnote').textContent =
     'bar & plate detection needs CLIPSeg — run ./scripts/download_models.sh';
 }).catch(() => { /* leave the controls alone; a run would report the real error */ });
+
+// Populate the example dropdown from the committed fixtures. Stays hidden if
+// none ship with this checkout, so the control never dangles empty.
+fetch('/api/examples').then(r => r.json()).then(list => {
+  if (!Array.isArray(list) || !list.length) return;
+  const sel = $('vexample');
+  for (const ex of list) {
+    const opt = document.createElement('option');
+    opt.value = ex.id;
+    opt.textContent = ex.label;
+    if (ex.notes) opt.title = ex.notes;
+    sel.appendChild(opt);
+  }
+  $('vexampleWrap').style.display = '';
+}).catch(() => { /* no gallery is fine — upload/record still work */ });
 
 $('tabImage').onclick = () => setMode('image');
 $('tabVideo').onclick = () => setMode('video');
