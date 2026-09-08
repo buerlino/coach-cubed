@@ -70,7 +70,7 @@ import vitpose_backend
 print("checkpoints:", vitpose_backend.available())
 print("device :", vitpose_backend.DEVICE)
 import equipment_backend
-print("clipseg:", equipment_backend.model_source() if equipment_backend.available()
+print("equipment:", equipment_backend.model_source() if equipment_backend.available()
       else "MISSING (optional — see download_models.sh)")
 PY
 conda run -n $ENV python "$TMPDIR/verify.py"

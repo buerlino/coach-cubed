@@ -1074,14 +1074,29 @@ const secondPullTripleExtension = {
   },
 };
 
-const DIAGNOSTICS = [firstPullBackAngle, secondPullTripleExtension];
+// Per-lift diagnostic sets. Each page (see PAGES in app.py) names one of these
+// keys, and the app calls Diagnostics.setPage(name) to make it the active set —
+// what every function below iterates as DIAGNOSTICS. A set may be empty: a lift
+// whose diagnostics haven't been written yet still gets a fully working page
+// (upload, pose, plot), just no scored cues. To add a lift's diagnostics, write
+// the objects above and list them here under the page's key.
+const DIAGNOSTIC_SETS = {
+  'snatch': [firstPullBackAngle, secondPullTripleExtension],
+  'lateral-raise': [],
+};
+const DEFAULT_SET = 'snatch';
+
+// The active set. `let`, not `const`: setPage() swaps it (and rebuilds the
+// panel) when the lift tab changes. Everything downstream reads this one array,
+// so nothing else needs to know which lift is selected.
+let DIAGNOSTICS = DIAGNOSTIC_SETS[DEFAULT_SET] || [];
 
 // Which diagnostics draw on the video. Only gates the overlay — a diagnostic
 // that's switched off is still computed, plotted and scored, since the tickbox
 // is about the frame getting crowded, not about what's being measured.
 // Default on: a new diagnostic is invisible until you go looking for it
-// otherwise.
-const enabled = new Set(DIAGNOSTICS.map(d => d.id));
+// otherwise. Reset by setPage() so it tracks the active set.
+let enabled = new Set(DIAGNOSTICS.map(d => d.id));
 
 
 // --- runner -------------------------------------------------------------
@@ -1467,6 +1482,16 @@ function buildSections() {
   if (!el.sections) return;
   el.sections.innerHTML = '';
   diagState = {};
+  // A lift can have no diagnostics yet (an empty set in DIAGNOSTIC_SETS). The
+  // page still works — pose, overlay, plot — so say so rather than leaving a
+  // blank panel that reads as broken.
+  if (!DIAGNOSTICS.length) {
+    const note = document.createElement('p');
+    note.className = 'diag-note';
+    note.textContent = 'No diagnostics for this lift yet.';
+    el.sections.appendChild(note);
+    return;
+  }
   for (const d of DIAGNOSTICS) {
     const block = document.createElement('div');
     block.className = 'diag-block';
@@ -1535,6 +1560,25 @@ const Diagnostics = {
       run();
       redrawAll();
     });
+  },
+
+  // Switch to a lift's diagnostic set. Called by app.py's setPage() every time
+  // a lift tab is selected: the video machine (upload, track, overlay, plot) is
+  // shared across lifts, so only the set of cues and the panel below it change.
+  // An unknown or absent name resolves to the empty set — a page with no cues.
+  //
+  // Rebuilds the toggles and sections for the new set, then re-scores whatever
+  // clip is already loaded against it (nothing loaded yet is fine — run() is a
+  // no-op then) and repaints. Safe to call before mount(): it just updates the
+  // module state and mount() will build from it.
+  setPage(name) {
+    DIAGNOSTICS = DIAGNOSTIC_SETS[name] || [];
+    enabled = new Set(DIAGNOSTICS.map(d => d.id));
+    if (!el) return;
+    buildToggles();
+    buildSections();
+    if (state && state.keypoints && state.meta && state.personId) run();
+    redrawAll();
   },
 
   // opts.smoothingMs — the Gaussian σ the caller already applied to these

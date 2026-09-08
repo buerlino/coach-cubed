@@ -103,7 +103,7 @@ def api_pose_video_start():
     # worker's failure is only reported once the whole pose pass has finished,
     # which is a long wait to be told about a missing 600MB download.
     if detect_equipment and not equipment_backend.available():
-        return jsonify({"error": "CLIPSeg is not installed — run "
+        return jsonify({"error": "Grounding DINO is not installed — run "
                                  "./scripts/download_models.sh"}), 503
 
     video_file = request.files["video"]
@@ -227,7 +227,7 @@ def api_pose_video_result():
 
 # --- capabilities ---------------------------------------------------------
 # What this install can actually do, so the page can disable a control rather
-# than offer one that will 503. Only CLIPSeg is optional (the pose weights are
+# than offer one that will 503. Only the detector is optional (the pose weights are
 # a hard requirement the launch scripts check for), so this is a thin route
 # today — but it's the right shape for the next optional model.
 @app.route("/api/capabilities")
@@ -357,7 +357,7 @@ def diagnostics_js():
 
 @app.route("/")
 def index():
-    return Response(INDEX_HTML, mimetype="text/html")
+    return Response(render_index(), mimetype="text/html")
 
 
 INDEX_HTML = """<!doctype html>
@@ -428,10 +428,11 @@ INDEX_HTML = """<!doctype html>
 <body>
 <h1>coach</h1>
 
-<div class="tabs" role="tablist">
-  <button id="tabImage" class="tab" type="button" role="tab" aria-selected="false" aria-controls="imageView">image</button>
-  <button id="tabVideo" class="tab" type="button" role="tab" aria-selected="true" aria-controls="videoView">video</button>
-</div>
+<!-- One tab per page, generated from the PAGES registry in app.py (see
+     render_index / PAGES). Each carries data-page; the mode switch at the
+     bottom of the script is driven entirely off that, so adding a lift there
+     adds its tab here with no markup change. -->
+{{TABS}}
 
 <div class="layout">
 
@@ -458,81 +459,13 @@ INDEX_HTML = """<!doctype html>
 
   <div id="imagePanel" hidden>
     <h2 class="panel-h">settings</h2>
-    <div class="settings">
-      <input id="file" type="file" accept="image/*">
-      <label>model
-        <select id="size"><option value="l">l (large, ~1.2GB)</option><option value="h">h (huge, ~2.5GB)</option></select>
-      </label>
-      <button id="run">Run pose</button>
-    </div>
+    {{IMAGE_SETTINGS}}
     <p id="status"></p>
   </div>
 
   <div id="videoPanel">
     <h2 class="panel-h">settings</h2>
-    <div class="settings">
-      <input id="vfile" type="file" accept="video/*">
-      <button id="vcam" type="button">record from camera</button>
-      <!-- The committed example clips (tests/fixtures) each ship a cached track,
-           so picking one loads a fully-analysed lift instantly — no upload, no
-           GPU pass. Hidden until /api/examples reports at least one. -->
-      <label id="vexampleWrap" style="display:none">example
-        <select id="vexample"><option value="">— pick an example —</option></select>
-      </label>
-      <label>model
-        <select id="vsize"><option value="l" data-label="l (large, ~1.2GB)">l (large, ~1.2GB)</option><option value="h" data-label="h (huge, ~2.5GB)">h (huge, ~2.5GB)</option></select>
-      </label>
-      <label>frame stride
-        <input id="vstride" type="number" value="1" min="1" style="width:4em">
-        <span id="vstrideNote" style="color:#8a8a80;font-size:11px"></span>
-      </label>
-      <button id="vrun">Run pose on video</button>
-      <button id="vcancel" type="button" style="display:none;background:#722;color:#fff;">Cancel</button>
-      <div id="vprogWrap" style="display:none;width:100%;max-width:420px;background:#222;border-radius:6px;overflow:hidden;">
-        <div id="vprogBar" style="height:8px;width:0%;background:#4a9;transition:width .2s linear;"></div>
-      </div>
-      <label>speed
-        <select id="vspeed">
-          <option value="0.1">0.1x</option>
-          <option value="0.25">0.25x</option>
-          <option value="0.5">0.5x</option>
-          <option value="1" selected>1x</option>
-          <option value="1.5">1.5x</option>
-          <option value="2">2x</option>
-        </select>
-      </label>
-      <!-- Gaussian sigma, in milliseconds of video time. Applied client-side to
-           the track already in memory, so dragging it is instant — no re-run. -->
-      <label>time smoothing
-        <input id="vsmooth" type="range" min="0" max="300" step="5" value="50" style="vertical-align:middle;width:140px">
-        <span id="vsmoothVal" style="display:inline-block;min-width:8em">&sigma; = 50 ms</span>
-      </label>
-      <!-- second pass of the smoothing: keep the smoothed path, re-time the
-           points along it so speed follows the raw track (smoothKeypoints). A
-           tickbox so the two can be compared on the speed plot below. -->
-      <label style="white-space:nowrap">
-        <input id="vkeepvel" type="checkbox" checked style="vertical-align:middle;margin:0 4px 0 0"> preserve velocity
-      </label>
-      <!-- draw the mesh at the playhead's exact time instead of at the nearest
-           processed frame (poseAtTime). Off = every painted pose is one the
-           model actually produced; on = the in-between poses are inferred. -->
-      <label style="white-space:nowrap" title="Interpolate the mesh between processed frames so it glides instead of stepping. In-between poses are computed, not detected.">
-        <input id="vinterp" type="checkbox" checked style="vertical-align:middle;margin:0 4px 0 0"> smooth motion
-      </label>
-      <!-- Equipment detection is part of the run, not a view setting: it costs
-           a second model pass per frame, so it has to be chosen before the run
-           rather than toggled after it. The two overlay tickboxes below are the
-           view settings, and they only do anything once a run has been made
-           with this one on. -->
-      <label style="white-space:nowrap" title="Also locate the barbell and its plates on every processed frame, with CLIPSeg. Roughly halves analysis speed.">
-        <input id="veqrun" type="checkbox" checked style="vertical-align:middle;margin:0 4px 0 0"> detect bar &amp; plates
-      </label>
-      <div class="row" style="gap:14px">
-        <label style="white-space:nowrap"><input id="veqbar" type="checkbox" style="vertical-align:middle;margin:0 4px 0 0"> overlay bar</label>
-        <label style="white-space:nowrap"><input id="veqplates" type="checkbox" style="vertical-align:middle;margin:0 4px 0 0"> overlay plates</label>
-      </div>
-      <p id="veqnote" style="font-size:12px;color:#898781;margin:2px 0 0"></p>
-    </div>
+    {{VIDEO_SETTINGS}}
     <p id="vstatus"></p>
 
     <!-- Diagnostics share the video's time axis, so any point on a curve can be
@@ -941,7 +874,7 @@ const pcanvas = $('plotCanvas'), pctx = pcanvas.getContext('2d');
 // Stubbed if that script failed to load, so a ReferenceError here doesn't take
 // the rest of the page's handlers down with it.
 const Diagnostics = window.Diagnostics ||
-  { mount(){}, setTrack(){}, draw(){}, overlay(){} };
+  { mount(){}, setPage(){}, setTrack(){}, draw(){}, overlay(){} };
 Diagnostics.mount({
   sections: $('diagSections'),
   select: $('diagPersonSelect'),
@@ -1902,25 +1835,41 @@ function subjectLine(meta) {
   return s;
 }
 
-// --- image | video mode ---------------------------------------------------
-// One medium at a time. The view goes in the left column and its settings —
-// plus, for video, everything computed from the track — go in the right one.
-function setMode(mode) {
-  const video = mode === 'video';
+// --- pages ----------------------------------------------------------------
+// One page at a time. PAGES is generated from the registry in app.py — one
+// entry per tab, each { id, label, media: 'image'|'video', diagnostics }. The
+// video machine (upload, track, overlay, plot) is shared across every lift
+// page; a lift page differs from another only in which diagnostic SET runs,
+// so switching between two lifts keeps the loaded clip and just re-scores it.
+const PAGES = {{PAGES_JSON}};
+const PAGES_BY_ID = {};
+for (const p of PAGES) PAGES_BY_ID[p.id] = p;
+
+function setPage(id) {
+  const page = PAGES_BY_ID[id] || PAGES[0];
+  const video = page.media === 'video';
   $('imageView').hidden = video;
   $('imagePanel').hidden = video;
   $('videoView').hidden = !video;
   $('videoPanel').hidden = !video;
-  $('tabImage').setAttribute('aria-selected', String(!video));
-  $('tabVideo').setAttribute('aria-selected', String(video));
-  // Leaving the video tab pauses playback. A display:none <video> stops
-  // delivering frame callbacks, so the overlay watchdog would otherwise spend
-  // the whole time reviving a loop that has nothing to paint on.
-  if (!video && !(vRecorder && vRecorder.state === 'recording')) vvideo.pause();
+  for (const btn of document.querySelectorAll('.tab')) {
+    btn.setAttribute('aria-selected', String(btn.dataset.page === page.id));
+  }
+  if (video) {
+    // The lift's cues. setPage rebuilds the diagnostics panel and re-scores any
+    // clip already loaded against this set — a page with no set shows an empty
+    // (but working) diagnostics panel.
+    Diagnostics.setPage(page.diagnostics);
+  } else if (!(vRecorder && vRecorder.state === 'recording')) {
+    // Leaving a video page pauses playback. A display:none <video> stops
+    // delivering frame callbacks, so the overlay watchdog would otherwise spend
+    // the whole time reviving a loop that has nothing to paint on.
+    vvideo.pause();
+  }
 }
-// CLIPSeg is an optional download (scripts/download_models.sh offers it), so on
-// a machine without it the three equipment controls are turned off and say why,
-// rather than being tickable into a 503.
+// Grounding DINO is an optional download (scripts/download_models.sh offers it),
+// so on a machine without it the three equipment controls are turned off and say
+// why, rather than being tickable into a 503.
 fetch('/api/capabilities').then(r => r.json()).then(c => {
   if (c.equipment) return;
   for (const id of ['veqrun', 'veqbar', 'veqplates']) {
@@ -1929,7 +1878,7 @@ fetch('/api/capabilities').then(r => r.json()).then(c => {
     $(id).closest('label').style.opacity = 0.5;
   }
   $('veqnote').textContent =
-    'bar & plate detection needs CLIPSeg — run ./scripts/download_models.sh';
+    'bar & plate detection needs Grounding DINO — run ./scripts/download_models.sh';
 }).catch(() => { /* leave the controls alone; a run would report the real error */ });
 
 // Populate the example dropdown from the committed fixtures. Stays hidden if
@@ -1948,13 +1897,145 @@ fetch('/api/examples').then(r => r.json()).then(list => {
   $('vexampleWrap').style.display = '';
 }).catch(() => { /* no gallery is fine — upload/record still work */ });
 
-$('tabImage').onclick = () => setMode('image');
-$('tabVideo').onclick = () => setMode('video');
-setMode('video');   // the diagnostics live here; the image path is the side trip
+for (const btn of document.querySelectorAll('.tab')) {
+  btn.onclick = () => setPage(btn.dataset.page);
+}
+setPage('{{DEFAULT_PAGE}}');   // a lift page by default; the image path is the side trip
 </script>
 </body>
 </html>
 """
+
+
+# --- pages ----------------------------------------------------------------
+# The panels coach offers, one per tab, in tab order. This is the single place
+# a page is declared: the tabs, the mode switch and the per-page diagnostic set
+# are all derived from it. A page is either the image path or a lift on the
+# shared video machine; a lift names a diagnostic SET (a key in DIAGNOSTIC_SETS
+# in diagnostics.js), which may be empty for a lift whose cues aren't written
+# yet. Add a lift by appending an entry here and its set in diagnostics.js —
+# see .claude/skills/panel-add/.
+PAGES = [
+    {"id": "image", "label": "image", "media": "image"},
+    {"id": "snatch", "label": "snatch", "media": "video", "diagnostics": "snatch"},
+    {"id": "lateral-raise", "label": "lateral raise", "media": "video",
+     "diagnostics": "lateral-raise"},
+]
+DEFAULT_PAGE = "snatch"   # the lift shown on load — the diagnostics live here
+
+
+# --- settings sections (central) ------------------------------------------
+# The settings block is the same on every page of a medium, so it is written
+# once here rather than inline per panel: edit a control in one place and every
+# page that shows it changes. render_index() drops these into each panel. The
+# image panel and the (shared) video panel are the two mediums; a new lift page
+# reuses VIDEO_SETTINGS verbatim, which is the point.
+IMAGE_SETTINGS_HTML = """<div class="settings">
+      <input id="file" type="file" accept="image/*">
+      <label>model
+        <select id="size"><option value="l">l (large, ~1.2GB)</option><option value="h">h (huge, ~2.5GB)</option></select>
+      </label>
+      <button id="run">Run pose</button>
+    </div>"""
+
+VIDEO_SETTINGS_HTML = """<div class="settings">
+      <input id="vfile" type="file" accept="video/*">
+      <button id="vcam" type="button">record from camera</button>
+      <!-- The committed example clips (tests/fixtures) each ship a cached track,
+           so picking one loads a fully-analysed lift instantly — no upload, no
+           GPU pass. Hidden until /api/examples reports at least one. -->
+      <label id="vexampleWrap" style="display:none">example
+        <select id="vexample"><option value="">— pick an example —</option></select>
+      </label>
+      <label>model
+        <select id="vsize"><option value="l" data-label="l (large, ~1.2GB)">l (large, ~1.2GB)</option><option value="h" data-label="h (huge, ~2.5GB)">h (huge, ~2.5GB)</option></select>
+      </label>
+      <label>frame stride
+        <input id="vstride" type="number" value="1" min="1" style="width:4em">
+        <span id="vstrideNote" style="color:#8a8a80;font-size:11px"></span>
+      </label>
+      <button id="vrun">Run pose on video</button>
+      <button id="vcancel" type="button" style="display:none;background:#722;color:#fff;">Cancel</button>
+      <div id="vprogWrap" style="display:none;width:100%;max-width:420px;background:#222;border-radius:6px;overflow:hidden;">
+        <div id="vprogBar" style="height:8px;width:0%;background:#4a9;transition:width .2s linear;"></div>
+      </div>
+      <label>speed
+        <select id="vspeed">
+          <option value="0.1">0.1x</option>
+          <option value="0.25">0.25x</option>
+          <option value="0.5">0.5x</option>
+          <option value="1" selected>1x</option>
+          <option value="1.5">1.5x</option>
+          <option value="2">2x</option>
+        </select>
+      </label>
+      <!-- Gaussian sigma, in milliseconds of video time. Applied client-side to
+           the track already in memory, so dragging it is instant — no re-run. -->
+      <label>time smoothing
+        <input id="vsmooth" type="range" min="0" max="300" step="5" value="50" style="vertical-align:middle;width:140px">
+        <span id="vsmoothVal" style="display:inline-block;min-width:8em">&sigma; = 50 ms</span>
+      </label>
+      <!-- second pass of the smoothing: keep the smoothed path, re-time the
+           points along it so speed follows the raw track (smoothKeypoints). A
+           tickbox so the two can be compared on the speed plot below. -->
+      <label style="white-space:nowrap">
+        <input id="vkeepvel" type="checkbox" checked style="vertical-align:middle;margin:0 4px 0 0"> preserve velocity
+      </label>
+      <!-- draw the mesh at the playhead's exact time instead of at the nearest
+           processed frame (poseAtTime). Off = every painted pose is one the
+           model actually produced; on = the in-between poses are inferred. -->
+      <label style="white-space:nowrap" title="Interpolate the mesh between processed frames so it glides instead of stepping. In-between poses are computed, not detected.">
+        <input id="vinterp" type="checkbox" checked style="vertical-align:middle;margin:0 4px 0 0"> smooth motion
+      </label>
+      <!-- Equipment detection is part of the run, not a view setting: it costs
+           a second model pass per frame, so it has to be chosen before the run
+           rather than toggled after it. The two overlay tickboxes below are the
+           view settings, and they only do anything once a run has been made
+           with this one on. -->
+      <label style="white-space:nowrap" title="Also locate the barbell and its plates on every processed frame, with Grounding DINO. Roughly halves analysis speed.">
+        <input id="veqrun" type="checkbox" checked style="vertical-align:middle;margin:0 4px 0 0"> detect bar &amp; plates
+      </label>
+      <div class="row" style="gap:14px">
+        <label style="white-space:nowrap"><input id="veqbar" type="checkbox" style="vertical-align:middle;margin:0 4px 0 0"> overlay bar</label>
+        <label style="white-space:nowrap"><input id="veqplates" type="checkbox" style="vertical-align:middle;margin:0 4px 0 0"> overlay plates</label>
+      </div>
+      <p id="veqnote" style="font-size:12px;color:#898781;margin:2px 0 0"></p>
+    </div>"""
+
+
+def _tabs_html():
+    """One <button> per page, in registry order, for the tablist."""
+    rows = []
+    for p in PAGES:
+        controls = "imageView" if p["media"] == "image" else "videoView"
+        selected = "true" if p["id"] == DEFAULT_PAGE else "false"
+        rows.append(
+            f'  <button data-page="{p["id"]}" class="tab" type="button" role="tab" '
+            f'aria-selected="{selected}" aria-controls="{controls}">{p["label"]}</button>'
+        )
+    return '<div class="tabs" role="tablist">\n' + "\n".join(rows) + "\n</div>"
+
+
+def render_index():
+    """INDEX_HTML with the registry-derived pieces filled in. The template holds
+    everything static; only the tabs, the two settings blocks and the JS page
+    list depend on PAGES, so those are the only substitutions."""
+    # Only what the JS needs to switch pages — never the diagnostic objects,
+    # which live in diagnostics.js. A missing "diagnostics" (the image page)
+    # becomes null.
+    pages_js = [
+        {"id": p["id"], "label": p["label"], "media": p["media"],
+         "diagnostics": p.get("diagnostics")}
+        for p in PAGES
+    ]
+    return (
+        INDEX_HTML
+        .replace("{{TABS}}", _tabs_html())
+        .replace("{{IMAGE_SETTINGS}}", IMAGE_SETTINGS_HTML)
+        .replace("{{VIDEO_SETTINGS}}", VIDEO_SETTINGS_HTML)
+        .replace("{{PAGES_JSON}}", json.dumps(pages_js))
+        .replace("{{DEFAULT_PAGE}}", DEFAULT_PAGE)
+    )
 
 
 def preflight():
@@ -1962,10 +2043,11 @@ def preflight():
     for size, ok in vitpose_backend.available().items():
         lines.append(f"  vitpose-{size}-coco: {'ok' if ok else 'MISSING'}")
     if equipment_backend.available():
-        lines.append(f"  clipseg: ok ({equipment_backend.model_source()})")
+        lines.append(f"  grounding-dino: ok ({equipment_backend.model_source()})")
     else:
-        lines.append("  clipseg: MISSING — 'detect bar & plates' unavailable; "
-                     "run ./scripts/download_models.sh")
+        lines.append("  grounding-dino: not installed (optional) — 'detect bar & plates' "
+                     "unavailable, everything else works; add it with "
+                     "COACH_DINO=1 ./scripts/download_models.sh")
     lines.append(f"  device: {vitpose_backend.DEVICE}")
     return lines
 

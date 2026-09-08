@@ -1,55 +1,72 @@
-"""Text-prompted barbell/plate detection: frame in -> per-pixel masks (+ boxes) out.
+"""Text-prompted barbell/plate detection: frame in -> boxes out.
 
 In-process and lazily loaded, same contract as vitpose_backend (see its module
-docstring for why coach doesn't put a model behind an HTTP hop). CLIPSeg is
-~150M params / ~600MB, so keeping it resident next to ViTPose costs a fraction
-of what the pose checkpoints already do on this box's W7800.
+docstring for why coach doesn't put a model behind an HTTP hop). Grounding DINO
+(IDEA-Research/grounding-dino-base) is ~230M params / ~700MB, so keeping it
+resident next to ViTPose costs a fraction of what the pose checkpoints already
+do on this box.
 
-Why a prompted segmenter rather than a trained detector: there is no barbell
-detection checkpoint to download, and labelling one is a project of its own.
-CLIPSeg turns "what does a barbell look like" into a sentence, which is the
-cheapest possible way to get equipment geometry out of a frame — and geometry
-is the point. The plates are discs of a KNOWN diameter (PLATE_DIAMETER_MM) at
-a KNOWN separation along the bar, so once they're located in pixels they are a
-metric ruler pinned to the lift, which is what the 3D work needs.
+Why an open-vocabulary detector rather than a trained barbell model: there is
+no barbell detection checkpoint to download, and labelling one is a project of
+its own. Grounding DINO turns "what does a barbell look like" into a sentence,
+which is the cheapest possible way to get equipment geometry out of a frame --
+and geometry is the point. The plates are discs of a KNOWN diameter
+(PLATE_DIAMETER_MM) at a KNOWN separation along the bar, so once they're located
+in pixels they are a metric ruler pinned to the lift, which is what the 3D work
+needs.
 
-  --- the two-stage search, and why it isn't one prompt ---
+  --- boxes, not masks, and why that's enough here ---
 
-Asking CLIPSeg for the bar on the full frame does not work, and fails in the
-worst way: measured on a 1080x1920 snatch frame, every bar-ish prompt scored
-0.01-0.15 on the actual shaft, while "the silver shaft between the plates"
-scored 0.85 on the EDGE OF THE PLATFORM. A thin bar is a couple of pixels wide
-after the processor squashes the frame to 352x352 -- below the resolution the
-decoder can express -- so the prompt lands on whatever else in the scene is
-long, straight and metallic.
+Grounding DINO is a DETECTOR: text prompt + frame in, bounding boxes out. It
+does not produce a per-pixel mask (its only spatial output is `pred_boxes`;
+there is no `pred_masks`), so the overlay draws rectangles rather than traced
+disc/bar outlines -- the frontend's drawEquipment already falls back from polygon
+to box, so nothing downstream breaks. And the one measurement this exists to
+feed, the plate's pixel diameter, is read from the box's short side (diameter_px
+below), never from a mask.
 
-The plates have no such problem (0.73 on the same frame, and the rack of loose
-plates on the floor behind the lifter stays dark), so the search goes in that
-order and uses the first result to make the second one possible:
+  --- why the mask refiner was tried and dropped ---
 
-  1. plates, on the full frame -> the two largest blobs are the two stacks;
-  2. bar, on a CROP spanning those stacks -> the shaft now covers enough of the
-     352x352 input to be found. Same prompt that scored 0.15 full-frame scores
-     0.67 here.
+The obvious next step -- refine each DINO box into a mask by running the old
+CLIPSeg segmenter on a crop of it, then fit an ellipse for a tilt-corrected
+diameter -- was built and MEASURED on this test lift, and it made things worse,
+not better. Two reasons, both about the footage:
+  * DINO boxes the whole PLATE STACK, and on a side-on lift the bumpers recede
+    along the bar, so the box short side is already ~one plate's diameter while
+    an ellipse over the box spans all ~8 plates (measured: 458px vs the correct
+    ~157px, "tilt" 0.06 -- nonsense as a single-disc diameter).
+  * CLIPSeg's response over a cluttered, multi-colour crop is a diffuse cloud,
+    not a crisp disc: thresholding it fragmented into 40+ speckle components and
+    the mask leaked onto the platform edge and a background athlete's legs.
+A finer mask only helps when a plate FACES the camera (a real disc to fit). A
+side-on stack is the orientation problem, which is the 3D reconstruction task
+itself -- not something a segmenter bolted onto the box solves. So this stays
+box-only; the tilt-aware diameter is deferred to the 3D work, where the bar
+vector (from the two plate centres, and the wrists ViTPose already has) says
+which regime a frame is in.
 
-So the bar is only ever looked for where the plates say a bar must be. If the
-plates aren't found, no bar is reported -- a full-frame guess would be the
-platform edge, and a confidently wrong bar is worse for a 3D anchor than none.
+  --- one full-frame pass, not the old two-stage crop ---
+
+CLIPSeg, when it was the detector here, couldn't find the bar full-frame: a thin
+shaft squashed to a couple of pixels landed on whatever else in the scene was
+long and metallic, so the search had to find the plates first and then hunt the
+bar in a crop spanning them. Grounding DINO doesn't have that problem -- it
+detects small/thin objects at the resolution its own backbone runs (shortest
+edge ~800px, far above CLIPSeg's 352 square), so a single prompt over the whole
+frame finds both. One call per frame, one GPU submission, and the
+plates-first-then-crop scaffolding is gone.
 
   --- what this does not do yet ---
 
-The NEAR plate stack is found on essentially every frame of the test lift, and
-its measured diameter is stable to within a few percent (225-237px across the
-clip), which is what a scale reference has to be. The FAR stack is much
-weaker: it is dimmer, smaller and usually half behind the athlete, so it
-scores 0.04-0.34 where the near one scores 0.30-0.76, and on some frames the
-loose plates racked on the floor behind the lifter outscore it. Both stacks
-come back with their own peak response in "score" precisely so this is visible
-rather than assumed -- a low-scoring second box is a candidate, not a
-measurement.
+The NEAR plate stack is the strong, stable detection; its measured diameter is
+the scale reference. The FAR stack is dimmer, smaller and usually half behind
+the athlete, so it scores lower and on some frames a rack of loose plates on the
+floor outscores it. Both stacks come back with their own confidence in "score"
+precisely so this is visible rather than assumed -- a low-scoring second box is
+a candidate, not a measurement.
 
-Restricting the search to a corridor along the bar (the athlete's two wrists
-are ON the bar, and ViTPose has already found them by the time this runs) was
+Restricting the search to a corridor along the bar (the athlete's two wrists are
+ON the bar, and ViTPose has already found them by the time this runs) was
 prototyped and does fix the background-plate confusion. It is left out of this
 first pass to keep equipment detection independent of pose, which is what lets
 the two models run concurrently instead of in lockstep.
@@ -67,14 +84,14 @@ import numpy as np
 os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 import torch
 
-MODEL_ID = os.environ.get("COACH_CLIPSEG_MODEL", "CIDAS/clipseg-rd64-refined")
+MODEL_ID = os.environ.get("COACH_DINO_MODEL", "IDEA-Research/grounding-dino-base")
 # Where scripts/download_models.sh puts the checkpoint. Kept beside the pose
 # weights under ~/models rather than left to the HuggingFace cache, for the
 # same reason vitpose_backend has a MODEL_DIR: a checkpoint the setup script
 # placed deliberately is one you can find, copy to another box, or delete —
-# the hub cache is none of those. Must match the script's CLIPSEG_DIR.
-CLIPSEG_DIR = Path(os.environ.get("COACH_CLIPSEG_DIR",
-                                  str(Path.home() / "models/clipseg-rd64-refined")))
+# the hub cache is none of those. Must match the script's DINO_DIR.
+DINO_DIR = Path(os.environ.get("COACH_DINO_DIR",
+                               str(Path.home() / "models/grounding-dino-base")))
 
 
 def model_source():
@@ -84,24 +101,25 @@ def model_source():
     download_models.sh working — transformers will pull from the hub on first
     use (slow, and needs network, which is exactly what the local copy avoids).
     """
-    return str(CLIPSEG_DIR) if (CLIPSEG_DIR / "config.json").exists() else MODEL_ID
+    return str(DINO_DIR) if (DINO_DIR / "config.json").exists() else MODEL_ID
 
-# Ultrashort on purpose. These go through CLIP's text encoder, which was
-# trained on caption-length noun phrases -- the long physical description that
-# motivates each one ("grip ~2-3cm diameter, plate holder ~4-5cm") makes the
-# embedding worse, not better, because the extra tokens dilute the head noun.
-# The dimensions live in the constants below, where they can actually be used,
-# rather than in a sentence the encoder will average away.
+# Short noun phrases, one per object. Grounding DINO matches free text against
+# the frame, so these go into ITS text encoder as a single query built below
+# (BAR_PROMPT + ". " + PLATE_PROMPT + "."), the "categories separated by
+# periods" format the model was trained on. Each detection comes back tagged
+# with the phrase it matched, and _classify() sorts it into bar-vs-plate by the
+# keyword in that phrase -- so the prompts must contain "bar" and "plate"
+# respectively for that routing to work.
 #
-# Both were picked by measuring, not by taste -- peak sigmoid on a real lift
-# frame, against the alternatives:
-#   plates: "a stack of round weight plates" 0.73 · "colorful weight plates on
-#           a barbell" 0.61 · "round weight plates" 0.42 (and that one also
-#           lights up the loose plates racked on the floor) · "weight plates" 0.04
-#   bar:    (on the crop) "a thin metal rod" 0.68 · "a barbell bar" 0.67 ·
-#           "a horizontal metal pole" 0.64 · "a chrome bar" 0.17
-PLATE_PROMPT = os.environ.get("COACH_PLATE_PROMPT", "a stack of round weight plates")
-BAR_PROMPT = os.environ.get("COACH_BAR_PROMPT", "a thin metal rod")
+# The plate phrase was measured, not guessed, and the wording matters more than
+# it looks: the two objects share one query, so a strong "a barbell" match steals
+# probability mass from a bland plate phrase. On a real snatch frame the near
+# stack scored "colorful bumper plates" 0.54 · "colorful weight plates" 0.50 ·
+# "weight plates" 0.21 · "plates" 0.17 -- the last two fall under the 0.25 gate
+# and vanish, so the specific, colour-led phrase is what keeps the plates
+# visible alongside the bar rather than being crowded out of the same query.
+BAR_PROMPT = os.environ.get("COACH_BAR_PROMPT", "a barbell")
+PLATE_PROMPT = os.environ.get("COACH_PLATE_PROMPT", "colorful bumper plates")
 
 # IWF competition geometry, in millimetres. Hardcoded because it is legislated:
 # a competition plate is 450mm across whatever colour or weight it is, which is
@@ -115,25 +133,14 @@ BAR_GRIP_DIAMETER_MM = 28.0   # men's shaft; women's is 25mm ("~2-3cm")
 BAR_SLEEVE_DIAMETER_MM = 50.0 # the loadable sleeve the plates ride on ("~4-5cm")
 
 # --- thresholds ---
-# Relative to each frame's own peak, not absolute. CLIPSeg's sigmoid output is
-# not calibrated, across prompts OR across frames, and both were measured: the
-# plate prompt peaked at 0.76 on one frame of the test lift and 0.11 on
-# another where the map was just as clean and just as correctly placed. A
-# fixed cutoff would have thrown the second one away. A fraction of the peak
-# asks the stable question instead: which pixels did this prompt like nearly
-# as much as the best one.
-REL_THRESHOLD = 0.30
-FLOOR = 0.02            # ...but never threshold below this, so a frame with no
-                        # barbell in it can't segment its own background noise
-MIN_AREA_FRAC = 3e-4    # blobs smaller than this fraction of the search area
-                        # are speckle, not a 450mm disc
-
-# "Did this prompt find anything" has to be scale-free for the same reason, so
-# it's peak-over-background rather than peak alone. On the test lift this ran
-# 5-20 for frames with a barbell in them (including the 0.11 one, at 9.0),
-# against ~1 for a map with no structure -- everything and nothing look alike
-# in absolute terms, but not in contrast.
-MIN_CONTRAST = 3.0
+# Grounding DINO scores each box two ways: a box confidence and, per query token,
+# how strongly the box matches that word. BOX_THRESHOLD drops low-confidence
+# boxes; TEXT_THRESHOLD decides which query words are counted as the box's label
+# (see post_process_grounded_object_detection). Both default to the model card's
+# 0.25 and are env-overridable so a noisy scene can be tightened without a code
+# change.
+BOX_THRESHOLD = float(os.environ.get("COACH_DINO_BOX_THRESHOLD", "0.25"))
+TEXT_THRESHOLD = float(os.environ.get("COACH_DINO_TEXT_THRESHOLD", "0.25"))
 
 # cuda (incl. ROCm/HIP) -> mps (Apple Silicon) -> cpu. Matches
 # vitpose_backend._select_device; see PYTORCH_ENABLE_MPS_FALLBACK there, which
@@ -148,7 +155,7 @@ else:
 _model = None
 _processor = None
 _load_lock = threading.Lock()
-# CLIPSeg runs on the same GPU as ViTPose and from a different thread (see
+# The detector runs on the same GPU as ViTPose and from a different thread (see
 # vitpose_backend.infer_video's equipment worker), so its own calls are
 # serialized here. Deliberately NOT vitpose_backend._infer_lock: the whole
 # point of the worker is that the two models overlap, one doing CPU-side pre-
@@ -157,14 +164,14 @@ _infer_lock = threading.Lock()
 
 # ...but that overlap has to stop at the GPU submission itself on Apple Silicon.
 # MPSGraph is not thread-safe for concurrent command-buffer encode: two threads
-# reaching Metal at once (ViTPose's forward and CLIPSeg's, from the pose loop
-# and the equipment worker) segfaults inside the driver -- observed as a
-# SIGSEGV on the "metal gpu stream" thread, in softmax, ~15 frames into a run,
-# whenever the two happened to line up. So the two models share ONE lock around
-# the forward pass, held for as short a span as possible. CUDA/ROCm IS safe for
-# concurrent submission from two threads -- that's what makes the worker worth
-# having on the deploy box -- so this only serializes on MPS and is a no-op
-# elsewhere, leaving the CPU-side pre/post overlap intact on both.
+# reaching Metal at once (ViTPose's forward and the detector's, from the pose
+# loop and the equipment worker) segfaults inside the driver -- observed as a
+# SIGSEGV on the "metal gpu stream" thread, ~15 frames into a run, whenever the
+# two happened to line up. So the two models share ONE lock around the forward
+# pass, held for as short a span as possible. CUDA/ROCm IS safe for concurrent
+# submission from two threads -- that's what makes the worker worth having on the
+# deploy box -- so this only serializes on MPS and is a no-op elsewhere, leaving
+# the CPU-side pre/post overlap intact on both.
 _gpu_submit_lock = threading.Lock()
 
 
@@ -174,7 +181,7 @@ def gpu_submit():
     Real mutual exclusion on MPS (where concurrent Metal submission crashes),
     a no-op on cuda/cpu (where the worker's whole point is to overlap). Acquired
     by BOTH equipment_backend and vitpose_backend around their model call, so on
-    MPS the pose forward and the CLIPSeg forward can never encode at once. Kept
+    MPS the pose forward and the detector forward can never encode at once. Kept
     to the forward itself, not the surrounding CPU work, so the two threads still
     overlap everywhere it's safe to.
     """
@@ -189,7 +196,7 @@ def available():
     hub cache counts too: a box that pulled the model before the local layout
     existed shouldn't be told it's missing.
     """
-    if (CLIPSEG_DIR / "config.json").exists():
+    if (DINO_DIR / "config.json").exists():
         return True
     try:
         from huggingface_hub import snapshot_download
@@ -200,7 +207,7 @@ def available():
 
 
 def get_model():
-    """Lazy-load CLIPSeg + its processor, then keep them resident.
+    """Lazy-load Grounding DINO + its processor, then keep them resident.
 
     Same "first request pays" contract as vitpose_backend.get_model().
     """
@@ -209,10 +216,11 @@ def get_model():
         return _model, _processor
     with _load_lock:
         if _model is None:                 # re-check: lost the race while blocked
-            from transformers import CLIPSegProcessor, CLIPSegForImageSegmentation
+            from transformers import (AutoProcessor,
+                                       AutoModelForZeroShotObjectDetection)
             src = model_source()
-            proc = CLIPSegProcessor.from_pretrained(src)
-            model = CLIPSegForImageSegmentation.from_pretrained(src)
+            proc = AutoProcessor.from_pretrained(src)
+            model = AutoModelForZeroShotObjectDetection.from_pretrained(src)
             # The weight copy to the GPU is itself a Metal submission, and it
             # happens on the worker thread on frame 0 while ViTPose is running
             # the same frame -- so it has to take the shared lock too, or the
@@ -224,154 +232,106 @@ def get_model():
     return _model, _processor
 
 
-def _probability_map(rgb, prompt):
-    """Run one prompt over one RGB array -> a probability map at ITS size.
+def _query_text():
+    """The single query string DINO sees, in its "phrases end with periods" form."""
+    return f"{BAR_PROMPT}. {PLATE_PROMPT}.".lower()
 
-    The 352x352 the model works at is an implementation detail that stops here:
-    the map is resized back to the input's own pixel grid, so every caller
-    below can do its geometry in the coordinates it passed in and a crop only
-    has to add its own origin. (The processor squashes to a square without
-    preserving aspect ratio, so this undoes exactly that same squash.)
+
+def _detect_raw(rgb):
+    """Run the detector over one RGB array -> a flat list of detections.
+
+    Each detection is {"box": [x0,y0,x1,y1] (ints, clamped to the frame),
+    "score": float, "label": str} in the array's OWN pixel coordinates -- the
+    processor resizes internally and post_process maps the boxes back, so every
+    caller works in the coordinates it passed in. The label is the query phrase
+    the box matched, which _classify() routes on.
     """
     model, proc = get_model()
     h, w = rgb.shape[:2]
-    # Pre-shrink with cv2 rather than handing the processor a 1080p frame: it
-    # resizes with PIL, which measured ~10ms/frame at that size against ~1ms
-    # here, and the result is identical input to the model either way.
-    small = cv2.resize(rgb, (352, 352), interpolation=cv2.INTER_AREA)
-    inputs = proc(text=[prompt], images=[small], padding=True, return_tensors="pt")
+    # Hand the processor the native frame, not a pre-shrunk copy: DINO's whole
+    # advantage over the old segmenter is that it finds thin/small objects at
+    # its backbone's resolution (shortest edge ~800px, far above CLIPSeg's 352
+    # square), and downsampling first would throw exactly the bar away. The
+    # processor does its own resize.
+    inputs = proc(images=rgb, text=_query_text(), return_tensors="pt")
     # EVERY GPU touch goes inside gpu_submit(), not just the forward: the
-    # host->device copy (.to), the sigmoid, and the device->host copy (.cpu)
-    # each encode their own Metal command buffer, and on MPS a buffer encoded
-    # on this worker thread while ViTPose's forward encodes one on the pose
-    # thread segfaults the driver -- the exact crash the lock exists to prevent
-    # (see the gpu_submit() docstring). Scoping the lock to only model(**inputs)
-    # left those three transfers racing, so a run still died a handful of frames
-    # in whenever they lined up. The CPU-side prep above (resize, tokenize) stays
-    # outside, where overlapping the other model's GPU work is safe and the point.
+    # host->device copy (.to) and the forward each encode Metal command buffers,
+    # and on MPS a buffer encoded on this worker thread while ViTPose's forward
+    # encodes one on the pose thread segfaults the driver -- the exact crash the
+    # lock exists to prevent (see gpu_submit()). The CPU-side prep above (resize,
+    # tokenize) stays outside, where overlapping the other model's GPU work is
+    # safe and the point.
     with _infer_lock, gpu_submit():
         inputs = {k: v.to(DEVICE) for k, v in inputs.items()}
         with torch.no_grad():
-            logits = model(**inputs).logits
-        # A single-prompt batch comes back as (352, 352), a multi-prompt one as
-        # (n, 352, 352) -- normalize so this doesn't depend on the batch shape.
-        prob = torch.sigmoid(logits).squeeze().cpu().numpy().astype(np.float32)
-    return cv2.resize(prob, (w, h), interpolation=cv2.INTER_LINEAR)
-
-
-def _contour_from_mask(mask_bool):
-    """The blob's outline as a simplified [[x, y], ...] polygon, or None.
-
-    This is the per-pixel prediction made drawable: CLIPSeg's output is a dense
-    mask, and the box is only its bounding extent -- a rectangle around a region
-    that is almost never rectangular (a plate stack is a disc, the bar a thin
-    band). The external contour traces the mask itself, so the overlay can paint
-    where the network actually thinks the object is rather than the smallest box
-    that contains it.
-
-    Only the outer contour is kept (holes inside a disc don't matter to a
-    filled overlay), and it is Douglas-Peucker simplified to a fraction of its
-    perimeter: a 450mm disc at 200px comes back as ~12-20 vertices instead of
-    hundreds of single-pixel steps, which is what keeps the per-frame mask cheap
-    enough to ship in the run's JSON.
-    """
-    m = mask_bool.astype(np.uint8)
-    cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not cnts:
-        return None
-    c = max(cnts, key=cv2.contourArea)
-    c = cv2.approxPolyDP(c, 0.01 * cv2.arcLength(c, True), True)
-    if len(c) < 3:
-        return None
-    return [[int(x), int(y)] for [[x, y]] in c]
-
-
-def _boxes_from_prob(prob, max_boxes):
-    """Threshold a probability map and return its biggest blobs as boxes.
-
-    Boxes are [x0, y0, x1, y1] in the map's own pixel coordinates, biggest
-    blob first, each alongside a "polygon" tracing the same blob's per-pixel
-    mask (see _contour_from_mask). Each carries the peak probability inside it
-    rather than the frame's peak, so a second, weaker stack is reported as the
-    weaker thing it is instead of inheriting its neighbour's confidence.
-    """
-    peak = float(prob.max()) if prob.size else 0.0
-    background = float(np.percentile(prob, 95)) if prob.size else 0.0
-    if peak <= 0 or peak / max(background, 1e-6) < MIN_CONTRAST:
-        return []
-    mask = (prob >= max(REL_THRESHOLD * peak, FLOOR)).astype(np.uint8)
-    n, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
-    min_area = MIN_AREA_FRAC * prob.size
-    comps = [i for i in range(1, n) if stats[i, cv2.CC_STAT_AREA] >= min_area]
-    comps.sort(key=lambda i: -stats[i, cv2.CC_STAT_AREA])
+            outputs = model(**inputs)
+        results = proc.post_process_grounded_object_detection(
+            outputs,
+            inputs["input_ids"],
+            threshold=BOX_THRESHOLD,
+            text_threshold=TEXT_THRESHOLD,
+            target_sizes=[(h, w)],
+        )[0]
 
     out = []
-    for i in comps[:max_boxes]:
-        x, y, w, h = (int(stats[i, cv2.CC_STAT_LEFT]), int(stats[i, cv2.CC_STAT_TOP]),
-                      int(stats[i, cv2.CC_STAT_WIDTH]), int(stats[i, cv2.CC_STAT_HEIGHT]))
-        out.append({
-            "box": [x, y, x + w, y + h],
-            "polygon": _contour_from_mask(labels == i),
-            "score": round(float(prob[labels == i].max()), 4),
-            "area": int(stats[i, cv2.CC_STAT_AREA]),
-        })
+    for score, box, label in zip(results["scores"], results["boxes"],
+                                 results["text_labels"]):
+        x0, y0, x1, y1 = (float(v) for v in box)
+        x0 = max(0, min(w, int(round(x0)))); x1 = max(0, min(w, int(round(x1))))
+        y0 = max(0, min(h, int(round(y0)))); y1 = max(0, min(h, int(round(y1))))
+        if x1 - x0 < 1 or y1 - y0 < 1:
+            continue
+        out.append({"box": [x0, y0, x1, y1],
+                    "score": round(float(score), 4),
+                    "label": label})
     return out
 
 
-def _bar_crop_window(plates, width, height):
-    """The region to hunt the bar in, from where the plates ended up.
+def _classify(dets):
+    """Split raw detections into (plates, bars) by the phrase each one matched.
 
-    Two stacks: the band spanning both, which is the shaft plus both sleeves.
-    One stack (the two overlap into a single blob from a side-on camera, or one
-    is out of frame): a band of the same height centred on it and widened, since
-    the bar runs out of that stack in a direction this can't yet know.
-
-    Padded by a share of the span rather than a fixed pixel count so it holds up
-    across resolutions, and clipped to the frame.
+    "plate" is checked before "bar" so a merged phrase can't misroute a plate as
+    a bar; "barbell" contains "bar" but not "plate", so the ordering is safe.
     """
-    xs0 = min(p["box"][0] for p in plates); xs1 = max(p["box"][2] for p in plates)
-    ys0 = min(p["box"][1] for p in plates); ys1 = max(p["box"][3] for p in plates)
-    if len(plates) == 1:
-        # Widen well past the single blob: the bar extends roughly a plate's
-        # diameter beyond each stack, and more if the far stack is hiding
-        # behind this one.
-        pad_x = 1.5 * (xs1 - xs0)
-    else:
-        pad_x = 0.15 * (xs1 - xs0)
-    pad_y = 0.25 * (ys1 - ys0)
-    x0 = max(0, int(xs0 - pad_x)); x1 = min(width, int(xs1 + pad_x))
-    y0 = max(0, int(ys0 - pad_y)); y1 = min(height, int(ys1 + pad_y))
-    if x1 - x0 < 16 or y1 - y0 < 16:
-        return None
-    return x0, y0, x1, y1
+    plates, bars = [], []
+    for d in dets:
+        label = d["label"]
+        if "plate" in label:
+            plates.append(d)
+        elif "bar" in label:
+            bars.append(d)
+    return plates, bars
 
 
 def detect(frame_rgb):
     """Find the plates and the bar in one RGB frame.
 
-    Returns {"plates": [...], "bar": {...} or None, "crop": [...] or None},
-    where each detection is {"box": [x0,y0,x1,y1], "polygon": [[x,y],...],
-    "score": float, ...} in the frame's own pixel coordinates -- the polygon is
-    the per-pixel mask outline, the box its bounding extent. At most two plate stacks come back, ordered
-    LEFT TO RIGHT by box centre so that "plates[0]" means the same end of the
-    bar from frame to frame -- an index that reshuffled whenever one stack
-    outgrew the other would be useless to difference across time.
+    Returns {"plates": [...], "bar": {...} or None, "crop": None}, where each
+    detection is {"box": [x0,y0,x1,y1], "score": float, "label": str, ...} in
+    the frame's own pixel coordinates. At most two plate stacks come back,
+    ordered LEFT TO RIGHT by box centre so that "plates[0]" means the same end
+    of the bar from frame to frame -- an index that reshuffled whenever one
+    stack outgrew the other would be useless to difference across time.
 
-    "crop" is the window the bar was searched in, reported so the overlay can
-    show where the second stage actually looked rather than leaving a missing
-    bar ambiguous between "no bar there" and "never looked there".
+    "crop" is always None now: the bar is found in the same full-frame pass as
+    the plates, not in a window derived from them (see the module docstring).
+    The key is kept so the overlay's "where did it look" handling and the run
+    JSON's shape don't have to change with the model behind them.
 
     Plates carry diameter_px: the short side of the stack's box, which for a
     disc is its diameter regardless of how many plates are stacked along the
     bar behind it. That is the pixels-per-450mm scale reference, and it is a
     crude one -- a bar tilted away from the camera projects the disc to an
-    ellipse whose short axis under-reads the diameter. Fitting that ellipse is
-    what recovers the tilt (and with it the third dimension); until then this
-    is an estimate and is labelled as one in the UI.
+    ellipse whose short axis under-reads the diameter. Recovering that tilt (and
+    with it the third dimension) is the 3D work; a segmenter-fitted ellipse was
+    tried and rejected for it (see the module docstring). Until then this is an
+    estimate and is labelled as one in the UI.
     """
-    h, w = frame_rgb.shape[:2]
-    plate_prob = _probability_map(frame_rgb, PLATE_PROMPT)
-    plates = _boxes_from_prob(plate_prob, max_boxes=2)
+    plates, bars = _classify(_detect_raw(frame_rgb))
+
+    # Two strongest stacks, then ordered left->right for a stable index.
+    plates.sort(key=lambda d: -d["score"])
+    plates = plates[:2]
     plates.sort(key=lambda p: p["box"][0] + p["box"][2])   # left -> right
     for i, p in enumerate(plates):
         x0, y0, x1, y1 = p["box"]
@@ -381,28 +341,13 @@ def detect(frame_rgb):
         p["side"] = ("left", "right")[i] if len(plates) == 2 else None
         p["diameter_px"] = int(min(x1 - x0, y1 - y0))
 
-    bar, crop = None, None
-    if plates:
-        window = _bar_crop_window(plates, w, h)
-        if window is not None:
-            crop = list(window)
-            cx0, cy0, cx1, cy1 = window
-            bar_prob = _probability_map(frame_rgb[cy0:cy1, cx0:cx1], BAR_PROMPT)
-            found = _boxes_from_prob(bar_prob, max_boxes=1)
-            if found:
-                bar = found[0]
-                bx0, by0, bx1, by1 = bar["box"]
-                bar["box"] = [bx0 + cx0, by0 + cy0, bx1 + cx0, by1 + cy0]
-                # The bar map was computed on the crop, so its polygon is in
-                # crop coordinates too -- shift it back to the frame like the box.
-                if bar.get("polygon"):
-                    bar["polygon"] = [[px + cx0, py + cy0] for px, py in bar["polygon"]]
+    bar = max(bars, key=lambda d: d["score"]) if bars else None
 
-    return {"plates": plates, "bar": bar, "crop": crop}
+    return {"plates": plates, "bar": bar, "crop": None}
 
 
 def prompts():
     """What was asked, for the UI to show. The overlay is only interpretable
-    next to the sentence that produced it -- a box labelled 'bar' means
-    something different if the prompt was 'a chrome bar'."""
+    next to the phrase that produced it -- a box labelled 'bar' means something
+    different if the prompt was 'a chrome bar'."""
     return {"plates": PLATE_PROMPT, "bar": BAR_PROMPT}

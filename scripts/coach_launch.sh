@@ -72,6 +72,34 @@ if [ ! -f "$HOME/models/easy_vitpose/torch/coco/vitpose-l-coco.pth" ]; then
 	exit 1
 fi
 
+# The equipment detector (Grounding DINO, ~700MB) is OPTIONAL — it only powers
+# the video tab's "detect bar & plates" tickbox. The app runs fully without it:
+# /api/capabilities reports it absent and the frontend greys those controls out,
+# and a run that asks for equipment anyway is refused with a 503, not a crash.
+# So unlike the pose weights above, a missing detector never blocks launch — it
+# is offered here and the launch continues either way. Path must match
+# equipment_backend.DINO_DIR / download_models.sh's DINO_DIR.
+DINO_DIR="${COACH_DINO_DIR:-$HOME/models/grounding-dino-base}"
+if [ -f "$DINO_DIR/model.safetensors" ]; then
+	echo "equipment detector: present ($DINO_DIR)"
+elif [ -t 0 ]; then
+	echo "equipment detector (Grounding DINO, ~700MB): NOT installed — optional."
+	echo "  Only the 'detect bar & plates' overlay needs it; everything else works without it."
+	read -r -p "  download it now before starting? [y/N] " reply || reply=""
+	case "$reply" in
+		[Yy]*)
+			# COACH_DINO=1 fetches just the detector without re-prompting; the
+			# script's pose loop skips checkpoints already on disk, so this is
+			# cheap. Optional, so a failed download must NOT abort the launch.
+			COACH_DINO=1 "$ROOT/scripts/download_models.sh" \
+				|| echo "  detector download failed — starting without it; retry with COACH_DINO=1 ./scripts/download_models.sh" ;;
+		*) echo "  skipping — the app will run without it; add it later with COACH_DINO=1 ./scripts/download_models.sh" ;;
+	esac
+else
+	# Non-interactive launch (systemd/cron): never prompt or block. Just say how.
+	echo "equipment detector: not installed (optional) — add it with COACH_DINO=1 ./scripts/download_models.sh"
+fi
+
 "$ROOT/scripts/free_ports.sh"   # stop tecna (or whatever else) so 80/443/8080 are ours
 
 echo "=== app (8080, loopback) ==="

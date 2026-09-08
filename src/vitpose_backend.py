@@ -273,9 +273,9 @@ class _EquipmentWorker:
 
     A thread rather than a second call inline in the frame loop, because the
     two models are busy in different places: ViTPose spends real time on
-    CPU-side letterboxing and keypoint decode around its GPU pass, and CLIPSeg
-    spends its own on resize/normalize and the connected-components pass over
-    the mask. Run in sequence those CPU stretches leave the GPU idle and
+    CPU-side letterboxing and keypoint decode around its GPU pass, and the
+    detector spends its own on resize/normalize and the box post-processing
+    pass. Run in sequence those CPU stretches leave the GPU idle and
     vice-versa; run on two threads each one overlaps the other's GPU work.
     Torch releases the GIL for the duration of a forward pass, so this is real
     overlap and not just interleaved bookkeeping.
@@ -358,8 +358,8 @@ def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4",
     returns true, unwinding out of the model loop with the GPU lock and the
     video capture still released cleanly (see the try/finally below).
 
-    detect_equipment additionally runs CLIPSeg over the same frames on a second
-    thread (see _EquipmentWorker) to locate the barbell and its plates, landing
+    detect_equipment additionally runs Grounding DINO over the same frames on a
+    second thread (see _EquipmentWorker) to locate the barbell and its plates, landing
     in meta["equipment"] as {frame_index (str): {"plates": [...], "bar": ...}}.
     Off by default: it roughly halves throughput, and a caller that only wants
     a pose track shouldn't pay for equipment it will never draw.
@@ -433,7 +433,7 @@ def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4",
                         if equipment is not None:
                             equipment.submit(idx, frame_rgb)
                         # Serialize the actual GPU submission against the
-                        # equipment worker's CLIPSeg forward: on MPS the two
+                        # equipment worker's detector forward: on MPS the two
                         # encoding a Metal command buffer at once segfaults the
                         # driver (see equipment_backend.gpu_submit). No-op on
                         # cuda/rocm, so the worker's overlap is untouched there.

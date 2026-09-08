@@ -20,16 +20,21 @@ out of git. `./scripts/download_models.sh` pulls them (and `yolov8s.pt`) straigh
 from the JunkyByte/easy_ViTPose HuggingFace repo into that layout —
 `COACH_MODEL_DIR`/`COACH_SIZES` env vars override the destination/sizes.
 
-CLIPSeg (`~/models/clipseg-rd64-refined`, ~600MB) is the one **optional**
+Grounding DINO (`~/models/grounding-dino-base`, ~700MB) is the one **optional**
 checkpoint: it backs the video tab's "detect bar & plates" overlay
 (`src/equipment_backend.py`) and nothing else, so the same script *offers* it
-rather than assuming it. `COACH_CLIPSEG=1` takes it without prompting and
-`COACH_CLIPSEG=0` declines — needed for unattended installs, where the prompt
-would otherwise hang. `COACH_CLIPSEG_DIR` overrides the destination.
+rather than assuming it. `COACH_DINO=1` takes it without prompting and
+`COACH_DINO=0` declines — needed for unattended installs, where the prompt
+would otherwise hang. `COACH_DINO_DIR` overrides the destination (and must match
+between the download script, `equipment_backend.py`, and the launch check — copy
+that one directory to move the model to another box). `coach_launch.sh` also
+offers the download at startup if it's absent, but never blocks on it: the app
+starts either way, reports the detector absent via `/api/capabilities`, greys out
+the tickbox, and refuses an equipment run with a 503 instead of crashing.
 
 It's fetched to disk rather than left to `transformers` because the fallback
 is bad on a fresh box: without a local copy, the first video analysis with
-that tickbox on stalls on a 600MB hub download, or fails outright with no
+that tickbox on stalls on a 700MB hub download, or fails outright with no
 network. With one, the app runs fully offline. If it *is* missing, the app
 still starts — `/api/capabilities` reports it, the page disables those three
 tickboxes with a note, and the start endpoint 503s rather than burning a whole

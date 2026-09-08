@@ -150,7 +150,7 @@ def main():
     ap.add_argument("--size", default="l", choices=("l", "h"), help="ViTPose checkpoint size")
     ap.add_argument("--frame-stride", type=int, default=1)
     ap.add_argument("--detect-equipment", action="store_true",
-                     help="also run CLIPSeg bar/plate detection (roughly halves throughput)")
+                     help="also run Grounding DINO bar/plate detection (roughly halves throughput)")
     ap.add_argument("--out-dir", default="tests/fixtures")
     args = ap.parse_args()
 
