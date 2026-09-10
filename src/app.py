@@ -366,10 +366,17 @@ INDEX_HTML = """<!doctype html>
 <meta charset="utf-8">
 <title>coach</title>
 <style>
-  body { background:#111; color:#eee; font-family:system-ui,sans-serif; max-width:1240px; margin:40px auto; padding:0 16px; }
+  :root { --bg:#101211; --surface:#171a18; --surface-raised:#1d211e; --line:#343a35;
+          --muted:#9b9d96; --text:#f1f0e8; --accent:#f4b84a; --accent-soft:rgba(244,184,74,.14); }
+  body { background:linear-gradient(135deg,#101211 0%,#151916 100%); color:var(--text);
+         font-family:"Avenir Next","Helvetica Neue",sans-serif; max-width:1240px; min-height:100vh;
+         margin:0 auto; padding:40px 16px 72px; }
+  body[data-page="snatch"] { --accent:#f4b84a; --accent-soft:rgba(244,184,74,.14); }
+  body[data-page="lateral-raise"] { --accent:#57d3c7; --accent-soft:rgba(87,211,199,.14); }
+  body[data-page="image"] { --accent:#a8d96c; --accent-soft:rgba(168,217,108,.14); }
   h1 { font-weight:600; letter-spacing:0; margin:0; }
   .app-header { display:flex; align-items:end; justify-content:space-between; gap:20px; }
-  .app-kicker { color:#898781; font-size:12px; letter-spacing:.08em; text-transform:uppercase; margin:0 0 6px; }
+  .app-kicker { color:var(--accent); font-size:12px; letter-spacing:0; text-transform:uppercase; margin:0 0 6px; }
   .page-context { color:#c3c2b7; font-size:14px; margin:6px 0 0; }
   h2 { font-weight:600; font-size:18px; border-top:1px solid #333; padding-top:24px; margin-top:32px; }
   input,button,select { font-size:16px; padding:8px; margin:4px 0; }
@@ -381,8 +388,8 @@ INDEX_HTML = """<!doctype html>
   .tabs { display:flex; gap:4px; border-bottom:1px solid #333; margin:24px 0 20px; }
   .tab { font-size:15px; background:none; border:none; border-bottom:2px solid transparent;
          color:#898781; padding:8px 14px; margin:0 0 -1px; cursor:pointer; }
-  .tab:hover { color:#c3c2b7; }
-  .tab[aria-selected="true"] { color:#eee; border-bottom-color:#eee; }
+  .tab:hover { color:var(--text); background:var(--accent-soft); }
+  .tab[aria-selected="true"] { color:var(--text); border-bottom-color:var(--accent); }
 
   /* Desktop: the view sits beside its settings + everything derived from it,
      and stays put while the panel scrolls — the diagnostics are read against
@@ -393,7 +400,7 @@ INDEX_HTML = """<!doctype html>
     .layout { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); }
     .col-view { position:sticky; top:24px; }
   }
-  .panel-h { font-weight:600; font-size:18px; border-top:1px solid #333;
+  .panel-h { font-weight:600; font-size:18px; border-top:1px solid var(--line);
              padding-top:20px; margin:28px 0 12px; }
   .panel-h:first-child { border-top:none; padding-top:0; margin-top:0; }
   .settings { display:flex; flex-direction:column; align-items:stretch; gap:8px; }
@@ -401,15 +408,18 @@ INDEX_HTML = """<!doctype html>
                     gap:8px; flex-wrap:wrap; }
   .settings input[type=file] { max-width:100%; }
   .settings .row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-  .control-group { border:1px solid #2c2c2a; border-radius:8px; background:#171716; padding:12px 14px; }
+  .control-group { border:1px solid var(--line); border-radius:8px; background:rgba(23,26,24,.88); padding:12px 14px; }
   .control-group summary { color:#eee; cursor:pointer; font-size:14px; font-weight:600; }
   .control-group summary::marker { color:#898781; }
   .control-group[open] summary { margin-bottom:10px; }
   .control-help { color:#898781; font-size:12px; margin:2px 0 0; }
-  .primary-action { background:#eee; color:#111; border:0; font-weight:600; cursor:pointer; }
-  .secondary-action { background:#252523; color:#eee; border:1px solid #444; cursor:pointer; }
-  #videoWrap { position:relative; max-width:100%; width:fit-content; margin-top:16px; }
-  #videoWrap video { max-width:100%; display:block; border-radius:8px; }
+  .primary-action { background:var(--accent); color:#111; border:0; font-weight:600; cursor:pointer; }
+  .secondary-action { background:#252923; color:var(--text); border:1px solid #4a514b; cursor:pointer; }
+  button, select, input { border-radius:5px; border:1px solid #444b45; background:#20241f; color:var(--text); }
+  button:hover { filter:brightness(1.08); }
+  #videoWrap { position:relative; max-width:100%; width:fit-content; margin-top:16px; padding:7px;
+               background:#0b0c0b; border:1px solid var(--line); border-radius:10px; box-shadow:0 18px 45px rgba(0,0,0,.22); }
+  #videoWrap video { max-width:100%; display:block; border-radius:5px; }
   #videoWrap canvas { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
   /* diagnostics — dark chart surface + ink tokens from the validated palette */
   #diagWrap { display:none; }
@@ -417,7 +427,7 @@ INDEX_HTML = """<!doctype html>
   .diag-toggle { font-size:13px; color:#c3c2b7; display:flex; align-items:center; gap:6px; cursor:pointer; }
   .diag-toggle input { margin:0; font-size:inherit; padding:0; }
   .diag-tiles { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
-  .diag-tile { flex:1 1 120px; background:#1a1a19; border:1px solid rgba(255,255,255,0.10);
+  .diag-tile { flex:1 1 120px; background:var(--surface); border:1px solid rgba(255,255,255,0.10);
                border-radius:8px; padding:10px 12px; }
   .diag-tile-label { font-size:11px; color:#898781; }
   .diag-tile-value { font-size:22px; font-weight:600; margin:2px 0; }
@@ -428,15 +438,21 @@ INDEX_HTML = """<!doctype html>
   .diag-notes strong { color:#c3c2b7; font-weight:600; }
   .diag-note { font-size:13px; color:#898781; }
   /* one block per diagnostic, stacked — each owns its own tiles/plot/notes */
-  .diag-block { margin-top:24px; padding-top:20px; border-top:1px solid #2c2c2a; }
+  .diag-block { margin-top:24px; padding-top:20px; border-top:1px solid var(--line); }
   .diag-block:first-child { margin-top:14px; padding-top:0; border-top:none; }
   .diag-block-title { font-size:14px; font-weight:600; color:#c3c2b7; margin:0; }
   .diag-canvas-wrap { background:#1a1a19; border-radius:8px; border:1px solid #333; padding:8px; box-sizing:border-box; }
   .diag-canvas { width:100%; height:auto; display:block; cursor:pointer; }
   .overview-strip { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 14px; }
-  .overview-chip { background:#1a1a19; border:1px solid #333; border-radius:8px; padding:9px 11px; color:#c3c2b7; font-size:12px; }
+  .overview-chip { background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:9px 11px; color:#c3c2b7; font-size:12px; }
   .overview-chip strong { display:block; color:#eee; font-size:13px; margin-bottom:2px; }
   .plot-group { margin-top:20px; }
+  #vsummary { color:var(--accent) !important; font-size:12px; }
+  #vstatus { color:var(--accent); min-height:18px; }
+  #diagSections { border-left:2px solid var(--accent); padding-left:14px; }
+  .diag-block-title { color:var(--text); }
+  .diag-canvas-wrap { background:var(--surface); border-color:var(--line); }
+  .plot-group > summary { color:var(--muted); cursor:pointer; }
 </style>
 </head>
 <body>
@@ -1876,6 +1892,7 @@ for (const p of PAGES) PAGES_BY_ID[p.id] = p;
 function setPage(id) {
   const page = PAGES_BY_ID[id] || PAGES[0];
   const video = page.media === 'video';
+  document.body.dataset.page = page.id;
   $('pageContext').textContent = video
     ? `${page.label} · video analysis and movement diagnostics`
     : 'single-frame pose inspection';
