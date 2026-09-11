@@ -1146,7 +1146,7 @@ const topHeightScore = summary => (!summary || summary.worstAbs == null || !isFi
 const lateralRaiseTopHeight = {
   id: 'lateral-raise-top-height',
   title: 'Top of rep — raise to shoulder height',
-  phaseLabel: 'top of rep',
+  phaseLabel: null,   // one rep looks like any other on the video — no label needed there
   cue: 'At the top of each rep the arms lift to about shoulder height — not swung above it, not stopped short.',
   unit: '%',
 
@@ -1313,7 +1313,7 @@ const leanScore = summary =>
 const lateralRaiseTorsoLean = {
   id: 'lateral-raise-torso-lean',
   title: 'Torso lean — stay upright through the set',
-  phaseLabel: 'lateral raise',
+  phaseLabel: null,   // spans the whole set — no distinct sub-phase to name on the video
   cue: 'The trunk stays upright throughout the set: the weight is raised by the arms, not by leaning or swinging the torso.',
   unit: '°',
 
@@ -1465,7 +1465,7 @@ const elbowLeadScore = summary => (!summary || summary.worst == null || !isFinit
 const lateralRaiseElbowLead = {
   id: 'lateral-raise-elbow-lead',
   title: 'Elbow lead — elbow tracks at or above the wrist',
-  phaseLabel: 'lateral raise',
+  phaseLabel: null,   // spans the whole set — no distinct sub-phase to name on the video
   cue: 'Through the raise the elbow stays at or slightly above the wrist — the wrist shouldn\'t flick up and lead the lift.',
   unit: '%',
 
@@ -1603,7 +1603,7 @@ const tempoScore = summary => (!summary || summary.worst == null || !isFinite(su
 const lateralRaiseTempo = {
   id: 'lateral-raise-tempo',
   title: 'Tempo — controlled lowering, not dropped',
-  phaseLabel: 'lateral raise',
+  phaseLabel: null,   // spans the whole set — no distinct sub-phase to name on the video
   cue: 'The weight is lowered under control — the descent isn\'t noticeably faster than the raise.',
   unit: 'x',
 
@@ -1747,7 +1747,7 @@ const symmetryScore = summary => (!summary || summary.decline == null || !isFini
 const lateralRaiseSymmetry = {
   id: 'lateral-raise-symmetry',
   title: 'Rep-to-rep symmetry — consistent height across the set',
-  phaseLabel: 'lateral raise',
+  phaseLabel: null,   // spans the whole set — no distinct sub-phase to name on the video
   cue: 'Every rep in the set reaches about the same height as the first — height dropping as the set goes on is fatigue, not a one-off.',
   unit: '%',
 
@@ -2467,11 +2467,16 @@ const Diagnostics = {
         at: u => (u < t0 || u > t1) ? null : pointsAtTime(u),
       };
       d.overlay(ctx, view, ph, res, size);
-      ctx.fillStyle = phaseColor(1);
-      ctx.font = Math.max(12, size / 38) + 'px system-ui, sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillText(d.phaseLabel || d.title, 8, Math.max(16, size / 30) + shown * (size / 26));
-      shown++;
+      // Only diagnostics scoped to a distinct sub-phase (first pull, top of
+      // rep) earn a label here — one spanning the whole set has nothing to
+      // name that the active tab doesn't already say.
+      if (d.phaseLabel) {
+        ctx.fillStyle = phaseColor(1);
+        ctx.font = Math.max(12, size / 38) + 'px system-ui, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(d.phaseLabel, 8, Math.max(16, size / 30) + shown * (size / 26));
+        shown++;
+      }
     }
   },
 };
