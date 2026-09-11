@@ -1074,6 +1074,803 @@ const secondPullTripleExtension = {
   },
 };
 
+// --- diagnostic 3: lateral raise, top-of-rep height -----------------------
+//
+// Unlike a snatch pull (one clean start->finish), a lateral raise set is
+// several reps back to back, so the trigger every lateral-raise diagnostic
+// needs first is not "the phase", it's "where is each rep's top" — the
+// analogue of barKneeCrossing for this lift. Same rules as every other
+// trigger in this file: a smoothed signal, never frame-to-frame; persistence
+// before a threshold or extremum counts; a window fixed in TIME so stride
+// doesn't move it.
+const REP_TOP_FRAC = -0.15;     // torso-lengths; wrist within this of shoulder height counts as "at the top"
+const REP_BOTTOM_FRAC = -0.6;   // torso-lengths; wrist below this counts as "at rest", ending a rep
+const MIN_REP_SECONDS = 2 * SMOOTH_SECONDS;   // ~0.6s; shorter than this is more likely a detection glitch than a real rep
+
+function lateralRaiseReps(samples, scale, ax) {
+  const raw = samples.map(s => {
+    const sho = centroid(s.p, [KP.lSho, KP.rSho]);
+    const wri = wristCentroid(s.p);
+    return (sho && wri) ? (elev(sho, ax) - elev(wri, ax)) / scale : null;
+  });
+  if (raw.every(v => v == null)) return { list: [], dropped: [], signal: raw, win: null, reason: 'no-signal' };
+  const win = smoothWindow(samples);
+  const signal = smoothSeries(raw, win);
+
+  const holds = (i, test) => {
+    for (let j = i; j < Math.min(i + RUN, signal.length); j++) {
+      if (signal[j] == null || !test(signal[j])) return false;
+    }
+    return true;
+  };
+  const found = [];
+  let state = 'bottom', peakIdx = -1, peakVal = -Infinity, bottomBeforeIdx = null;
+  for (let i = 0; i < signal.length; i++) {
+    const v = signal[i];
+    if (v == null) continue;
+    if (state === 'bottom') {
+      if (v >= REP_TOP_FRAC && holds(i, x => x >= REP_TOP_FRAC)) { state = 'top'; peakIdx = i; peakVal = v; }
+      else if (v <= REP_BOTTOM_FRAC) bottomBeforeIdx = i;
+    } else {
+      if (v > peakVal) { peakIdx = i; peakVal = v; }
+      if (v <= REP_BOTTOM_FRAC && holds(i, x => x <= REP_BOTTOM_FRAC)) {
+        found.push({ peakIdx, bottomBeforeIdx, bottomAfterIdx: i });
+        state = 'bottom'; bottomBeforeIdx = i;
+      }
+    }
+  }
+  // Clip ends mid-rep or right at the top — report it unconfirmed rather than
+  // dropping the last rep the lifter actually did.
+  if (state === 'top') found.push({ peakIdx, bottomBeforeIdx, bottomAfterIdx: null });
+
+  // A "rep" the smoothed signal only holds for a fraction of a second is more
+  // likely a jitter blip riding over the top/bottom threshold than a lifter
+  // actually completing a rep in that time — drop it, but say so rather than
+  // silently shrinking the rep count.
+  const list = [], dropped = [];
+  for (const rep of found) {
+    if (rep.bottomBeforeIdx != null && rep.bottomAfterIdx != null) {
+      const duration = samples[rep.bottomAfterIdx].t - samples[rep.bottomBeforeIdx].t;
+      if (duration < MIN_REP_SECONDS) { dropped.push(Object.assign({ duration }, rep)); continue; }
+    }
+    list.push(rep);
+  }
+  return { list, dropped, signal, win,
+    reason: list.length ? null : (found.length ? 'all-too-short' : 'no-reps') };
+}
+
+const TOP_GOOD = 15, TOP_WARN = 30, TOP_RED = 45;   // % of torso length off shoulder height — provisional
+const topHeightScore = summary => (!summary || summary.worstAbs == null || !isFinite(summary.worstAbs)) ? null
+  : Math.max(0, Math.min(1, summary.worstAbs / TOP_RED));
+
+const lateralRaiseTopHeight = {
+  id: 'lateral-raise-top-height',
+  title: 'Top of rep — raise to shoulder height',
+  phaseLabel: 'top of rep',
+  cue: 'At the top of each rep the arms lift to about shoulder height — not swung above it, not stopped short.',
+  unit: '%',
+
+  // Active phase: every rep this clip contains, start to finish — the union of
+  // lateralRaiseReps' rep list rather than one window, since the cue applies
+  // once per rep, not once per clip.
+  phase(samples, scale, ax) {
+    const notes = [];
+    const reps = lateralRaiseReps(samples, scale, ax);
+    if (!reps.list.length) {
+      return { error: reps.reason === 'no-signal'
+        ? 'Neither the shoulders nor the wrists stayed above the confidence threshold long enough to find a rep in this clip.'
+        : reps.reason === 'all-too-short'
+          ? 'Every rep candidate in this clip was shorter than ' + fmt(MIN_REP_SECONDS, 1) + 's, which is more likely pose noise than a real rep.'
+          : 'No rep (arm raised toward shoulder height and back down) was found in this clip.' };
+    }
+    const first = reps.list[0], last = reps.list[reps.list.length - 1];
+    const startIdx = first.bottomBeforeIdx != null ? first.bottomBeforeIdx : first.peakIdx;
+    const endIdx = last.bottomAfterIdx != null ? last.bottomAfterIdx : last.peakIdx;
+    if (reps.dropped.length) {
+      notes.push(reps.dropped.length + ' rep candidate(s) shorter than ' + fmt(MIN_REP_SECONDS, 1) + 's were treated as detection noise, not scored.');
+    }
+    if (first.bottomBeforeIdx == null || last.bottomAfterIdx == null) {
+      notes.push('The first and/or last rep\'s resting bottom falls outside this clip, so that rep\'s boundary is clamped to the clip\'s own start or end.');
+    }
+    return { startIdx, endIdx, notes, reps: reps.list, win: reps.win, scale };
+  },
+
+  // Two independent estimates from disjoint keypoints, same contract as the
+  // snatch diagnostics: left shoulder->wrist and right shoulder->wrist, read at
+  // each rep's own peak rather than at every sampled frame — the cue is about
+  // the top of the rep, not the path to it.
+  measure(samples, phase, ax) {
+    const notes = [];
+    const series = [];
+    let bothSides = 0, interp = 0;
+
+    for (const rep of phase.reps) {
+      const i = rep.peakIdx;
+      const p = samples[i].p;
+      const devL = (p[KP.lSho] && p[KP.lWri]) ? (elev(p[KP.lSho], ax) - elev(p[KP.lWri], ax)) / phase.scale : null;
+      const devR = (p[KP.rSho] && p[KP.rWri]) ? (elev(p[KP.rSho], ax) - elev(p[KP.rWri], ax)) / phase.scale : null;
+      const vals = [devL, devR].filter(v => v != null);
+      if (!vals.length) continue;
+      if (vals.length === 2) bothSides++;
+      if ([KP.lSho, KP.rSho, KP.lWri, KP.rWri].some(k => p[k] && p[k].interp)) interp++;
+      series.push({
+        idx: i, frame: samples[i].frame, t: samples[i].t,
+        value: 100 * vals.reduce((a, b) => a + b, 0) / vals.length,
+        lo: 100 * Math.min.apply(null, vals),
+        hi: 100 * Math.max.apply(null, vals),
+        spread: vals.length === 2 ? 100 * Math.abs(devL - devR) : null,
+      });
+    }
+    if (!series.length) {
+      return { error: 'Neither shoulder–wrist pair stayed above the confidence threshold at the top of any rep.' };
+    }
+
+    const vals = series.map(s => s.value);
+    const spreads = series.map(s => s.spread).filter(v => v != null);
+    const worst = vals.reduce((a, b) => Math.abs(b) > Math.abs(a) ? b : a, vals[0]);
+    const summary = {
+      reps: series.length,
+      mean: vals.reduce((a, b) => a + b, 0) / vals.length,
+      worst,
+      worstAbs: Math.abs(worst),
+      meanSpread: spreads.length ? spreads.reduce((a, b) => a + b, 0) / spreads.length : null,
+      bothSides: bothSides / series.length,
+      interpFrac: interp / series.length,
+    };
+    if (summary.meanSpread != null && summary.meanSpread > 15) {
+      notes.push('The two arms disagree by ' + fmt(summary.meanSpread) + '% of torso length at the top, on average — a real side-to-side difference, or the camera is not square to the lifter.');
+    }
+    return { series, summary, notes };
+  },
+
+  score: topHeightScore,
+
+  verdict(summary) {
+    if (summary.worstAbs <= TOP_GOOD) return { label: 'right at shoulder height', status: 'good' };
+    if (summary.worstAbs <= TOP_WARN) return { label: 'off shoulder height', status: 'warning' };
+    return { label: summary.worst > 0 ? 'raised well above shoulder' : 'stopped well short', status: 'critical' };
+  },
+
+  // Target is anatomical (shoulder height itself), not the clip's own mean —
+  // same reasoning as the second pull's "full extension" reference line.
+  referenceLine() {
+    return { value: 0, label: 'shoulder height' };
+  },
+
+  tiles(summary, verdict) {
+    return [
+      { label: 'Worst rep', value: (summary.worst >= 0 ? '+' : '') + fmt(summary.worst) + '%',
+        sub: verdict.label, status: verdict.status },
+      { label: 'Mean top height', value: (summary.mean >= 0 ? '+' : '') + fmt(summary.mean) + '%',
+        sub: 'vs shoulder, all reps' },
+      { label: 'Reps scored', value: String(summary.reps), sub: 'top positions found' },
+      { label: 'L/R disagreement', value: summary.meanSpread == null ? '—' : '±' + fmt(summary.meanSpread) + '%', sub: 'at the top' },
+    ];
+  },
+
+  transparencyLines(res, samples, ctxExtra) {
+    const s = res.summary, ph = res.phase;
+    const pct = v => Math.round(v * 100) + '%';
+    return [
+      '<strong>Reps</strong> — ' + ph.reps.length + ' rep(s) found between frames ' +
+        samples[ph.startIdx].frame + '–' + samples[ph.endIdx].frame + '.',
+      '<strong>Per rep</strong> — ' + res.series.map((sr, i) =>
+        'rep ' + (i + 1) + ': ' + (sr.value >= 0 ? '+' : '') + fmt(sr.value) + '%').join(', ') + '.',
+      '<strong>Rep trigger</strong> — wrist elevation relative to the shoulders, smoothed over ' + ph.win +
+        ' sampled frames (' + fmt(SMOOTH_SECONDS, 2) + 's, fixed in time so the frame stride does not move it). ' +
+        'A rep\'s top is its highest point once the signal rises past ' + fmt(REP_TOP_FRAC, 2) +
+        ' torso-lengths above the shoulders and holds for ' + RUN + ' samples; a rep ends once it drops back past ' +
+        fmt(REP_BOTTOM_FRAC, 2) + ' torso-lengths below them.',
+      '<strong>Measurement</strong> — left and right shoulder→wrist heights scored separately at each rep\'s top; ' +
+        pct(s.bothSides) + ' of scored tops had both sides visible, ' + pct(s.interpFrac) +
+        ' relied on a detection filled in from neighbouring frames.',
+      axisNote(ctxExtra.axis),
+      '<strong>Time smoothing</strong> — ' + (ctxExtra.smoothingMs
+        ? 'trajectories were smoothed with a Gaussian of σ = ' + ctxExtra.smoothingMs + ' ms before scoring (the slider under the video).'
+        : 'off — scored on raw per-frame detections, so pose jitter is counted as height variation.'),
+      '<strong>Caveat</strong> — height is a percentage of torso length, not a physical unit (the pose track has no metric scale); positive means above shoulder height, negative below. The good/warning bands (' +
+        fmt(TOP_GOOD, 0) + '% / ' + fmt(TOP_WARN, 0) + '%) are provisional and not fitted to labelled reps.',
+    ].concat(res.notes.map(n => '<strong>Note</strong> — ' + n));
+  },
+
+  // Both shoulder->wrist segments carry the rep's colour, same contract as the
+  // snatch diagnostics' measured segments; the shoulder-height rule is the
+  // target the top is judged against, drawn purple like every other
+  // interpretability mark rather than ramped.
+  overlay(ctx, view, phase, res, size) {
+    const p = view.p, ax = view.axis;
+    const lw = Math.max(2, size / 260);
+    const col = alpha => scoreColor(this.score(res.summary), alpha);
+    const segs = [[KP.lSho, KP.lWri], [KP.rSho, KP.rWri]]
+      .map(([sh, w]) => [p[sh], p[w]]).filter(([a, b]) => a && b);
+    for (const [width, style] of [[lw * 3.2, 'rgba(0,0,0,0.55)'], [lw * 1.8, col(1)]]) {
+      ctx.strokeStyle = style; ctx.lineWidth = width;
+      for (const [a, b] of segs) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+    }
+    const shoAvg = centroid(p, [KP.lSho, KP.rSho]);
+    if (!shoAvg) return;
+    const thin = Math.max(1, lw * 0.6);
+    barRule(ctx, shoAvg, ax, [lw, lw * 1.5], 0.85, thin);
+    ctx.fillStyle = phaseColor(1);
+    ctx.font = Math.max(9, size / 62) + 'px system-ui, sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+    ctx.fillText('shoulder height', 6, shoAvg.y - 4);
+  },
+};
+
+// --- diagnostic 4: lateral raise, torso lean ------------------------------
+//
+// Same "constant back angle" idea as the snatch's first-pull diagnostic, but
+// scored over the whole set rather than one pull: the trunk should hold its
+// inclination while the arms do the work, so swinging the torso to sling the
+// weight up shows up as trunk-angle variability across reps, not just within
+// one of them.
+const LEAN_GOOD = 3, LEAN_WARN = 7, LEAN_RED = 15;   // degrees SD — provisional
+const leanScore = summary =>
+  (!summary || summary.sd == null || !isFinite(summary.sd)) ? null
+    : Math.max(0, Math.min(1, summary.sd / LEAN_RED));
+
+const lateralRaiseTorsoLean = {
+  id: 'lateral-raise-torso-lean',
+  title: 'Torso lean — stay upright through the set',
+  phaseLabel: 'lateral raise',
+  cue: 'The trunk stays upright throughout the set: the weight is raised by the arms, not by leaning or swinging the torso.',
+  unit: '°',
+
+  // Active phase: the same rep span lateralRaiseTopHeight uses, but measured
+  // continuously frame-by-frame rather than only at each rep's peak — a lean
+  // introduced mid-rep and corrected before the top would otherwise go unseen.
+  phase(samples, scale, ax) {
+    const notes = [];
+    const reps = lateralRaiseReps(samples, scale, ax);
+    if (!reps.list.length) {
+      return { error: reps.reason === 'no-signal'
+        ? 'Neither the shoulders nor the wrists stayed above the confidence threshold long enough to find a rep in this clip.'
+        : reps.reason === 'all-too-short'
+          ? 'Every rep candidate in this clip was shorter than ' + fmt(MIN_REP_SECONDS, 1) + 's, which is more likely pose noise than a real rep.'
+          : 'No rep (arm raised toward shoulder height and back down) was found in this clip.' };
+    }
+    const first = reps.list[0], last = reps.list[reps.list.length - 1];
+    const startIdx = first.bottomBeforeIdx != null ? first.bottomBeforeIdx : first.peakIdx;
+    const endIdx = last.bottomAfterIdx != null ? last.bottomAfterIdx : last.peakIdx;
+    if (endIdx - startIdx < RUN) {
+      return { error: `The set resolved to only ${endIdx - startIdx + 1} sampled frame(s) — too short to score. Try a lower frame stride.` };
+    }
+    if (reps.dropped.length) {
+      notes.push(reps.dropped.length + ' rep candidate(s) shorter than ' + fmt(MIN_REP_SECONDS, 1) + 's were treated as detection noise, not scored.');
+    }
+    if (first.bottomBeforeIdx == null || last.bottomAfterIdx == null) {
+      notes.push('The first and/or last rep\'s resting bottom falls outside this clip, so the phase is clamped to the clip\'s own start or end.');
+    }
+    return { startIdx, endIdx, notes, repCount: reps.list.length };
+  },
+
+  // Two independent estimates from disjoint keypoints, same contract as the
+  // snatch's back-angle diagnostic: left hip->shoulder and right hip->shoulder,
+  // scored every sampled frame in the phase rather than once per rep.
+  measure(samples, phase, ax) {
+    const notes = [];
+    const series = [];
+    let both = 0, interp = 0;
+
+    for (let i = phase.startIdx; i <= phase.endIdx; i++) {
+      const p = samples[i].p;
+      const aL = trunkAngle(p[KP.lHip], p[KP.lSho], ax);
+      const aR = trunkAngle(p[KP.rHip], p[KP.rSho], ax);
+      const vals = [aL, aR].filter(v => v != null);
+      if (!vals.length) continue;
+      if (vals.length === 2) both++;
+      if ([KP.lHip, KP.lSho, KP.rHip, KP.rSho].some(k => p[k] && p[k].interp)) interp++;
+      series.push({
+        idx: i, frame: samples[i].frame, t: samples[i].t,
+        value: vals.reduce((a, b) => a + b, 0) / vals.length,
+        lo: Math.min.apply(null, vals),
+        hi: Math.max.apply(null, vals),
+        spread: vals.length === 2 ? Math.abs(aL - aR) : null,
+      });
+    }
+    if (series.length < RUN) {
+      return { error: 'Neither hip–shoulder pair stayed above the confidence threshold for long enough across the set.' };
+    }
+
+    const vals = series.map(s => s.value);
+    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const sd = Math.sqrt(vals.reduce((a, v) => a + (v - mean) * (v - mean), 0) / vals.length);
+    const spreads = series.map(s => s.spread).filter(v => v != null);
+    const summary = {
+      mean, sd,
+      range: Math.max.apply(null, vals) - Math.min.apply(null, vals),
+      meanSpread: spreads.length ? spreads.reduce((a, b) => a + b, 0) / spreads.length : null,
+      n: series.length,
+      repCount: phase.repCount,
+      bothSides: both / series.length,
+      interpFrac: interp / series.length,
+      duration: series[series.length - 1].t - series[0].t,
+    };
+    if (summary.meanSpread != null && summary.meanSpread > 8) {
+      notes.push('The two sides disagree by ' + fmt(summary.meanSpread) + '° on average. A steady offset means the camera is not square to the lifter; a jittery one means the pose track is unreliable — check the band on the plot.');
+    }
+    return { series, summary, notes };
+  },
+
+  score: leanScore,
+
+  verdict(summary) {
+    if (summary.sd <= LEAN_GOOD) return { label: 'stays upright', status: 'good' };
+    if (summary.sd <= LEAN_WARN) return { label: 'some sway', status: 'warning' };
+    return { label: 'noticeable swinging', status: 'critical' };
+  },
+
+  // The set's own mean, since the cue is constancy relative to the lifter's own
+  // posture, not a fixed external target.
+  referenceLine(summary) {
+    return { value: summary.mean, label: 'mean ' + fmt(summary.mean) + '°' };
+  },
+
+  tiles(summary, verdict) {
+    return [
+      { label: 'Trunk stability', value: fmt(summary.sd) + '°',
+        sub: verdict.label + ' · SD over the set', status: verdict.status },
+      { label: 'Peak sway', value: fmt(summary.range) + '°', sub: 'max − min across the set' },
+      { label: 'Mean trunk angle', value: fmt(summary.mean) + '°', sub: 'to horizontal · 90° = upright' },
+      { label: 'L/R disagreement', value: summary.meanSpread == null ? '—' : '±' + fmt(summary.meanSpread) + '°', sub: 'uncertainty' },
+    ];
+  },
+
+  transparencyLines(res, samples, ctxExtra) {
+    const s = res.summary, ph = res.phase;
+    const pct = v => Math.round(v * 100) + '%';
+    return [
+      '<strong>Phase</strong> — ' + s.repCount + ' rep(s), frames ' + samples[ph.startIdx].frame + '–' +
+        samples[ph.endIdx].frame + ', ' + fmt(s.duration, 2) + 's, ' + s.n + ' sampled frames measured.',
+      '<strong>Measurement</strong> — left and right hip→shoulder scored separately, every sampled frame in the set; ' +
+        pct(s.bothSides) + ' of frames had both sides visible, ' + pct(s.interpFrac) +
+        ' relied on a detection filled in from neighbouring frames.',
+      axisNote(ctxExtra.axis),
+      '<strong>Time smoothing</strong> — ' + (ctxExtra.smoothingMs
+        ? 'trajectories were smoothed with a Gaussian of σ = ' + ctxExtra.smoothingMs + ' ms before scoring (the slider under the video).'
+        : 'off — scored on raw per-frame detections, so pose jitter is counted as trunk movement and the SD reads high.'),
+      '<strong>Caveat</strong> — angles are in the image plane, so this assumes a side-on camera. The good/warning bands (' +
+        fmt(LEAN_GOOD, 1) + '° / ' + fmt(LEAN_WARN, 1) + '° SD) are provisional and not fitted to labelled reps.',
+    ].concat(res.notes.map(n => '<strong>Note</strong> — ' + n));
+  },
+
+  // The hip->shoulder segments carry the ramp, same contract as the snatch's
+  // back-angle diagnostic — the mark that is the measurement is also its own
+  // readout.
+  overlay(ctx, view, phase, res, size) {
+    const p = view.p;
+    const lw = Math.max(2, size / 260);
+    const col = alpha => scoreColor(this.score(res.summary), alpha);
+    const segs = [[KP.lHip, KP.lSho], [KP.rHip, KP.rSho]]
+      .map(([h, sh]) => [p[h], p[sh]]).filter(([a, b]) => a && b);
+    for (const [width, style] of [[lw * 3.2, 'rgba(0,0,0,0.55)'], [lw * 1.8, col(1)]]) {
+      ctx.strokeStyle = style; ctx.lineWidth = width;
+      for (const [a, b] of segs) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+    }
+  },
+};
+
+// --- diagnostic 5: lateral raise, elbow lead ------------------------------
+//
+// Same rep span as the others, but scored only while the arm is actually
+// working — not at rest, where the elbow trivially sits above a hanging
+// wrist regardless of technique. Reuses REP_BOTTOM_FRAC as the "in the
+// working range" gate on the same combined elevation signal the rep trigger
+// itself computed, so the two never disagree about where a rep starts.
+const ELBOW_GOOD = 5, ELBOW_WARN = -5, ELBOW_RED = -20;   // % of torso length, elbow above (+) / below (-) wrist — provisional
+const elbowLeadScore = summary => (!summary || summary.worst == null || !isFinite(summary.worst)) ? null
+  : Math.max(0, Math.min(1, (ELBOW_GOOD - summary.worst) / (ELBOW_GOOD - ELBOW_RED)));
+
+const lateralRaiseElbowLead = {
+  id: 'lateral-raise-elbow-lead',
+  title: 'Elbow lead — elbow tracks at or above the wrist',
+  phaseLabel: 'lateral raise',
+  cue: 'Through the raise the elbow stays at or slightly above the wrist — the wrist shouldn\'t flick up and lead the lift.',
+  unit: '%',
+
+  phase(samples, scale, ax) {
+    const notes = [];
+    const reps = lateralRaiseReps(samples, scale, ax);
+    if (!reps.list.length) {
+      return { error: reps.reason === 'no-signal'
+        ? 'Neither the shoulders nor the wrists stayed above the confidence threshold long enough to find a rep in this clip.'
+        : reps.reason === 'all-too-short'
+          ? 'Every rep candidate in this clip was shorter than ' + fmt(MIN_REP_SECONDS, 1) + 's, which is more likely pose noise than a real rep.'
+          : 'No rep (arm raised toward shoulder height and back down) was found in this clip.' };
+    }
+    const first = reps.list[0], last = reps.list[reps.list.length - 1];
+    const startIdx = first.bottomBeforeIdx != null ? first.bottomBeforeIdx : first.peakIdx;
+    const endIdx = last.bottomAfterIdx != null ? last.bottomAfterIdx : last.peakIdx;
+    if (endIdx - startIdx < RUN) {
+      return { error: `The set resolved to only ${endIdx - startIdx + 1} sampled frame(s) — too short to score. Try a lower frame stride.` };
+    }
+    if (reps.dropped.length) {
+      notes.push(reps.dropped.length + ' rep candidate(s) shorter than ' + fmt(MIN_REP_SECONDS, 1) + 's were treated as detection noise, not scored.');
+    }
+    if (first.bottomBeforeIdx == null || last.bottomAfterIdx == null) {
+      notes.push('The first and/or last rep\'s resting bottom falls outside this clip, so the phase is clamped to the clip\'s own start or end.');
+    }
+    return { startIdx, endIdx, notes, repCount: reps.list.length, signal: reps.signal, scale };
+  },
+
+  measure(samples, phase, ax) {
+    const notes = [];
+    const series = [];
+    let both = 0, interp = 0, atRest = 0;
+
+    for (let i = phase.startIdx; i <= phase.endIdx; i++) {
+      const sig = phase.signal[i];
+      if (sig == null || sig <= REP_BOTTOM_FRAC) { atRest++; continue; }   // resting between reps — not what the cue is about
+      const p = samples[i].p;
+      const dL = (p[KP.lElb] && p[KP.lWri]) ? (elev(p[KP.lWri], ax) - elev(p[KP.lElb], ax)) / phase.scale : null;
+      const dR = (p[KP.rElb] && p[KP.rWri]) ? (elev(p[KP.rWri], ax) - elev(p[KP.rElb], ax)) / phase.scale : null;
+      const vals = [dL, dR].filter(v => v != null);
+      if (!vals.length) continue;
+      if (vals.length === 2) both++;
+      if ([KP.lElb, KP.rElb, KP.lWri, KP.rWri].some(k => p[k] && p[k].interp)) interp++;
+      series.push({
+        idx: i, frame: samples[i].frame, t: samples[i].t,
+        value: 100 * vals.reduce((a, b) => a + b, 0) / vals.length,
+        lo: 100 * Math.min.apply(null, vals),
+        hi: 100 * Math.max.apply(null, vals),
+        spread: vals.length === 2 ? 100 * Math.abs(dL - dR) : null,
+      });
+    }
+    if (series.length < RUN) {
+      return { error: 'Neither elbow–wrist pair stayed above the confidence threshold for long enough while the arm was raised.' };
+    }
+
+    const vals = series.map(s => s.value);
+    const spreads = series.map(s => s.spread).filter(v => v != null);
+    const summary = {
+      mean: vals.reduce((a, b) => a + b, 0) / vals.length,
+      worst: Math.min.apply(null, vals),   // most negative = wrist furthest above elbow
+      meanSpread: spreads.length ? spreads.reduce((a, b) => a + b, 0) / spreads.length : null,
+      n: series.length,
+      atRestFrac: atRest / (phase.endIdx - phase.startIdx + 1),
+    };
+    if (summary.meanSpread != null && summary.meanSpread > 10) {
+      notes.push('The two arms disagree by ' + fmt(summary.meanSpread) + '% of torso length, on average — a real side-to-side difference, or the camera is not square to the lifter.');
+    }
+    return { series, summary, notes };
+  },
+
+  score: elbowLeadScore,
+
+  verdict(summary) {
+    if (summary.worst >= ELBOW_GOOD) return { label: 'elbow leads clearly', status: 'good' };
+    if (summary.worst >= ELBOW_WARN) return { label: 'elbow and wrist near level', status: 'warning' };
+    return { label: 'wrist rises above elbow', status: 'critical' };
+  },
+
+  referenceLine() {
+    return { value: 0, label: 'elbow = wrist height' };
+  },
+
+  tiles(summary, verdict) {
+    return [
+      { label: 'Elbow lead margin', value: (summary.worst >= 0 ? '+' : '') + fmt(summary.worst) + '%',
+        sub: verdict.label, status: verdict.status },
+      { label: 'Mean margin', value: (summary.mean >= 0 ? '+' : '') + fmt(summary.mean) + '%', sub: 'across the working range' },
+      { label: 'Frames scored', value: String(summary.n), sub: 'while the arm was raised' },
+      { label: 'L/R disagreement', value: summary.meanSpread == null ? '—' : '±' + fmt(summary.meanSpread) + '%', sub: 'uncertainty' },
+    ];
+  },
+
+  transparencyLines(res, samples, ctxExtra) {
+    const s = res.summary, ph = res.phase;
+    const pct = v => Math.round(v * 100) + '%';
+    return [
+      '<strong>Phase</strong> — ' + ph.repCount + ' rep(s), frames ' + samples[ph.startIdx].frame + '–' +
+        samples[ph.endIdx].frame + ', ' + s.n + ' frames scored while the arm was raised (' +
+        pct(s.atRestFrac) + ' of the span was resting between reps and excluded).',
+      '<strong>Measurement</strong> — elbow minus wrist elevation, per side, only while the combined shoulder–wrist signal is above ' +
+        fmt(REP_BOTTOM_FRAC, 2) + ' torso-lengths (the same "at rest" gate the rep trigger uses).',
+      axisNote(ctxExtra.axis),
+      '<strong>Time smoothing</strong> — ' + (ctxExtra.smoothingMs
+        ? 'trajectories were smoothed with a Gaussian of σ = ' + ctxExtra.smoothingMs + ' ms before scoring (the slider under the video).'
+        : 'off — scored on raw per-frame detections, so pose jitter is counted as elbow/wrist movement.'),
+      '<strong>Caveat</strong> — height is a percentage of torso length, not a physical unit (the pose track has no metric scale); positive means the elbow sits above the wrist. The good/warning bands (' +
+        fmt(ELBOW_GOOD, 0) + '% / ' + fmt(ELBOW_WARN, 0) + '%) are provisional and not fitted to labelled reps.',
+    ].concat(res.notes.map(n => '<strong>Note</strong> — ' + n));
+  },
+
+  overlay(ctx, view, phase, res, size) {
+    const p = view.p;
+    const lw = Math.max(2, size / 260);
+    const col = alpha => scoreColor(this.score(res.summary), alpha);
+    const segs = [[KP.lElb, KP.lWri], [KP.rElb, KP.rWri]]
+      .map(([e, w]) => [p[e], p[w]]).filter(([a, b]) => a && b);
+    for (const [width, style] of [[lw * 3.2, 'rgba(0,0,0,0.55)'], [lw * 1.8, col(1)]]) {
+      ctx.strokeStyle = style; ctx.lineWidth = width;
+      for (const [a, b] of segs) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+    }
+  },
+};
+
+// --- diagnostic 6: lateral raise, tempo -----------------------------------
+//
+// Ascent and descent speed, compared per rep rather than per frame — the cue
+// is about a whole rep's shape (up under control, down under control), not an
+// instant. Each rep contributes one measurement, same as the top-height
+// diagnostic, but built from wristSpeed's ascent/descent rather than the peak
+// position alone.
+const TEMPO_GOOD = 1.5, TEMPO_WARN = 2.5, TEMPO_RED = 4;   // descent/ascent speed ratio — provisional
+const tempoScore = summary => (!summary || summary.worst == null || !isFinite(summary.worst)) ? null
+  : Math.max(0, Math.min(1, (summary.worst - 1) / (TEMPO_RED - 1)));
+
+const lateralRaiseTempo = {
+  id: 'lateral-raise-tempo',
+  title: 'Tempo — controlled lowering, not dropped',
+  phaseLabel: 'lateral raise',
+  cue: 'The weight is lowered under control — the descent isn\'t noticeably faster than the raise.',
+  unit: 'x',
+
+  phase(samples, scale, ax) {
+    const notes = [];
+    const reps = lateralRaiseReps(samples, scale, ax);
+    if (!reps.list.length) {
+      return { error: reps.reason === 'no-signal'
+        ? 'Neither the shoulders nor the wrists stayed above the confidence threshold long enough to find a rep in this clip.'
+        : reps.reason === 'all-too-short'
+          ? 'Every rep candidate in this clip was shorter than ' + fmt(MIN_REP_SECONDS, 1) + 's, which is more likely pose noise than a real rep.'
+          : 'No rep (arm raised toward shoulder height and back down) was found in this clip.' };
+    }
+    const usable = reps.list.filter(r => r.bottomBeforeIdx != null && r.bottomAfterIdx != null);
+    if (!usable.length) {
+      return { error: 'No rep in this clip had both a bottom before and after its peak, so ascent and descent speed can\'t be compared.' };
+    }
+    if (reps.dropped.length) {
+      notes.push(reps.dropped.length + ' rep candidate(s) shorter than ' + fmt(MIN_REP_SECONDS, 1) + 's were treated as detection noise, not scored.');
+    }
+    if (usable.length < reps.list.length) {
+      notes.push((reps.list.length - usable.length) + ' rep(s) touched the clip\'s own start or end, so a full ascent and descent couldn\'t be measured for them.');
+    }
+    const startIdx = usable[0].bottomBeforeIdx, endIdx = usable[usable.length - 1].bottomAfterIdx;
+    const repPoints = usable.map(rep => ({
+      bottom: centroid(samples[rep.bottomBeforeIdx].p, [KP.lWri, KP.rWri]),
+      peak: centroid(samples[rep.peakIdx].p, [KP.lWri, KP.rWri]),
+      after: centroid(samples[rep.bottomAfterIdx].p, [KP.lWri, KP.rWri]),
+    }));
+    return { startIdx, endIdx, notes, reps: usable, repPoints, scale, repCount: reps.list.length };
+  },
+
+  // Two independent estimates of the same rep's ratio — left wrist and right
+  // wrist scored separately, same contract as every other diagnostic here —
+  // rather than one estimate from the wrist centroid.
+  measure(samples, phase, ax) {
+    const notes = [];
+    const series = [];
+
+    const ratioSide = (rep, wristKey) => {
+      const b = samples[rep.bottomBeforeIdx].p[wristKey];
+      const pk = samples[rep.peakIdx].p[wristKey];
+      const a = samples[rep.bottomAfterIdx].p[wristKey];
+      const ascentDur = samples[rep.peakIdx].t - samples[rep.bottomBeforeIdx].t;
+      const descentDur = samples[rep.bottomAfterIdx].t - samples[rep.peakIdx].t;
+      if (!b || !pk || !a || !(ascentDur > 0) || !(descentDur > 0)) return null;
+      const ascentSpeed = Math.abs(elev(b, ax) - elev(pk, ax)) / ascentDur / phase.scale;
+      const descentSpeed = Math.abs(elev(a, ax) - elev(pk, ax)) / descentDur / phase.scale;
+      return ascentSpeed > 0 ? descentSpeed / ascentSpeed : null;
+    };
+
+    for (const rep of phase.reps) {
+      const rL = ratioSide(rep, KP.lWri), rR = ratioSide(rep, KP.rWri);
+      const vals = [rL, rR].filter(v => v != null && isFinite(v));
+      if (!vals.length) continue;
+      series.push({
+        idx: rep.peakIdx, frame: samples[rep.peakIdx].frame, t: samples[rep.peakIdx].t,
+        value: vals.reduce((a, b) => a + b, 0) / vals.length,
+        lo: Math.min.apply(null, vals), hi: Math.max.apply(null, vals),
+        spread: vals.length === 2 ? Math.abs(rL - rR) : null,
+      });
+    }
+    if (!series.length) {
+      return { error: 'Wrist speed could not be measured for any rep\'s ascent and descent in this clip.' };
+    }
+
+    const vals = series.map(s => s.value);
+    const spreads = series.map(s => s.spread).filter(v => v != null);
+    const summary = {
+      reps: series.length,
+      mean: vals.reduce((a, b) => a + b, 0) / vals.length,
+      worst: Math.max.apply(null, vals),
+      meanSpread: spreads.length ? spreads.reduce((a, b) => a + b, 0) / spreads.length : null,
+    };
+    if (summary.meanSpread != null && summary.meanSpread > 0.5) {
+      notes.push('The two arms\' tempo ratios disagree by ' + fmt(summary.meanSpread, 2) + 'x, on average — one arm may be doing more of the lowering than the other.');
+    }
+    return { series, summary, notes };
+  },
+
+  score: tempoScore,
+
+  verdict(summary) {
+    if (summary.worst <= TEMPO_GOOD) return { label: 'controlled descent', status: 'good' };
+    if (summary.worst <= TEMPO_WARN) return { label: 'descent a little fast', status: 'warning' };
+    return { label: 'weight dropped, not lowered', status: 'critical' };
+  },
+
+  referenceLine() {
+    return { value: 1, label: '1× (equal tempo)' };
+  },
+
+  tiles(summary, verdict) {
+    return [
+      { label: 'Descent vs ascent', value: fmt(summary.worst, 2) + 'x', sub: verdict.label, status: verdict.status },
+      { label: 'Mean ratio', value: fmt(summary.mean, 2) + 'x', sub: 'across all reps' },
+      { label: 'Reps scored', value: String(summary.reps), sub: 'with a measured ascent and descent' },
+      { label: 'L/R disagreement', value: summary.meanSpread == null ? '—' : '±' + fmt(summary.meanSpread, 2) + 'x', sub: 'uncertainty' },
+    ];
+  },
+
+  transparencyLines(res, samples, ctxExtra) {
+    const s = res.summary, ph = res.phase;
+    return [
+      '<strong>Phase</strong> — ' + ph.repCount + ' rep(s) found, ' + s.reps + ' scored with a measured ascent and descent, frames ' +
+        samples[ph.startIdx].frame + '–' + samples[ph.endIdx].frame + '.',
+      '<strong>Measurement</strong> — per rep, per side: wrist vertical speed from bottom to peak (ascent) and peak to bottom (descent), each as torso-lengths/second; the ratio descent÷ascent is the rep\'s value, averaged over the sides that could be measured.',
+      axisNote(ctxExtra.axis),
+      '<strong>Caveat</strong> — a ratio nowhere near 1 in either direction can also mean a rep\'s ascent or descent was too short to time reliably at this frame stride, not necessarily a real tempo fault. The good/warning bands (' +
+        fmt(TEMPO_GOOD, 1) + 'x / ' + fmt(TEMPO_WARN, 1) + 'x) are provisional and not fitted to labelled reps.',
+    ].concat(res.notes.map(n => '<strong>Note</strong> — ' + n));
+  },
+
+  // Not a pose overlay — a static dashed path per rep (bottom -> peak -> bottom)
+  // in the ramp colour, since the measurement is a rep-level ascent/descent
+  // shape rather than a per-frame position.
+  overlay(ctx, view, phase, res, size) {
+    const col = scoreColor(this.score(res.summary), 1);
+    const lw = Math.max(1, size / 300);
+    ctx.save();
+    ctx.strokeStyle = col; ctx.lineWidth = lw; ctx.setLineDash([lw * 2, lw * 2]);
+    for (const rp of phase.repPoints || []) {
+      if (rp.bottom && rp.peak) { ctx.beginPath(); ctx.moveTo(rp.bottom.x, rp.bottom.y); ctx.lineTo(rp.peak.x, rp.peak.y); ctx.stroke(); }
+      if (rp.peak && rp.after) { ctx.beginPath(); ctx.moveTo(rp.peak.x, rp.peak.y); ctx.lineTo(rp.after.x, rp.after.y); ctx.stroke(); }
+    }
+    ctx.restore();
+  },
+};
+
+// --- diagnostic 7: lateral raise, rep-to-rep symmetry ---------------------
+//
+// Same per-rep top-height reading as lateralRaiseTopHeight, but scored across
+// reps rather than against shoulder height — the cue here is consistency with
+// the set's own first rep, which is what fatigue actually breaks: a lifter can
+// be a little short of shoulder height on every rep and still be scored well
+// here, if every rep is equally short.
+const SYM_GOOD = 8, SYM_WARN = 18, SYM_RED = 35;   // percentage points of decline, first rep to last — provisional
+const symmetryScore = summary => (!summary || summary.decline == null || !isFinite(summary.decline)) ? null
+  : Math.max(0, Math.min(1, summary.decline / SYM_RED));
+
+const lateralRaiseSymmetry = {
+  id: 'lateral-raise-symmetry',
+  title: 'Rep-to-rep symmetry — consistent height across the set',
+  phaseLabel: 'lateral raise',
+  cue: 'Every rep in the set reaches about the same height as the first — height dropping as the set goes on is fatigue, not a one-off.',
+  unit: '%',
+
+  phase(samples, scale, ax) {
+    const notes = [];
+    const reps = lateralRaiseReps(samples, scale, ax);
+    if (!reps.list.length) {
+      return { error: reps.reason === 'no-signal'
+        ? 'Neither the shoulders nor the wrists stayed above the confidence threshold long enough to find a rep in this clip.'
+        : reps.reason === 'all-too-short'
+          ? 'Every rep candidate in this clip was shorter than ' + fmt(MIN_REP_SECONDS, 1) + 's, which is more likely pose noise than a real rep.'
+          : 'No rep (arm raised toward shoulder height and back down) was found in this clip.' };
+    }
+    if (reps.list.length < 2) {
+      return { error: 'Only one rep was found in this clip — there\'s nothing to compare rep-to-rep.' };
+    }
+    const first = reps.list[0], last = reps.list[reps.list.length - 1];
+    const startIdx = first.bottomBeforeIdx != null ? first.bottomBeforeIdx : first.peakIdx;
+    const endIdx = last.bottomAfterIdx != null ? last.bottomAfterIdx : last.peakIdx;
+    if (reps.dropped.length) {
+      notes.push(reps.dropped.length + ' rep candidate(s) shorter than ' + fmt(MIN_REP_SECONDS, 1) + 's were treated as detection noise, not scored.');
+    }
+    return { startIdx, endIdx, notes, reps: reps.list, scale };
+  },
+
+  // Same measurement lateralRaiseTopHeight makes at each rep's peak — left and
+  // right shoulder->wrist deviation from shoulder height — reused here because
+  // it's the same reading, not re-derived, so the two diagnostics can't drift
+  // apart on what "this rep's height" means.
+  measure(samples, phase, ax) {
+    const notes = [];
+    const series = [];
+    let both = 0, interp = 0;
+
+    for (const rep of phase.reps) {
+      const i = rep.peakIdx;
+      const p = samples[i].p;
+      const devL = (p[KP.lSho] && p[KP.lWri]) ? (elev(p[KP.lSho], ax) - elev(p[KP.lWri], ax)) / phase.scale : null;
+      const devR = (p[KP.rSho] && p[KP.rWri]) ? (elev(p[KP.rSho], ax) - elev(p[KP.rWri], ax)) / phase.scale : null;
+      const vals = [devL, devR].filter(v => v != null);
+      if (!vals.length) continue;
+      if (vals.length === 2) both++;
+      if ([KP.lSho, KP.rSho, KP.lWri, KP.rWri].some(k => p[k] && p[k].interp)) interp++;
+      series.push({
+        idx: i, frame: samples[i].frame, t: samples[i].t,
+        value: 100 * vals.reduce((a, b) => a + b, 0) / vals.length,
+        lo: 100 * Math.min.apply(null, vals),
+        hi: 100 * Math.max.apply(null, vals),
+        spread: vals.length === 2 ? 100 * Math.abs(devL - devR) : null,
+      });
+    }
+    if (series.length < 2) {
+      return { error: 'Neither shoulder–wrist pair stayed above the confidence threshold at the top of enough reps to compare them.' };
+    }
+
+    const vals = series.map(s => s.value);
+    const spreads = series.map(s => s.spread).filter(v => v != null);
+    const summary = {
+      reps: series.length,
+      first: vals[0],
+      last: vals[vals.length - 1],
+      decline: vals[0] - vals[vals.length - 1],
+      range: Math.max.apply(null, vals) - Math.min.apply(null, vals),
+      meanSpread: spreads.length ? spreads.reduce((a, b) => a + b, 0) / spreads.length : null,
+    };
+    if (summary.decline < 0) {
+      notes.push('The last rep reached higher than the first — no decline to report, whatever drove the difference isn\'t fatigue.');
+    }
+    return { series, summary, notes };
+  },
+
+  score: symmetryScore,
+
+  verdict(summary) {
+    if (summary.decline <= SYM_GOOD) return { label: 'consistent across the set', status: 'good' };
+    if (summary.decline <= SYM_WARN) return { label: 'some fatigue', status: 'warning' };
+    return { label: 'notable fatigue', status: 'critical' };
+  },
+
+  // The set's own first rep is the target, not an external anatomical value —
+  // consistency with where the lifter themselves started.
+  referenceLine(summary) {
+    return { value: summary.first, label: 'first rep ' + fmt(summary.first) + '%' };
+  },
+
+  tiles(summary, verdict) {
+    return [
+      { label: 'Decline', value: (summary.decline >= 0 ? '−' : '+') + fmt(Math.abs(summary.decline)) + 'pp',
+        sub: verdict.label + ' · first rep to last', status: verdict.status },
+      { label: 'First rep', value: (summary.first >= 0 ? '+' : '') + fmt(summary.first) + '%', sub: 'vs shoulder height' },
+      { label: 'Last rep', value: (summary.last >= 0 ? '+' : '') + fmt(summary.last) + '%', sub: 'vs shoulder height' },
+      { label: 'L/R disagreement', value: summary.meanSpread == null ? '—' : '±' + fmt(summary.meanSpread) + '%', sub: 'at the top' },
+    ];
+  },
+
+  transparencyLines(res, samples, ctxExtra) {
+    const s = res.summary, ph = res.phase;
+    const pct = v => Math.round(v * 100) + '%';
+    return [
+      '<strong>Reps</strong> — ' + s.reps + ' rep(s) compared, frames ' + samples[ph.startIdx].frame + '–' +
+        samples[ph.endIdx].frame + '.',
+      '<strong>Per rep</strong> — ' + res.series.map((sr, i) =>
+        'rep ' + (i + 1) + ': ' + (sr.value >= 0 ? '+' : '') + fmt(sr.value) + '%').join(', ') + ' (vs shoulder height, same reading as the top-height diagnostic).',
+      '<strong>Measurement</strong> — decline is the first rep\'s value minus the last rep\'s, in percentage points; a negative decline means the last rep was higher, not lower.',
+      axisNote(ctxExtra.axis),
+      '<strong>Caveat</strong> — with only a few reps in a clip, one noisy rep can dominate the first/last comparison. The good/warning bands (' +
+        fmt(SYM_GOOD, 0) + 'pp / ' + fmt(SYM_WARN, 0) + 'pp) are provisional and not fitted to labelled sets.',
+    ].concat(res.notes.map(n => '<strong>Note</strong> — ' + n));
+  },
+
+  overlay(ctx, view, phase, res, size) {
+    const p = view.p;
+    const lw = Math.max(2, size / 260);
+    const col = alpha => scoreColor(this.score(res.summary), alpha);
+    const segs = [[KP.lSho, KP.lWri], [KP.rSho, KP.rWri]]
+      .map(([sh, w]) => [p[sh], p[w]]).filter(([a, b]) => a && b);
+    for (const [width, style] of [[lw * 3.2, 'rgba(0,0,0,0.55)'], [lw * 1.8, col(1)]]) {
+      ctx.strokeStyle = style; ctx.lineWidth = width;
+      for (const [a, b] of segs) { ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+    }
+  },
+};
+
 // Per-lift diagnostic sets. Each page (see PAGES in app.py) names one of these
 // keys, and the app calls Diagnostics.setPage(name) to make it the active set —
 // what every function below iterates as DIAGNOSTICS. A set may be empty: a lift
@@ -1082,7 +1879,7 @@ const secondPullTripleExtension = {
 // the objects above and list them here under the page's key.
 const DIAGNOSTIC_SETS = {
   'snatch': [firstPullBackAngle, secondPullTripleExtension],
-  'lateral-raise': [],
+  'lateral-raise': [lateralRaiseTopHeight, lateralRaiseTorsoLean, lateralRaiseElbowLead, lateralRaiseTempo, lateralRaiseSymmetry],
 };
 const DEFAULT_SET = 'snatch';
 

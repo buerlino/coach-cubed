@@ -25,11 +25,16 @@ function allFixtureSlugs() {
 }
 
 function update(slug) {
+  const manifest = JSON.parse(
+    fs.readFileSync(path.join(FIXTURES_DIR, 'manifest.json'), 'utf8'));
   const trackPath = path.join(FIXTURES_DIR, `${slug}.track.json`);
   const track = JSON.parse(fs.readFileSync(trackPath, 'utf8'));
   const personId = track.meta.tracks.kept;
 
   const Diagnostics = loadDiagnostics();
+  // Same per-fixture set as diagnostics.test.js, or the golden would be scored
+  // against the wrong lift's cues.
+  Diagnostics.setPage(manifest[slug].diagnostics || 'snatch');
   const out = Diagnostics.computeResults(track.keypoints, track.meta, personId);
 
   fs.mkdirSync(GOLDEN_DIR, { recursive: true });
