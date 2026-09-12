@@ -2,13 +2,13 @@
   "lateral-raise-top-height": {
     "phase": {
       "startIdx": 46,
-      "endIdx": 71,
+      "endIdx": 74,
       "notes": [],
       "reps": [
         {
           "peakIdx": 56,
           "bottomBeforeIdx": 46,
-          "bottomAfterIdx": 71
+          "bottomAfterIdx": 74
         }
       ],
       "win": 7,
@@ -43,7 +43,7 @@
   "lateral-raise-torso-lean": {
     "phase": {
       "startIdx": 46,
-      "endIdx": 71,
+      "endIdx": 74,
       "notes": [],
       "repCount": 1
     },
@@ -281,31 +281,58 @@
         "lo": 77.46122983522332,
         "hi": 89.02447248241586,
         "spread": 11.563242647192538
+      },
+      {
+        "idx": 72,
+        "frame": 72,
+        "t": 2.88,
+        "value": 83.6686736358975,
+        "lo": 77.42171522967087,
+        "hi": 89.91563204212413,
+        "spread": 12.493916812453264
+      },
+      {
+        "idx": 73,
+        "frame": 73,
+        "t": 2.92,
+        "value": 83.10729504650745,
+        "lo": 76.68289490346984,
+        "hi": 89.53169518954505,
+        "spread": 12.848800286075203
+      },
+      {
+        "idx": 74,
+        "frame": 74,
+        "t": 2.96,
+        "value": 83.52650397627792,
+        "lo": 77.21575985536842,
+        "hi": 89.83724809718741,
+        "spread": 12.621488241818994
       }
     ],
     "summary": {
-      "mean": 84.08922492584982,
-      "sd": 0.8488089321310667,
+      "mean": 84.02145933554407,
+      "sd": 0.8316357613216139,
       "range": 3.3665727374733763,
-      "meanSpread": 8.64674816942153,
-      "n": 26,
+      "meanSpread": 9.06136750845887,
+      "n": 29,
       "repCount": 1,
       "bothSides": 1,
       "interpFrac": 0,
-      "duration": 0.9999999999999998
+      "duration": 1.1199999999999999
     },
     "verdict": {
       "label": "stays upright",
       "status": "good"
     },
     "notes": [
-      "The two sides disagree by 8.6° on average. A steady offset means the camera is not square to the lifter; a jittery one means the pose track is unreliable — check the band on the plot."
+      "The two sides disagree by 9.1° on average. A steady offset means the camera is not square to the lifter; a jittery one means the pose track is unreliable — check the band on the plot."
     ]
   },
   "lateral-raise-elbow-lead": {
     "phase": {
       "startIdx": 46,
-      "endIdx": 71,
+      "endIdx": 74,
       "notes": [],
       "repCount": 1,
       "signal": [
@@ -610,7 +637,7 @@
       "worst": -11.383490659730763,
       "meanSpread": 8.717414194192632,
       "n": 24,
-      "atRestFrac": 0.07692307692307693
+      "atRestFrac": 0.1724137931034483
     },
     "verdict": {
       "label": "wrist rises above elbow",
@@ -621,13 +648,13 @@
   "lateral-raise-tempo": {
     "phase": {
       "startIdx": 46,
-      "endIdx": 71,
+      "endIdx": 74,
       "notes": [],
       "reps": [
         {
           "peakIdx": 56,
           "bottomBeforeIdx": 46,
-          "bottomAfterIdx": 71
+          "bottomAfterIdx": 74
         }
       ],
       "repPoints": [
@@ -641,8 +668,8 @@
             "y": 380.7449951171875
           },
           "after": {
-            "x": 579.8175659179688,
-            "y": 733.4322509765625
+            "x": 575.6218566894531,
+            "y": 792.0989074707031
           }
         }
       ],
@@ -654,17 +681,17 @@
         "idx": 56,
         "frame": 56,
         "t": 2.24,
-        "value": 0.609933020872989,
-        "lo": 0.5964850299316475,
-        "hi": 0.6233810118143305,
-        "spread": 0.02689598188268294
+        "value": 0.5952572723448004,
+        "lo": 0.5743358992921845,
+        "hi": 0.6161786453974162,
+        "spread": 0.04184274610523164
       }
     ],
     "summary": {
       "reps": 1,
-      "mean": 0.609933020872989,
-      "worst": 0.609933020872989,
-      "meanSpread": 0.02689598188268294
+      "mean": 0.5952572723448004,
+      "worst": 0.5952572723448004,
+      "meanSpread": 0.04184274610523164
     },
     "verdict": {
       "label": "controlled descent",
