@@ -14,3 +14,11 @@ private/
 clips_inbox/*
 !clips_inbox/.gitkeep
 .DS_Store
+# Private fixtures/examples: clips you don't want in the repo. Same layout as
+# tests/fixtures/global/ (own manifest.json, <stance>/ subfolders); the app
+# merges both into one example gallery and the tests score both. Their golden
+# snapshots are private too.
+tests/fixtures/local/*
+!tests/fixtures/local/.gitkeep
+tests/golden/local/*
+!tests/golden/local/.gitkeep

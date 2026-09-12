@@ -3,8 +3,10 @@
 How to turn a pile of lift videos into test cases for coach's diagnostics,
 end to end. Two things live here:
 
-- **`tests/fixtures/`** — cached ViTPose tracks (see `tests/fixtures/README.md`
-  for the directory layout and `manifest.json` schema).
+- **`tests/fixtures/`** — cached ViTPose tracks, split into `global/`
+  (committed) and `local/` (gitignored, your own clips); see
+  `tests/fixtures/README.md` for the directory layout and `manifest.json`
+  schema. These double as the app's example gallery.
 - **`tests/*.test.js`** — a Node test (`node:test`, no dependencies) that
   scores every fixture's diagnostics and checks the result against a
   checked-in golden snapshot.
@@ -48,12 +50,14 @@ logged and skipped — it won't stop the rest of the batch.
 
 This writes, per clip:
 ```
-tests/fixtures/<stance>/<clip-stem>.mp4          the source clip
-tests/fixtures/<stance>/<clip-stem>.track.json   its cached pose track
+tests/fixtures/local/<stance>/<clip-stem>.mp4          the source clip
+tests/fixtures/local/<stance>/<clip-stem>.track.json   its cached pose track
 ```
-and appends an entry to `tests/fixtures/manifest.json` keyed
+and appends an entry to `tests/fixtures/local/manifest.json` keyed
 `<stance>/<clip-stem>` (re-running on the same clip overwrites its entry
-rather than duplicating it).
+rather than duplicating it). `local/` is gitignored: the clips show up in the
+app's example picker and in the tests on this machine, but never in a commit.
+Pass `--scope global` for clips meant to ship with the repo.
 
 ### 4. Sanity-check what landed
 
@@ -66,7 +70,7 @@ or discarding rather than keeping as a fixture.
 
 ### 5. (Optional) hand-label technique for the fixtures worth asserting on
 
-Edit the fixture's entry in `tests/fixtures/manifest.json` — `labels` and
+Edit the fixture's entry in its scope's `manifest.json` — `labels` and
 `notes` are never touched by the batch script once they've been filled in, so
 this is safe to do by hand at any point, including before or after
 re-extracting the same clip:
@@ -87,8 +91,8 @@ verdict `good`") have somewhere to live once you want to write them.
 ### 6. Generate golden snapshots
 
 ```sh
-node tests/update_golden.js                       # every fixture in manifest.json
-node tests/update_golden.js snatch/lifter1-rep1    # just one
+node tests/update_golden.js                             # every fixture, both scopes
+node tests/update_golden.js local/snatch/lifter1-rep1    # just one (full slug, with scope)
 ```
 
 Writes `tests/golden/<stance>-<clip-stem>.json` — `Diagnostics.computeResults()`'s

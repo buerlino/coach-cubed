@@ -1,8 +1,10 @@
 'use strict';
-// One subtest per fixture listed in tests/fixtures/manifest.json — adding a
-// new stance/clip needs nothing wired up here, only a golden snapshot
-// (node tests/update_golden.js <slug>) once the fixture itself exists. See
-// tests/README.md for the full add-a-fixture workflow.
+// One subtest per fixture listed in tests/fixtures/{global,local}/manifest.json
+// — adding a new stance/clip needs nothing wired up here, only a golden
+// snapshot (node tests/update_golden.js <scope>/<slug>) once the fixture
+// itself exists. Local fixtures and their goldens are gitignored, so a fresh
+// checkout sees only the global ones. See tests/README.md for the full
+// add-a-fixture workflow.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -10,18 +12,10 @@ const path = require('node:path');
 
 const { loadDiagnostics } = require('./loadDiagnostics');
 
-const FIXTURES_DIR = path.join(__dirname, 'fixtures');
-const GOLDEN_DIR = path.join(__dirname, 'golden');
+const { FIXTURES_DIR, loadManifests, trackPathFor, goldenPathFor } = require('./fixtures');
 
-const manifest = JSON.parse(fs.readFileSync(path.join(FIXTURES_DIR, 'manifest.json'), 'utf8'));
-
-function trackPathFor(slug) {
-  return path.join(FIXTURES_DIR, `${slug}.track.json`);
-}
-
-function goldenPathFor(slug) {
-  return path.join(GOLDEN_DIR, slug.replace(/\//g, '-') + '.json');
-}
+// Keyed "<scope>/<stance>/<clip-stem>", both scopes merged.
+const manifest = loadManifests();
 
 for (const slug of Object.keys(manifest).sort()) {
   test(`computeResults on ${slug} matches its golden snapshot`, () => {
@@ -30,6 +24,8 @@ for (const slug of Object.keys(manifest).sort()) {
     const goldenPath = goldenPathFor(slug);
     assert.ok(fs.existsSync(goldenPath),
       `no golden snapshot for ${slug} — run: node tests/update_golden.js ${slug}`);
+    // (a local fixture freshly extracted on this machine lands here until its
+    // golden is generated — that's expected, not a regression)
 
     const Diagnostics = loadDiagnostics();
     // Each fixture scores against its own lift's diagnostic set — manifest's
@@ -62,5 +58,6 @@ for (const slug of Object.keys(manifest).sort()) {
 // Fails loudly rather than silently testing nothing if the manifest is
 // empty — an empty passing suite looks identical to a broken one otherwise.
 test('at least one fixture is under test', () => {
-  assert.ok(Object.keys(manifest).length > 0, 'tests/fixtures/manifest.json has no entries');
+  assert.ok(Object.keys(manifest).length > 0,
+    `no fixtures found under ${FIXTURES_DIR}/{global,local}/manifest.json`);
 });

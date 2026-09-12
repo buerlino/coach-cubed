@@ -265,14 +265,23 @@ def api_depth_generate():
 
 
 # --- examples -------------------------------------------------------------
-# The committed test fixtures (tests/fixtures, see tests/README.md) double as a
-# browsable example gallery, so a fresh checkout has something to run without
-# uploading anything of your own. Each fixture ships vitpose_backend's own
-# cached `.track.json` next to its clip, so selecting one loads a full,
+# The test fixtures (tests/fixtures, see tests/README.md) double as a browsable
+# example gallery, so a fresh checkout has something to run without uploading
+# anything of your own. Each fixture ships vitpose_backend's own cached
+# `.track.json` next to its clip, so selecting one loads a full,
 # already-analysed lift with zero GPU work — the exact shape /api/pose/video
 # returns. The fixture set IS the example set: anything added under
-# tests/fixtures/ shows up here for free, no separate registry to maintain.
+# tests/fixtures/<scope>/ shows up here for free, no separate registry to
+# maintain.
+#
+# Two scopes, same layout (own manifest.json + <stance>/ subfolders):
+#   global/  committed — ships with the repo
+#   local/   gitignored — your own clips, never pushed
+# Example ids are "<scope>/<stance>/<clip-stem>", i.e. the manifest key with
+# the scope folder prepended, so one id both names the entry and locates its
+# files under FIXTURES_DIR.
 FIXTURES_DIR = Path(__file__).parent.parent / "tests" / "fixtures"
+FIXTURE_SCOPES = ("global", "local")
 
 # Model sizes the UI offers, largest-effort last. Kept in sync with the #vsize
 # <select> so a track named for a size we no longer serve is simply ignored.
@@ -280,11 +289,23 @@ MODEL_SIZES = ("l", "h")
 
 
 def _load_manifest():
-    manifest = FIXTURES_DIR / "manifest.json"
-    try:
-        return json.loads(manifest.read_text())
-    except (ValueError, OSError):
-        return {}
+    """Every scope's manifest merged into one dict keyed by example id
+    ("<scope>/<slug>"), each entry tagged with its "scope". A scope with no
+    manifest (a fresh checkout's local/) or an unparsable one contributes
+    nothing rather than breaking the gallery."""
+    merged = {}
+    for scope in FIXTURE_SCOPES:
+        manifest = FIXTURES_DIR / scope / "manifest.json"
+        try:
+            entries = json.loads(manifest.read_text())
+        except (ValueError, OSError):
+            continue
+        if not isinstance(entries, dict):
+            continue
+        for slug, entry in entries.items():
+            if isinstance(entry, dict):
+                merged[f"{scope}/{slug}"] = {**entry, "scope": scope}
+    return merged
 
 
 def _example_video(example_id):
@@ -341,14 +362,17 @@ def api_examples():
             continue
         out.append({
             "id": key,
-            "label": key,
+            # Shown without the scope folder; the frontend groups by scope.
+            "label": key.split("/", 1)[1],
+            "scope": entry["scope"],
             "stance": entry.get("stance"),
             "notes": entry.get("notes", ""),
             # Which model sizes have a cached track, in UI order — the frontend
             # greys out the rest and only offers to switch overlay to these.
             "sizes": [s for s in MODEL_SIZES if s in tracks],
         })
-    out.sort(key=lambda e: e["id"])
+    # Committed examples first, then your own; alphabetical within each.
+    out.sort(key=lambda e: (FIXTURE_SCOPES.index(e["scope"]), e["id"]))
     return jsonify(out)
 
 
@@ -377,6 +401,23 @@ def api_example_track(example_id):
 # request so a JS edit needs only a browser reload — restart.sh is for app.py
 # changes. See .claude/skills/lifting-diagnostic/ for the contract.
 DIAGNOSTICS_JS = Path(__file__).parent / "diagnostics.js"
+
+
+# three.js for the 3D viewer, served from the repo rather than a CDN. It used
+# to come from unpkg, which quietly made the one part of coach that needs the
+# public internet the part most likely to be used without it: the app is a
+# tailnet/loopback deploy whose models were all pulled local precisely so it
+# runs offline, and a phone on the tailnet with no route out would load the
+# page, run the reconstruction, and then silently get no viewer. Vendored, the
+# 3D view has the same offline guarantee as everything else.
+THREE_JS = Path(__file__).parent / "vendor/three.module.js"
+
+
+@app.route("/vendor/three.module.js")
+def three_module_js():
+    if not THREE_JS.exists():
+        return jsonify({"error": "three.module.js is not vendored"}), 404
+    return send_file(THREE_JS, mimetype="application/javascript")
 
 
 @app.route("/diagnostics.js")
@@ -2086,6 +2127,15 @@ async function v3dGenerate() {
       window.Viewer.load(c);
       window.Viewer.showFrame(idx);
       window.Viewer.resize();   // the panel was display:none until now
+    } else {
+      // Reported here, on every run, rather than once at page load: this is the
+      // branch where the reconstruction succeeded and only the canvas is
+      // missing, and without a word here that combination reads as "recompute
+      // did nothing" — the numbers above update, and nothing else on the page
+      // moves. See viewerFailed() in the module at the bottom of this file.
+      note.innerHTML += ` · <span style="color:#e08a8a">3D view unavailable `
+        + `(${window.__viewerError || 'three.js/WebGL did not initialise'}) — `
+        + `the reconstruction above still ran</span>`;
     }
   } catch (e) {
     note.textContent = 'error: ' + e;
@@ -2113,18 +2163,27 @@ fetch('/api/depth/methods').then(r => r.json()).then(m => {
   }
 }).catch(() => { /* picker stays Auto-only; generate still routes server-side */ });
 
-// Populate the example dropdown from the committed fixtures. Stays hidden if
-// none ship with this checkout, so the control never dangles empty.
+// Populate the example dropdown from the fixtures, one <optgroup> per scope
+// (global = committed with the repo, local = this machine's gitignored clips).
+// Stays hidden if none exist in this checkout, so the control never dangles
+// empty.
 fetch('/api/examples').then(r => r.json()).then(list => {
   if (!Array.isArray(list) || !list.length) return;
   const sel = $('vexample');
+  const groups = {};
   for (const ex of list) {
+    const scope = ex.scope || 'global';
+    if (!groups[scope]) {
+      groups[scope] = document.createElement('optgroup');
+      groups[scope].label = scope;
+      sel.appendChild(groups[scope]);
+    }
     const opt = document.createElement('option');
     opt.value = ex.id;
     opt.textContent = ex.label;
     opt.dataset.sizes = (ex.sizes || []).join(',');
     if (ex.notes) opt.title = ex.notes;
-    sel.appendChild(opt);
+    groups[scope].appendChild(opt);
   }
   $('vexampleWrap').style.display = '';
 }).catch(() => { /* no gallery is fine — upload/record still work */ });
@@ -2141,16 +2200,27 @@ setPage('{{DEFAULT_PAGE}}');   // a lift page by default; the image path is the 
      from a CDN (the box is on the tailnet with internet); if the import fails
      the panel just says so and the text note above still reports the result. -->
 <script type="importmap">
-{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+{ "imports": { "three": "/vendor/three.module.js" } }
 </script>
 <script type="module">
 const $ = id => document.getElementById(id);
+
+// Every failure below ends the same way — no window.Viewer, so v3dGenerate
+// never un-hides #v3dpanel — which is why the reason has to be recorded
+// somewhere that outlives this script. It used to be written into #v3dhint,
+// and #v3dhint lives INSIDE #v3dpanel: the one element guaranteed to stay
+// hidden in exactly the case the message explains. The symptom was a viewer
+// that appeared to do nothing at all, with no error anywhere on the page.
+function viewerFailed(what, e) {
+  window.__viewerError = what + ': ' + ((e && e.message) ? e.message : e);
+  console.error('[coach] 3D viewer disabled —', window.__viewerError, e);
+}
+
 let THREE;
 try {
   THREE = await import('three');
 } catch (e) {
-  const h = $('v3dhint');
-  if (h) h.textContent = '3D viewer needs three.js (no network?)';
+  viewerFailed('three.js failed to load', e);
   throw e;   // leave window.Viewer undefined; the text note still works
 }
 
@@ -2158,7 +2228,12 @@ try {
 // turntable's front/back is readable at a glance.
 const JOINT_COLOR = 0x6fd1c5, BONE_COLOR = 0x9ec1ff, BAR_COLOR = 0xf0a020;
 
-const Viewer = (() => {
+// Built inside a try below, not at top level: new WebGLRenderer() throws when
+// the browser has no usable WebGL context (a driver on Firefox's blocklist, a
+// remote/software-rendered session, WebGL off in about:config). A second, quite
+// different reason for the viewer to be missing, and it used to be entirely
+// uncaught — the module just died mid-evaluation and left no trace anywhere.
+const buildViewer = () => {
   const canvas = $('v3dcanvas'), wrap = $('v3dcanvasWrap');
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   const scene = new THREE.Scene();
@@ -2274,8 +2349,15 @@ const Viewer = (() => {
       render();
     },
   };
-})();
+};
 
+let Viewer = null;
+try {
+  Viewer = buildViewer();
+} catch (e) {
+  viewerFailed('WebGL unavailable', e);
+  throw e;
+}
 window.Viewer = Viewer;
 </script>
 </body>
@@ -2296,6 +2378,8 @@ PAGES = [
     {"id": "snatch", "label": "snatch", "media": "video", "diagnostics": "snatch"},
     {"id": "lateral-raise", "label": "lateral raise", "media": "video",
      "diagnostics": "lateral-raise"},
+    {"id": "clean-and-jerk", "label": "clean & jerk", "media": "video",
+     "diagnostics": "clean-and-jerk"},
 ]
 DEFAULT_PAGE = "snatch"   # the lift shown on load — the diagnostics live here
 
@@ -2321,9 +2405,9 @@ VIDEO_SETTINGS_HTML = """<div class="settings">
         <p class="control-help">Choose a clip, record a short camera sample, or load a bundled example.</p>
         <input id="vfile" type="file" accept="video/*">
         <button id="vcam" class="secondary-action" type="button">record from camera</button>
-      <!-- The committed example clips (tests/fixtures) each ship a cached track,
-           so picking one loads a fully-analysed lift instantly — no upload, no
-           GPU pass. Hidden until /api/examples reports at least one. -->
+      <!-- The example clips (tests/fixtures/{global,local}) each ship a cached
+           track, so picking one loads a fully-analysed lift instantly — no
+           upload, no GPU pass. Hidden until /api/examples reports at least one. -->
         <label id="vexampleWrap" style="display:none">example
           <select id="vexample"><option value="">— pick an example —</option></select>
         </label>

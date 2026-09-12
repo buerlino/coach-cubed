@@ -104,6 +104,14 @@ class Scene:
     start_frame: Optional[int] = None
     current_frame: Optional[int] = None
 
+    # Which way each ambiguous limb bends out of the image plane: {joint index:
+    # +1 toward the camera, -1 away}. A joint absent from the dict takes
+    # DEFAULT_DEPTH_SIGN, so an empty dict reproduces the old behaviour exactly.
+    # Per joint rather than one global flip because a lift routinely has both at
+    # once — at the catch, one elbow is in front of the bar and the other behind
+    # it, and no single choice is right for both.
+    depth_signs: dict = field(default_factory=dict)
+
     # cached cheap features, filled lazily by feature accessors below
     _cache: dict = field(default_factory=dict, repr=False)
 
@@ -151,7 +159,8 @@ class Scene:
                    dataset=payload.get("dataset", "coco"),
                    sequence=sequence,
                    start_frame=None if start_frame is None else int(start_frame),
-                   current_frame=payload.get("current_frame"))
+                   current_frame=payload.get("current_frame"),
+                   depth_signs=parse_depth_signs(payload.get("depth_signs")))
 
     def start_equipment(self) -> Optional[dict]:
         """Equipment on the lift's start frame — what plate-anchor confidence
@@ -320,6 +329,54 @@ _WALK = [
 ]
 
 
+# --- the depth-sign ambiguity ----------------------------------------------
+# Every joint reached by walking a bone out from its parent gets a dz whose
+# MAGNITUDE the bone-length prior fixes and whose SIGN a single view cannot:
+# an elbow foreshortened by 30px is equally consistent with bending toward the
+# camera or away from it. These are exactly the children in _WALK — the joints
+# placed in-plane (hips, shoulders, nose, pelvis) carry no dz and so no choice.
+DEFAULT_DEPTH_SIGN = +1          # toward the camera, the historical behaviour
+
+_JOINT_LABELS = {
+    L_KNE: "left knee", L_ANK: "left ankle", R_KNE: "right knee", R_ANK: "right ankle",
+    L_ELB: "left elbow", L_WRI: "left wrist", R_ELB: "right elbow", R_WRI: "right wrist",
+    L_EYE: "left eye", L_EAR: "left ear", R_EYE: "right eye", R_EAR: "right ear",
+}
+
+
+def sign_joints() -> list:
+    """The joints whose depth direction is selectable, for the picker UI.
+
+    Derived from _WALK rather than listed by hand, so adding a bone to the
+    prior can't leave the interface silently missing its toggle."""
+    return [{"index": child, "label": _JOINT_LABELS.get(child, f"joint {child}"),
+             "default": DEFAULT_DEPTH_SIGN}
+            for _, child in _WALK]
+
+
+def parse_depth_signs(raw) -> dict:
+    """{joint: ±1} from whatever the frontend posted.
+
+    Tolerant on purpose — this arrives from a UI holding one entry per joint
+    and a stale/garbage entry must not cost the whole reconstruction. Anything
+    that isn't a known ambiguous joint with a usable sign is dropped, and the
+    joint falls back to DEFAULT_DEPTH_SIGN.
+    """
+    out = {}
+    if not isinstance(raw, dict):
+        return out
+    valid = {child for _, child in _WALK}
+    for k, v in raw.items():
+        try:
+            i = int(k)
+            s = int(v)
+        except (TypeError, ValueError):
+            continue
+        if i in valid and s in (-1, 1):
+            out[i] = s
+    return out
+
+
 def _bone_length_lift(scene: Scene, scale_px: float):
     """2D keypoints + bone-length priors -> (joints3d (17,3), notes).
 
@@ -330,9 +387,12 @@ def _bone_length_lift(scene: Scene, scale_px: float):
     walk the limbs outward accumulating dz.
 
     The unavoidable catch is the SIGN of every dz — a single view can't tell
-    toward-camera from away. We default every limb toward the camera (+z) and
-    say so in notes; resolving it properly is a temporal/multi-view job, not
-    this anchor's. Units are whatever scale_px is expressed in (px for the
+    toward-camera from away. The magnitude is still information, so rather than
+    guess globally, each ambiguous joint carries its own choice in
+    scene.depth_signs (see DEFAULT_DEPTH_SIGN) and the interface exposes them;
+    an empty dict reproduces the old all-toward-camera behaviour. Inferring the
+    signs instead of being told them is a temporal/multi-view job, not this
+    anchor's. Units are whatever scale_px is expressed in (px for the
     non-metric lift, mm once multiplied through for the metric one)."""
     j = np.full((N_JOINTS, 3), np.nan, dtype=float)
     xy = scene.kp2d[:, :2]
@@ -353,8 +413,11 @@ def _bone_length_lift(scene: Scene, scale_px: float):
     for i in (L_HIP, R_HIP, L_SHO, R_SHO, NOSE):
         place_inplane(i)
 
-    # Limbs: dz from the bone-length prior, sign defaulted toward camera.
-    ambiguous = False
+    # Limbs: dz from the bone-length prior, direction from the per-joint choice.
+    # The sign multiplies only THIS bone's dz; the parent's accumulated depth is
+    # carried through unchanged, so flipping a forearm swings the wrist about the
+    # elbow instead of teleporting the whole arm.
+    ambiguous, flipped = 0, 0
     for parent, child in _WALK:
         if not (seen[parent] and seen[child]) or not np.all(np.isfinite(j[parent])):
             continue
@@ -362,15 +425,21 @@ def _bone_length_lift(scene: Scene, scale_px: float):
                              xy[child, 1] - xy[parent, 1]))
         L = _BONE_RATIO[(parent, child)] * scale_px
         dz = float(np.sqrt(max(L * L - l2d * l2d, 0.0)))
+        sign = scene.depth_signs.get(child, DEFAULT_DEPTH_SIGN)
         if dz > 1e-6:
-            ambiguous = True
+            ambiguous += 1
+            if sign < 0:
+                flipped += 1
         j[child] = (xy[child, 0] - pelvis[0],
                     xy[child, 1] - pelvis[1],
-                    j[parent, 2] + dz)   # +dz: default toward camera
+                    j[parent, 2] + sign * dz)
 
-    note = "bone-length lift; " + (
-        "limb depth sign defaulted toward camera (single-view ambiguity)"
-        if ambiguous else "near-frontal limbs, little out-of-plane depth")
+    if not ambiguous:
+        note = "bone-length lift; near-frontal limbs, little out-of-plane depth"
+    else:
+        note = (f"bone-length lift; {ambiguous} limb(s) out of plane, "
+                f"{flipped} set away from camera, {ambiguous - flipped} toward "
+                f"(single-view sign ambiguity — chosen, not inferred)")
     return j, note
 
 

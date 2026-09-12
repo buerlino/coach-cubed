@@ -40,6 +40,36 @@ still starts — `/api/capabilities` reports it, the page disables those three
 tickboxes with a note, and the start endpoint 503s rather than burning a whole
 pose pass before failing.
 
+### SAM 3 (`~/models/sam3`, ~3.4GB) — fetched, not yet wired
+
+`COACH_SAM3=1 ./scripts/download_models.sh` pulls it; `COACH_SAM3=0` declines;
+`COACH_SAM3_DIR` moves it. Nothing imports it yet — `equipment_backend.py` is
+still Grounding DINO — so this is only the weights, on disk, ready to swap to
+and measure offline. `transformers` 5.16.1 already has the classes
+(`Sam3Model`/`Sam3Processor` per image, `Sam3VideoModel`/`Sam3VideoProcessor`
+for prompt→tracked-masklet over a clip); no upgrade needed. Note the checkpoint
+declares `Sam3VideoModel` but loads fine under either.
+
+**It is the one gated checkpoint, and that breaks the "clone and run"
+property.** `facebook/sam3` is `gated: manual`, so unlike every other download
+here an anonymous fetch gets `401` regardless of the URL. Two things must both
+be true on a new machine:
+
+1. a token — `$HF_TOKEN`, or `hf auth login` writing `~/.cache/huggingface/token`;
+2. **that token's account individually approved** at
+   <https://huggingface.co/facebook/sam3> — Meta grants it by hand, so this is
+   not something the script can do for you, and a token alone is not enough.
+
+The script sends a bearer token for this block only (everything else stays
+anonymous, so a box that never logged in is unaffected) and probes access with
+a 1-byte ranged GET before starting the 3.4GB, so a missing or unapproved token
+fails in a second with the URL to request access rather than dying part-way
+through a long download.
+
+Only `model.safetensors` is taken. The repo also ships `sam3.pt` — the same
+3.4GB of weights in Meta's native format, which `from_pretrained` never opens —
+so fetching both would exactly double the download for nothing.
+
 ## Layout
 
 `src/` is the app (`app.py`, the two backends, `diagnostics.js`); `scripts/`

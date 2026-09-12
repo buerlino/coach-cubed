@@ -1880,6 +1880,7 @@ const lateralRaiseSymmetry = {
 const DIAGNOSTIC_SETS = {
   'snatch': [firstPullBackAngle, secondPullTripleExtension],
   'lateral-raise': [lateralRaiseTopHeight, lateralRaiseTorsoLean, lateralRaiseElbowLead, lateralRaiseTempo, lateralRaiseSymmetry],
+  'clean-and-jerk': [],         // page exists, no cues yet — see .claude/skills/lifting-diagnostic
 };
 const DEFAULT_SET = 'snatch';
 

@@ -19,13 +19,18 @@ clips are necessarily processed one by one; this script just waits out each
 one's progress before starting the next; that's exactly the "let clips be
 uploaded and processed one by one" workflow, not a limitation to work around.
 
-Writes, per clip, into --out-dir (default tests/fixtures):
+Writes, per clip, into tests/fixtures/<scope>/ (or --out-dir):
   <stance>/<clip-stem>.mp4          copy of the source clip
   <stance>/<clip-stem>.track.json   {"keypoints": ..., "meta": ...} — the same
                                      payload /api/pose/video/result returns
-and appends one entry per clip to <out-dir>/manifest.json, keyed by
+and appends one entry per clip to that folder's manifest.json, keyed by
 "<stance>/<clip-stem>" so re-running on the same clip overwrites its entry
 instead of duplicating it.
+
+--scope picks where a batch lands: "local" (the default) is gitignored — your
+own clips, shown in the app's example picker on this machine only; "global"
+is committed and ships with the repo. Both have the same layout, so promoting
+a clip is a move of its two files plus its manifest entry.
 
 A clip that errors (bad upload, no person detected, pose pass raised) is
 logged and skipped — one bad file shouldn't cost the rest of the batch.
@@ -151,7 +156,11 @@ def main():
     ap.add_argument("--frame-stride", type=int, default=1)
     ap.add_argument("--detect-equipment", action="store_true",
                      help="also run Grounding DINO bar/plate detection (roughly halves throughput)")
-    ap.add_argument("--out-dir", default="tests/fixtures")
+    ap.add_argument("--scope", default="local", choices=("local", "global"),
+                     help="local (default): gitignored, this machine only; "
+                          "global: committed with the repo")
+    ap.add_argument("--out-dir", default=None,
+                     help="override the destination folder (default tests/fixtures/<scope>)")
     args = ap.parse_args()
 
     clips = discover_clips(args.clips, args.dir)
@@ -165,7 +174,7 @@ def main():
         sys.exit(f"can't reach coach at {base_url} — is it running? "
                  f"(./scripts/coach_launch.sh local)\n{e}")
 
-    out_dir = Path(args.out_dir)
+    out_dir = Path(args.out_dir) if args.out_dir else Path("tests/fixtures") / args.scope
     out_dir.mkdir(parents=True, exist_ok=True)
     manifest = load_manifest(out_dir)
 
