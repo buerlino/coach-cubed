@@ -2049,7 +2049,15 @@ function v3dReset() {
 // frame on screen (raw, unsmoothed keypoints — the honest thing the model saw).
 function v3dCurrentFrame() {
   if (!vSample) return null;
-  return vSample.frames[slotForTime(vvideo.currentTime)];
+  const target = vSample.frames[slotForTime(vvideo.currentTime)];
+  if (v3dPoseAt(target)) return target;
+  let nearest = null, distance = Infinity;
+  for (const frame of vSample.frames) {
+    if (!v3dPoseAt(frame)) continue;
+    const d = Math.abs(frame - target);
+    if (d < distance) { nearest = frame; distance = d; }
+  }
+  return nearest;
 }
 
 function v3dPoseAt(idx) {

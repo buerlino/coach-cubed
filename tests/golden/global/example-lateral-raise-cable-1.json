@@ -1,13 +1,13 @@
 {
   "lateral-raise-top-height": {
     "phase": {
-      "startIdx": 46,
+      "startIdx": 29,
       "endIdx": 74,
       "notes": [],
       "reps": [
         {
           "peakIdx": 56,
-          "bottomBeforeIdx": 46,
+          "bottomBeforeIdx": 29,
           "bottomAfterIdx": 74
         }
       ],
@@ -42,12 +42,165 @@
   },
   "lateral-raise-torso-lean": {
     "phase": {
-      "startIdx": 46,
+      "startIdx": 29,
       "endIdx": 74,
       "notes": [],
       "repCount": 1
     },
     "series": [
+      {
+        "idx": 29,
+        "frame": 29,
+        "t": 1.16,
+        "value": 84.80095536918597,
+        "lo": 81.09229638738069,
+        "hi": 88.50961435099127,
+        "spread": 7.417317963610586
+      },
+      {
+        "idx": 30,
+        "frame": 30,
+        "t": 1.2,
+        "value": 84.31386282638175,
+        "lo": 79.74597163749782,
+        "hi": 88.88175401526567,
+        "spread": 9.135782377767853
+      },
+      {
+        "idx": 31,
+        "frame": 31,
+        "t": 1.24,
+        "value": 84.418558009701,
+        "lo": 79.33321505989005,
+        "hi": 89.50390095951197,
+        "spread": 10.170685899621915
+      },
+      {
+        "idx": 32,
+        "frame": 32,
+        "t": 1.28,
+        "value": 83.70409677676447,
+        "lo": 77.63367676569153,
+        "hi": 89.77451678783741,
+        "spread": 12.14084002214588
+      },
+      {
+        "idx": 33,
+        "frame": 33,
+        "t": 1.32,
+        "value": 82.90712428267831,
+        "lo": 76.6150677633069,
+        "hi": 89.19918080204972,
+        "spread": 12.584113038742828
+      },
+      {
+        "idx": 34,
+        "frame": 34,
+        "t": 1.36,
+        "value": 82.67085925357969,
+        "lo": 76.81186273313409,
+        "hi": 88.5298557740253,
+        "spread": 11.717993040891201
+      },
+      {
+        "idx": 35,
+        "frame": 35,
+        "t": 1.4000000000000001,
+        "value": 81.68307372778295,
+        "lo": 74.52982434419982,
+        "hi": 88.83632311136607,
+        "spread": 14.306498767166246
+      },
+      {
+        "idx": 36,
+        "frame": 36,
+        "t": 1.44,
+        "value": 80.91966394470089,
+        "lo": 73.7891030545436,
+        "hi": 88.05022483485817,
+        "spread": 14.261121780314568
+      },
+      {
+        "idx": 37,
+        "frame": 37,
+        "t": 1.48,
+        "value": 80.741819941165,
+        "lo": 73.51867110375458,
+        "hi": 87.96496877857544,
+        "spread": 14.446297674820855
+      },
+      {
+        "idx": 38,
+        "frame": 38,
+        "t": 1.52,
+        "value": 80.31604408423901,
+        "lo": 73.01561752388177,
+        "hi": 87.61647064459625,
+        "spread": 14.600853120714476
+      },
+      {
+        "idx": 39,
+        "frame": 39,
+        "t": 1.56,
+        "value": 81.00056756271657,
+        "lo": 73.77755194438772,
+        "hi": 88.22358318104541,
+        "spread": 14.446031236657689
+      },
+      {
+        "idx": 40,
+        "frame": 40,
+        "t": 1.6,
+        "value": 82.26719196629517,
+        "lo": 75.88447084990845,
+        "hi": 88.64991308268188,
+        "spread": 12.765442232773424
+      },
+      {
+        "idx": 41,
+        "frame": 41,
+        "t": 1.6400000000000001,
+        "value": 83.2163043604171,
+        "lo": 76.52584732780912,
+        "hi": 89.90676139302506,
+        "spread": 13.380914065215947
+      },
+      {
+        "idx": 42,
+        "frame": 42,
+        "t": 1.68,
+        "value": 83.09243851992582,
+        "lo": 77.24431902276802,
+        "hi": 88.94055801708362,
+        "spread": 11.696238994315593
+      },
+      {
+        "idx": 43,
+        "frame": 43,
+        "t": 1.72,
+        "value": 83.47858694473737,
+        "lo": 78.8875381586916,
+        "hi": 88.06963573078313,
+        "spread": 9.182097572091536
+      },
+      {
+        "idx": 44,
+        "frame": 44,
+        "t": 1.76,
+        "value": 83.78266586886805,
+        "lo": 79.78073712671561,
+        "hi": 87.7845946110205,
+        "spread": 8.003857484304888
+      },
+      {
+        "idx": 45,
+        "frame": 45,
+        "t": 1.8,
+        "value": 83.47882037291004,
+        "lo": 79.39885948606218,
+        "hi": 87.5587812597579,
+        "spread": 8.159921773695714
+      },
       {
         "idx": 46,
         "frame": 46,
@@ -311,27 +464,27 @@
       }
     ],
     "summary": {
-      "mean": 84.02145933554407,
-      "sd": 0.8316357613216139,
-      "range": 3.3665727374733763,
-      "meanSpread": 9.06136750845887,
-      "n": 29,
+      "mean": 83.55249901180059,
+      "sd": 1.2148887602104055,
+      "range": 5.974532534518531,
+      "meanSpread": 10.02599271282953,
+      "n": 46,
       "repCount": 1,
       "bothSides": 1,
       "interpFrac": 0,
-      "duration": 1.1199999999999999
+      "duration": 1.8
     },
     "verdict": {
       "label": "stays upright",
       "status": "good"
     },
     "notes": [
-      "The two sides disagree by 9.1° on average. A steady offset means the camera is not square to the lifter; a jittery one means the pose track is unreliable — check the band on the plot."
+      "The two sides disagree by 10.0° on average. A steady offset means the camera is not square to the lifter; a jittery one means the pose track is unreliable — check the band on the plot."
     ]
   },
   "lateral-raise-elbow-lead": {
     "phase": {
-      "startIdx": 46,
+      "startIdx": 29,
       "endIdx": 74,
       "notes": [],
       "repCount": 1,
@@ -637,7 +790,7 @@
       "worst": -11.383490659730763,
       "meanSpread": 8.717414194192632,
       "n": 24,
-      "atRestFrac": 0.1724137931034483
+      "atRestFrac": 0.4782608695652174
     },
     "verdict": {
       "label": "wrist rises above elbow",
@@ -647,21 +800,21 @@
   },
   "lateral-raise-tempo": {
     "phase": {
-      "startIdx": 46,
+      "startIdx": 29,
       "endIdx": 74,
       "notes": [],
       "reps": [
         {
           "peakIdx": 56,
-          "bottomBeforeIdx": 46,
+          "bottomBeforeIdx": 29,
           "bottomAfterIdx": 74
         }
       ],
       "repPoints": [
         {
           "bottom": {
-            "x": 676.9163360595703,
-            "y": 757.3930358886719
+            "x": 554.6247253417969,
+            "y": 955.3095397949219
           },
           "peak": {
             "x": 649.8484191894531,
@@ -681,17 +834,17 @@
         "idx": 56,
         "frame": 56,
         "t": 2.24,
-        "value": 0.5952572723448004,
-        "lo": 0.5743358992921845,
-        "hi": 0.6161786453974162,
-        "spread": 0.04184274610523164
+        "value": 1.070222589066372,
+        "lo": 1.053014244048215,
+        "hi": 1.087430934084529,
+        "spread": 0.03441669003631387
       }
     ],
     "summary": {
       "reps": 1,
-      "mean": 0.5952572723448004,
-      "worst": 0.5952572723448004,
-      "meanSpread": 0.04184274610523164
+      "mean": 1.070222589066372,
+      "worst": 1.070222589066372,
+      "meanSpread": 0.03441669003631387
     },
     "verdict": {
       "label": "controlled descent",

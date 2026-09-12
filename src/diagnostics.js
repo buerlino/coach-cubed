@@ -1084,9 +1084,11 @@ const secondPullTripleExtension = {
 // before a threshold or extremum counts; a window fixed in TIME so stride
 // doesn't move it.
 const REP_BOTTOM_FRAC = -0.6;   // torso-lengths; wrist below this counts as "at rest", ending a rep
-const REP_RISE_MIN = 0.3;       // torso-lengths risen from the local bottom before a rep is real
-const REP_RELEASE_DROP = 0.3;   // torso-lengths below that rep's peak before another rep can begin
-const MIN_REP_SECONDS = 2 * SMOOTH_SECONDS;   // ~0.6s; shorter than this is more likely a detection glitch than a real rep
+const REP_MIN_HEIGHT = -0.7;    // torso-lengths below shoulder; low detection floor, not the form target
+const REP_RISE_MIN = 0.075;     // torso-lengths risen from the local bottom before a rep is real
+const REP_RELEASE_DROP = 0.075; // torso-lengths below that rep's peak before another rep can begin
+const REP_BASELINE_SECONDS = 1; // recent valley only; an old low must not suppress later partial reps
+const MIN_REP_SECONDS = SMOOTH_SECONDS;   // ~0.3s between threshold-derived boundaries
 
 function lateralRaiseReps(samples, scale, ax) {
   const raw = samples.map(s => {
@@ -1111,13 +1113,18 @@ function lateralRaiseReps(samples, scale, ax) {
     const v = signal[i];
     if (v == null) continue;
     if (state === 'bottom') {
-      if (v <= REP_BOTTOM_FRAC) {
-        bottomVal = v; bottomBeforeIdx = i;
-      } else if (v < bottomVal) {
-        bottomVal = v; bottomBeforeIdx = i;
+      if (pending) {
+        if (v <= bottomVal) { bottomVal = v; bottomBeforeIdx = i; }
+      } else {
+        bottomVal = Infinity; bottomBeforeIdx = null;
+        for (let j = i; j >= 0 && samples[i].t - samples[j].t <= REP_BASELINE_SECONDS; j--) {
+          if (signal[j] != null && signal[j] <= bottomVal) {
+            bottomVal = signal[j]; bottomBeforeIdx = j;
+          }
+        }
       }
-        if (bottomBeforeIdx != null && v - bottomVal >= REP_RISE_MIN &&
-          holds(i, x => x - bottomVal >= REP_RISE_MIN)) {
+          if (bottomBeforeIdx != null && v >= REP_MIN_HEIGHT && v - bottomVal >= REP_RISE_MIN &&
+            holds(i, x => x >= REP_MIN_HEIGHT && x - bottomVal >= REP_RISE_MIN)) {
         if (pending) {
           pending.bottomAfterIdx = bottomBeforeIdx;
           found.push(pending);
