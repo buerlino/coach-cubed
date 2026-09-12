@@ -1,6 +1,7 @@
 {
   "example/lateral-raise-cable-1": {
     "detect_equipment": false,
+    "diagnostics": "lateral-raise",
     "frame_count": 75,
     "frame_stride": 1,
     "frames_processed": 75,
@@ -14,6 +15,7 @@
   },
   "example/lateral-raise-cable-2": {
     "detect_equipment": false,
+    "diagnostics": "lateral-raise",
     "frame_count": 180,
     "frame_stride": 1,
     "frames_processed": 180,

@@ -32,6 +32,10 @@ for (const slug of Object.keys(manifest).sort()) {
       `no golden snapshot for ${slug} — run: node tests/update_golden.js ${slug}`);
 
     const Diagnostics = loadDiagnostics();
+    // Each fixture scores against its own lift's diagnostic set — manifest's
+    // own "diagnostics" field, same key PAGES/DIAGNOSTIC_SETS use, falling back
+    // to "snatch" for fixtures predating that field so old goldens still match.
+    Diagnostics.setPage(manifest[slug].diagnostics || 'snatch');
     const track = JSON.parse(fs.readFileSync(trackPath, 'utf8'));
     const personId = track.meta.tracks.kept;
     const out = Diagnostics.computeResults(track.keypoints, track.meta, personId);

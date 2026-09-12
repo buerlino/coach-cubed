@@ -395,8 +395,18 @@ INDEX_HTML = """<!doctype html>
 <meta charset="utf-8">
 <title>coach</title>
 <style>
-  body { background:#111; color:#eee; font-family:system-ui,sans-serif; max-width:1240px; margin:40px auto; padding:0 16px; }
-  h1 { font-weight:600; }
+  :root { --bg:#101211; --surface:#171a18; --surface-raised:#1d211e; --line:#343a35;
+          --muted:#9b9d96; --text:#f1f0e8; --accent:#f4b84a; --accent-soft:rgba(244,184,74,.14); }
+  body { background:linear-gradient(135deg,#101211 0%,#151916 100%); color:var(--text);
+         font-family:"Avenir Next","Helvetica Neue",sans-serif; max-width:1240px; min-height:100vh;
+         margin:0 auto; padding:40px 16px 72px; }
+  body[data-page="snatch"] { --accent:#f4b84a; --accent-soft:rgba(244,184,74,.14); }
+  body[data-page="lateral-raise"] { --accent:#57d3c7; --accent-soft:rgba(87,211,199,.14); }
+  body[data-page="image"] { --accent:#a8d96c; --accent-soft:rgba(168,217,108,.14); }
+  h1 { font-weight:600; letter-spacing:0; margin:0; }
+  .app-header { display:flex; align-items:end; justify-content:space-between; gap:20px; }
+  .app-kicker { color:var(--accent); font-size:12px; letter-spacing:0; text-transform:uppercase; margin:0 0 6px; }
+  .page-context { color:#c3c2b7; font-size:14px; margin:6px 0 0; }
   h2 { font-weight:600; font-size:18px; border-top:1px solid #333; padding-top:24px; margin-top:32px; }
   input,button,select { font-size:16px; padding:8px; margin:4px 0; }
   img { max-width:100%; margin-top:16px; border-radius:8px; }
@@ -407,8 +417,8 @@ INDEX_HTML = """<!doctype html>
   .tabs { display:flex; gap:4px; border-bottom:1px solid #333; margin:24px 0 20px; }
   .tab { font-size:15px; background:none; border:none; border-bottom:2px solid transparent;
          color:#898781; padding:8px 14px; margin:0 0 -1px; cursor:pointer; }
-  .tab:hover { color:#c3c2b7; }
-  .tab[aria-selected="true"] { color:#eee; border-bottom-color:#eee; }
+  .tab:hover { color:var(--text); background:var(--accent-soft); }
+  .tab[aria-selected="true"] { color:var(--text); border-bottom-color:var(--accent); }
 
   /* Desktop: the view sits beside its settings + everything derived from it,
      and stays put while the panel scrolls — the diagnostics are read against
@@ -419,16 +429,26 @@ INDEX_HTML = """<!doctype html>
     .layout { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); }
     .col-view { position:sticky; top:24px; }
   }
-  .panel-h { font-weight:600; font-size:18px; border-top:1px solid #333;
+  .panel-h { font-weight:600; font-size:18px; border-top:1px solid var(--line);
              padding-top:20px; margin:28px 0 12px; }
   .panel-h:first-child { border-top:none; padding-top:0; margin-top:0; }
-  .settings { display:flex; flex-direction:column; align-items:flex-start; gap:6px; }
+  .settings { display:flex; flex-direction:column; align-items:stretch; gap:8px; }
   .settings label { font-size:14px; color:#c3c2b7; display:flex; align-items:center;
                     gap:8px; flex-wrap:wrap; }
   .settings input[type=file] { max-width:100%; }
   .settings .row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-  #videoWrap { position:relative; max-width:100%; width:fit-content; margin-top:16px; }
-  #videoWrap video { max-width:100%; display:block; border-radius:8px; }
+  .control-group { border:1px solid var(--line); border-radius:8px; background:rgba(23,26,24,.88); padding:12px 14px; }
+  .control-group summary { color:#eee; cursor:pointer; font-size:14px; font-weight:600; }
+  .control-group summary::marker { color:#898781; }
+  .control-group[open] summary { margin-bottom:10px; }
+  .control-help { color:#898781; font-size:12px; margin:2px 0 0; }
+  .primary-action { background:var(--accent); color:#111; border:0; font-weight:600; cursor:pointer; }
+  .secondary-action { background:#252923; color:var(--text); border:1px solid #4a514b; cursor:pointer; }
+  button, select, input { border-radius:5px; border:1px solid #444b45; background:#20241f; color:var(--text); }
+  button:hover { filter:brightness(1.08); }
+  #videoWrap { position:relative; max-width:100%; width:fit-content; margin-top:16px; padding:7px;
+               background:#0b0c0b; border:1px solid var(--line); border-radius:10px; box-shadow:0 18px 45px rgba(0,0,0,.22); }
+  #videoWrap video { max-width:100%; display:block; border-radius:5px; }
   #videoWrap canvas { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
   /* diagnostics — dark chart surface + ink tokens from the validated palette */
   #diagWrap { display:none; }
@@ -436,7 +456,7 @@ INDEX_HTML = """<!doctype html>
   .diag-toggle { font-size:13px; color:#c3c2b7; display:flex; align-items:center; gap:6px; cursor:pointer; }
   .diag-toggle input { margin:0; font-size:inherit; padding:0; }
   .diag-tiles { display:flex; flex-wrap:wrap; gap:8px; margin:12px 0; }
-  .diag-tile { flex:1 1 120px; background:#1a1a19; border:1px solid rgba(255,255,255,0.10);
+  .diag-tile { flex:1 1 120px; background:var(--surface); border:1px solid rgba(255,255,255,0.10);
                border-radius:8px; padding:10px 12px; }
   .diag-tile-label { font-size:11px; color:#898781; }
   .diag-tile-value { font-size:22px; font-weight:600; margin:2px 0; }
@@ -447,15 +467,31 @@ INDEX_HTML = """<!doctype html>
   .diag-notes strong { color:#c3c2b7; font-weight:600; }
   .diag-note { font-size:13px; color:#898781; }
   /* one block per diagnostic, stacked — each owns its own tiles/plot/notes */
-  .diag-block { margin-top:24px; padding-top:20px; border-top:1px solid #2c2c2a; }
+  .diag-block { margin-top:24px; padding-top:20px; border-top:1px solid var(--line); }
   .diag-block:first-child { margin-top:14px; padding-top:0; border-top:none; }
   .diag-block-title { font-size:14px; font-weight:600; color:#c3c2b7; margin:0; }
   .diag-canvas-wrap { background:#1a1a19; border-radius:8px; border:1px solid #333; padding:8px; box-sizing:border-box; }
   .diag-canvas { width:100%; height:auto; display:block; cursor:pointer; }
+  .overview-strip { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 14px; }
+  .overview-chip { background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:9px 11px; color:#c3c2b7; font-size:12px; }
+  .overview-chip strong { display:block; color:#eee; font-size:13px; margin-bottom:2px; }
+  .plot-group { margin-top:20px; }
+  #vsummary { color:var(--accent) !important; font-size:12px; }
+  #vstatus { color:var(--accent); min-height:18px; }
+  #diagSections { border-left:2px solid var(--accent); padding-left:14px; }
+  .diag-block-title { color:var(--text); }
+  .diag-canvas-wrap { background:var(--surface); border-color:var(--line); }
+  .plot-group > summary { color:var(--muted); cursor:pointer; }
 </style>
 </head>
 <body>
-<h1>coach</h1>
+<header class="app-header">
+  <div>
+    <p class="app-kicker">movement analysis</p>
+    <h1>coach</h1>
+    <p id="pageContext" class="page-context"></p>
+  </div>
+</header>
 
 <!-- One tab per page, generated from the PAGES registry in app.py (see
      render_index / PAGES). Each carries data-page; the mode switch at the
@@ -517,13 +553,19 @@ INDEX_HTML = """<!doctype html>
   </div>
 
   <div id="videoPanel">
-    <h2 class="panel-h">settings</h2>
+    <h2 class="panel-h">analysis workspace</h2>
     {{VIDEO_SETTINGS}}
     <p id="vstatus"></p>
 
     <!-- Diagnostics share the video's time axis, so any point on a curve can be
          put back on the frame that produced it — which is why the frame stays
          pinned beside them on desktop. -->
+    <h2 class="panel-h">movement overview</h2>
+    <div class="overview-strip">
+      <div class="overview-chip"><strong>1</strong>Load a clip or camera recording</div>
+      <div class="overview-chip"><strong>2</strong>Run pose analysis</div>
+      <div class="overview-chip"><strong>3</strong>Review the active movement cues</div>
+    </div>
     <h2 class="panel-h">diagnostics</h2>
     <div id="diagWrap">
       <label style="font-size:14px;color:#c3c2b7">lifter
@@ -538,7 +580,8 @@ INDEX_HTML = """<!doctype html>
       <div id="diagSections"></div>
     </div>
 
-    <h2 class="panel-h">keypoint plot</h2>
+    <details class="plot-group">
+      <summary class="panel-h">keypoint plot</summary>
 <div id="plotControls" style="display:none; margin-bottom:12px;">
   <label style="font-size:14px;color:#c3c2b7">person id
     <select id="plotPersonSelect"></select>
@@ -572,6 +615,7 @@ INDEX_HTML = """<!doctype html>
     </select>
   </label>
 </div>
+  </details>
 <div id="plotWrap" style="position:relative; width:100%; max-width:640px; background:#1a1a1a; border-radius:8px; border:1px solid #333; padding:8px; box-sizing:border-box;">
   <canvas id="plotCanvas" width="600" height="200" style="width:100%; height:auto; display:block; cursor:pointer;"></canvas>
 </div>
@@ -1909,6 +1953,10 @@ for (const p of PAGES) PAGES_BY_ID[p.id] = p;
 function setPage(id) {
   const page = PAGES_BY_ID[id] || PAGES[0];
   const video = page.media === 'video';
+  document.body.dataset.page = page.id;
+  $('pageContext').textContent = video
+    ? `${page.label} · video analysis and movement diagnostics`
+    : 'single-frame pose inspection';
   $('imageView').hidden = video;
   $('imagePanel').hidden = video;
   $('videoView').hidden = !video;
@@ -2259,34 +2307,44 @@ DEFAULT_PAGE = "snatch"   # the lift shown on load — the diagnostics live here
 # image panel and the (shared) video panel are the two mediums; a new lift page
 # reuses VIDEO_SETTINGS verbatim, which is the point.
 IMAGE_SETTINGS_HTML = """<div class="settings">
+  <p class="control-help">Upload one frame to inspect the detected body pose.</p>
       <input id="file" type="file" accept="image/*">
       <label>model
         <select id="size"><option value="l">l (large, ~1.2GB)</option><option value="h">h (huge, ~2.5GB)</option></select>
       </label>
-      <button id="run">Run pose</button>
+      <button id="run" class="primary-action">Run pose</button>
     </div>"""
 
 VIDEO_SETTINGS_HTML = """<div class="settings">
-      <input id="vfile" type="file" accept="video/*">
-      <button id="vcam" type="button">record from camera</button>
+      <details class="control-group" open>
+        <summary>source</summary>
+        <p class="control-help">Choose a clip, record a short camera sample, or load a bundled example.</p>
+        <input id="vfile" type="file" accept="video/*">
+        <button id="vcam" class="secondary-action" type="button">record from camera</button>
       <!-- The committed example clips (tests/fixtures) each ship a cached track,
            so picking one loads a fully-analysed lift instantly — no upload, no
            GPU pass. Hidden until /api/examples reports at least one. -->
-      <label id="vexampleWrap" style="display:none">example
-        <select id="vexample"><option value="">— pick an example —</option></select>
-      </label>
-      <label>model
-        <select id="vsize"><option value="l" data-label="l (large, ~1.2GB)">l (large, ~1.2GB)</option><option value="h" data-label="h (huge, ~2.5GB)">h (huge, ~2.5GB)</option></select>
-      </label>
-      <label>frame stride
-        <input id="vstride" type="number" value="1" min="1" style="width:4em">
-        <span id="vstrideNote" style="color:#8a8a80;font-size:11px"></span>
-      </label>
-      <button id="vrun">Run pose on video</button>
-      <button id="vcancel" type="button" style="display:none;background:#722;color:#fff;">Cancel</button>
+        <label id="vexampleWrap" style="display:none">example
+          <select id="vexample"><option value="">— pick an example —</option></select>
+        </label>
+      </details>
+      <details class="control-group" open>
+        <summary>pose analysis</summary>
+        <label>model
+          <select id="vsize"><option value="l" data-label="l (large, ~1.2GB)">l (large, ~1.2GB)</option><option value="h" data-label="h (huge, ~2.5GB)">h (huge, ~2.5GB)</option></select>
+        </label>
+        <label>frame stride
+          <input id="vstride" type="number" value="1" min="1" style="width:4em">
+          <span id="vstrideNote" style="color:#8a8a80;font-size:11px"></span>
+        </label>
+        <button id="vrun" class="primary-action">Run pose on video</button>
+        <button id="vcancel" class="secondary-action" type="button" style="display:none;">Cancel</button>
       <div id="vprogWrap" style="display:none;width:100%;max-width:420px;background:#222;border-radius:6px;overflow:hidden;">
         <div id="vprogBar" style="height:8px;width:0%;background:#4a9;transition:width .2s linear;"></div>
       </div>
+      </details>
+      <details class="control-group">
+        <summary>playback and tracking</summary>
       <label>speed
         <select id="vspeed">
           <option value="0.1">0.1x</option>
@@ -2315,6 +2373,9 @@ VIDEO_SETTINGS_HTML = """<div class="settings">
       <label style="white-space:nowrap" title="Interpolate the mesh between processed frames so it glides instead of stepping. In-between poses are computed, not detected.">
         <input id="vinterp" type="checkbox" checked style="vertical-align:middle;margin:0 4px 0 0"> smooth motion
       </label>
+      </details>
+      <details class="control-group">
+        <summary>equipment overlay</summary>
       <!-- Equipment detection is part of the run, not a view setting: it costs
            a second model pass per frame, so it has to be chosen before the run
            rather than toggled after it. The two overlay tickboxes below are the
@@ -2328,6 +2389,7 @@ VIDEO_SETTINGS_HTML = """<div class="settings">
         <label style="white-space:nowrap"><input id="veqplates" type="checkbox" style="vertical-align:middle;margin:0 4px 0 0"> overlay plates</label>
       </div>
       <p id="veqnote" style="font-size:12px;color:#898781;margin:2px 0 0"></p>
+      </details>
     </div>"""
 
 

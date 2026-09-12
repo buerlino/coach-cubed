@@ -288,3 +288,8 @@ there are enough labelled lifts to fit them against.
 | --- | --- | --- |
 | 1 | First pull — constant back angle | [diagnostics/01-first-pull-back-angle.md](diagnostics/01-first-pull-back-angle.md) |
 | 2 | Second pull — full triple extension | [diagnostics/02-second-pull-triple-extension.md](diagnostics/02-second-pull-triple-extension.md) |
+| 3 | Lateral raise — top-of-rep height | [diagnostics/03-lateral-raise-top-height.md](diagnostics/03-lateral-raise-top-height.md) |
+| 4 | Lateral raise — torso lean | [diagnostics/04-lateral-raise-torso-lean.md](diagnostics/04-lateral-raise-torso-lean.md) |
+| 5 | Lateral raise — elbow lead | [diagnostics/05-lateral-raise-elbow-lead.md](diagnostics/05-lateral-raise-elbow-lead.md) |
+| 6 | Lateral raise — tempo | [diagnostics/06-lateral-raise-tempo.md](diagnostics/06-lateral-raise-tempo.md) |
+| 7 | Lateral raise — rep-to-rep symmetry | [diagnostics/07-lateral-raise-symmetry.md](diagnostics/07-lateral-raise-symmetry.md) |
