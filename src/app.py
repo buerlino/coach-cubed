@@ -20,6 +20,7 @@ from pathlib import Path
 
 from flask import Flask, request, jsonify, Response, send_file
 
+import depth_backend
 import equipment_backend
 import vitpose_backend
 
@@ -235,6 +236,34 @@ def api_capabilities():
     return jsonify({"equipment": equipment_backend.available()})
 
 
+# --- 3D depth anchors -----------------------------------------------------
+# The "generate 3D" picker below the video frame. Two routes, mirroring the
+# framework's cheap/expensive split (see depth_backend): /methods lists the
+# anchors so the picker can populate without loading anything, and /generate
+# scores every anchor cheaply for one frame then builds the mesh for exactly
+# the one chosen (auto = the highest-confidence one). That's the whole point of
+# the split — the page never pays for the anchors it didn't pick.
+@app.route("/api/depth/methods")
+def api_depth_methods():
+    return jsonify({"methods": depth_backend.list_methods()})
+
+
+@app.route("/api/depth/generate", methods=["POST"])
+def api_depth_generate():
+    payload = request.get_json(silent=True)
+    if not payload or "keypoints" not in payload:
+        return jsonify({"error": "expected JSON with width/height/keypoints"}), 400
+    method = payload.get("method", "auto")
+    try:
+        scene = depth_backend.Scene.from_payload(payload)
+        result = depth_backend.generate(scene, method=method)
+    except KeyError as e:                       # unknown method name
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:                       # a mesh() that blew up
+        return jsonify({"error": f"depth generation failed: {e}"}), 500
+    return jsonify(result)
+
+
 # --- examples -------------------------------------------------------------
 # The committed test fixtures (tests/fixtures, see tests/README.md) double as a
 # browsable example gallery, so a fresh checkout has something to run without
@@ -447,6 +476,30 @@ INDEX_HTML = """<!doctype html>
     <div id="videoWrap">
       <video id="vout" controls muted playsinline loop></video>
       <canvas id="voverlay"></canvas>
+    </div>
+    <!-- Generate-3D picker: choose which depth anchor lifts the current frame
+         to 3D. "Auto" lets the router pick by confidence; a named method forces
+         it so a specific anchor can be inspected. Populated from
+         /api/depth/methods; the note reports what ran and how each scored. -->
+    <div id="v3dbar" class="row" style="gap:10px;align-items:center;margin:6px 0 2px">
+      <label style="white-space:nowrap">3D method
+        <select id="v3dmethod" title="Which depth anchor lifts the clip to 3D. Auto picks the highest-confidence available one. Recomputes automatically on load and on change.">
+          <option value="auto">Auto (highest confidence)</option>
+        </select>
+      </label>
+      <button id="v3dgen" type="button" disabled title="Recompute the 3D reconstruction for the whole clip">recompute 3D</button>
+    </div>
+    <p id="v3dnote" style="font-size:12px;color:#898781;margin:0 0 4px"></p>
+    <!-- The 3D view: a second "video" below the real one, showing the depth
+         reconstruction the picked anchor produced. Hidden until a generate runs.
+         Click-drag turns it (turntable about the vertical axis) so the recovered
+         depth is actually visible; it steps in time with the video when the
+         chosen method returns a per-frame sequence. -->
+    <div id="v3dpanel" style="display:none;margin:2px 0 6px">
+      <div id="v3dcanvasWrap" style="position:relative;width:100%;background:#0d0d0d;border-radius:8px;overflow:hidden;cursor:grab">
+        <canvas id="v3dcanvas" style="display:block;width:100%;height:340px"></canvas>
+        <div id="v3dhint" style="position:absolute;left:8px;bottom:6px;font-size:11px;color:#6f6e68;pointer-events:none">drag to rotate</div>
+      </div>
     </div>
     <p id="vsummary" style="font-size:12px;color:#c3c2b7"></p>
     <!-- live sync readout: if the overlay ever looks frozen, this says whether
@@ -1302,6 +1355,9 @@ function drawOverlay(t) {
   // pose track has a person on this frame, and a dropped detection is exactly
   // when you want the equipment still drawn.
   drawEquipment(idx);
+  // Step the 3D view to the same frame, so the reconstruction plays in sync
+  // with the video (no-op until a sequence candidate is loaded).
+  if (window.Viewer) window.Viewer.showFrame(idx);
 
   if (!frame) return;
 
@@ -1502,7 +1558,7 @@ $('vfile').onchange = () => {
   stopCameraStream();
   vSource = { blob: f, filename: f.name };
   vKeypointsRaw = null; vKeypoints = null; vMeta = null; vSample = null; vClock = null;
-  vEquipment = null; vEqPrompts = null; vRenderEqNote();
+  vEquipment = null; vEqPrompts = null; vRenderEqNote(); v3dReset();
   updatePlotControls();
   Diagnostics.setTrack(null, null);
   $('vsummary').textContent = '';
@@ -1524,7 +1580,7 @@ $('vexample').onchange = async () => {
   $('vfile').value = '';
   vSource = null;
   vKeypointsRaw = null; vKeypoints = null; vMeta = null; vSample = null; vClock = null;
-  vEquipment = null; vEqPrompts = null; vRenderEqNote();
+  vEquipment = null; vEqPrompts = null; vRenderEqNote(); v3dReset();
   updatePlotControls();
   Diagnostics.setTrack(null, null);
   $('vsummary').textContent = '';
@@ -1591,7 +1647,7 @@ $('vcam').onclick = async () => {
   $('vexample').value = '';
   vClearExample();
   vSource = null; vKeypointsRaw = null; vKeypoints = null; vMeta = null; vSample = null; vClock = null;
-  vEquipment = null; vEqPrompts = null; vRenderEqNote();
+  vEquipment = null; vEqPrompts = null; vRenderEqNote(); v3dReset();
   updatePlotControls();
   Diagnostics.setTrack(null, null);
   $('vsummary').textContent = '';
@@ -1714,6 +1770,11 @@ function applyTrack(data) {
   // started was drawing nothing — restart it now that there's a track.
   if (!vvideo.paused && !vvideo.ended) startOverlayLoop();
   vUpdateSummary();
+  // Compute the 3D reconstruction for the WHOLE clip now, automatically, so it
+  // plays back in step with the video with no manual step. The button re-runs
+  // it (e.g. after picking a different method).
+  $('v3dgen').disabled = false;
+  v3dGenerate();
 }
 
 // The one-line track summary under the video. Split out of applyTrack so a
@@ -1881,6 +1942,129 @@ fetch('/api/capabilities').then(r => r.json()).then(c => {
     'bar & plate detection needs Grounding DINO — run ./scripts/download_models.sh';
 }).catch(() => { /* leave the controls alone; a run would report the real error */ });
 
+// --- generate-3D picker ---------------------------------------------------
+// The depth framework's cheap/expensive split, surfaced: the picker lists every
+// anchor, one click scores them all cheaply then builds the mesh for just the
+// chosen (or highest-confidence) one, and the result drives the 3D view below.
+let v3dLast = null;
+
+function v3dReset() {
+  const g = $('v3dgen'); if (g) g.disabled = true;
+  const n = $('v3dnote'); if (n) n.textContent = '';
+  const p = $('v3dpanel'); if (p) p.style.display = 'none';
+  if (window.Viewer) window.Viewer.clear();
+  v3dLast = null;
+}
+
+// slot→frame lookup the overlay draws with, so "generate" lifts exactly the
+// frame on screen (raw, unsmoothed keypoints — the honest thing the model saw).
+function v3dCurrentFrame() {
+  if (!vSample) return null;
+  return vSample.frames[slotForTime(vvideo.currentTime)];
+}
+
+function v3dPoseAt(idx) {
+  const pose = vKeypointsRaw ? vKeypointsRaw[String(idx)] : null;
+  const people = pose ? Object.values(pose) : [];
+  return people.length ? people[0] : null;
+}
+
+// The whole track, for the sequence-capable anchors (plate-anchor): every
+// processed frame's pose + equipment, so the reconstruction can be built for
+// all frames and the viewer can animate. start_frame is the lift's start — for
+// now the earliest processed frame that actually has plates (where the snatch
+// grip / wrist-above-bar assumption holds); the per-lift start position is a
+// later refinement.
+function v3dBuildSequence() {
+  if (!vKeypointsRaw || !vMeta) return { sequence: null, start: null };
+  const idxs = (vMeta.frame_indices && vMeta.frame_indices.length)
+    ? vMeta.frame_indices.slice()
+    : Object.keys(vKeypointsRaw).map(Number).sort((a, b) => a - b);
+  const seq = {}; let start = null;
+  for (const f of idxs) {
+    const kp = v3dPoseAt(f);
+    if (!kp) continue;
+    const eq = vEquipment ? (vEquipment[String(f)] || null) : null;
+    seq[String(f)] = { keypoints: kp, equipment: eq };
+    if (start === null && eq && (eq.plates || []).length) start = f;
+  }
+  if (start === null) start = idxs.length ? idxs[0] : null;
+  return { sequence: seq, start };
+}
+
+function v3dScores(conf) {
+  return Object.entries(conf)
+    .map(([k, v]) => `${k} ${v === null ? '—' : v.toFixed(2)}`).join(', ');
+}
+
+async function v3dGenerate() {
+  const note = $('v3dnote');
+  if (!vMeta) { note.textContent = 'run a pose pass first'; return; }
+  const method = $('v3dmethod').value;
+  const idx = v3dCurrentFrame();
+  const wantSeq = (method === 'plate-anchor' || method === 'auto');
+  const body = { method, width: vMeta.width, height: vMeta.height,
+                 current_frame: idx, keypoints: v3dPoseAt(idx),
+                 equipment: vEquipment ? (vEquipment[String(idx)] || null) : null };
+  if (wantSeq) {
+    const { sequence, start } = v3dBuildSequence();
+    body.sequence = sequence; body.start_frame = start;
+  }
+  $('v3dgen').disabled = true;
+  note.textContent = 'generating…';
+  try {
+    const r = await fetch('/api/depth/generate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (!r.ok || (d.error && !d.candidate)) {
+      note.textContent = (d.error || ('HTTP ' + r.status))
+        + (d.confidences ? ` · scores: ${v3dScores(d.confidences)}` : '');
+      return;
+    }
+    v3dLast = d;
+    const c = d.candidate;
+    const nJoints = c.joints3d.filter(p => p).length;
+    const nFrames = c.frames ? Object.keys(c.frames).length : 0;
+    note.innerHTML =
+      `<b>${c.method}</b> (confidence ${c.confidence.toFixed(2)}, `
+      + `${c.units}${c.metric ? ', metric' : ''}) — ${nJoints} joints`
+      + (nFrames ? `, ${nFrames} frames` : '')
+      + ` · scores: ${v3dScores(d.confidences)}`;
+    // Hand the candidate to the 3D view and show it.
+    if (window.Viewer) {
+      $('v3dpanel').style.display = '';
+      window.Viewer.load(c);
+      window.Viewer.showFrame(idx);
+      window.Viewer.resize();   // the panel was display:none until now
+    }
+  } catch (e) {
+    note.textContent = 'error: ' + e;
+  } finally {
+    $('v3dgen').disabled = false;
+  }
+}
+
+$('v3dgen').onclick = v3dGenerate;
+// Switching method recomputes immediately against the loaded clip.
+$('v3dmethod').onchange = () => { if (vMeta) v3dGenerate(); };
+
+// Populate the method dropdown from the registry; unavailable anchors (e.g. a
+// body model with no weights) are listed but disabled so the set of methods is
+// visible even when one can't run here.
+fetch('/api/depth/methods').then(r => r.json()).then(m => {
+  const sel = $('v3dmethod');
+  for (const meth of (m.methods || [])) {
+    const opt = document.createElement('option');
+    opt.value = meth.name;
+    opt.textContent = meth.label + (meth.available ? '' : ' — unavailable');
+    opt.disabled = !meth.available;
+    if (meth.description) opt.title = meth.description;
+    sel.appendChild(opt);
+  }
+}).catch(() => { /* picker stays Auto-only; generate still routes server-side */ });
+
 // Populate the example dropdown from the committed fixtures. Stays hidden if
 // none ship with this checkout, so the control never dangles empty.
 fetch('/api/examples').then(r => r.json()).then(list => {
@@ -1901,6 +2085,150 @@ for (const btn of document.querySelectorAll('.tab')) {
   btn.onclick = () => setPage(btn.dataset.page);
 }
 setPage('{{DEFAULT_PAGE}}');   // a lift page by default; the image path is the side trip
+</script>
+
+<!-- The 3D viewer is the one place coach reaches for a third-party lib: a
+     skeleton in perspective with a turntable is exactly what three.js is for,
+     and reimplementing a projector by hand would be worse. Loaded as a module
+     from a CDN (the box is on the tailnet with internet); if the import fails
+     the panel just says so and the text note above still reports the result. -->
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+<script type="module">
+const $ = id => document.getElementById(id);
+let THREE;
+try {
+  THREE = await import('three');
+} catch (e) {
+  const h = $('v3dhint');
+  if (h) h.textContent = '3D viewer needs three.js (no network?)';
+  throw e;   // leave window.Viewer undefined; the text note still works
+}
+
+// COCO joint colours: warm for the right side, cool for the left, so the
+// turntable's front/back is readable at a glance.
+const JOINT_COLOR = 0x6fd1c5, BONE_COLOR = 0x9ec1ff, BAR_COLOR = 0xf0a020;
+
+const Viewer = (() => {
+  const canvas = $('v3dcanvas'), wrap = $('v3dcanvasWrap');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 100);
+  // group holds the figure and is what the turntable rotates; the camera stays
+  // put looking down -Z, so rotating the group about its vertical (Y) axis is
+  // what makes the reconstructed depth swing into view.
+  const group = new THREE.Group();
+  scene.add(group);
+
+  const boneGeom = new THREE.BufferGeometry();
+  const bones = new THREE.LineSegments(
+    boneGeom, new THREE.LineBasicMaterial({ color: BONE_COLOR }));
+  const jointGeom = new THREE.BufferGeometry();
+  const joints = new THREE.Points(
+    jointGeom, new THREE.PointsMaterial({ color: JOINT_COLOR, size: 0.045,
+                                          sizeAttenuation: true }));
+  group.add(bones); group.add(joints);
+
+  // a faint floor grid for a sense of ground/scale
+  const grid = new THREE.GridHelper(2, 8, 0x333333, 0x222222);
+  grid.position.y = -0.9;
+  scene.add(grid);
+
+  let candidate = null;      // the loaded MeshCandidate JSON
+  let frameKeys = [];        // sorted numeric frame indices, when a sequence
+  let camDist = 3;           // set on load to frame the figure
+
+  // mm (x right, y down, z toward camera) -> three.js metres, Y up.
+  const toVec = p => new THREE.Vector3(p[0] / 1000, -p[1] / 1000, p[2] / 1000);
+
+  function fit(j3d) {
+    let r = 0.4;
+    for (const p of j3d) if (p) r = Math.max(r, toVec(p).length());
+    camDist = r / Math.tan((camera.fov * Math.PI / 180) / 2) * 1.5;
+    camera.position.set(0, 0, camDist);
+    camera.lookAt(0, 0, 0);
+  }
+
+  function setJoints(j3d) {
+    if (!j3d) return;
+    const jpos = [], bpos = [];
+    const V = j3d.map(p => (p ? toVec(p) : null));
+    for (const v of V) if (v) jpos.push(v.x, v.y, v.z);
+    for (const [a, b] of (candidate.edges || [])) {
+      if (V[a] && V[b]) bpos.push(V[a].x, V[a].y, V[a].z, V[b].x, V[b].y, V[b].z);
+    }
+    jointGeom.setAttribute('position', new THREE.Float32BufferAttribute(jpos, 3));
+    boneGeom.setAttribute('position', new THREE.Float32BufferAttribute(bpos, 3));
+    jointGeom.attributes.position.needsUpdate = true;
+    boneGeom.attributes.position.needsUpdate = true;
+    render();
+  }
+
+  function nearestKey(idx) {
+    if (!frameKeys.length) return null;
+    let best = frameKeys[0], bd = Math.abs(idx - best);
+    for (const k of frameKeys) {
+      const d = Math.abs(idx - k);
+      if (d < bd) { bd = d; best = k; }
+    }
+    return best;
+  }
+
+  function render() { renderer.render(scene, camera); }
+
+  function resize() {
+    const w = wrap.clientWidth || 640, h = canvas.clientHeight || 340;
+    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h; camera.updateProjectionMatrix();
+    render();
+  }
+  window.addEventListener('resize', resize);
+
+  // Turntable: horizontal drag yaws the figure about its vertical axis (the
+  // one rotation that reveals depth); vertical drag tilts it a little so the
+  // pose isn't locked edge-on.
+  let dragging = false, lx = 0, ly = 0;
+  const start = e => { dragging = true; lx = e.clientX; ly = e.clientY; wrap.style.cursor = 'grabbing'; };
+  const move = e => {
+    if (!dragging) return;
+    group.rotation.y += (e.clientX - lx) * 0.01;
+    group.rotation.x = Math.max(-1.2, Math.min(1.2, group.rotation.x + (e.clientY - ly) * 0.005));
+    lx = e.clientX; ly = e.clientY; render();
+  };
+  const end = () => { dragging = false; wrap.style.cursor = 'grab'; };
+  wrap.addEventListener('mousedown', start);
+  window.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', end);
+
+  return {
+    load(c) {
+      candidate = c;
+      frameKeys = c.frames ? Object.keys(c.frames).map(Number).sort((a, b) => a - b) : [];
+      group.rotation.set(0, 0, 0);
+      fit(c.joints3d);
+      setJoints(c.joints3d);
+      resize();
+    },
+    showFrame(idx) {
+      if (!candidate) return;
+      if (!candidate.frames) { return; }   // single-frame candidate stays put
+      const k = nearestKey(idx);
+      if (k === null) return;
+      setJoints(candidate.frames[String(k)]);
+    },
+    resize,
+    clear() {
+      candidate = null; frameKeys = [];
+      jointGeom.setAttribute('position', new THREE.Float32BufferAttribute([], 3));
+      boneGeom.setAttribute('position', new THREE.Float32BufferAttribute([], 3));
+      render();
+    },
+  };
+})();
+
+window.Viewer = Viewer;
 </script>
 </body>
 </html>

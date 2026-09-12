@@ -13,3 +13,4 @@ private/
 # of that process gets committed, not whatever gets dropped in here.
 clips_inbox/*
 !clips_inbox/.gitkeep
+.DS_Store

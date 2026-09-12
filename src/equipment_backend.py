@@ -351,3 +351,15 @@ def prompts():
     next to the phrase that produced it -- a box labelled 'bar' means something
     different if the prompt was 'a chrome bar'."""
     return {"plates": PLATE_PROMPT, "bar": BAR_PROMPT}
+
+
+# --- optional SAM3 backend -------------------------------------------------
+# COACH_SAM3=1 swaps the detector for facebook/sam3 (instance masks, not just
+# boxes) WITHOUT touching the DINO default above. Only the contract functions
+# the callers reach for are rebound; gpu_submit()/DEVICE stay this module's, so
+# SAM3 shares the exact same GPU lock ViTPose takes (equipment_sam3 imports it
+# from here). Done last so equipment_backend is fully initialised before
+# equipment_sam3 imports back from it.
+if os.environ.get("COACH_SAM3") not in (None, "", "0"):
+    from equipment_sam3 import (  # noqa: E402
+        detect, available, model_source, prompts, get_model)
