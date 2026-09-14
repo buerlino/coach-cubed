@@ -707,6 +707,9 @@ let vLastDrawMs = 0, vLoopRestarts = 0;
 // loop wrapping from the end back to the start — can be caught the instant it
 // happens instead of after the staleness watchdog times out.
 let vLastTimeupdate = 0;
+// Throttle for the 'waiting' stall-kick below, so a genuine multi-second stall
+// doesn't get re-nudged every tick.
+let vLastStallKick = 0;
 // vSource is whichever video is queued to run — a picked file or a camera
 // recording — normalized to {blob, filename} so the run handler doesn't
 // care which one it came from.
@@ -1607,6 +1610,22 @@ vvideo.addEventListener('loadedmetadata', () => {
 });
 vvideo.addEventListener('play', startOverlayLoop);
 vvideo.addEventListener('playing', kickOverlayLoop);
+// Firefox (confirmed on 140, blob-sourced <video>): play() flips paused=false
+// and fires 'playing', but the decoder can drop straight back into 'waiting'
+// on the very first frame and then never recover — currentTime sits frozen
+// forever even though the whole clip is already in memory, so there is no
+// real buffering left to wait for. A seek is what unwedges it (that's why
+// dragging the scrubber "fixes" it for users); nudging currentTime by an
+// imperceptible amount does the same thing without moving the playhead.
+// Debounced so a real stall (rare, but possible on a slow machine) doesn't
+// get re-kicked every tick.
+vvideo.addEventListener('waiting', () => {
+  if (vvideo.paused || vvideo.ended) return;
+  const now = performance.now();
+  if (now - vLastStallKick < 500) return;
+  vLastStallKick = now;
+  vvideo.currentTime = Math.min(vvideo.currentTime + 0.0001, vvideo.duration || Infinity);
+});
 // Both of these leave the playhead somewhere the clock knows nothing about, so
 // it is dropped rather than extrapolated from; drawOverlay then falls back to
 // currentTime, which is exact while nothing is moving.
