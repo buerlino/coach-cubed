@@ -1,6 +1,6 @@
 ---
 name: lifting-diagnostic
-description: Add or revise a weightlifting technique diagnostic in coach — a cue scored from ViTPose keypoints. Use when asked to implement a lifting cue, an efficiency measure, a phase trigger (first pull, second pull, turnover, receiving), or to change how a diagnostic is detected, measured or drawn. Covers the required three-part structure (diagnostic / active phase / visualization + transparency), the keypoint conventions coach uses, and the registry in diagnostics.js.
+description: Add or revise an exercise technique diagnostic in coach — a cue scored from ViTPose keypoints. Use when asked to implement a lifting cue, an efficiency measure, a repetition or phase trigger, or to change how a diagnostic is detected, measured or drawn. Covers the universal diagnostic contract, exercise-neutral pose conventions, exercise-specific phase strategies, visualization/transparency, and the registry in diagnostics.js.
 ---
 
 # Lifting diagnostic
@@ -23,6 +23,73 @@ That order is not a style preference — each part depends on the one before it:
 Never ship parts 1 and 2 without 3. A number the lifter can't audit is worse
 than no number — pose estimation fails silently (occluded hip, a judge walking
 behind the platform), and the failure looks exactly like a technique fault.
+
+## Scope and exercise isolation
+
+The contract above is universal. The movement-specific parts are not:
+
+- A diagnostic belongs to exactly one exercise set in `DIAGNOSTIC_SETS`.
+- Its phase trigger, thresholds, reference line, and overlay must match that
+  exercise's mechanics rather than being borrowed from another lift.
+- Shared helpers are allowed only when their meaning remains the same. A
+  generic joint angle or torso scale is reusable; a bar-knee crossing is not a
+  generic rep trigger.
+- A new exercise gets its own diagnostic notes and fixtures. Do not add its
+  cues to the `snatch` or `lateral-raise` set just because the same keypoints
+  are available.
+
+The UI shares the video, pose track, smoothing, and rendering infrastructure
+between exercise pages. Switching pages changes the active diagnostic set and
+re-scores the current track; it does not make the track itself exercise-aware.
+The user-selected page is therefore the exercise context, not an automatic
+exercise classifier.
+
+## Universal diagnostic contract
+
+Every exercise-specific diagnostic should answer these questions:
+
+1. **What cue is being scored?** Name the coaching behavior and the scalar
+   that represents it.
+2. **When does the cue apply?** Define a phase, repetition, or set window from
+   observable pose events. If the movement is repetitive, define a shared rep
+   segmenter before writing per-rep diagnostics.
+3. **How is it measured?** State the keypoints, normalization, independent
+   estimates, missing-data policy, and the direction of a good/bad value.
+4. **How can the lifter audit it?** Draw the measured geometry at the current
+   playhead, plot the active window, expose uncertainty, and explain fallbacks.
+
+Use this checklist for every new diagnostic:
+
+- Normalize pixel distances and speeds by a body scale when camera distance can
+  vary; use raw pixels only when the quantity is explicitly image-relative.
+- Require persistence for threshold triggers and use smoothed multi-sample
+  signals for velocity or extrema. Never let one noisy frame start or end a
+  phase.
+- Treat a missing or interpolated keypoint as data quality, not as a technique
+  verdict. Count it in transparency notes and fail clearly when the cue cannot
+  be scored.
+- Keep provisional thresholds visibly provisional until they are calibrated
+  against labelled footage from the intended exercise and camera setup.
+- Add a fixture or synthetic regression for the phase edge case that motivated
+  the diagnostic, then add its golden snapshot when the output is intentional.
+
+## Exercise-neutral building blocks
+
+These concepts are safe to reuse across movements:
+
+- COCO-17 keypoint indexing and `[y, x, confidence]` conversion.
+- Confidence gating, short-gap interpolation, temporal smoothing, and torso
+  scale normalization.
+- Joint angles, segment angles, distances, relative heights, velocities, and
+  left/right agreement.
+- Generic persistent threshold crossings, local extrema, rep segmentation, and
+  phase windows.
+- The shared score ramp, plot, uncertainty band, stat tiles, click-to-seek
+  behavior, and transparency renderer.
+
+When reusing a helper, document the mechanical assumption at its call site.
+For example, `jointAngle` is exercise-neutral, while a helper that finds a
+barbell crossing is not.
 
 ## Where the code lives
 
@@ -129,7 +196,13 @@ These come from `vitpose_backend.infer_video` and are easy to get backwards.
   side; out-of-plane rotation shortens segments and biases the angle. Say this
   in the notes rather than pretending the number is 3-D.
 
-## The bar axis
+## Exercise-specific reference: Olympic lifting and barbell work
+
+The following bar-axis and barbell-trigger guidance applies to the snatch and
+similar barbell lifts only. It is not a requirement for lateral raises,
+presses, squats, or other movements without a meaningful bar axis.
+
+### The bar axis
 
 Every "height" in coach is measured against the **bar axis**, not against the
 image's bottom edge, and every rule drawn across the frame is parallel to it.
@@ -190,6 +263,13 @@ crossing moves by at most a frame or two under any roll the axis will accept,
 and the still frame it leads back to is still a still frame.
 
 ## Writing the active phase
+
+Phase design is exercise-specific. Start with the most reliable observable
+event for the movement: a bar crossing for an Olympic lift, a local repetition
+cycle for a lateral raise, or a joint-position transition for a squat or press.
+Do not force every exercise through `firstPullWindow` or `barKneeCrossing`.
+
+### Generic trigger rules
 
 Triggers are the hard part, and the failure mode is always the same: a trigger
 defined as "the first frame where X" fires on a stray detection early in the
