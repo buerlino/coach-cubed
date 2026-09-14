@@ -1493,6 +1493,14 @@ let vRafKind = null; // which scheduler vRafId belongs to ('vfc' | 'raf'), since
                      // the toggle can change it between arming and cancelling
 
 function noteFrame(media) {
+  // metadata.mediaTime has been observed to not reset across a looping
+  // <video>'s silent wrap — it keeps counting up from real elapsed time
+  // instead of dropping back with currentTime, which the loop genuinely
+  // does. A one-gap mismatch is normal presentation jitter; anything wider
+  // means mediaTime cannot be trusted this tick, so anchor off currentTime
+  // instead of letting the clock (and the mesh) drift off with a number
+  // slotForTime will never see again in the sample track.
+  if (Math.abs(media - vvideo.currentTime) > 1) media = vvideo.currentTime;
   const gap = (vClock && media > vClock.media) ? media - vClock.media
                                                : (vClock && vClock.gap);
   vClock = { media, wall: performance.now(),
@@ -1501,6 +1509,11 @@ function noteFrame(media) {
 
 function clockTime() {
   if (!vClock) return vvideo.currentTime;
+  // The anchor (anchorLoop's rVFC subscription) is known to go silent across a
+  // looping <video>'s wrap. Without this, ahead below clamps to vClock.gap and
+  // stays there — clockTime() locks onto one constant frame forever instead of
+  // freezing gracefully, since nothing else ever nulls a vClock that old.
+  if (performance.now() - vClock.wall > OVERLAY_STALL_MS) { vClock = null; return vvideo.currentTime; }
   const ahead = (performance.now() - vClock.wall) / 1000 * (vvideo.playbackRate || 1);
   // Centred on the frame being shown rather than running forward from it. A
   // held frame is a still picture, so a mesh that moves during it must part
