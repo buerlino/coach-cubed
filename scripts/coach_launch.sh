@@ -3,7 +3,7 @@
 #   full  — app.py (waitress, loopback 8080) + Caddy (443, LAN/tailnet). Same
 #           two-process shape as tecna's tecna_launch.sh, minus the ComfyUI
 #           hop. coach, ../tecna and ../llm-server all want :8080/:443/:80 on
-#           this one box and are never run together (see COACH_DEPLOY.md) —
+#           this one box and are never run together (see docs/deploy.md) —
 #           free_ports.sh stops every known neighbor (tecna/llm-server run
 #           under systemd; coach itself has no units, so the other two
 #           scripts stop it with a direct pkill instead).
