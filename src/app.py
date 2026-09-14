@@ -2435,7 +2435,7 @@ VIDEO_SETTINGS_HTML = """<div class="settings">
         <div id="vprogBar" style="height:8px;width:0%;background:#4a9;transition:width .2s linear;"></div>
       </div>
       </details>
-      <details class="control-group">
+      <details class="control-group" open>
         <summary>playback and tracking</summary>
       <label>speed
         <select id="vspeed">
