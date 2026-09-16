@@ -61,3 +61,66 @@ test('at least one fixture is under test', () => {
   assert.ok(Object.keys(manifest).length > 0,
     `no fixtures found under ${FIXTURES_DIR}/{global,local}/manifest.json`);
 });
+
+function lateralRaiseResults(signal) {
+  const Diagnostics = loadDiagnostics();
+  Diagnostics.setPage('lateral-raise');
+  const keypoints = {};
+  const frameIndices = signal.map((_, i) => i);
+  signal.forEach((height, frame) => {
+    const wristY = 100 - height * 100;
+    const points = Array.from({ length: 17 }, () => [0, 0, 0]);
+    points[5] = [100, 80, 1]; points[6] = [100, 120, 1];
+    points[7] = [(100 + wristY) / 2, 75, 1]; points[8] = [(100 + wristY) / 2, 125, 1];
+    points[9] = [wristY, 70, 1]; points[10] = [wristY, 130, 1];
+    points[11] = [200, 85, 1]; points[12] = [200, 115, 1];
+    points[13] = [280, 90, 1]; points[14] = [280, 110, 1];
+    points[15] = [360, 90, 1]; points[16] = [360, 110, 1];
+    keypoints[String(frame)] = { '1': points };
+  });
+  const meta = {
+    fps: 30,
+    frame_indices: frameIndices,
+    frame_times_ms: frameIndices.map(i => i * 1000 / 30),
+  };
+  return Diagnostics.computeResults(keypoints, meta, '1').results;
+}
+
+test('lateral raise finds consecutive reps without a full resting reset', () => {
+  const signal = [
+    ...Array(12).fill(-0.8),
+    ...Array.from({ length: 18 }, (_, i) => -0.8 + 0.6 * (i + 1) / 18),
+    ...Array(8).fill(-0.2),
+    ...Array.from({ length: 18 }, (_, i) => -0.2 - 0.32 * (i + 1) / 18),
+    ...Array(8).fill(-0.52),
+    ...Array.from({ length: 18 }, (_, i) => -0.52 + 0.32 * (i + 1) / 18),
+    ...Array(8).fill(-0.2),
+    ...Array.from({ length: 18 }, (_, i) => -0.2 - 0.6 * (i + 1) / 18),
+    ...Array(12).fill(-0.8),
+  ];
+  const results = lateralRaiseResults(signal);
+  assert.equal(results['lateral-raise-top-height'].summary.reps, 2);
+  assert.equal(results['lateral-raise-symmetry'].summary.reps, 2);
+});
+
+test('lateral raise counts eight reps as range decreases with fatigue', () => {
+  const signal = [];
+  for (const amplitude of [0.6, 0.54, 0.48, 0.42, 0.36, 0.30, 0.24, 0.18]) {
+    const peak = -0.8 + amplitude;
+    signal.push(...Array(8).fill(-0.8));
+    signal.push(...Array.from({ length: 18 }, (_, i) => -0.8 + amplitude * (i + 1) / 18));
+    signal.push(...Array(8).fill(peak));
+    signal.push(...Array.from({ length: 18 }, (_, i) => peak - amplitude * (i + 1) / 18));
+  }
+  signal.push(...Array(8).fill(-0.8));
+
+  const results = lateralRaiseResults(signal);
+  assert.equal(results['lateral-raise-top-height'].summary.reps, 8);
+  assert.equal(results['lateral-raise-symmetry'].summary.reps, 8);
+});
+
+test('lateral raise ignores low-amplitude tracking jitter', () => {
+  const signal = Array.from({ length: 240 }, (_, i) => -0.8 + 0.05 * Math.sin(i / 5));
+  const results = lateralRaiseResults(signal);
+  assert.match(results['lateral-raise-top-height'].error, /No rep/);
+});

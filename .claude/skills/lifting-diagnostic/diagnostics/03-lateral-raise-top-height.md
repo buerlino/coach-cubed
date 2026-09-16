@@ -28,12 +28,15 @@ Not one window — every rep in the clip, from the shared **lateral-raise rep
 trigger** (`lateralRaiseReps` in `diagnostics.js`), the lateral-raise analogue
 of the snatch's `barKneeCrossing`. It turns the combined shoulder→wrist
 elevation signal (smoothed over ~0.3s, never frame-to-frame) into a list of
-reps: a rep's top is its highest point after the signal rises past
-`REP_TOP_FRAC` (-0.15 torso-lengths) and holds for 3 samples; it ends once the
-signal drops back past `REP_BOTTOM_FRAC` (-0.6) and holds there. A rep
-candidate shorter than `MIN_REP_SECONDS` (~0.6s) is dropped as more likely pose
-noise than a real rep, and the drop is reported in the transparency block
-rather than silently changing the rep count.
+reps: a rep starts after rising `REP_RISE_MIN` (0.075 torso-lengths) from its
+local bottom and holding for 3 samples; its top is the highest point before the
+signal descends `REP_RELEASE_DROP` (0.075 torso-lengths) from that rep's own peak.
+The lowest point reached before the next ascent becomes the boundary shared by
+the two reps, so continuous sets need not return to the initial resting height.
+A rep candidate shorter than `MIN_REP_SECONDS` (~0.3s between its
+threshold-derived boundaries) is dropped as more
+likely pose noise than a real rep, and the drop is reported in the transparency
+block rather than silently changing the rep count.
 
 *Fallback:* no shoulder/wrist signal at all → not scored, says so. Every rep
 candidate too short → not scored, says so. First/last rep's resting bottom

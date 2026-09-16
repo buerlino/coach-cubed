@@ -47,6 +47,7 @@ DATASET = "coco"  # only dataset variant we pulled; wholebody/animal etc. would
                    # need their own torch/<dataset>/vitpose-<size>-<dataset>.pth
 SIZES = ("l", "h")
 DEFAULT_SIZE = os.environ.get("COACH_DEFAULT_SIZE", "l")
+TRACK_MAX_AGE = int(os.environ.get("COACH_TRACK_MAX_AGE", "15"))
 
 # Op-not-implemented on MPS (Apple Silicon) should fall back to CPU rather than
 # raise — set before torch dispatches anything. Harmless on cuda/cpu boxes.
@@ -82,6 +83,12 @@ _load_lock = threading.Lock()
 # ViTInference/YOLO aren't documented thread-safe and there's one GPU behind
 # them; serialize inference the same way tecna's gpu_lock serializes Comfy jobs.
 _infer_lock = threading.Lock()
+
+
+def _reset_video_tracker(model):
+    model.reset()
+    if model.tracker is not None:
+        model.tracker.max_age = TRACK_MAX_AGE
 
 
 def _ckpt_path(size):
@@ -409,8 +416,7 @@ def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4",
         equipment_by_frame, equipment_error = None, None
         try:
             with _infer_lock:
-                model.reset()   # fresh tracker + frame counter — model instances
-                                 # are cached and reused across requests
+                _reset_video_tracker(model)
                 idx = 0
                 while True:
                     if cancel_cb is not None and cancel_cb():

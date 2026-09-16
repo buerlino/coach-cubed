@@ -1083,9 +1083,12 @@ const secondPullTripleExtension = {
 // trigger in this file: a smoothed signal, never frame-to-frame; persistence
 // before a threshold or extremum counts; a window fixed in TIME so stride
 // doesn't move it.
-const REP_TOP_FRAC = -0.15;     // torso-lengths; wrist within this of shoulder height counts as "at the top"
 const REP_BOTTOM_FRAC = -0.6;   // torso-lengths; wrist below this counts as "at rest", ending a rep
-const MIN_REP_SECONDS = 2 * SMOOTH_SECONDS;   // ~0.6s; shorter than this is more likely a detection glitch than a real rep
+const REP_MIN_HEIGHT = -0.7;    // torso-lengths below shoulder; low detection floor, not the form target
+const REP_RISE_MIN = 0.075;     // torso-lengths risen from the local bottom before a rep is real
+const REP_RELEASE_DROP = 0.075; // torso-lengths below that rep's peak before another rep can begin
+const REP_BASELINE_SECONDS = 1; // recent valley only; an old low must not suppress later partial reps
+const MIN_REP_SECONDS = SMOOTH_SECONDS;   // ~0.3s between threshold-derived boundaries
 
 function lateralRaiseReps(samples, scale, ax) {
   const raw = samples.map(s => {
@@ -1104,24 +1107,44 @@ function lateralRaiseReps(samples, scale, ax) {
     return true;
   };
   const found = [];
-  let state = 'bottom', peakIdx = -1, peakVal = -Infinity, bottomBeforeIdx = null;
+  let state = 'bottom', peakIdx = -1, peakVal = -Infinity;
+  let bottomBeforeIdx = null, bottomVal = Infinity, pending = null;
   for (let i = 0; i < signal.length; i++) {
     const v = signal[i];
     if (v == null) continue;
     if (state === 'bottom') {
-      if (v >= REP_TOP_FRAC && holds(i, x => x >= REP_TOP_FRAC)) { state = 'top'; peakIdx = i; peakVal = v; }
-      else if (v <= REP_BOTTOM_FRAC) bottomBeforeIdx = i;
+      if (pending) {
+        if (v <= bottomVal) { bottomVal = v; bottomBeforeIdx = i; }
+      } else {
+        bottomVal = Infinity; bottomBeforeIdx = null;
+        for (let j = i; j >= 0 && samples[i].t - samples[j].t <= REP_BASELINE_SECONDS; j--) {
+          if (signal[j] != null && signal[j] <= bottomVal) {
+            bottomVal = signal[j]; bottomBeforeIdx = j;
+          }
+        }
+      }
+          if (bottomBeforeIdx != null && v >= REP_MIN_HEIGHT && v - bottomVal >= REP_RISE_MIN &&
+            holds(i, x => x >= REP_MIN_HEIGHT && x - bottomVal >= REP_RISE_MIN)) {
+        if (pending) {
+          pending.bottomAfterIdx = bottomBeforeIdx;
+          found.push(pending);
+          pending = null;
+        }
+        state = 'top'; peakIdx = i; peakVal = v;
+      }
     } else {
       if (v > peakVal) { peakIdx = i; peakVal = v; }
-      if (v <= REP_BOTTOM_FRAC && holds(i, x => x <= REP_BOTTOM_FRAC)) {
-        found.push({ peakIdx, bottomBeforeIdx, bottomAfterIdx: i });
-        state = 'bottom'; bottomBeforeIdx = i;
+      if (peakVal - v >= REP_RELEASE_DROP && holds(i, x => peakVal - x >= REP_RELEASE_DROP)) {
+        pending = { peakIdx, bottomBeforeIdx, bottomAfterIdx: null };
+        state = 'bottom'; bottomBeforeIdx = i; bottomVal = v;
       }
     }
   }
-  // Clip ends mid-rep or right at the top — report it unconfirmed rather than
-  // dropping the last rep the lifter actually did.
   if (state === 'top') found.push({ peakIdx, bottomBeforeIdx, bottomAfterIdx: null });
+  else if (pending) {
+    pending.bottomAfterIdx = bottomBeforeIdx;
+    found.push(pending);
+  }
 
   // A "rep" the smoothed signal only holds for a fraction of a second is more
   // likely a jitter blip riding over the top/bottom threshold than a lifter
@@ -1258,9 +1281,9 @@ const lateralRaiseTopHeight = {
         'rep ' + (i + 1) + ': ' + (sr.value >= 0 ? '+' : '') + fmt(sr.value) + '%').join(', ') + '.',
       '<strong>Rep trigger</strong> — wrist elevation relative to the shoulders, smoothed over ' + ph.win +
         ' sampled frames (' + fmt(SMOOTH_SECONDS, 2) + 's, fixed in time so the frame stride does not move it). ' +
-        'A rep\'s top is its highest point once the signal rises past ' + fmt(REP_TOP_FRAC, 2) +
-        ' torso-lengths above the shoulders and holds for ' + RUN + ' samples; a rep ends once it drops back past ' +
-        fmt(REP_BOTTOM_FRAC, 2) + ' torso-lengths below them.',
+        'A rep starts after rising ' + fmt(REP_RISE_MIN, 2) + ' torso-lengths from its local bottom and holding for ' +
+        RUN + ' samples; its top is the highest point before descending ' +
+        fmt(REP_RELEASE_DROP, 2) + ' torso-lengths from its own peak, then the lowest point before the next ascent becomes the shared rep boundary.',
       '<strong>Measurement</strong> — left and right shoulder→wrist heights scored separately at each rep\'s top; ' +
         pct(s.bothSides) + ' of scored tops had both sides visible, ' + pct(s.interpFrac) +
         ' relied on a detection filled in from neighbouring frames.',

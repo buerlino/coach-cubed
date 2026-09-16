@@ -896,6 +896,9 @@ let vLastDrawMs = 0, vLoopRestarts = 0;
 // loop wrapping from the end back to the start — can be caught the instant it
 // happens instead of after the staleness watchdog times out.
 let vLastTimeupdate = 0;
+// Throttle for the 'waiting' stall-kick below, so a genuine multi-second stall
+// doesn't get re-nudged every tick.
+let vLastStallKick = 0;
 // vSource is whichever video is queued to run — a picked file or a camera
 // recording — normalized to {blob, filename} so the run handler doesn't
 // care which one it came from.
@@ -1688,6 +1691,14 @@ let vRafKind = null; // which scheduler vRafId belongs to ('vfc' | 'raf'), since
                      // the toggle can change it between arming and cancelling
 
 function noteFrame(media) {
+  // metadata.mediaTime has been observed to not reset across a looping
+  // <video>'s silent wrap — it keeps counting up from real elapsed time
+  // instead of dropping back with currentTime, which the loop genuinely
+  // does. A one-gap mismatch is normal presentation jitter; anything wider
+  // means mediaTime cannot be trusted this tick, so anchor off currentTime
+  // instead of letting the clock (and the mesh) drift off with a number
+  // slotForTime will never see again in the sample track.
+  if (Math.abs(media - vvideo.currentTime) > 1) media = vvideo.currentTime;
   const gap = (vClock && media > vClock.media) ? media - vClock.media
                                                : (vClock && vClock.gap);
   vClock = { media, wall: performance.now(),
@@ -1696,6 +1707,11 @@ function noteFrame(media) {
 
 function clockTime() {
   if (!vClock) return vvideo.currentTime;
+  // The anchor (anchorLoop's rVFC subscription) is known to go silent across a
+  // looping <video>'s wrap. Without this, ahead below clamps to vClock.gap and
+  // stays there — clockTime() locks onto one constant frame forever instead of
+  // freezing gracefully, since nothing else ever nulls a vClock that old.
+  if (performance.now() - vClock.wall > OVERLAY_STALL_MS) { vClock = null; return vvideo.currentTime; }
   const ahead = (performance.now() - vClock.wall) / 1000 * (vvideo.playbackRate || 1);
   // Centred on the frame being shown rather than running forward from it. A
   // held frame is a still picture, so a mesh that moves during it must part
@@ -1789,6 +1805,22 @@ vvideo.addEventListener('loadedmetadata', () => {
 });
 vvideo.addEventListener('play', startOverlayLoop);
 vvideo.addEventListener('playing', kickOverlayLoop);
+// Firefox (confirmed on 140, blob-sourced <video>): play() flips paused=false
+// and fires 'playing', but the decoder can drop straight back into 'waiting'
+// on the very first frame and then never recover — currentTime sits frozen
+// forever even though the whole clip is already in memory, so there is no
+// real buffering left to wait for. A seek is what unwedges it (that's why
+// dragging the scrubber "fixes" it for users); nudging currentTime by an
+// imperceptible amount does the same thing without moving the playhead.
+// Debounced so a real stall (rare, but possible on a slow machine) doesn't
+// get re-kicked every tick.
+vvideo.addEventListener('waiting', () => {
+  if (vvideo.paused || vvideo.ended) return;
+  const now = performance.now();
+  if (now - vLastStallKick < 500) return;
+  vLastStallKick = now;
+  vvideo.currentTime = Math.min(vvideo.currentTime + 0.0001, vvideo.duration || Infinity);
+});
 // Both of these leave the playhead somewhere the clock knows nothing about, so
 // it is dropped rather than extrapolated from; drawOverlay then falls back to
 // currentTime, which is exact while nothing is moving.
@@ -2248,7 +2280,15 @@ function v3dReset() {
 // frame on screen (raw, unsmoothed keypoints — the honest thing the model saw).
 function v3dCurrentFrame() {
   if (!vSample) return null;
-  return vSample.frames[slotForTime(vvideo.currentTime)];
+  const target = vSample.frames[slotForTime(vvideo.currentTime)];
+  if (v3dPoseAt(target)) return target;
+  let nearest = null, distance = Infinity;
+  for (const frame of vSample.frames) {
+    if (!v3dPoseAt(frame)) continue;
+    const d = Math.abs(frame - target);
+    if (d < distance) { nearest = frame; distance = d; }
+  }
+  return nearest;
 }
 
 function v3dPoseAt(idx) {
@@ -3157,7 +3197,7 @@ VIDEO_SETTINGS_HTML = """<div class="settings">
         <div id="vprogBar" style="height:8px;width:0%;background:#4a9;transition:width .2s linear;"></div>
       </div>
       </details>
-      <details class="control-group">
+      <details class="control-group" open>
         <summary>playback and tracking</summary>
       <label>speed
         <select id="vspeed">
