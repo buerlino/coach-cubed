@@ -401,6 +401,232 @@ $\sigma$ lowers the first pull's SD whether or not the back angle actually held,
 so lifts are only comparable at one setting --- which is why the applied
 $\sigma$ is printed with every score.
 
+\appendix
+
+\section{Depth from a single view}\label{sec:depth}
+
+Everything above is planar: ViTPose returns $(x,y)$ and the diagnostics measure
+angles in the image. The 3D viewer needs a $z$ per joint, and one uncalibrated
+camera does not supply one. This appendix is the geometry used to invent it,
+the ambiguity that survives, and --- \S\ref{sec:depth-broken} --- what the two
+errors it used to make cost, since both shaped the method that replaced them.
+Implementation: \texttt{src/depth\_backend.py}.
+
+\subsection{Foreshortening}\label{sec:depth-fore}
+
+Take a bone whose true 3D length $L$ is known and whose endpoints project to a
+screen separation $\ell$. Under an orthographic camera the screen length is the
+projection of the bone onto the image plane, so the out-of-plane extent follows
+from Pythagoras (Fig.~\ref{fig:depthgeom}a):
+\[
+  dz=\sqrt{\max(L^2-\ell^2,\,0)}.
+\]
+A bone of fixed length that looks short is pointing at the camera, and the
+shortfall is the depth. The clamp handles $\ell>L$ --- a wrong prior or a bad
+keypoint --- by placing the joint flat rather than failing.
+
+Joints are placed by walking outward from the trunk, each child taking its
+parent's depth plus its own $dz$, so flipping a forearm swings the wrist about
+the elbow instead of translating the whole arm. The priors $L$ are population
+anthropometry expressed in torso lengths (pelvis-to-neck $=1$): thigh and shank
+$0.85$, upper arm $0.62$, forearm $0.50$.
+
+The head is not walked. COCO gives five head keypoints; the lift carries one,
+at the midpoint of the two eyes, and the nose, ears and eyes are dropped. Five
+points inside a head's width resolve nothing at this scale, and they accounted
+for four of the depth directions the interface asked the user about. Reaching
+that point from the neck with a fixed prior would be wrong in the same way the
+scale below is: neck-to-eyes is not rigid, because the athlete looks down
+through the pull, and on the example clip it projects to $0.37\,\Lt$ at the
+median against $0.59$ at its longest. A prior long enough to cover the $0.59$
+would invent $\sqrt{0.62^2-0.37^2}=0.50\,\Lt$ of depth at a typical frame. The
+head point lies on the body's sagittal midline instead, where $z=0$ holds by
+construction --- so it needs no prior and has no sign to choose, and it follows
+the trunk.
+
+The torso length they are scaled by must be one number for the clip, not the
+pelvis-to-neck distance measured on each frame. That distance is itself a
+projection: on the example lift it runs $141\,\mathrm{px}$ at the bottom of the
+pull against $251$ stood up, a factor of $1.78$, while the athlete's torso
+plainly does not change length. Using the per-frame value shrinks every bone
+prior by that factor exactly when the pose is most foreshortened --- and only
+the priors, since $x$ and $y$ stay in real pixels --- so the recovered $z$ is
+scaled by the foreshortening of a different body part. Because a projection is
+never longer than what it projects, the per-frame values are all lower bounds on
+one fixed quantity and the largest is the estimate; the code takes the 95th
+percentile, the top of that distribution being keypoint noise.
+
+\subsection{Scale}
+
+The lift needs $L$ in the same units as $\ell$. Two sources, in order of
+preference:
+
+\emph{Metric, from the equipment.} A bumper plate is a $450\,\mathrm{mm}$ disc,
+and a circle seen at an angle $\alpha$ to the camera projects to an ellipse
+whose minor axis is foreshortened and whose major axis is not
+(Fig.~\ref{fig:depthgeom}c). Fitting that ellipse gives the scale and the tilt
+at once,
+\[
+  s=\frac{225\,\mathrm{mm}}{\mathrm{major}/2}\quad[\mathrm{mm/px}],
+  \qquad
+  \cos\alpha=\frac{\mathrm{minor}}{\mathrm{major}},
+\]
+and since the plate's normal is the bar's axis, the same fit orients the bar in
+3D. This is the only true metric anchor in the system: one frame fixes both a
+real distance and a real direction. It is also the only path that requires the
+equipment detector, and it degrades to the alternative when no plate is found.
+
+\emph{Relative, from the body.} Otherwise $\Lt$ (\S\ref{sec:smooth}) is the
+unit and the reconstruction is in torso lengths --- enough for shape and
+angles, not for measurements.
+
+\subsection{The trunk is not a flat plate}
+
+Shoulders and hips were originally pinned to $z=0$, which asserts the trunk is
+parallel to the screen. Filmed side-on that is false and the error is not
+small: on the example clip the shoulders project $0.43\,\Lt$ apart against a
+true width near $0.85\,\Lt$. The same relation as
+\S\ref{sec:depth-fore} applies to a left/right pair of known width $W$ and
+observed separation $d$,
+\[
+  dz_{\text{pair}}=\tfrac{1}{2}\sqrt{\max(W^2-d^2,\,0)},
+\]
+applied with opposite signs to the two sides so the trunk turns about its own
+axis rather than the body sliding in depth. Shoulders and hips share one sign:
+independent signs would permit a $180^\circ$ twist between hip and shoulder. The
+cost is that real, modest torso twist is not modelled.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]{figures/depth-geometry.pdf}
+  \caption{The three pieces of geometry, all seen from above. (a) A bone of
+  known length $L$ measured at screen length $\ell$ spends the difference in
+  depth. (b) The same triangle has two solutions --- toward the camera and away
+  --- projecting to the identical 2D point; one unobservable bit per joint.
+  (c) A plate is a circle of known diameter, so its fitted ellipse yields the
+  metric scale $s$ and the tilt $\alpha$ of the bar out of the image plane.}
+  \label{fig:depthgeom}
+\end{figure}
+
+\subsection{The sign ambiguity}\label{sec:depth-sign}
+
+$dz$ has a magnitude but no sign: an elbow foreshortened by $30\,\mathrm{px}$ is
+equally consistent with bending toward the camera or away from it
+(Fig.~\ref{fig:depthgeom}b). Both reconstructions fit the image \emph{exactly},
+so no amount of 2D evidence separates them, and with $n$ such joints there are
+$2^n$ reconstructions that reproduce the observed pose perfectly. The search
+covers nine bits --- trunk orientation, both elbows, both wrists, both knees,
+both ankles --- so $512$ candidates. \S\ref{sec:depth-broken} is why the distal
+four cannot be folded into their parents.
+
+Half of that is gauge. Negating \emph{every} sign reflects the reconstruction
+about the image plane, which preserves all pairwise distances, so the $512$
+candidates are $256$ poses each appearing twice and no distance-based criterion
+can ever prefer one mirror to the other. Scoring one representative per pair is
+what makes a runner-up gap meaningful; comparing the two halves of the same pair
+reports a margin of exactly zero. Which mirror is physically right stays a user
+decision, exposed per joint in the interface and by clicking the joint itself in
+the 3D view.
+
+Scoring $256$ candidates by lifting each one costs about $11\,\mathrm{s}$ on a
+107-frame clip, which would be too slow to sit behind an interactive control. It
+is avoidable: a sign only ever multiplies its own bone's $dz$, and a joint's
+depth is the sum of the signed $dz$ along the walk from the pelvis, so depth is
+\emph{linear} in the sign vector $\mathbf{s}\in\{\pm1\}^{9}$. Per frame the
+geometry factors as a single matrix $M$ with $\mathbf{z}=M\mathbf{s}$, every
+candidate is one row of a matmul, and the search runs in about $30\,\mathrm{ms}$
+--- less than the $32$-candidate version it replaced, which lifted them one at a
+time.
+
+\subsection{Choosing by balance}
+
+The criterion is that a lifter is standing up: their centre of mass is over
+their base of support. Let $\mathrm{COM}$ be the mean of the solved joints and
+$\mathbf{f}$ the mean of the two ankles; minimise, over candidates,
+\[
+  \mathcal{C}=\underbrace{\frac{1}{|Q|}\sum_{k\in Q}\frac{|\mathrm{COM}^{(k)}_z-\mathbf{f}^{(k)}_z|}{\Lt}}_{\text{balance}}
+  \;+\;\underbrace{\frac{\mu}{|F|}\sum_{k\in F}\frac{|z^{(k)}_{\text{L ank}}-z^{(k)}_{\text{R ank}}|}{\Lt}}_{\text{stance}}
+  \;+\;\lambda\sum\text{(distance violations)},
+\]
+with $\mu=1$ and $\lambda=10^{-3}$, where $Q$ is the quietest frames --- least
+motion, where a static balance assumption actually holds --- and $F$ every frame
+with both ankles solved. What makes balance the right test is that the
+\emph{horizontal} half of the same offset comes entirely from the 2D pose and is
+therefore identical across all candidates (Fig.~\ref{fig:depthsign}a, measured
+$0.183\,\Lt$ for all $256$). Every bit of discrimination sits in the depth term,
+which is precisely the unknown.
+
+The stance term is the guard that makes freeing the distal signs safe: both feet
+are on the floor under the athlete and are never a thigh-plus-shank apart in
+depth. It is a direct statement about the one quantity the reconstruction gets
+most wrong, so it goes in at par with balance rather than as a tuned weight ---
+any $\mu\in[0.5,2]$ picks the same assignment on the example clip.
+
+The third term bounds the distance between joints sharing no bone --- two knees
+cannot occupy one point. It is weighted almost to nothing on purpose. As an
+upper bound it ranks candidates close to backwards, because giving every limb
+the same sign packs the body into one depth plane and shortens every cross-body
+distance, so a maximum-distance cost is minimised by the degenerate all-same
+answer. It survives only as a tie-break.
+
+\begin{figure}[t]
+  \centering
+  \includegraphics[width=\textwidth]{figures/depth-signs.pdf}
+  \caption{The sign search on the example clip, at its deepest frame (46).
+  (a) Total cost $\mathcal{C}$ for the $256$ mirror classes, sorted; the winner is
+  marked. The horizontal offset is $0.183\,\Lt$ for every one of them, so the ranking is
+  purely a depth judgement. (b) That winner seen from above, legs highlighted:
+  its feet sit $0.33\,\Lt$ apart in depth, against $1.86$ under the tied rule
+  this replaced. (c) Why --- the smallest foot separation any sign assignment
+  can reach, per frame. With the ankle's sign tied to the knee's the floor is
+  $0.50\,\Lt$ median: the tied search cannot put the feet together at any frame
+  of the catch, whatever it scores. Freeing the bit drops the floor to $0.15$.}
+  \label{fig:depthsign}
+\end{figure}
+
+\subsection{The plate-anchored variant}
+
+When plates are detected the depths are anchored rather than guessed: the
+ellipse fit gives $s$ and the 3D bar axis; each wrist is taken to lie on the bar
+and inherits the bar's depth beneath its own image position; the remaining
+joints are reached by breadth-first propagation with the same $dz$ as
+\S\ref{sec:depth-fore}, now in millimetres. This is the only path that produces
+absolute lengths. It needs both a plate ellipse and a visible wrist, and falls
+back to pinning the pelvis at $z=0$.
+
+\subsection{The tied-sign failure, and what it cost}\label{sec:depth-broken}
+
+Ankles used to inherit the knee's sign and wrists the elbow's, on the argument
+that a limb segment follows the segment it hangs off. For a straight limb that
+holds. For a flexed one it is backwards: in a squat the thigh runs forward and
+down from the hip while the shank runs \emph{backward} and down from the knee,
+so the two segments have opposite depth signs. Tying them sends the foot out to
+$z_{\text{knee}}+dz_{\text{shank}}$ instead of back under the hip.
+
+The consequence was structural, not a tuning failure.
+Fig.~\ref{fig:depthsign}c sweeps every assignment at every frame and keeps the
+smallest foot separation each scheme can reach: tied, the median floor is
+$0.50\,\Lt$; with the distal signs free it is $0.15\,\Lt$. A feet-together squat
+was therefore not merely disfavoured by the search --- it was unreachable, and
+the balance criterion was left choosing the least-bad member of a set that did
+not contain the answer. The result satisfied every bone length, every joint
+angle and the balance test, and put the athlete's feet $1.86\,\Lt$ apart in
+depth, roughly a metre, where the video shows them planted side by side.
+
+That is the general shape of the risk here, and it is worth stating plainly: a
+cost function can only rank the reconstructions its parameterisation can
+express. A good score is evidence about the search, not about the body, and the
+two are only the same thing if the truth is in the candidate set. Both fixes in
+this appendix --- freeing the distal signs, and scaling off the clip rather than
+the frame --- were found by checking a reconstruction against anatomy rather
+than against its own objective.
+
+What remains genuinely unresolved is the front/back mirror (\S\ref{sec:depth-sign}):
+it is gauge, no image-plane criterion can touch it, and it is left to the user.
+The per-joint controls and click-to-flip in the 3D view exist for that. Absolute
+depth is still only available on the plate-anchored path; the keypoint lift
+remains unit-torso and should be read as a solved sketch, not a measurement.
+
 \begin{thebibliography}{9}\small
 \bibitem{vitpose} Y.~Xu, J.~Zhang, Q.~Zhang, D.~Tao. \emph{ViTPose: Simple Vision Transformer Baselines for Human Pose Estimation.} NeurIPS 35, 2022. arXiv:2204.12484. Implementation used: \texttt{github.com/JunkyByte/easy\_ViTPose}.
 \bibitem{vit} A.~Dosovitskiy, L.~Beyer, A.~Kolesnikov, D.~Weissenborn, X.~Zhai, T.~Unterthiner, M.~Dehghani, M.~Minderer, G.~Heigold, S.~Gelly, J.~Uszkoreit, N.~Houlsby. \emph{An Image is Worth 16$\times$16 Words: Transformers for Image Recognition at Scale.} ICLR, 2021. arXiv:2010.11929.

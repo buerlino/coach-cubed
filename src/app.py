@@ -245,7 +245,14 @@ def api_capabilities():
 # the split — the page never pays for the anchors it didn't pick.
 @app.route("/api/depth/methods")
 def api_depth_methods():
-    return jsonify({"methods": depth_backend.list_methods()})
+    # sign_joints and limb_segments ride along with the method list so the page
+    # can build both control blocks in the same startup fetch — which joints are
+    # ambiguous and which segments have a length are properties of the lift, not
+    # of the clip, so there's nothing to wait for and no second round trip.
+    return jsonify({"methods": depth_backend.list_methods(),
+                    "sign_joints": depth_backend.sign_joints(),
+                    "limb_segments": depth_backend.limb_segments(),
+                    "generic_limbs": depth_backend.generic_limb_ratios()})
 
 
 @app.route("/api/depth/generate", methods=["POST"])
@@ -261,6 +268,47 @@ def api_depth_generate():
         return jsonify({"error": str(e)}), 400
     except Exception as e:                       # a mesh() that blew up
         return jsonify({"error": f"depth generation failed: {e}"}), 500
+    return jsonify(result)
+
+
+@app.route("/api/depth/optimize_limbs", methods=["POST"])
+def api_depth_optimize_limbs():
+    """Descend the limb ratios on one frame against the humanness penalty.
+
+    Same payload as /generate — it needs the pose, and the profile it should
+    start from rides in as bone_ratios exactly as it does for a lift. Returns
+    both term breakdowns so the caller can show what the move actually bought
+    rather than just handing over four new numbers.
+
+    `iters`, `lr`, `line_search` and `term_tol` are exposed because the interface
+    runs this in small steps to convergence rather than in a few big ones: the
+    objective is known to descend to the wrong lengths on the fixtures, so the
+    trajectory and the per-term history it reports back matter as much as the
+    four numbers at the end. `iters` is a cap on that, not a target.
+    """
+    payload = request.get_json(silent=True)
+    if not payload or "keypoints" not in payload:
+        return jsonify({"error": "expected JSON with width/height/keypoints"}), 400
+    try:
+        scene = depth_backend.Scene.from_payload(payload)
+        frame = payload.get("frame")
+        iters = int(payload.get("iters", depth_backend._OPT_ITERS))
+        lr = float(payload.get("lr", depth_backend._OPT_LR))
+        tol = float(payload.get("term_tol", depth_backend._OPT_TERM_TOL))
+        result = depth_backend.optimize_limbs(
+            scene, frame=None if frame is None else int(frame),
+            iters=max(1, min(iters, 1000)), lr=lr,
+            line_search=bool(payload.get("line_search", True)),
+            term_tol=max(0.0, tol))
+    except (TypeError, ValueError) as e:
+        return jsonify({"error": f"bad optimiser settings: {e}"}), 400
+    except Exception as e:
+        return jsonify({"error": f"limb optimisation failed: {e}"}), 500
+    if result is None:
+        return jsonify({"error": "not enough of the pose to optimise on"}), 400
+    result["labels"] = depth_backend.HUMANNESS_LABELS
+    result["ui_max_iters"] = depth_backend._OPT_UI_MAX
+    result["ui_lr"] = depth_backend._OPT_UI_LR
     return jsonify(result)
 
 
@@ -392,6 +440,95 @@ def api_example_track(example_id):
     if not track:
         return jsonify({"error": "unknown example track"}), 404
     return send_file(track, mimetype="application/json")
+
+
+# --- limb-length profiles ---------------------------------------------------
+# Segment lengths as a fraction of torso (pelvis->neck), measured off one
+# athlete. They belong to the PERSON, not the clip, which is why the depth lift
+# can't just read them off the footage: its own per-clip estimate takes each
+# segment's longest projection, and that is only the true length if the athlete
+# fully extends that limb on camera. In a lifting clip they often never do, so
+# every segment reads short and the lift fabricates the difference as depth.
+#
+# Stored as `<clip-stem>.limbs.json` beside the clip and its track, in whichever
+# scope the clip lives in — same "everything about this example sits together"
+# rule the cached track already follows, so no separate registry to keep in sync
+# and a copied folder brings its profile along. An example with no file falls
+# back to "generic", the population priors.
+GENERIC_PROFILE_NAME = "generic"
+
+
+def _example_limbs_path(example_id):
+    """Where a manifest key's limb profile lives, or None for a bogus id.
+
+    Membership in the manifest is the only gate — the same rule _example_video
+    uses — so a crafted id can't write outside FIXTURES_DIR.
+    """
+    if example_id not in _load_manifest():
+        return None
+    return FIXTURES_DIR / (example_id + ".limbs.json")
+
+
+def _read_limb_profile(example_id):
+    """This example's profile, always a usable {name, ratios} dict.
+
+    Missing, unreadable or malformed all degrade to generic rather than
+    erroring: a bad profile should cost you the calibration, not the clip. Any
+    segment the file omits is filled from the generic table, so a profile
+    written before a new segment existed still loads.
+    """
+    ratios = depth_backend.generic_limb_ratios()
+    name, notes = GENERIC_PROFILE_NAME, ""
+    path = _example_limbs_path(example_id)
+    if path and path.exists():
+        try:
+            raw = json.loads(path.read_text())
+        except (ValueError, OSError):
+            raw = None
+        if isinstance(raw, dict):
+            got = depth_backend.parse_bone_ratios(raw.get("ratios")) or {}
+            ratios.update(got)
+            if isinstance(raw.get("name"), str) and raw["name"].strip():
+                name = raw["name"].strip()
+            if isinstance(raw.get("notes"), str):
+                notes = raw["notes"]
+    return {"name": name, "notes": notes, "ratios": ratios}
+
+
+@app.route("/api/examples/<path:example_id>/limbs")
+def api_example_limbs(example_id):
+    if _example_limbs_path(example_id) is None:
+        return jsonify({"error": "unknown example"}), 404
+    return jsonify(_read_limb_profile(example_id))
+
+
+@app.route("/api/examples/<path:example_id>/limbs", methods=["PUT"])
+def api_example_limbs_save(example_id):
+    """Write the profile back beside the clip.
+
+    Validated through the same parse_bone_ratios the lift uses, so what gets
+    persisted is exactly what the reconstruction would accept — a value the
+    backend would have dropped can't be silently written to disk and then load
+    as something else next session.
+    """
+    path = _example_limbs_path(example_id)
+    if path is None:
+        return jsonify({"error": "unknown example"}), 404
+    payload = request.get_json(silent=True) or {}
+    ratios = depth_backend.parse_bone_ratios(payload.get("ratios"))
+    if not ratios:
+        return jsonify({"error": "no usable ratios"}), 400
+    name = payload.get("name")
+    body = {"name": (name.strip() if isinstance(name, str) and name.strip()
+                     else GENERIC_PROFILE_NAME),
+            "notes": payload.get("notes") if isinstance(payload.get("notes"), str) else "",
+            "ratios": ratios}
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(body, indent=1, sort_keys=True) + "\n")
+    except OSError as e:
+        return jsonify({"error": f"could not save: {e}"}), 500
+    return jsonify(_read_limb_profile(example_id))
 
 
 # --- diagnostics ----------------------------------------------------------
@@ -565,17 +702,69 @@ INDEX_HTML = """<!doctype html>
         </select>
       </label>
       <button id="v3dgen" type="button" disabled title="Recompute the 3D reconstruction for the whole clip">recompute 3D</button>
+      <label style="white-space:nowrap;font-size:13px" title="Show the per-joint depth direction controls. A single view cannot tell a limb bending toward the camera from one bending away — the depth magnitude is measured, the direction is chosen.">
+        <input id="v3dsignshow" type="checkbox" style="vertical-align:middle;margin:0 4px 0 0"> depth direction
+      </label>
+      <label style="white-space:nowrap;font-size:13px" title="Show this athlete's limb lengths. Segment length as a fraction of torso — the lift turns the gap between a bone's true length and its on-screen length into depth, so a wrong length is invented depth.">
+        <input id="v3dlimbshow" type="checkbox" style="vertical-align:middle;margin:0 4px 0 0"> limb lengths
+      </label>
+    </div>
+    <!-- Per-athlete limb lengths. Fractions of torso (pelvis→neck), built from
+         the backend's limb_segments() so this markup never lists segments
+         itself. An example ships its profile beside the clip; uploads start
+         generic. Editing re-runs the lift immediately, saving writes the file. -->
+    <div id="v3dlimbbar" style="display:none;margin:2px 0 6px;padding:8px;background:#1a1a19;border:1px solid #2c2c2a;border-radius:8px">
+      <div style="font-size:12px;color:#898781;margin-bottom:6px">
+        Segment length as a fraction of torso (hips→shoulders), for this athlete.
+        <span style="margin-left:8px;color:#898781">profile <b id="v3dlimbname" style="color:#c3c2b7">generic</b></span>
+        <button id="v3dlimbreset" type="button" style="font-size:12px;padding:2px 8px;margin-left:8px" title="Back to the population priors">generic</button>
+        <button id="v3dlimbrevert" type="button" style="font-size:12px;padding:2px 8px;margin-left:4px" title="Discard edits and reload the profile stored beside this clip">revert</button>
+        <button id="v3dlimbsave" type="button" disabled style="font-size:12px;padding:2px 8px;margin-left:4px" title="Write these ratios beside the clip, so this example loads with them next time">save to example</button>
+        <button id="v3dlimbfit" type="button" style="font-size:12px;padding:2px 8px;margin-left:12px" title="Small gradient steps on the FIRST frame, from wherever the ratios are now, minimising five anatomical penalties — runs until every one of the five stops moving. Measured against a known athlete this objective drifts ~0.07 torso off the true lengths and settles there, so read the breakdown rather than trusting it.">optimize</button>
+        <span id="v3dlimbsteps" style="font-size:12px;color:#898781;margin-left:6px"></span>
+        <span id="v3dlimbnote" style="margin-left:8px"></span>
+      </div>
+      <!-- What the steps actually bought, per humanness term. Shown rather than
+           swallowed because on the fixtures this objective is a BIASED estimate
+           of limb length: it reliably finds a lower penalty and reliably does so
+           at the wrong lengths, so the numbers are the point. -->
+      <div id="v3dlimbfitnote" style="display:none;font-size:12px;color:#898781;margin:6px 0 0;padding-top:6px;border-top:1px solid #2c2c2a"></div>
+      <div id="v3dlimbs" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:4px 10px"></div>
+    </div>
+    <!-- Per-joint depth sign. Only the joints reached by walking a bone appear
+         here (the backend's sign_joints()); hips/shoulders/nose are placed in
+         the image plane and have no direction to choose. Built from
+         /api/depth/methods so this markup never has to list joints itself. -->
+    <div id="v3dsignbar" style="display:none;margin:2px 0 6px;padding:8px;background:#1a1a19;border:1px solid #2c2c2a;border-radius:8px">
+      <div style="font-size:12px;color:#898781;margin-bottom:6px">
+        Which way each limb bends out of the screen. <b>toward</b> = toward the camera.
+        <label style="margin-left:8px;color:#c3c2b7" title="Auto works the directions out from the pose: it tries all 16 arrangements of the two elbows and two knees (wrists follow their elbow, ankles their knee) and keeps the one whose non-adjacent joint distances stay anatomically plausible over the whole clip. Changing any selector below switches to manual.">mode
+          <select id="v3dsignmode" style="font-size:12px;padding:1px 4px;margin:0">
+            <option value="auto" selected>auto (infer)</option>
+            <option value="manual">manual</option>
+          </select>
+        </label>
+        <button id="v3dsignreset" type="button" style="font-size:12px;padding:2px 8px;margin-left:8px">all toward</button>
+      </div>
+      <div id="v3dsigns" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:4px 10px"></div>
     </div>
     <p id="v3dnote" style="font-size:12px;color:#898781;margin:0 0 4px"></p>
     <!-- The 3D view: a second "video" below the real one, showing the depth
          reconstruction the picked anchor produced. Hidden until a generate runs.
          Click-drag turns it (turntable about the vertical axis) so the recovered
          depth is actually visible; it steps in time with the video when the
-         chosen method returns a per-frame sequence. -->
+         chosen method returns a per-frame sequence.
+         Clicking a joint flips which way it bends out of the screen. That is the
+         same choice as the dropdowns above, put where the mistake is actually
+         visible: you see a knee pointing the wrong way in the turntable, and the
+         fix is to click the knee — not to work out which of thirteen rows it is. -->
     <div id="v3dpanel" style="display:none;margin:2px 0 6px">
       <div id="v3dcanvasWrap" style="position:relative;width:100%;background:#0d0d0d;border-radius:8px;overflow:hidden;cursor:grab">
         <canvas id="v3dcanvas" style="display:block;width:100%;height:340px"></canvas>
-        <div id="v3dhint" style="position:absolute;left:8px;bottom:6px;font-size:11px;color:#6f6e68;pointer-events:none">drag to rotate</div>
+        <div id="v3dhint" style="position:absolute;left:8px;bottom:6px;font-size:11px;color:#6f6e68;pointer-events:none">drag to rotate &middot; click a joint to flip its depth</div>
+        <div id="v3dkey" style="position:absolute;right:8px;top:6px;font-size:11px;color:#6f6e68;pointer-events:none">
+          <span style="color:#6fd1c5">&#9679;</span> toward &nbsp;<span style="color:#f0a020">&#9679;</span> away &nbsp;<span style="color:#6f6e68">&#9679;</span> no choice
+        </div>
       </div>
     </div>
     <p id="vsummary" style="font-size:12px;color:#c3c2b7"></p>
@@ -759,6 +948,12 @@ function vClearExample() {
   vSetSizeAvailability(null);
   $('vstride').min = 1;
   $('vstrideNote').textContent = '';
+  // An upload or a recording is of someone we know nothing about, so the limb
+  // profile goes back to the population priors rather than carrying the last
+  // athlete's measurements onto a stranger.
+  if (v3dLimbSegments.length) v3dSetLimbs(null, { saved: true });
+  const note = $('v3dlimbnote');
+  if (note) note.textContent = '';
 }
 
 // --- temporal smoothing ---------------------------------------------------
@@ -1674,6 +1869,10 @@ $('vexample').onchange = async () => {
   // fall to whichever size it does ship. Grey the rest out.
   vExampleId = id;
   vExampleSizes = sizes;
+  // Before the track loads, so the first automatic generate already has this
+  // athlete's limbs rather than reconstructing once with the generic ones.
+  $('v3dlimbnote').textContent = '';
+  await v3dLoadLimbsFor(id);
   const size = sizes.includes($('vsize').value) ? $('vsize').value : sizes[0];
   vSetSizeAvailability(sizes, size);
   $('vstatus').textContent = 'loading example…';
@@ -2081,20 +2280,387 @@ function v3dBuildSequence() {
   return { sequence: seq, start };
 }
 
+// --- per-joint depth direction ---------------------------------------------
+// The dictionary the selection lives in: {joint index (string): +1 toward the
+// camera | -1 away}. Kept keyed by joint rather than as a list so a reordering
+// of sign_joints can't silently reassign someone's choices, and deliberately
+// NOT cleared by v3dReset — the direction a limb bends is a property of how the
+// lift was filmed, so it carries across a re-run and across clips from the same
+// camera angle. Posted with every generate and echoed back resolved.
+let v3dSigns = {};
+let v3dSignJoints = [];   // [{index, label, default}] from /api/depth/methods
+// 'auto' posts the string "auto" and lets the backend solve the directions from
+// the pose; 'manual' posts the dictionary above verbatim. Auto is the default
+// because the old behaviour — everything toward the camera — was a guess that
+// happened to be wrong half the time, and a wrong guess is worse than a solved
+// one. Touching any selector drops to manual, so an explicit choice is never
+// silently overwritten by the next recompute.
+let v3dSignMode = 'auto';
+
+function v3dBuildSignControls() {
+  const host = $('v3dsigns');
+  if (!host || !v3dSignJoints.length) return;
+  host.innerHTML = '';
+  for (const j of v3dSignJoints) {
+    const key = String(j.index);
+    if (!(key in v3dSigns)) v3dSigns[key] = j.default;
+    const row = document.createElement('label');
+    row.style.cssText = 'font-size:13px;color:#c3c2b7;display:flex;align-items:center;gap:6px;justify-content:space-between';
+    const name = document.createElement('span');
+    name.textContent = j.label;
+    const sel = document.createElement('select');
+    sel.style.cssText = 'font-size:13px;padding:2px 4px;margin:0';
+    for (const [v, txt] of [[1, 'toward'], [-1, 'away']]) {
+      const o = document.createElement('option');
+      o.value = String(v); o.textContent = txt;
+      if (v3dSigns[key] === v) o.selected = true;
+      sel.appendChild(o);
+    }
+    // Recompute on change: the sign feeds the lift itself, so unlike the
+    // turntable there is nothing client-side to re-render — the geometry has
+    // to come back from the backend.
+    sel.onchange = () => {
+      v3dSigns[key] = parseInt(sel.value, 10);
+      v3dSetSignMode('manual');   // an explicit choice outranks the solver
+      if (vMeta) v3dGenerate();
+    };
+    row.appendChild(name); row.appendChild(sel);
+    host.appendChild(row);
+  }
+}
+
+function v3dSetSignMode(mode) {
+  v3dSignMode = mode;
+  const sel = $('v3dsignmode');
+  if (sel && sel.value !== mode) sel.value = mode;
+}
+
+// --- clicking a joint in the 3D view ---------------------------------------
+// The dropdowns and the 3D view are two ways into the same dictionary. Both go
+// through v3dFlipSign, so there is one definition of what flipping means and
+// the controls can't disagree about the current state.
+
+// Which sign control a clicked joint belongs to. Most joints are their own, but
+// the trunk is one bit shared by both shoulders and both hips, so `also` (from
+// sign_joints()) routes those four to the one control. Returns null for a joint
+// with no direction to choose — the nose, which is pinned to the midline.
+function v3dSignKeyFor(joint) {
+  for (const j of v3dSignJoints) {
+    if (j.index === joint || (j.also || []).includes(joint)) return String(j.index);
+  }
+  return null;
+}
+
+// Per-joint sign for the viewer to colour by: +1 toward, -1 away, 0 = no choice.
+// Built over `also` too, so both shoulders and both hips show the trunk's state
+// rather than only the one joint that happens to key it.
+function v3dSignArray() {
+  const a = new Array(17).fill(0), labels = new Array(17).fill(null);
+  for (const j of v3dSignJoints) {
+    const v = v3dSigns[String(j.index)] || j.default;
+    for (const i of [j.index].concat(j.also || [])) { a[i] = v; labels[i] = j.label; }
+  }
+  return { signs: a, labels };
+}
+
+function v3dFlipSign(key) {
+  if (key === null) return;
+  v3dSigns[key] = -(v3dSigns[key] || 1);
+  v3dSetSignMode('manual');   // an explicit choice outranks the solver
+  v3dBuildSignControls();
+  if (vMeta) v3dGenerate();   // the geometry has to come back from the backend
+}
+
+// `signed` comes from the candidate: an anchor that doesn't read the sign table
+// gets a grey, unclickable skeleton rather than controls that quietly do
+// nothing. Which anchors those are is the backend's business, not a method name
+// matched in here.
+function v3dPushSigns(signed) {
+  if (!window.Viewer || !window.Viewer.setSigns) return;
+  if (!signed) { window.Viewer.setSigns(null, null); return; }
+  const { signs, labels } = v3dSignArray();
+  window.Viewer.setSigns(signs, labels);
+}
+
+// The viewer announces picks as a DOM event rather than taking a callback: it
+// loads as a deferred module, so it does not exist yet when this script runs,
+// and an event listener on the wrapper can be attached now regardless.
+$('v3dcanvasWrap').addEventListener('v3djointclick', (e) => {
+  v3dFlipSign(v3dSignKeyFor(e.detail.joint));
+});
+
+$('v3dsignshow').addEventListener('change', () => {
+  $('v3dsignbar').style.display = $('v3dsignshow').checked ? '' : 'none';
+});
+
+$('v3dlimbshow').addEventListener('change', () => {
+  $('v3dlimbbar').style.display = $('v3dlimbshow').checked ? '' : 'none';
+});
+$('v3dlimbreset').onclick = () => {
+  v3dSetLimbs(null);
+  $('v3dlimbnote').textContent = '';
+  $('v3dlimbfitnote').style.display = 'none';
+  if (vMeta) v3dGenerate();
+};
+$('v3dlimbfit').onclick = async () => {
+  $('v3dlimbfit').disabled = true;
+  try { await v3dStepLimbs(); if (vMeta) v3dGenerate(); }
+  finally { $('v3dlimbfit').disabled = false; }
+};
+$('v3dlimbrevert').onclick = async () => {
+  $('v3dlimbnote').textContent = '';
+  $('v3dlimbfitnote').style.display = 'none';
+  await v3dLoadLimbsFor(vExampleId);
+  if (vMeta) v3dGenerate();
+};
+// Saving is explicit: editing a ratio re-runs the lift so you can see what it
+// does, but nothing reaches disk until you say so — otherwise trying a number
+// would quietly rewrite the example for everyone who loads it next.
+$('v3dlimbsave').onclick = async () => {
+  if (!vExampleId || !v3dLimbs) return;
+  const note = $('v3dlimbnote');
+  note.style.color = '#898781';
+  note.textContent = 'saving…';
+  try {
+    const r = await fetch(`/api/examples/${encodeURI(vExampleId)}/limbs`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: v3dLimbs.name, notes: v3dLimbs.notes,
+                             ratios: v3dLimbs.ratios }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    v3dSetLimbs(d, { saved: true });
+    note.textContent = 'saved beside the clip';
+  } catch (e) {
+    note.style.color = '#f0a020';
+    note.textContent = 'save failed: ' + e.message;
+  }
+};
+$('v3dsignmode').onchange = () => {
+  v3dSignMode = $('v3dsignmode').value;
+  if (vMeta) v3dGenerate();
+};
+// "all toward" is the old default, and choosing it is itself a manual decision
+// — otherwise the next recompute would silently solve the directions again and
+// the button would look broken.
+$('v3dsignreset').onclick = () => {
+  for (const j of v3dSignJoints) v3dSigns[String(j.index)] = j.default;
+  v3dSetSignMode('manual');
+  v3dBuildSignControls();
+  if (vMeta) v3dGenerate();
+};
+
 function v3dScores(conf) {
   return Object.entries(conf)
     .map(([k, v]) => `${k} ${v === null ? '—' : v.toFixed(2)}`).join(', ');
 }
 
+// --- limb-length profile ---------------------------------------------------
+// Segment lengths as a fraction of torso (pelvis->neck), belonging to the
+// ATHLETE rather than to the clip. The lift can't just measure them off the
+// footage: its per-clip estimate takes each segment's longest projection, which
+// is the true length only if the athlete fully extends that limb on camera, and
+// in a lifting clip they often never do. Every segment then reads short and the
+// lift fabricates the difference as depth.
+//
+// An example ships its profile beside the clip (`<stem>.limbs.json`); anything
+// uploaded starts generic. Edits here are live — each change re-runs the lift —
+// and only reach disk on an explicit save, so you can try a number without
+// committing to it.
+let v3dLimbSegments = [];            // [{key,label,default,min,max}] from /api/depth/methods
+let v3dGenericLimbs = {};            // the population priors, the "generic" profile
+let v3dLimbs = null;                 // {name, notes, ratios} for the loaded clip
+let v3dLimbsSaved = null;            // last value on disk, for the dirty marker
+
+function v3dGenericProfile() {
+  return { name: 'generic', notes: '', ratios: { ...v3dGenericLimbs } };
+}
+
+// Deep-ish equality over the ratio table only — the name and notes don't change
+// what the reconstruction does, so they don't make the profile dirty.
+function v3dLimbsDiffer(a, b) {
+  if (!a || !b) return !!a !== !!b;
+  return v3dLimbSegments.some(s => (a.ratios[s.key] ?? s.default)
+                                !== (b.ratios[s.key] ?? s.default));
+}
+
+// keepSteps is for the optimiser, which calls this ten steps at a time and owns
+// the running count. Everything else — loading a profile, reverting, going
+// generic, typing a ratio by hand — starts the descent over, because the count
+// is only meaningful relative to where the stepping began.
+function v3dSetLimbs(profile, { saved = false, keepSteps = false } = {}) {
+  v3dLimbs = profile ? { name: profile.name || 'generic', notes: profile.notes || '',
+                         ratios: { ...v3dGenericLimbs, ...(profile.ratios || {}) } }
+                     : v3dGenericProfile();
+  if (saved) v3dLimbsSaved = JSON.parse(JSON.stringify(v3dLimbs));
+  if (!keepSteps) {
+    v3dLimbSteps = 0; v3dLimbPenalty0 = null;
+    const s = $('v3dlimbsteps');
+    if (s) s.textContent = '';
+  }
+  v3dBuildLimbControls();
+}
+
+// The profile that ships with an example. Uploads and recordings get generic:
+// we know nothing about whoever is in them, and a stranger's limbs are a worse
+// guess than the population's.
+async function v3dLoadLimbsFor(exampleId) {
+  if (!exampleId) { v3dSetLimbs(null, { saved: true }); return; }
+  try {
+    const r = await fetch(`/api/examples/${encodeURI(exampleId)}/limbs`);
+    v3dSetLimbs(r.ok ? await r.json() : null, { saved: true });
+  } catch (e) {
+    v3dSetLimbs(null, { saved: true });
+  }
+}
+
+function v3dBuildLimbControls() {
+  const host = $('v3dlimbs');
+  if (!host || !v3dLimbSegments.length || !v3dLimbs) return;
+  host.innerHTML = '';
+  for (const seg of v3dLimbSegments) {
+    const row = document.createElement('label');
+    row.style.cssText = 'font-size:13px;color:#c3c2b7;display:flex;align-items:center;gap:6px;justify-content:space-between';
+    const name = document.createElement('span');
+    name.textContent = seg.label;
+    const inp = document.createElement('input');
+    inp.type = 'number'; inp.step = '0.005';
+    inp.min = String(seg.min); inp.max = String(seg.max);
+    inp.value = Number(v3dLimbs.ratios[seg.key] ?? seg.default).toFixed(3);
+    inp.style.cssText = 'font-size:13px;padding:2px 4px;margin:0;width:78px';
+    inp.title = `population prior ${seg.default}`;
+    // Commit on change, not on input: typing "0.7" passes through "0." and "0",
+    // and re-running the whole clip's lift on each keystroke would both thrash
+    // the backend and briefly reconstruct against a nonsense length.
+    inp.onchange = () => {
+      const v = parseFloat(inp.value);
+      if (!isFinite(v) || v < seg.min || v > seg.max) {
+        inp.value = Number(v3dLimbs.ratios[seg.key] ?? seg.default).toFixed(3);
+        return;
+      }
+      v3dLimbs.ratios[seg.key] = v;
+      inp.value = v.toFixed(3);
+      v3dRenderLimbState();
+      if (vMeta) v3dGenerate();
+    };
+    row.appendChild(name); row.appendChild(inp);
+    host.appendChild(row);
+  }
+  v3dRenderLimbState();
+}
+
+function v3dRenderLimbState() {
+  const el = $('v3dlimbname');
+  if (!el || !v3dLimbs) return;
+  const dirty = v3dLimbsDiffer(v3dLimbs, v3dLimbsSaved);
+  el.textContent = v3dLimbs.name + (dirty ? ' · edited' : '');
+  el.style.color = dirty ? '#f0a020' : '#c3c2b7';
+  const save = $('v3dlimbsave');
+  if (save) save.disabled = !vExampleId || !dirty;
+}
+
+// One click descends to convergence — small steps, run until all five humanness
+// terms stop moving — starting from whatever the ratios are NOW, so the first
+// click starts at the profile and a second one only moves if something else
+// changed (a different frame, a hand edit) since.
+//
+// Applied but never saved: on the fixtures this objective finds a lower penalty
+// at the wrong lengths, so committing it to disk stays a deliberate second
+// click on "save to example".
+let v3dLimbSteps = 0;              // cumulative, reset whenever the profile is
+let v3dLimbPenalty0 = null;        // penalty when stepping began, for the delta
+
+async function v3dStepLimbs() {
+  if (!vMeta || !v3dLimbs) return;
+  const note = $('v3dlimbnote'), out = $('v3dlimbfitnote');
+  note.style.color = '#898781';
+  note.textContent = 'optimising…';
+  try {
+    const { sequence, start } = v3dBuildSequence();
+    const idx = v3dCurrentFrame();
+    const r = await fetch('/api/depth/optimize_limbs', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ width: vMeta.width, height: vMeta.height,
+                             current_frame: idx, keypoints: v3dPoseAt(idx),
+                             sequence, start_frame: start,
+                             lift: document.body.dataset.page || null,
+                             bone_ratios: v3dLimbs.ratios,
+                             // Small steps with a backtracking line search, so
+                             // the descent is monotone and actually terminates;
+                             // iters is the guard on that, not the plan.
+                             iters: 400, lr: 0.005, line_search: true }),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    if (v3dLimbPenalty0 === null) v3dLimbPenalty0 = d.start_total;
+    v3dLimbSteps += d.iterations;
+    // Keep the name: these are no longer the measured numbers, and the dirty
+    // marker beside it is what says so.
+    v3dSetLimbs({ name: v3dLimbs.name, notes: v3dLimbs.notes, ratios: d.ratios },
+                { keepSteps: true });
+    $('v3dlimbsteps').textContent = `${v3dLimbSteps} steps`;
+    // Only "iterations" means it stopped because it ran out of budget; every
+    // other reason means it stopped because it had nowhere left to go.
+    const capped = d.stop_reason === 'iterations';
+    note.textContent = `frame ${d.frame} · penalty ${d.start_total.toFixed(4)}`
+      + ` → ${d.total.toFixed(4)} · `
+      + (capped ? `stopped at the ${d.iterations}-step cap, not converged`
+                : d.iterations === 0 ? 'already converged'
+                : `converged in ${d.iterations} steps`);
+    note.style.color = capped ? '#f0a020' : '#898781';
+    const rows = Object.keys(d.terms).map(k => {
+      const a = d.start_terms[k], b = d.terms[k];
+      const arrow = b > a + 1e-6 ? '▲' : (b < a - 1e-6 ? '▼' : '·');
+      return `${arrow} ${(d.labels && d.labels[k]) || k}: ${a.toFixed(4)} → ${b.toFixed(4)}`;
+    });
+    // The depth signs are re-chosen at every evaluation, so the run can end on a
+    // different toward/away configuration than it began on. Say so: past that
+    // point it is fitting lengths to a different reading of the pose.
+    const flipped = JSON.stringify(d.start_signs) !== JSON.stringify(d.signs);
+    out.style.display = '';
+    out.innerHTML =
+      `<b>penalty ${v3dLimbPenalty0.toFixed(4)} → ${d.total.toFixed(4)}</b>`
+      + ` over ${v3dLimbSteps} steps (torso lengths, 0 = perfect)<br>`
+      + (d.iterations === 0 ? 'last run moved nothing: ' : `last run, ${d.iterations} steps: `)
+      + rows.join('<br>')
+      + (flipped ? `<br><span style="color:#f0a020">toward/away flipped`
+                   + ` ${d.sign_flips} time${d.sign_flips === 1 ? '' : 's'} during`
+                   + ` the run — it ended on a different depth configuration than`
+                   + ` it started on. Check the sign table before reading the`
+                   + ` lengths.</span>` : '')
+      + `<br><span style="color:#f0a020">A lower penalty is not the same as correct`
+      + ` limbs. Checked against an athlete whose lengths are known, this objective`
+      + ` converges ~0.07 torso away from them — compare with a measured profile`
+      + ` before trusting it.</span>`;
+  } catch (e) {
+    note.style.color = '#f0a020';
+    note.textContent = 'optimize failed: ' + e.message;
+  }
+}
+
+// Monotonic token for in-flight generates. Clicking two joints quickly puts two
+// POSTs in the air, and if the first one lands last it overwrites v3dSigns with
+// the table from before the second click — the flip appears to undo itself a
+// moment after it happened. Only the newest request is allowed to apply.
+let v3dRun = 0;
+
 async function v3dGenerate() {
   const note = $('v3dnote');
   if (!vMeta) { note.textContent = 'run a pose pass first'; return; }
+  const run = ++v3dRun;
   const method = $('v3dmethod').value;
   const idx = v3dCurrentFrame();
   const wantSeq = (method === 'plate-anchor' || method === 'auto');
   const body = { method, width: vMeta.width, height: vMeta.height,
                  current_frame: idx, keypoints: v3dPoseAt(idx),
-                 equipment: vEquipment ? (vEquipment[String(idx)] || null) : null };
+                 equipment: vEquipment ? (vEquipment[String(idx)] || null) : null,
+                 // Which lift the user is looking at. The backend uses it for
+                 // one thing — whether this clip has a start position whose
+                 // joint angles can rule out depth directions (START_POSE_LIFTS)
+                 // — and declines to guess when it isn't sent.
+                 lift: document.body.dataset.page || null,
+                 depth_signs: (v3dSignMode === 'auto' ? 'auto' : v3dSigns) };
+  if (v3dLimbs) body.bone_ratios = v3dLimbs.ratios;
   if (wantSeq) {
     const { sequence, start } = v3dBuildSequence();
     body.sequence = sequence; body.start_frame = start;
@@ -2107,12 +2673,23 @@ async function v3dGenerate() {
       body: JSON.stringify(body),
     });
     const d = await r.json();
+    if (run !== v3dRun) return;    // a newer click already superseded this one
     if (!r.ok || (d.error && !d.candidate)) {
       note.textContent = (d.error || ('HTTP ' + r.status))
         + (d.confidences ? ` · scores: ${v3dScores(d.confidences)}` : '');
       return;
     }
     v3dLast = d;
+    // Adopt the backend's resolved table, so a joint whose posted value was
+    // rejected shows the default it actually ran with rather than the value the
+    // control still displays.
+    if (d.depth_signs) {
+      let changed = false;
+      for (const [k, v] of Object.entries(d.depth_signs)) {
+        if (v3dSigns[k] !== v) { v3dSigns[k] = v; changed = true; }
+      }
+      if (changed) v3dBuildSignControls();
+    }
     const c = d.candidate;
     const nJoints = c.joints3d.filter(p => p).length;
     const nFrames = c.frames ? Object.keys(c.frames).length : 0;
@@ -2125,6 +2702,7 @@ async function v3dGenerate() {
     if (window.Viewer) {
       $('v3dpanel').style.display = '';
       window.Viewer.load(c);
+      v3dPushSigns(c.signed);   // colour the joints by the table that just ran
       window.Viewer.showFrame(idx);
       window.Viewer.resize();   // the panel was display:none until now
     } else {
@@ -2138,9 +2716,11 @@ async function v3dGenerate() {
         + `the reconstruction above still ran</span>`;
     }
   } catch (e) {
-    note.textContent = 'error: ' + e;
+    if (run === v3dRun) note.textContent = 'error: ' + e;
   } finally {
-    $('v3dgen').disabled = false;
+    // Only the newest run re-enables the button, so a superseded reply can't
+    // un-disable it while a later request is still out.
+    if (run === v3dRun) $('v3dgen').disabled = false;
   }
 }
 
@@ -2152,6 +2732,15 @@ $('v3dmethod').onchange = () => { if (vMeta) v3dGenerate(); };
 // body model with no weights) are listed but disabled so the set of methods is
 // visible even when one can't run here.
 fetch('/api/depth/methods').then(r => r.json()).then(m => {
+  // Same response carries the ambiguous-joint list; build the direction
+  // controls from it so the markup never hardcodes a joint set.
+  v3dSignJoints = m.sign_joints || [];
+  v3dBuildSignControls();
+  // Same again for the limb ratios: the segment set is a property of the lift,
+  // so it arrives with the methods rather than costing a second round trip.
+  v3dLimbSegments = m.limb_segments || [];
+  v3dGenericLimbs = m.generic_limbs || {};
+  if (!v3dLimbs) v3dSetLimbs(null, { saved: true });
   const sel = $('v3dmethod');
   for (const meth of (m.methods || [])) {
     const opt = document.createElement('option');
@@ -2227,6 +2816,12 @@ try {
 // COCO joint colours: warm for the right side, cool for the left, so the
 // turntable's front/back is readable at a glance.
 const JOINT_COLOR = 0x6fd1c5, BONE_COLOR = 0x9ec1ff, BAR_COLOR = 0xf0a020;
+// Joints are coloured by which way their depth was signed, because that is the
+// one property of the reconstruction a viewer can neither see nor verify from
+// the turntable alone: two opposite signs give the same silhouette, and until
+// they're coloured a wrong one just looks like a strange pose.
+const TOWARD_COLOR = 0x6fd1c5, AWAY_COLOR = 0xf0a020,
+      FIXED_COLOR = 0x6f6e68, HOVER_COLOR = 0xffffff;
 
 // Built inside a try below, not at top level: new WebGLRenderer() throws when
 // the browser has no usable WebGL context (a driver on Firefox's blocklist, a
@@ -2249,8 +2844,8 @@ const buildViewer = () => {
     boneGeom, new THREE.LineBasicMaterial({ color: BONE_COLOR }));
   const jointGeom = new THREE.BufferGeometry();
   const joints = new THREE.Points(
-    jointGeom, new THREE.PointsMaterial({ color: JOINT_COLOR, size: 0.045,
-                                          sizeAttenuation: true }));
+    jointGeom, new THREE.PointsMaterial({ size: 0.045, sizeAttenuation: true,
+                                          vertexColors: true }));
   group.add(bones); group.add(joints);
 
   // a faint floor grid for a sense of ground/scale
@@ -2261,6 +2856,14 @@ const buildViewer = () => {
   let candidate = null;      // the loaded MeshCandidate JSON
   let frameKeys = [];        // sorted numeric frame indices, when a sequence
   let camDist = 3;           // set on load to frame the figure
+  // Buffer order -> COCO joint index. The position buffer only carries the
+  // joints that were solved, so its indices are NOT joint indices; without this
+  // map a click on the 12th drawn point flips whichever joint happens to be
+  // 12th in COCO order, which is a different one on almost every frame.
+  let jointIdx = [];
+  let signOf = new Array(17).fill(0);       // +1 toward, -1 away, 0 = no choice
+  let signLabel = new Array(17).fill(null);
+  let hover = -1;                           // COCO index under the cursor, or -1
 
   // mm (x right, y down, z toward camera) -> three.js metres, Y up.
   const toVec = p => new THREE.Vector3(p[0] / 1000, -p[1] / 1000, p[2] / 1000);
@@ -2271,13 +2874,32 @@ const buildViewer = () => {
     camDist = r / Math.tan((camera.fov * Math.PI / 180) / 2) * 1.5;
     camera.position.set(0, 0, camDist);
     camera.lookAt(0, 0, 0);
+    // No pick tolerance to set here: picking is done in screen pixels (see
+    // pickAt), so it needs nothing from the figure's world scale.
+  }
+
+  function paint() {
+    const n = jointIdx.length;
+    const col = new Float32Array(n * 3), c = new THREE.Color();
+    for (let k = 0; k < n; k++) {
+      const j = jointIdx[k];
+      c.setHex(j === hover ? HOVER_COLOR
+               : signOf[j] > 0 ? TOWARD_COLOR
+               : signOf[j] < 0 ? AWAY_COLOR : FIXED_COLOR);
+      col[k * 3] = c.r; col[k * 3 + 1] = c.g; col[k * 3 + 2] = c.b;
+    }
+    jointGeom.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    jointGeom.attributes.color.needsUpdate = true;
   }
 
   function setJoints(j3d) {
     if (!j3d) return;
     const jpos = [], bpos = [];
+    jointIdx = [];
     const V = j3d.map(p => (p ? toVec(p) : null));
-    for (const v of V) if (v) jpos.push(v.x, v.y, v.z);
+    for (let i = 0; i < V.length; i++) {
+      if (V[i]) { jpos.push(V[i].x, V[i].y, V[i].z); jointIdx.push(i); }
+    }
     for (const [a, b] of (candidate.edges || [])) {
       if (V[a] && V[b]) bpos.push(V[a].x, V[a].y, V[a].z, V[b].x, V[b].y, V[b].z);
     }
@@ -2285,6 +2907,7 @@ const buildViewer = () => {
     boneGeom.setAttribute('position', new THREE.Float32BufferAttribute(bpos, 3));
     jointGeom.attributes.position.needsUpdate = true;
     boneGeom.attributes.position.needsUpdate = true;
+    paint();
     render();
   }
 
@@ -2301,7 +2924,12 @@ const buildViewer = () => {
   function render() { renderer.render(scene, camera); }
 
   function resize() {
-    const w = wrap.clientWidth || 640, h = canvas.clientHeight || 340;
+    // Both dimensions off the CANVAS, not the width off its wrapper: picking
+    // projects through camera.aspect and compares against the canvas's own
+    // bounding box, so any disagreement between the two shifts every pick
+    // sideways by a fraction of the width.
+    const w = canvas.clientWidth || wrap.clientWidth || 640;
+    const h = canvas.clientHeight || 340;
     renderer.setPixelRatio(window.devicePixelRatio || 1);
     renderer.setSize(w, h, false);
     camera.aspect = w / h; camera.updateProjectionMatrix();
@@ -2309,21 +2937,115 @@ const buildViewer = () => {
   }
   window.addEventListener('resize', resize);
 
+  // Which joint is under the pointer, or -1. Done in SCREEN space, in CSS
+  // pixels, rather than with a Raycaster and a world-space threshold. The two
+  // anchors return wildly different units — millimetres for plate-anchor,
+  // pixels-of-torso for the keypoint lift — so any world-space tolerance is
+  // either a sub-pixel target in one of them or the whole figure in the other,
+  // and it also drifts with camera distance. "Within 16 pixels of the dot you
+  // clicked" needs no tuning and means the same thing in both.
+  const PICK_PX = 16;
+  const _v = new THREE.Vector3();
+  function pickAt(clientX, clientY) {
+    if (!jointIdx.length) return -1;
+    const r = canvas.getBoundingClientRect();
+    if (!r.width || !r.height) return -1;
+    const px = clientX - r.left, py = clientY - r.top;
+    if (px < 0 || py < 0 || px > r.width || py > r.height) return -1;
+    // project() reads camera.matrixWorldInverse, which only the renderer keeps
+    // up to date; refresh it here so a pick between renders can't use a stale
+    // camera.
+    scene.updateMatrixWorld(true);
+    camera.updateMatrixWorld();
+    camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+    const pos = jointGeom.getAttribute('position');
+    if (!pos) return -1;
+    let best = -1, bestD = PICK_PX * PICK_PX;
+    for (let k = 0; k < jointIdx.length; k++) {
+      _v.fromBufferAttribute(pos, k).applyMatrix4(group.matrixWorld).project(camera);
+      const sx = (_v.x * 0.5 + 0.5) * r.width, sy = (-_v.y * 0.5 + 0.5) * r.height;
+      const d = (sx - px) * (sx - px) + (sy - py) * (sy - py);
+      if (d < bestD) { bestD = d; best = jointIdx[k]; }
+    }
+    return best;
+  }
+
   // Turntable: horizontal drag yaws the figure about its vertical axis (the
   // one rotation that reveals depth); vertical drag tilts it a little so the
   // pose isn't locked edge-on.
-  let dragging = false, lx = 0, ly = 0;
-  const start = e => { dragging = true; lx = e.clientX; ly = e.clientY; wrap.style.cursor = 'grabbing'; };
+  //
+  // Drag and click share the same button, so they are told apart by how far the
+  // pointer got from where it went down. Three things this has to get right,
+  // each of which made clicking miss before:
+  //
+  //  * The joint is picked on PRESS and remembered, not re-picked on release.
+  //    showFrame() runs off the video draw loop, so while the clip is playing
+  //    the skeleton moves under a stationary cursor — re-picking on mouseup
+  //    reads whatever drifted into that spot, or nothing.
+  //  * Distance from the press ORIGIN, not accumulated path length. Summing
+  //    every mousemove made a shaky click that ends where it started look like
+  //    a long drag.
+  //  * Inside the dead zone the figure does not rotate at all. Rotating from
+  //    the first pixel meant every click nudged the view, so the slop had to
+  //    stay tiny to be usable, which is what made clicks get swallowed.
+  let dragging = false, turning = false, lx = 0, ly = 0, px0 = 0, py0 = 0;
+  let pressJoint = -1;
+  const CLICK_SLOP = 6;              // CSS px from the press point
+  const start = e => {
+    dragging = true; turning = false;
+    lx = px0 = e.clientX; ly = py0 = e.clientY;
+    pressJoint = pickAt(e.clientX, e.clientY);
+  };
   const move = e => {
     if (!dragging) return;
+    if (!turning) {
+      if (Math.hypot(e.clientX - px0, e.clientY - py0) <= CLICK_SLOP) return;
+      turning = true;                // past the dead zone: this is a turn
+      wrap.style.cursor = 'grabbing';
+      lx = e.clientX; ly = e.clientY;
+      return;
+    }
     group.rotation.y += (e.clientX - lx) * 0.01;
     group.rotation.x = Math.max(-1.2, Math.min(1.2, group.rotation.x + (e.clientY - ly) * 0.005));
     lx = e.clientX; ly = e.clientY; render();
   };
-  const end = () => { dragging = false; wrap.style.cursor = 'grab'; };
+  const end = () => {
+    if (!dragging) return;
+    dragging = false; wrap.style.cursor = 'grab';
+    if (turning) { turning = false; return; }        // that was a turn, not a pick
+    const j = pressJoint;
+    pressJoint = -1;
+    if (j < 0 || !signLabel[j]) return;
+    wrap.dispatchEvent(new CustomEvent('v3djointclick',
+                                       { detail: { joint: j } }));
+  };
   wrap.addEventListener('mousedown', start);
   window.addEventListener('mousemove', move);
   window.addEventListener('mouseup', end);
+
+  // Hover feedback, so it's discoverable that the joints are live at all.
+  // Bound to the wrapper rather than the window on purpose: the drag listener
+  // has to be global (a turntable drag that leaves the canvas should keep
+  // turning), but hover doesn't, and raycasting on every mouse move anywhere on
+  // the page to discover the pointer isn't over the canvas is pure waste.
+  const HINT = 'drag to rotate · click a joint to flip its depth';
+  function setHover(j) {
+    if (j === hover) return;
+    hover = j;
+    const live = j >= 0 && !!signLabel[j];
+    wrap.style.cursor = live ? 'pointer' : 'grab';
+    const hint = $('v3dhint');
+    if (hint) {
+      hint.textContent = live
+        ? `${signLabel[j]} — ${signOf[j] > 0 ? 'toward' : 'away'} · click to flip`
+        : HINT;
+    }
+    paint(); render();
+  }
+  wrap.addEventListener('mousemove', e => {
+    if (!dragging) setHover(pickAt(e.clientX, e.clientY));
+  });
+  wrap.addEventListener('mouseleave', () => { if (!dragging) setHover(-1); });
 
   return {
     load(c) {
@@ -2334,6 +3056,14 @@ const buildViewer = () => {
       setJoints(c.joints3d);
       resize();
     },
+    // The sign table the reconstruction actually ran with, for colouring and
+    // for deciding which joints are clickable. A joint with no label is one
+    // with no direction to choose, and is drawn grey and ignored by picking.
+    setSigns(signs, labels) {
+      signOf = signs || new Array(17).fill(0);
+      signLabel = labels || new Array(17).fill(null);
+      paint(); render();
+    },
     showFrame(idx) {
       if (!candidate) return;
       if (!candidate.frames) { return; }   // single-frame candidate stays put
@@ -2343,7 +3073,7 @@ const buildViewer = () => {
     },
     resize,
     clear() {
-      candidate = null; frameKeys = [];
+      candidate = null; frameKeys = []; jointIdx = []; hover = -1;
       jointGeom.setAttribute('position', new THREE.Float32BufferAttribute([], 3));
       boneGeom.setAttribute('position', new THREE.Float32BufferAttribute([], 3));
       render();

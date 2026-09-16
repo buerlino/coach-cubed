@@ -9,10 +9,11 @@ there, it moves here and in the notebook.
 | File | Role |
 | --- | --- |
 | `report.tex` | The whole document. Self-contained: `thebibliography`, no `.bib`. |
+| `depth-math.md` | How 2D keypoints become 3D: foreshortening, scale from the plate, the depth-sign ambiguity, and the balance test that resolves it. Mirrors `src/depth_backend.py`. |
 | `analysis.ipynb` | Makes the three figures. A line-for-line Python port of the browser's smoothing and diagnostics, run over the example clip. |
 | `extract_track.py` | Runs the real pipeline (YOLOv8 → ViTPose → SORT → main-person filter) on a clip and caches `<clip>.track.json`, the same payload `/api/pose/video` returns. |
 | `examples/` | `athlete-a-trim.mp4` and its cached track. |
-| `figures/` | `smoothing.pdf`, `first-pull.pdf`, `second-pull.pdf` — notebook output, tracked so the PDF builds without a GPU. |
+| `figures/` | `smoothing.pdf`, `first-pull.pdf`, `second-pull.pdf`, `depth-geometry.pdf`, `depth-signs.pdf` — notebook output, tracked so the PDF builds without a GPU. |
 | `Makefile` | `make` -> `report.pdf`, `make clean` drops the aux files. |
 
 ## Building the PDF

@@ -7,9 +7,18 @@ end to end. Two things live here:
   (committed) and `local/` (gitignored, your own clips); see
   `tests/fixtures/README.md` for the directory layout and `manifest.json`
   schema. These double as the app's example gallery.
-- **`tests/*.test.js`** — a Node test (`node:test`, no dependencies) that
-  scores every fixture's diagnostics and checks the result against a
+- **`tests/diagnostics.test.js`** — a Node test (`node:test`, no dependencies)
+  that scores every fixture's diagnostics and checks the result against a
   checked-in golden snapshot.
+- **`tests/viewer.test.js`** — the 3D view's click-to-flip-a-depth-sign
+  interaction, run against the viewer module extracted straight out of
+  `src/app.py` (see `loadViewer.js`) with three.js's renderer stubbed. Needs no
+  GPU and no browser. It is here because this interaction broke twice in ways
+  nothing else could see: the module parsed, the API round-tripped and the page
+  loaded, while `load()` threw on a stale reference and the pick was taken on
+  mouseup after the video draw loop had already moved the skeleton.
+
+Run everything with `npm test`.
 
 ## Step by step: turning clips into test cases
 

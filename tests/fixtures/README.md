@@ -15,6 +15,8 @@ tests/fixtures/
       <clip-stem>.track.json  {"keypoints": ..., "meta": ...} — vitpose_backend's
                                own output, unmodified; same shape /api/pose/video
                                returns to the browser
+      <clip-stem>.limbs.json  optional limb-length profile for the athlete in
+                               this clip (see below); absent means "generic"
   local/                      gitignored — your own clips, this machine only
     manifest.json             same layout as global/
     <stance>/...
@@ -28,6 +30,43 @@ paths — a fixture is named by its full slug `<scope>/<stance>/<clip-stem>`,
 e.g. `global/example/athlete-a-trim`. Goldens mirror the split:
 `tests/golden/<scope>/<stance>-<clip-stem>.json`, with `tests/golden/local/`
 gitignored too.
+
+## Limb-length profiles
+
+`<clip-stem>.limbs.json` holds each segment's length **as a fraction of torso**
+(pelvis→neck), for the athlete in that clip:
+
+```json
+{
+  "name": "athlete-a",
+  "notes": "where these came from",
+  "ratios": { "thigh": 0.730, "shank": 0.707, "uarm": 0.461, "farm": 0.442 }
+}
+```
+
+These belong to the *person*, not the clip, which is why the depth lift can't
+just read them off the footage. Its own per-clip estimate takes each segment's
+longest projection, and that equals the true length only if the athlete fully
+extends that limb on camera — in a lifting clip they often never do, so every
+segment reads short and the lift turns the difference into fabricated depth.
+
+A profile is filled from a frame where the athlete faces the camera with the
+limb extended, since then the projection *is* the length. The left/right spread
+is the check that the pose really was frontal: on `athlete-a` the two sides agree
+to 1.7% on the thigh and 0.6% on the shank. Ratios go in as measured and are
+used unclamped — a measurement, not a guess.
+
+Two profiles exist so far: `athlete-a` (measured) and `generic` (the population
+priors in `depth_backend._BONE_RATIO`, i.e. the same thing the lift does with no
+profile at all). Every example ships one; three are `generic` placeholders.
+
+Edit them in the app under the video tab's **limb lengths** checkbox — each
+change re-runs the reconstruction immediately, and *save to example* writes the
+file back. Missing, malformed, or partial files degrade to `generic` per
+segment rather than erroring, so a bad profile costs the calibration and not the
+clip. Served by `/api/examples/<id>/limbs` (`GET`/`PUT`); the segment list and
+the generic table come from `/api/depth/methods`, so neither the UI nor this
+file has to hardcode which segments exist.
 
 ## Adding a fixture
 
