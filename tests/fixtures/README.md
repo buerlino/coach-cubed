@@ -15,8 +15,9 @@ tests/fixtures/
       <clip-stem>.track.json  {"keypoints": ..., "meta": ...} — vitpose_backend's
                                own output, unmodified; same shape /api/pose/video
                                returns to the browser
-      <clip-stem>.limbs.json  optional limb-length profile for the athlete in
-                               this clip (see below); absent means "generic"
+    profiles/                 named profiles, chosen in the app, not tied to a clip
+      limbs/<name>.json       an athlete's limb lengths (see below)
+      signs/<name>.json       a camera position's depth directions (see below)
   local/                      gitignored — your own clips, this machine only
     manifest.json             same layout as global/
     <stance>/...
@@ -31,42 +32,57 @@ e.g. `global/example/athlete-a-trim`. Goldens mirror the split:
 `tests/golden/<scope>/<stance>-<clip-stem>.json`, with `tests/golden/local/`
 gitignored too.
 
-## Limb-length profiles
+## Profiles: limb lengths and depth directions
 
-`<clip-stem>.limbs.json` holds each segment's length **as a fraction of torso**
-(pelvis→neck), for the athlete in that clip:
+Two things the depth reconstruction needs that the footage can't supply. Both
+are **named profiles chosen in the app**, under the video tab's *limb lengths*
+and *depth direction* checkboxes, and the choice is remembered across clips and
+reloads. Neither is attached to a clip, because neither is a property of one:
 
-```json
-{
-  "name": "athlete-a",
-  "notes": "where these came from",
-  "ratios": { "thigh": 0.730, "shank": 0.707, "uarm": 0.461, "farm": 0.442 }
-}
-```
+- **`profiles/limbs/<name>.json`** — each segment's length as a fraction of
+  torso (pelvis→neck). Belongs to the *athlete*. The lift's own per-clip
+  estimate takes each segment's longest projection, which equals the true
+  length only if the athlete fully extends that limb on camera — in a lifting
+  clip they often never do, so every segment reads short and the lift turns the
+  difference into fabricated depth.
 
-These belong to the *person*, not the clip, which is why the depth lift can't
-just read them off the footage. Its own per-clip estimate takes each segment's
-longest projection, and that equals the true length only if the athlete fully
-extends that limb on camera — in a lifting clip they often never do, so every
-segment reads short and the lift turns the difference into fabricated depth.
+  ```json
+  { "notes": "where these came from",
+    "ratios": { "thigh": 0.730, "shank": 0.707, "uarm": 0.461, "farm": 0.442 } }
+  ```
 
-A profile is filled from a frame where the athlete faces the camera with the
-limb extended, since then the projection *is* the length. The left/right spread
-is the check that the pose really was frontal: on `athlete-a` the two sides agree
-to 1.7% on the thigh and 0.6% on the shank. Ratios go in as measured and are
-used unclamped — a measurement, not a guess.
+  Filled from a frame where the athlete faces the camera with the limb
+  extended, since then the projection *is* the length. The left/right spread is
+  the check that the pose really was frontal: on `athlete-a` the two sides agree
+  to 1.7% on the thigh and 0.6% on the shank. Ratios are used unclamped.
 
-Two profiles exist so far: `athlete-a` (measured) and `generic` (the population
-priors in `depth_backend._BONE_RATIO`, i.e. the same thing the lift does with no
-profile at all). Every example ships one; three are `generic` placeholders.
+  Present: `athlete-a` (measured, global) and `default` (built in — the
+  population priors in `depth_backend._BONE_RATIO`, what the lift runs with when
+  nobody has been measured).
 
-Edit them in the app under the video tab's **limb lengths** checkbox — each
-change re-runs the reconstruction immediately, and *save to example* writes the
-file back. Missing, malformed, or partial files degrade to `generic` per
-segment rather than erroring, so a bad profile costs the calibration and not the
-clip. Served by `/api/examples/<id>/limbs` (`GET`/`PUT`); the segment list and
-the generic table come from `/api/depth/methods`, so neither the UI nor this
-file has to hardcode which segments exist.
+- **`profiles/signs/<name>.json`** — which way each limb bends out of the
+  screen, `{joint index: +1 toward the camera | -1 away}`. Belongs to the
+  *shot*: a single view can't tell toward from away, and the answer depends on
+  where the camera stood, so one table serves every clip filmed from that spot.
+  Choosing a profile puts the directions in manual mode with exactly that
+  table; *none* leaves the solver to work them out from the pose.
+
+  Present: `camera-front-right` (set by eye from the 3D view on the athlete-a
+  clip, global) and the two built-ins `all-toward` / `all-away`.
+
+Built-in profiles are never on disk and can't be saved over — an edit to one is
+saved under a new name. *save…* in either bar asks for a name; an existing name
+is overwritten in whichever scope holds it, a new one lands in `local/` (this
+machine only, gitignored — a person's measured limbs are exactly the kind of
+thing to keep there). Move the file to `global/profiles/` to commit it. A local
+file with the same name as a global one shadows it. A missing, malformed or
+partial file is skipped (limbs: filled per segment from `default`) rather than
+breaking the picker.
+
+Served by `/api/profiles/<kind>` (`GET`, the full list with built-ins first)
+and `/api/profiles/<kind>/<name>` (`PUT`); the segment list, the joint list and
+the default ratios come from `/api/depth/methods`, so neither the UI nor a
+profile file has to hardcode which segments or joints exist.
 
 ## Adding a fixture
 

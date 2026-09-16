@@ -197,11 +197,24 @@ one no body holds:
 ```
       angle at joint b between (a−b) and (c−b), both sides
 
-        hip  (sho–hip–kne)     15…100°     torso is over the bar
-        knee (hip–kne–ank)     55…155°     bent, not locked, not folded
-        elbow(sho–elb–wri)    140…180°     arms hang straight from the bar
-        shoulder(hip–sho–elb)  10…115°     weak — rules out arm-behind-torso
+        hip  (sho–hip–kne)      15…85°     torso is over the bar
+        knee (hip–kne–ank)      45…145°    bent, not locked, not folded
+        elbow(sho–elb–wri)     140…180°    arms hang straight from the bar
+        shoulder(hip–sho–elb)   10…115°    weak — rules out arm-behind-torso
 ```
+
+Each angle is a function of exactly one sign bit or one *product* of two, which
+is why these four and no others: a joint one bone from the trunk (hip, shoulder)
+pins that bone's sign outright, since the trunk is already fixed by the rigid
+fit; a joint between two bones (knee, elbow) can only see the product, so it
+pins the second given the first. Two tests per limb chain, four chains, eight
+bits.
+
+Measured, only the **hip and elbow** currently rule anything out — both knee
+options and both shoulder options land inside their ranges on both fixtures. The
+knee's bound is loose on purpose: the clean-and-jerk's two options are 71° and
+127° against a 108° projection from a near-side-on camera, so a bound tight
+enough to bite would rule out the reading the image itself supports.
 
 cost = Σ (degrees outside the range)² / 100, averaged over the setup frames.
 Everything within 0.25 of the minimum survives; the balance cost of §4 then
@@ -227,7 +240,7 @@ Measured on the fixtures (per-clip length estimates, `lift` set):
 | clip | survivors | winner changes? | runner-up margin | mirror residual |
 |---|---|---|---|---|
 | athlete-b clean & jerk | 32 / 256 | no | 0.028 → 0.028 | 0.423 → 0.423 |
-| athlete-a snatch | 16 / 256 | **yes** | 0.003 → 0.041 | 0.854 → **0.467** |
+| athlete-a snatch | 8 / 256 | **yes** | 0.003 → 0.041 | 0.854 → **0.467** |
 
 On the snatch the old winner put the hips at 90°/104° and the knees at 43°/44°
 in a set position — the gate rejects it. The mirror residual is the check worth

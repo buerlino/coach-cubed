@@ -36,7 +36,10 @@ The contract above is universal. The movement-specific parts are not:
   generic rep trigger.
 - A new exercise gets its own diagnostic notes and fixtures. Do not add its
   cues to the `snatch` or `lateral-raise` set just because the same keypoints
-  are available.
+  are available. When two lifts genuinely share an event and a cue — the
+  snatch's and the clean's first pull — build both objects from one factory
+  (`makeFirstPullBackAngle`) and say in the new lift's note why the sharing is
+  mechanical, not just convenient.
 
 The UI shares the video, pose track, smoothing, and rendering infrastructure
 between exercise pages. Switching pages changes the active diagnostic set and
@@ -225,8 +228,9 @@ Two things follow from that, and both were arrived at the hard way:
 - **Not averaged over frames.** The direction is constant; the body is not. The
   lifter twists, joints occlude each other and reappear, and each of those is a
   wrong slope that an average over frames mixes in rather than cancels. The
-  setup frame — the last still frame before the bar moves, from
-  `firstPullWindow` — is square to the camera, motionless and unoccluded, and is
+  setup frame — the frame the wrists start rising off the floor, from
+  `firstPullWindow` (a few samples early because of the smoothing, so still the
+  set position) — is square to the camera, motionless and unoccluded, and is
   the one frame worth trusting.
 
 Within that frame: median of the pairs, drop anything more than 12° off it, then
@@ -358,7 +362,7 @@ there are enough labelled lifts to fit them against.
   signal and a backwards search from an anchor. A posture match is a per-frame
   classification instead: it holds on a *stationary* lifter, which is exactly
   where velocity triggers are weakest, and it gives the first pull a real start
-  anchor rather than the current "walk back until the wrists go quiet". It also
+  anchor rather than the current "walk back until the wrists stop rising". It also
   gates the diagnostics on the clip actually being a lift, which nothing
   currently checks.
 
@@ -373,3 +377,4 @@ there are enough labelled lifts to fit them against.
 | 5 | Lateral raise — elbow lead | [diagnostics/05-lateral-raise-elbow-lead.md](diagnostics/05-lateral-raise-elbow-lead.md) |
 | 6 | Lateral raise — tempo | [diagnostics/06-lateral-raise-tempo.md](diagnostics/06-lateral-raise-tempo.md) |
 | 7 | Lateral raise — rep-to-rep symmetry | [diagnostics/07-lateral-raise-symmetry.md](diagnostics/07-lateral-raise-symmetry.md) |
+| 8 | Clean — first pull, constant back angle | [diagnostics/08-clean-first-pull-back-angle.md](diagnostics/08-clean-first-pull-back-angle.md) |

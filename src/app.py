@@ -1,12 +1,10 @@
-"""coach: a minimal website around the ViTPose model, same deploy shape as
-tecna (Flask + waitress behind Caddy on the tailnet, see ../tecna/Caddyfile)
-but with a single in-process backend instead of ComfyUI — see
-vitpose_backend.py for why that split doesn't apply here.
+"""coach: a minimal website around the ViTPose model — Flask + waitress behind
+Caddy on the tailnet, with a single in-process backend; see vitpose_backend.py
+for why there's no separate model server.
 
 app.py's job is deliberately small: an upload endpoint per media type, one
 page. Add routes here as the app grows; keep any ML code out of this file
-the same way tecna does (imports only vitpose_backend, never torch/cv2/etc.
-directly).
+(it imports only vitpose_backend, never torch/cv2/etc. directly).
 
 Unauthenticated by design — Caddy/tailnet is the access boundary, same as
 the rest of the deploy.
@@ -14,6 +12,7 @@ the rest of the deploy.
 import base64
 import json
 import os
+import re
 import threading
 import time
 from pathlib import Path
@@ -252,7 +251,12 @@ def api_depth_methods():
     return jsonify({"methods": depth_backend.list_methods(),
                     "sign_joints": depth_backend.sign_joints(),
                     "limb_segments": depth_backend.limb_segments(),
-                    "generic_limbs": depth_backend.generic_limb_ratios()})
+                    "default_limbs": depth_backend.default_limb_ratios(),
+                    # Which objectives the limb optimiser will fit against, and
+                    # which terms each one uses — same reasoning as above, it's a
+                    # property of the lift and not of the clip.
+                    "objectives": depth_backend.list_objectives(),
+                    "default_objective": depth_backend.DEFAULT_OBJECTIVE})
 
 
 @app.route("/api/depth/generate", methods=["POST"])
@@ -280,6 +284,10 @@ def api_depth_optimize_limbs():
     both term breakdowns so the caller can show what the move actually bought
     rather than just handing over four new numbers.
 
+    `objective` picks which of the humanness terms are allowed to pull — see
+    depth_backend.OBJECTIVES, listed for the picker by /api/depth/methods. The
+    terms it leaves out are still measured and still returned.
+
     `iters`, `lr`, `line_search` and `term_tol` are exposed because the interface
     runs this in small steps to convergence rather than in a few big ones: the
     objective is known to descend to the wrong lengths on the fixtures, so the
@@ -289,6 +297,11 @@ def api_depth_optimize_limbs():
     payload = request.get_json(silent=True)
     if not payload or "keypoints" not in payload:
         return jsonify({"error": "expected JSON with width/height/keypoints"}), 400
+    # Checked here rather than caught below, so an unknown name can't be
+    # confused with a KeyError raised somewhere inside from_payload.
+    objective = payload.get("objective") or depth_backend.DEFAULT_OBJECTIVE
+    if objective not in depth_backend.OBJECTIVES:
+        return jsonify({"error": f"unknown objective {objective!r}"}), 400
     try:
         scene = depth_backend.Scene.from_payload(payload)
         frame = payload.get("frame")
@@ -299,14 +312,14 @@ def api_depth_optimize_limbs():
             scene, frame=None if frame is None else int(frame),
             iters=max(1, min(iters, 1000)), lr=lr,
             line_search=bool(payload.get("line_search", True)),
-            term_tol=max(0.0, tol))
+            term_tol=max(0.0, tol), objective=objective)
     except (TypeError, ValueError) as e:
         return jsonify({"error": f"bad optimiser settings: {e}"}), 400
     except Exception as e:
         return jsonify({"error": f"limb optimisation failed: {e}"}), 500
     if result is None:
         return jsonify({"error": "not enough of the pose to optimise on"}), 400
-    result["labels"] = depth_backend.HUMANNESS_LABELS
+    result["labels"] = depth_backend.TERM_LABELS
     result["ui_max_iters"] = depth_backend._OPT_UI_MAX
     result["ui_lr"] = depth_backend._OPT_UI_LR
     return jsonify(result)
@@ -442,93 +455,141 @@ def api_example_track(example_id):
     return send_file(track, mimetype="application/json")
 
 
-# --- limb-length profiles ---------------------------------------------------
-# Segment lengths as a fraction of torso (pelvis->neck), measured off one
-# athlete. They belong to the PERSON, not the clip, which is why the depth lift
-# can't just read them off the footage: its own per-clip estimate takes each
-# segment's longest projection, and that is only the true length if the athlete
-# fully extends that limb on camera. In a lifting clip they often never do, so
-# every segment reads short and the lift fabricates the difference as depth.
+# --- named profiles: limb lengths and depth directions ----------------------
+# Two things the reconstruction needs that the footage cannot supply, kept as
+# NAMED profiles chosen in the interface rather than as files attached to a
+# clip:
 #
-# Stored as `<clip-stem>.limbs.json` beside the clip and its track, in whichever
-# scope the clip lives in — same "everything about this example sits together"
-# rule the cached track already follows, so no separate registry to keep in sync
-# and a copied folder brings its profile along. An example with no file falls
-# back to "generic", the population priors.
-GENERIC_PROFILE_NAME = "generic"
+#   limbs  each segment's length as a fraction of torso. Belongs to the ATHLETE:
+#          the lift turns the gap between a bone's true length and its
+#          projection into depth, so one person's numbers apply to every clip
+#          of them and nobody else's apply to any.
+#   signs  which way each limb bends out of the screen. Belongs to the SHOT:
+#          a single view can't tell toward from away, and the answer is a
+#          property of where the camera stood, so one table serves every clip
+#          filmed from that spot.
+#
+# Neither belongs to a clip, which is why storing them beside one was the wrong
+# shape: the athlete's profile in athlete-a-trim was unreachable from any other
+# clip of her, and a second clip from the same camera had no way to share the
+# sign table. They live under
+#
+#   tests/fixtures/<scope>/profiles/<kind>/<name>.json
+#
+# in the same global/local split the examples use. `local` is gitignored, and a
+# person's measured limb lengths are exactly the kind of thing to keep there,
+# so that is where a newly saved profile lands; move the file to `global` to
+# commit it. A local file with the same name as a global one shadows it.
+#
+# A few profiles are BUILT IN and never on disk: `default` limbs are the
+# population priors the lift falls back to anyway, and `all-toward` /
+# `all-away` are the two trivial sign tables. They can be chosen and edited,
+# but a save under their name is refused — the edit goes under a new name.
+PROFILE_KINDS = ("limbs", "signs")
+PROFILE_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
+DEFAULT_LIMB_PROFILE = "default"
 
 
-def _example_limbs_path(example_id):
-    """Where a manifest key's limb profile lives, or None for a bogus id.
+def _builtin_profiles(kind):
+    if kind == "limbs":
+        return [{"name": DEFAULT_LIMB_PROFILE, "builtin": True, "scope": None,
+                 "notes": "Population anthropometry — depth_backend._BONE_RATIO, "
+                          "the same numbers the lift uses with no profile at all. "
+                          "Nobody has been measured for these.",
+                 "ratios": depth_backend.default_limb_ratios()}]
+    joints = [row["index"] for row in depth_backend.sign_joints()]
+    return [{"name": "all-toward", "builtin": True, "scope": None,
+             "notes": "Every limb bends toward the camera — the old fixed default.",
+             "signs": {str(j): 1 for j in joints}},
+            {"name": "all-away", "builtin": True, "scope": None,
+             "notes": "Every limb bends away from the camera; the mirror of all-toward.",
+             "signs": {str(j): -1 for j in joints}}]
 
-    Membership in the manifest is the only gate — the same rule _example_video
-    uses — so a crafted id can't write outside FIXTURES_DIR.
+
+def _parse_profile(kind, raw):
+    """A file's or a request's body -> the validated {notes, ratios|signs} the
+    lift would actually run with, or None if it holds nothing usable.
+
+    Goes through the same parse_bone_ratios / parse_depth_signs the lift applies
+    to a posted table, so a profile can't contain a value the reconstruction
+    would reject and then load as something else next session. A limb profile
+    missing a segment is filled from the population value, so one written
+    before a new segment existed still loads.
     """
-    if example_id not in _load_manifest():
+    if not isinstance(raw, dict):
         return None
-    return FIXTURES_DIR / (example_id + ".limbs.json")
+    notes = raw.get("notes") if isinstance(raw.get("notes"), str) else ""
+    if kind == "limbs":
+        got = depth_backend.parse_bone_ratios(raw.get("ratios"))
+        if not got:
+            return None
+        ratios = depth_backend.default_limb_ratios()
+        ratios.update(got)
+        return {"notes": notes, "ratios": ratios}
+    signs = depth_backend.parse_depth_signs(raw.get("signs"))
+    if not signs:
+        return None
+    return {"notes": notes, "signs": {str(j): int(v) for j, v in sorted(signs.items())}}
 
 
-def _read_limb_profile(example_id):
-    """This example's profile, always a usable {name, ratios} dict.
+def _profile_path(scope, kind, name):
+    return FIXTURES_DIR / scope / "profiles" / kind / (name + ".json")
 
-    Missing, unreadable or malformed all degrade to generic rather than
-    erroring: a bad profile should cost you the calibration, not the clip. Any
-    segment the file omits is filled from the generic table, so a profile
-    written before a new segment existed still loads.
+
+def _read_profiles(kind):
+    """Every profile of one kind: the built-ins first, then each scope's files.
+
+    An unreadable or malformed file is skipped rather than breaking the list —
+    a bad profile should cost you that profile, not the picker. Local shadows
+    global on a name clash.
     """
-    ratios = depth_backend.generic_limb_ratios()
-    name, notes = GENERIC_PROFILE_NAME, ""
-    path = _example_limbs_path(example_id)
-    if path and path.exists():
-        try:
-            raw = json.loads(path.read_text())
-        except (ValueError, OSError):
-            raw = None
-        if isinstance(raw, dict):
-            got = depth_backend.parse_bone_ratios(raw.get("ratios")) or {}
-            ratios.update(got)
-            if isinstance(raw.get("name"), str) and raw["name"].strip():
-                name = raw["name"].strip()
-            if isinstance(raw.get("notes"), str):
-                notes = raw["notes"]
-    return {"name": name, "notes": notes, "ratios": ratios}
+    out = {p["name"]: p for p in _builtin_profiles(kind)}
+    for scope in FIXTURE_SCOPES:
+        folder = FIXTURES_DIR / scope / "profiles" / kind
+        if not folder.is_dir():
+            continue
+        for path in sorted(folder.glob("*.json")):
+            name = path.stem
+            if not PROFILE_NAME_RE.match(name) or name in {p["name"] for p in _builtin_profiles(kind)}:
+                continue
+            try:
+                body = _parse_profile(kind, json.loads(path.read_text()))
+            except (ValueError, OSError):
+                body = None
+            if body is None:
+                continue
+            out[name] = dict(body, name=name, builtin=False, scope=scope)
+    return list(out.values())
 
 
-@app.route("/api/examples/<path:example_id>/limbs")
-def api_example_limbs(example_id):
-    if _example_limbs_path(example_id) is None:
-        return jsonify({"error": "unknown example"}), 404
-    return jsonify(_read_limb_profile(example_id))
+@app.route("/api/profiles/<kind>")
+def api_profiles(kind):
+    if kind not in PROFILE_KINDS:
+        return jsonify({"error": "unknown profile kind"}), 404
+    return jsonify({"profiles": _read_profiles(kind)})
 
 
-@app.route("/api/examples/<path:example_id>/limbs", methods=["PUT"])
-def api_example_limbs_save(example_id):
-    """Write the profile back beside the clip.
-
-    Validated through the same parse_bone_ratios the lift uses, so what gets
-    persisted is exactly what the reconstruction would accept — a value the
-    backend would have dropped can't be silently written to disk and then load
-    as something else next session.
-    """
-    path = _example_limbs_path(example_id)
-    if path is None:
-        return jsonify({"error": "unknown example"}), 404
-    payload = request.get_json(silent=True) or {}
-    ratios = depth_backend.parse_bone_ratios(payload.get("ratios"))
-    if not ratios:
-        return jsonify({"error": "no usable ratios"}), 400
-    name = payload.get("name")
-    body = {"name": (name.strip() if isinstance(name, str) and name.strip()
-                     else GENERIC_PROFILE_NAME),
-            "notes": payload.get("notes") if isinstance(payload.get("notes"), str) else "",
-            "ratios": ratios}
+@app.route("/api/profiles/<kind>/<name>", methods=["PUT"])
+def api_profile_save(kind, name):
+    """Write a profile under a name. Overwrites in whichever scope already holds
+    that name; a new name lands in `local`. Built-in names are refused."""
+    if kind not in PROFILE_KINDS:
+        return jsonify({"error": "unknown profile kind"}), 404
+    if not PROFILE_NAME_RE.match(name):
+        return jsonify({"error": "profile names are lowercase letters, digits, '.', '_' or '-'"}), 400
+    if any(p["name"] == name for p in _builtin_profiles(kind)):
+        return jsonify({"error": f"'{name}' is built in — save under another name"}), 400
+    body = _parse_profile(kind, request.get_json(silent=True))
+    if body is None:
+        return jsonify({"error": "no usable " + ("ratios" if kind == "limbs" else "depth directions")}), 400
+    scope = next((s for s in FIXTURE_SCOPES if _profile_path(s, kind, name).exists()), "local")
+    path = _profile_path(scope, kind, name)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(body, indent=1, sort_keys=True) + "\n")
     except OSError as e:
         return jsonify({"error": f"could not save: {e}"}), 500
-    return jsonify(_read_limb_profile(example_id))
+    return jsonify(dict(body, name=name, builtin=False, scope=scope))
 
 
 # --- diagnostics ----------------------------------------------------------
@@ -702,52 +763,62 @@ INDEX_HTML = """<!doctype html>
         </select>
       </label>
       <button id="v3dgen" type="button" disabled title="Recompute the 3D reconstruction for the whole clip">recompute 3D</button>
-      <label style="white-space:nowrap;font-size:13px" title="Show the per-joint depth direction controls. A single view cannot tell a limb bending toward the camera from one bending away — the depth magnitude is measured, the direction is chosen.">
-        <input id="v3dsignshow" type="checkbox" style="vertical-align:middle;margin:0 4px 0 0"> depth direction
-      </label>
-      <label style="white-space:nowrap;font-size:13px" title="Show this athlete's limb lengths. Segment length as a fraction of torso — the lift turns the gap between a bone's true length and its on-screen length into depth, so a wrong length is invented depth.">
-        <input id="v3dlimbshow" type="checkbox" style="vertical-align:middle;margin:0 4px 0 0"> limb lengths
-      </label>
     </div>
     <!-- Per-athlete limb lengths. Fractions of torso (pelvis→neck), built from
          the backend's limb_segments() so this markup never lists segments
-         itself. An example ships its profile beside the clip; uploads start
-         generic. Editing re-runs the lift immediately, saving writes the file. -->
-    <div id="v3dlimbbar" style="display:none;margin:2px 0 6px;padding:8px;background:#1a1a19;border:1px solid #2c2c2a;border-radius:8px">
-      <div style="font-size:12px;color:#898781;margin-bottom:6px">
-        Segment length as a fraction of torso (hips→shoulders), for this athlete.
-        <span style="margin-left:8px;color:#898781">profile <b id="v3dlimbname" style="color:#c3c2b7">generic</b></span>
-        <button id="v3dlimbreset" type="button" style="font-size:12px;padding:2px 8px;margin-left:8px" title="Back to the population priors">generic</button>
-        <button id="v3dlimbrevert" type="button" style="font-size:12px;padding:2px 8px;margin-left:4px" title="Discard edits and reload the profile stored beside this clip">revert</button>
-        <button id="v3dlimbsave" type="button" disabled style="font-size:12px;padding:2px 8px;margin-left:4px" title="Write these ratios beside the clip, so this example loads with them next time">save to example</button>
-        <button id="v3dlimbfit" type="button" style="font-size:12px;padding:2px 8px;margin-left:12px" title="Small gradient steps on the FIRST frame, from wherever the ratios are now, minimising five anatomical penalties — runs until every one of the five stops moving. Measured against a known athlete this objective drifts ~0.07 torso off the true lengths and settles there, so read the breakdown rather than trusting it.">optimize</button>
-        <span id="v3dlimbsteps" style="font-size:12px;color:#898781;margin-left:6px"></span>
-        <span id="v3dlimbnote" style="margin-left:8px"></span>
+         itself. A NAMED profile, chosen here and remembered across clips and
+         reloads — it belongs to the athlete, not to the clip. Editing re-runs
+         the lift immediately; saving writes a profile file. Collapsed by
+         default, same as equipment overlay — an advanced control, not part of
+         the everyday flow. -->
+    <details id="v3dlimbbar" class="control-group" style="margin:2px 0 6px">
+      <summary title="Segment length as a fraction of torso — the lift turns the gap between a bone's true length and its on-screen length into depth, so a wrong length is invented depth.">limb lengths</summary>
+      <p class="control-help">Segment length as a fraction of torso (hips→shoulders), for this athlete.</p>
+      <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="color:#c3c2b7" title="Whose limbs these are. A profile belongs to the athlete, not the clip, so it stays selected across clips and reloads. 'default' is the population priors.">profile
+          <select id="v3dlimbprofile" style="font-size:12px;padding:1px 4px;margin:0"></select>
+        </label>
+        <b id="v3dlimbname" style="color:#c3c2b7"></b>
+        <button id="v3dlimbrevert" type="button" disabled style="font-size:12px;padding:2px 8px" title="Discard edits and go back to the selected profile as saved">revert</button>
+        <button id="v3dlimbsave" type="button" style="font-size:12px;padding:2px 8px" title="Save these ratios as a named profile — under the selected name, or a new one. New profiles land in the local (gitignored) scope.">save…</button>
+        <label style="margin-left:4px;color:#c3c2b7" title="Which anatomical penalties the descent is allowed to fit against. The terms left out are still measured and still shown below — what a narrower objective does to the facts it stopped steering by is the point of having the choice. Switching objective makes the next optimize start over from the profile, so two objectives are always compared from the same lengths.">fit against
+          <select id="v3dlimbobj" style="font-size:12px;padding:1px 4px;margin:0"></select>
+        </label>
+        <button id="v3dlimbfit" type="button" style="font-size:12px;padding:2px 8px" title="Small gradient steps on the FIRST frame, from wherever the ratios are now, minimising the selected objective — runs until every term in it stops moving. Measured against a known athlete this drifts ~0.1 torso off the true lengths and settles there, so read the breakdown rather than trusting it.">optimize</button>
+        <span id="v3dlimbsteps" style="font-size:12px;color:#898781"></span>
+        <span id="v3dlimbnote"></span>
       </div>
       <!-- What the steps actually bought, per humanness term. Shown rather than
            swallowed because on the fixtures this objective is a BIASED estimate
            of limb length: it reliably finds a lower penalty and reliably does so
            at the wrong lengths, so the numbers are the point. -->
       <div id="v3dlimbfitnote" style="display:none;font-size:12px;color:#898781;margin:6px 0 0;padding-top:6px;border-top:1px solid #2c2c2a"></div>
-      <div id="v3dlimbs" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:4px 10px"></div>
-    </div>
+      <div id="v3dlimbs" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:4px 10px;margin-top:8px"></div>
+    </details>
     <!-- Per-joint depth sign. Only the joints reached by walking a bone appear
          here (the backend's sign_joints()); hips/shoulders/nose are placed in
          the image plane and have no direction to choose. Built from
-         /api/depth/methods so this markup never has to list joints itself. -->
-    <div id="v3dsignbar" style="display:none;margin:2px 0 6px;padding:8px;background:#1a1a19;border:1px solid #2c2c2a;border-radius:8px">
-      <div style="font-size:12px;color:#898781;margin-bottom:6px">
-        Which way each limb bends out of the screen. <b>toward</b> = toward the camera.
-        <label style="margin-left:8px;color:#c3c2b7" title="Auto works the directions out from the pose: it tries all 16 arrangements of the two elbows and two knees (wrists follow their elbow, ankles their knee) and keeps the one whose non-adjacent joint distances stay anatomically plausible over the whole clip. Changing any selector below switches to manual.">mode
+         /api/depth/methods so this markup never has to list joints itself.
+         Collapsed by default, same as limb lengths and equipment overlay. -->
+    <details id="v3dsignbar" class="control-group" style="margin:2px 0 6px">
+      <summary title="A single view cannot tell a limb bending toward the camera from one bending away — the depth magnitude is measured, the direction is chosen.">depth direction</summary>
+      <p class="control-help">Which way each limb bends out of the screen. <b>toward</b> = toward the camera.</p>
+      <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="color:#c3c2b7" title="Auto works the directions out from the pose: it tries all 16 arrangements of the two elbows and two knees (wrists follow their elbow, ankles their knee) and keeps the one whose non-adjacent joint distances stay anatomically plausible over the whole clip. Changing any selector below switches to manual.">mode
           <select id="v3dsignmode" style="font-size:12px;padding:1px 4px;margin:0">
             <option value="auto" selected>auto (infer)</option>
             <option value="manual">manual</option>
           </select>
         </label>
-        <button id="v3dsignreset" type="button" style="font-size:12px;padding:2px 8px;margin-left:8px">all toward</button>
+        <label style="color:#c3c2b7" title="A saved table of directions. It describes where the camera stood, not the clip, so one profile serves every clip filmed from that spot and stays selected across clips and reloads. Choosing one switches to manual; 'none' leaves the solver to it.">profile
+          <select id="v3dsignprofile" style="font-size:12px;padding:1px 4px;margin:0"></select>
+        </label>
+        <button id="v3dsignrevert" type="button" disabled style="font-size:12px;padding:2px 8px" title="Discard edits and go back to the selected profile as saved">revert</button>
+        <button id="v3dsignsave" type="button" style="font-size:12px;padding:2px 8px" title="Save these directions as a named profile — under the selected name, or a new one. New profiles land in the local (gitignored) scope.">save…</button>
+        <span id="v3dsignstate" style="font-size:12px;color:#898781"></span>
       </div>
-      <div id="v3dsigns" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:4px 10px"></div>
-    </div>
+      <div id="v3dsigns" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:4px 10px;margin-top:8px"></div>
+    </details>
     <p id="v3dnote" style="font-size:12px;color:#898781;margin:0 0 4px"></p>
     <!-- The 3D view: a second "video" below the real one, showing the depth
          reconstruction the picked anchor produced. Hidden until a generate runs.
@@ -761,10 +832,19 @@ INDEX_HTML = """<!doctype html>
     <div id="v3dpanel" style="display:none;margin:2px 0 6px">
       <div id="v3dcanvasWrap" style="position:relative;width:100%;background:#0d0d0d;border-radius:8px;overflow:hidden;cursor:grab">
         <canvas id="v3dcanvas" style="display:block;width:100%;height:340px"></canvas>
+        <button id="v3dplay" type="button" title="Play (syncs the video)" style="position:absolute;left:8px;top:6px;width:26px;height:26px;border-radius:50%;background:rgba(13,13,13,0.78);border:1px solid #3a3a37;color:#c3c2b7;font-size:12px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0">&#9654;</button>
         <div id="v3dhint" style="position:absolute;left:8px;bottom:6px;font-size:11px;color:#6f6e68;pointer-events:none">drag to rotate &middot; click a joint to flip its depth</div>
         <div id="v3dkey" style="position:absolute;right:8px;top:6px;font-size:11px;color:#6f6e68;pointer-events:none">
           <span style="color:#6fd1c5">&#9679;</span> toward &nbsp;<span style="color:#f0a020">&#9679;</span> away &nbsp;<span style="color:#6f6e68">&#9679;</span> no choice
         </div>
+      </div>
+      <!-- Coupled to the same vvideo element the native controls and the plot's
+           click-to-seek already drive — dragging it seeks the video, and it
+           follows along during playback or a seek from anywhere else, same as
+           the plot's playhead line does (see drawOverlay). -->
+      <div id="v3dscrubrow" style="display:flex;align-items:center;gap:8px;margin-top:4px">
+        <input id="v3dscrub" type="range" min="0" max="1" step="0.001" value="0" style="flex:1;vertical-align:middle" title="Scrub the clip — syncs the video and the mesh">
+        <span id="v3dscrubtime" style="font-size:11px;color:#898781;white-space:nowrap;min-width:86px;text-align:right">0.00s / 0.00s</span>
       </div>
     </div>
     <p id="vsummary" style="font-size:12px;color:#c3c2b7"></p>
@@ -855,8 +935,26 @@ INDEX_HTML = """<!doctype html>
 
 </div><!-- /layout -->
 
-<script src="/diagnostics.js"></script>
+<script src="./diagnostics.js"></script>
 <script>
+// Where this page is mounted. Normally '' (served at /), but a reverse proxy
+// may mount the app under a path prefix and strip that prefix before
+// forwarding, so the server sees '/api/...' either way and only the browser
+// has to know. Deriving it from the URL rather than baking it in keeps this
+// file unaware of any particular deployment: nothing changes when the app is
+// served at the root. Every fetch below goes through it.
+//
+// The two static tags that can't (this script's src, the three.js importmap)
+// are written relative to the document instead. That makes a trailing slash
+// on the mount point load-bearing: served at /prefix rather than /prefix/, a
+// browser resolves those one level too high, so a proxy that mounts this app
+// must redirect the bare path to the slashed one.
+//
+// The slash sits in a character class rather than being backslash-escaped:
+// INDEX_HTML is a plain (not raw) Python string, where a backslash before a
+// slash is an invalid escape sequence — harmless at runtime, but it warns on
+// every start.
+const BASE = location.pathname.replace(/[/]+$/, '');
 const $ = id => document.getElementById(id);
 
 $('run').onclick = async () => {
@@ -866,7 +964,7 @@ $('run').onclick = async () => {
   const fd = new FormData();
   fd.append('image', f);
   fd.append('size', $('size').value);
-  const r = await fetch('/api/pose', {method:'POST', body: fd});
+  const r = await fetch(BASE + '/api/pose', {method:'POST', body: fd});
   const data = await r.json();
   if (!r.ok) { $('status').textContent = 'error: ' + data.error; return; }
   $('status').textContent = 'done';
@@ -951,10 +1049,9 @@ function vClearExample() {
   vSetSizeAvailability(null);
   $('vstride').min = 1;
   $('vstrideNote').textContent = '';
-  // An upload or a recording is of someone we know nothing about, so the limb
-  // profile goes back to the population priors rather than carrying the last
-  // athlete's measurements onto a stranger.
-  if (v3dLimbSegments.length) v3dSetLimbs(null, { saved: true });
+  // The limb and sign profiles are deliberately NOT touched: they are chosen
+  // by name and belong to the athlete and the camera, not to the clip, so
+  // whatever is selected carries over to what gets loaded next.
   const note = $('v3dlimbnote');
   if (note) note.textContent = '';
 }
@@ -1641,6 +1738,7 @@ function drawOverlay(t) {
   // Step the 3D view to the same frame, so the reconstruction plays in sync
   // with the video (no-op until a sequence candidate is loaded).
   if (window.Viewer) window.Viewer.showFrame(idx);
+  v3dSyncScrub(time);
 
   if (!frame) return;
 
@@ -1901,17 +1999,19 @@ $('vexample').onchange = async () => {
   // fall to whichever size it does ship. Grey the rest out.
   vExampleId = id;
   vExampleSizes = sizes;
-  // Before the track loads, so the first automatic generate already has this
-  // athlete's limbs rather than reconstructing once with the generic ones.
+  // Profiles are not per-example, but the chosen ones have to be in place
+  // before the first automatic generate, so wait for the startup fetch that
+  // restores them rather than reconstructing once with defaults and again a
+  // moment later.
   $('v3dlimbnote').textContent = '';
-  await v3dLoadLimbsFor(id);
+  await v3dReady;
   const size = sizes.includes($('vsize').value) ? $('vsize').value : sizes[0];
   vSetSizeAvailability(sizes, size);
   $('vstatus').textContent = 'loading example…';
   try {
     const [vr, tr] = await Promise.all([
-      fetch(`/api/examples/${encodeURI(id)}/video`),
-      fetch(`/api/examples/${encodeURI(id)}/track?size=${encodeURIComponent(size)}`),
+      fetch(`${BASE}/api/examples/${encodeURI(id)}/video`),
+      fetch(`${BASE}/api/examples/${encodeURI(id)}/track?size=${encodeURIComponent(size)}`),
     ]);
     if (!vr.ok || !tr.ok) throw new Error('example not available');
     const blob = await vr.blob();
@@ -1934,7 +2034,7 @@ $('vsize').onchange = async () => {
   const size = $('vsize').value;
   $('vstatus').textContent = 'switching to ' + size + ' overlay…';
   try {
-    const r = await fetch(`/api/examples/${encodeURI(vExampleId)}/track?size=${encodeURIComponent(size)}`);
+    const r = await fetch(`${BASE}/api/examples/${encodeURI(vExampleId)}/track?size=${encodeURIComponent(size)}`);
     if (!r.ok) throw new Error('track not available');
     applyTrack(await r.json());
     vStrideConstrain(vMeta.frame_stride || 1);
@@ -2036,7 +2136,7 @@ async function vPoll() {
   if (!vPolling) return;
   let p;
   try {
-    p = await (await fetch('/api/pose/video/progress')).json();
+    p = await (await fetch(BASE + '/api/pose/video/progress')).json();
   } catch (e) {
     setTimeout(vPoll, 800);   // transient fetch error — keep trying, don't drop the job
     return;
@@ -2054,7 +2154,7 @@ async function vPoll() {
   if (p.status === 'error') { $('vstatus').textContent = 'error: ' + p.error; return; }
   if (p.status !== 'done') { $('vstatus').textContent = 'idle'; return; }
 
-  const rr = await fetch('/api/pose/video/result');
+  const rr = await fetch(BASE + '/api/pose/video/result');
   const data = await rr.json();
   if (!rr.ok) { $('vstatus').textContent = 'error: ' + data.error; return; }
   applyTrack(data);
@@ -2168,7 +2268,7 @@ $('vrun').onclick = async () => {
   fd.append('size', $('vsize').value);
   fd.append('frame_stride', $('vstride').value || '1');
   if ($('veqrun').checked) fd.append('detect_equipment', '1');
-  const r = await fetch('/api/pose/video/start', {method:'POST', body: fd});
+  const r = await fetch(BASE + '/api/pose/video/start', {method:'POST', body: fd});
   const data = await r.json();
   if (!r.ok) { $('vstatus').textContent = 'error: ' + data.error; return; }
   // A fresh run supersedes any loaded example: its result is the new overlay, so
@@ -2186,7 +2286,7 @@ $('vcancel').onclick = async () => {
   $('vcancel').disabled = true;
   $('vstatus').textContent = 'cancelling…';
   try {
-    await fetch('/api/pose/video/cancel', {method:'POST'});
+    await fetch(BASE + '/api/pose/video/cancel', {method:'POST'});
   } catch (e) { /* the next poll tick will surface the real state either way */ }
   // vPoll (already running on its own timer) will see status flip to
   // 'cancelled' and call vSetRunning(false) itself.
@@ -2251,7 +2351,7 @@ function setPage(id) {
 // Grounding DINO is an optional download (scripts/download_models.sh offers it),
 // so on a machine without it the three equipment controls are turned off and say
 // why, rather than being tickable into a 503.
-fetch('/api/capabilities').then(r => r.json()).then(c => {
+fetch(BASE + '/api/capabilities').then(r => r.json()).then(c => {
   if (c.equipment) return;
   for (const id of ['veqrun', 'veqbar', 'veqplates']) {
     $(id).checked = false;
@@ -2336,6 +2436,139 @@ let v3dSignJoints = [];   // [{index, label, default}] from /api/depth/methods
 // one. Touching any selector drops to manual, so an explicit choice is never
 // silently overwritten by the next recompute.
 let v3dSignMode = 'auto';
+// --- named profiles ---------------------------------------------------------
+// Both tables below are chosen BY NAME from /api/profiles/<kind>, never read
+// off the clip: limb lengths belong to the athlete and depth directions to
+// where the camera stood, and neither is a property of the footage. The choice
+// is remembered in localStorage so it survives a reload and carries from one
+// clip to the next — the next clip is usually the same athlete on the same
+// camera. A few profiles are built in on the backend (`default` limbs,
+// `all-toward` / `all-away` signs) and can't be saved over.
+let v3dProfiles = { limbs: [], signs: [] };
+const PROFILE_PREF = { limbs: 'coach.limbProfile', signs: 'coach.signProfile' };
+
+async function v3dFetchProfiles(kind) {
+  try {
+    const r = await fetch(`${BASE}/api/profiles/${kind}`);
+    const d = r.ok ? await r.json() : null;
+    v3dProfiles[kind] = (d && Array.isArray(d.profiles)) ? d.profiles : [];
+  } catch (e) { v3dProfiles[kind] = []; }
+  v3dFillProfileSelect(kind);
+  return v3dProfiles[kind];
+}
+
+function v3dProfile(kind, name) {
+  return v3dProfiles[kind].find(p => p.name === name) || null;
+}
+
+// One <optgroup> per origin — built in / global / local — so it's visible
+// which names ship with the repo and which live only on this machine. The
+// sign picker gets a 'none' entry on top: no profile means the solver runs.
+function v3dFillProfileSelect(kind) {
+  const sel = $(kind === 'limbs' ? 'v3dlimbprofile' : 'v3dsignprofile');
+  if (!sel) return;
+  const keep = sel.value;
+  sel.innerHTML = '';
+  if (kind === 'signs') {
+    const o = document.createElement('option');
+    o.value = ''; o.textContent = 'none (solve from the pose)';
+    sel.appendChild(o);
+  }
+  const groups = {};
+  for (const p of v3dProfiles[kind]) {
+    const g = p.builtin ? 'built in' : (p.scope || 'global');
+    if (!groups[g]) {
+      groups[g] = document.createElement('optgroup');
+      groups[g].label = g;
+      sel.appendChild(groups[g]);
+    }
+    const o = document.createElement('option');
+    o.value = p.name; o.textContent = p.name;
+    if (p.notes) o.title = p.notes;
+    groups[g].appendChild(o);
+  }
+  sel.value = keep;
+}
+
+function v3dRememberProfile(kind, name) {
+  try { localStorage.setItem(PROFILE_PREF[kind], name || ''); } catch (e) { /* private mode */ }
+}
+function v3dRecallProfile(kind) {
+  try { return localStorage.getItem(PROFILE_PREF[kind]) || ''; } catch (e) { return ''; }
+}
+
+// Save a table under a name. The selected profile's own name is offered unless
+// it's built in (the backend refuses those); a new name lands in the local
+// scope. One prompt rather than separate save / save-as buttons. `bodyFor`
+// builds the payload once the name is known, so an overwrite keeps the
+// profile's notes and a new name starts with none.
+async function v3dSaveProfile(kind, current, bodyFor, noteEl) {
+  const cur = current ? v3dProfile(kind, current) : null;
+  const name = (prompt('Save ' + kind + ' profile as (lowercase letters, digits, . _ -):',
+                       cur && !cur.builtin ? cur.name : '') || '').trim();
+  if (!name) return null;
+  noteEl.style.color = '#898781';
+  noteEl.textContent = 'saving…';
+  try {
+    const r = await fetch(`${BASE}/api/profiles/${kind}/${encodeURIComponent(name)}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bodyFor(name)),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    await v3dFetchProfiles(kind);
+    noteEl.textContent = `saved as ${name} (${d.scope})`;
+    return name;
+  } catch (e) {
+    noteEl.style.color = '#f0a020';
+    noteEl.textContent = 'save failed: ' + e.message;
+    return null;
+  }
+}
+
+// The named sign profile currently applied; '' means none — the solver, or a
+// table built by hand. Kept so "revert" has something to go back to and so the
+// state line can say whether what's on screen is still the saved table or has
+// been edited since.
+let v3dSignProfileName = '';
+
+// Apply a named sign profile: its table, in manual mode, because a profile is
+// something a person looked at and the solver's answer is a ranked guess.
+// '' hands the directions back to the solver.
+function v3dApplySignProfile(name, { generate = true } = {}) {
+  const p = name ? v3dProfile('signs', name) : null;
+  v3dSignProfileName = p ? name : '';
+  if (p) {
+    v3dSigns = Object.assign({}, p.signs);
+    v3dSetSignMode('manual');
+  } else {
+    v3dSetSignMode('auto');
+  }
+  const sel = $('v3dsignprofile');
+  if (sel && sel.value !== v3dSignProfileName) sel.value = v3dSignProfileName;
+  v3dRememberProfile('signs', v3dSignProfileName);
+  v3dBuildSignControls();
+  if (generate && vMeta) v3dGenerate();
+}
+
+// Same edited/saved distinction the limb bar makes, for the same reason: you
+// should be able to tell at a glance whether the clip is showing what's on disk.
+function v3dSignsDiffer(a, b) {
+  if (!a || !b) return false;
+  return v3dSignJoints.some(j => (a[String(j.index)] || 0) !== (b[String(j.index)] || 0));
+}
+
+function v3dRenderSignState() {
+  const el = $('v3dsignstate');
+  if (!el) return;
+  const p = v3dSignProfileName ? v3dProfile('signs', v3dSignProfileName) : null;
+  const dirty = !!p && v3dSignsDiffer(v3dSigns, p.signs);
+  el.textContent = p ? (dirty ? 'edited' : (p.builtin ? 'built in' : p.scope))
+                     : (v3dSignMode === 'auto' ? 'solved from the pose' : 'manual, unsaved');
+  el.style.color = dirty ? '#f0a020' : '#898781';
+  const revert = $('v3dsignrevert');
+  if (revert) revert.disabled = !dirty;
+}
 
 function v3dBuildSignControls() {
   const host = $('v3dsigns');
@@ -2362,11 +2595,13 @@ function v3dBuildSignControls() {
     sel.onchange = () => {
       v3dSigns[key] = parseInt(sel.value, 10);
       v3dSetSignMode('manual');   // an explicit choice outranks the solver
+      v3dRenderSignState();
       if (vMeta) v3dGenerate();
     };
     row.appendChild(name); row.appendChild(sel);
     host.appendChild(row);
   }
+  v3dRenderSignState();
 }
 
 function v3dSetSignMode(mode) {
@@ -2429,65 +2664,101 @@ $('v3dcanvasWrap').addEventListener('v3djointclick', (e) => {
   v3dFlipSign(v3dSignKeyFor(e.detail.joint));
 });
 
-$('v3dsignshow').addEventListener('change', () => {
-  $('v3dsignbar').style.display = $('v3dsignshow').checked ? '' : 'none';
+// --- 3D panel: play button ---------------------------------------------
+// Exactly what the video's own (native) play button does — this just calls
+// vvideo.play()/pause(). Nothing else has to be wired for the mesh to follow:
+// drawOverlay() already calls Viewer.showFrame(idx) on every video frame (see
+// above), whether or not the video is playing, so driving playback from here
+// is the entire feature — the sync was already there.
+function v3dSyncPlayIcon() {
+  const btn = $('v3dplay');
+  if (!btn) return;
+  const playing = !vvideo.paused && !vvideo.ended;
+  btn.textContent = playing ? '\u23F8' : '\u25B6';
+  btn.title = playing ? 'Pause' : 'Play (syncs the video)';
+}
+vvideo.addEventListener('play', v3dSyncPlayIcon);
+vvideo.addEventListener('pause', v3dSyncPlayIcon);
+vvideo.addEventListener('ended', v3dSyncPlayIcon);
+// mousedown must not reach the wrap's own listener — that's the turntable
+// drag / joint-pick logic, and a click on this button is neither.
+$('v3dplay').addEventListener('mousedown', e => e.stopPropagation());
+$('v3dplay').addEventListener('click', e => {
+  e.stopPropagation();
+  if (vvideo.paused || vvideo.ended) vvideo.play(); else vvideo.pause();
 });
+v3dSyncPlayIcon();
 
-$('v3dlimbshow').addEventListener('change', () => {
-  $('v3dlimbbar').style.display = $('v3dlimbshow').checked ? '' : 'none';
+// --- 3D panel: time slider ------------------------------------------------
+// One more way into vvideo.currentTime, alongside the native controls and the
+// plot's click-to-seek — dragging this scrubs the video, and the video moving
+// for ANY reason (playback, the native seek bar, a plot click) scrubs this,
+// via v3dSyncScrub below (called from drawOverlay with the same `time` the
+// mesh and the plot's playhead already use — one clock, three displays).
+let v3dScrubbing = false;   // true while the user has this slider's thumb down
+
+function v3dSyncScrubRange() {
+  const el = $('v3dscrub');
+  if (!el) return;
+  el.max = String(vvideo.duration && isFinite(vvideo.duration) ? vvideo.duration : 1);
+}
+vvideo.addEventListener('loadedmetadata', v3dSyncScrubRange);
+
+// Skipped while the user is actively dragging: reassigning a range input's
+// .value out from under an in-progress drag makes the thumb visibly fight the
+// pointer on some browsers, even when the reassigned value is correct.
+function v3dSyncScrub(time) {
+  const el = $('v3dscrub'), out = $('v3dscrubtime');
+  if (!el || !isFinite(time)) return;
+  if (!v3dScrubbing) el.value = String(time);
+  if (out) out.textContent = `${time.toFixed(2)}s / ${(vvideo.duration || 0).toFixed(2)}s`;
+}
+$('v3dscrub').addEventListener('pointerdown', () => { v3dScrubbing = true; });
+$('v3dscrub').addEventListener('input', () => {
+  const t = parseFloat($('v3dscrub').value);
+  if (isFinite(t)) vvideo.currentTime = t;
 });
-$('v3dlimbreset').onclick = () => {
-  v3dSetLimbs(null);
-  $('v3dlimbnote').textContent = '';
-  $('v3dlimbfitnote').style.display = 'none';
-  if (vMeta) v3dGenerate();
-};
+// 'change' is the reliable release signal for a range input; the window
+// listener is a fallback for a pointer released off the element.
+$('v3dscrub').addEventListener('change', () => { v3dScrubbing = false; });
+window.addEventListener('pointerup', () => { v3dScrubbing = false; }, true);
+
+$('v3dlimbprofile').onchange = () => v3dApplyLimbProfile($('v3dlimbprofile').value);
 $('v3dlimbfit').onclick = async () => {
   $('v3dlimbfit').disabled = true;
   try { await v3dStepLimbs(); if (vMeta) v3dGenerate(); }
   finally { $('v3dlimbfit').disabled = false; }
 };
-$('v3dlimbrevert').onclick = async () => {
-  $('v3dlimbnote').textContent = '';
-  $('v3dlimbfitnote').style.display = 'none';
-  await v3dLoadLimbsFor(vExampleId);
-  if (vMeta) v3dGenerate();
-};
+$('v3dlimbrevert').onclick = () => v3dApplyLimbProfile(v3dLimbs ? v3dLimbs.name : 'default');
 // Saving is explicit: editing a ratio re-runs the lift so you can see what it
-// does, but nothing reaches disk until you say so — otherwise trying a number
-// would quietly rewrite the example for everyone who loads it next.
+// does, but nothing reaches disk until you say so — and then under a name,
+// never onto the clip, so trying a number can't quietly rewrite an athlete.
 $('v3dlimbsave').onclick = async () => {
-  if (!vExampleId || !v3dLimbs) return;
-  const note = $('v3dlimbnote');
-  note.style.color = '#898781';
-  note.textContent = 'saving…';
-  try {
-    const r = await fetch(`/api/examples/${encodeURI(vExampleId)}/limbs`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: v3dLimbs.name, notes: v3dLimbs.notes,
-                             ratios: v3dLimbs.ratios }),
-    });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
-    v3dSetLimbs(d, { saved: true });
-    note.textContent = 'saved beside the clip';
-  } catch (e) {
-    note.style.color = '#f0a020';
-    note.textContent = 'save failed: ' + e.message;
-  }
+  if (!v3dLimbs) return;
+  const saved = await v3dSaveProfile('limbs', v3dLimbs.name, name => {
+    const cur = v3dProfile('limbs', name);
+    return { notes: cur && !cur.builtin ? cur.notes : '', ratios: v3dLimbs.ratios };
+  }, $('v3dlimbnote'));
+  if (saved) v3dApplyLimbProfile(saved, { generate: false });
 };
+// Auto and "no profile" are the same state: the solver owns the table. Going
+// back to manual keeps whatever is on screen, now as a hand-built table.
 $('v3dsignmode').onchange = () => {
-  v3dSignMode = $('v3dsignmode').value;
+  if ($('v3dsignmode').value === 'auto') { v3dApplySignProfile(''); return; }
+  v3dSignMode = 'manual';
+  v3dRenderSignState();
   if (vMeta) v3dGenerate();
 };
-// "all toward" is the old default, and choosing it is itself a manual decision
-// — otherwise the next recompute would silently solve the directions again and
-// the button would look broken.
-$('v3dsignreset').onclick = () => {
-  for (const j of v3dSignJoints) v3dSigns[String(j.index)] = j.default;
-  v3dSetSignMode('manual');
-  v3dBuildSignControls();
-  if (vMeta) v3dGenerate();
+$('v3dsignprofile').onchange = () => v3dApplySignProfile($('v3dsignprofile').value);
+$('v3dsignrevert').onclick = () => v3dApplySignProfile(v3dSignProfileName);
+// Editing re-runs the lift so you can see the change, but nothing reaches disk
+// until you say so — and then under a name, never onto the clip.
+$('v3dsignsave').onclick = async () => {
+  const saved = await v3dSaveProfile('signs', v3dSignProfileName, name => {
+    const cur = v3dProfile('signs', name);
+    return { notes: cur && !cur.builtin ? cur.notes : '', signs: v3dSigns };
+  }, $('v3dnote'));
+  if (saved) v3dApplySignProfile(saved, { generate: false });
 };
 
 function v3dScores(conf) {
@@ -2503,17 +2774,26 @@ function v3dScores(conf) {
 // in a lifting clip they often never do. Every segment then reads short and the
 // lift fabricates the difference as depth.
 //
-// An example ships its profile beside the clip (`<stem>.limbs.json`); anything
-// uploaded starts generic. Edits here are live — each change re-runs the lift —
+// The profile is chosen by name (see the named-profiles block above) and
+// carries across clips. Edits here are live — each change re-runs the lift —
 // and only reach disk on an explicit save, so you can try a number without
 // committing to it.
 let v3dLimbSegments = [];            // [{key,label,default,min,max}] from /api/depth/methods
-let v3dGenericLimbs = {};            // the population priors, the "generic" profile
-let v3dLimbs = null;                 // {name, notes, ratios} for the loaded clip
-let v3dLimbsSaved = null;            // last value on disk, for the dirty marker
+let v3dDefaultLimbs = {};            // the population priors, the `default` profile
+// Which anatomical penalties the optimiser fits against. A CHOICE rather than a
+// constant because the five terms are not equally trustworthy: `legs` scores
+// correct snatch technique as an error and `hands` reads 0 everywhere measured,
+// so the narrow objective (mirror plane only) is sometimes the honest one.
+// Remembered like the profiles are — it's a working preference, not a property
+// of the clip.
+let v3dObjectives = [];              // [{name,label,description,terms,caveat}]
+let v3dObjective = '';               // the selected name
+const OBJECTIVE_PREF = 'coach.limbObjective';
+let v3dLimbs = null;                 // {name, notes, ratios} in use
+let v3dLimbsSaved = null;            // the selected profile as saved, for the dirty marker
 
-function v3dGenericProfile() {
-  return { name: 'generic', notes: '', ratios: { ...v3dGenericLimbs } };
+function v3dDefaultProfile() {
+  return { name: 'default', notes: '', ratios: { ...v3dDefaultLimbs } };
 }
 
 // Deep-ish equality over the ratio table only — the name and notes don't change
@@ -2529,9 +2809,9 @@ function v3dLimbsDiffer(a, b) {
 // generic, typing a ratio by hand — starts the descent over, because the count
 // is only meaningful relative to where the stepping began.
 function v3dSetLimbs(profile, { saved = false, keepSteps = false } = {}) {
-  v3dLimbs = profile ? { name: profile.name || 'generic', notes: profile.notes || '',
-                         ratios: { ...v3dGenericLimbs, ...(profile.ratios || {}) } }
-                     : v3dGenericProfile();
+  v3dLimbs = profile ? { name: profile.name || 'default', notes: profile.notes || '',
+                         ratios: { ...v3dDefaultLimbs, ...(profile.ratios || {}) } }
+                     : v3dDefaultProfile();
   if (saved) v3dLimbsSaved = JSON.parse(JSON.stringify(v3dLimbs));
   if (!keepSteps) {
     v3dLimbSteps = 0; v3dLimbPenalty0 = null;
@@ -2541,17 +2821,27 @@ function v3dSetLimbs(profile, { saved = false, keepSteps = false } = {}) {
   v3dBuildLimbControls();
 }
 
-// The profile that ships with an example. Uploads and recordings get generic:
-// we know nothing about whoever is in them, and a stranger's limbs are a worse
-// guess than the population's.
-async function v3dLoadLimbsFor(exampleId) {
-  if (!exampleId) { v3dSetLimbs(null, { saved: true }); return; }
-  try {
-    const r = await fetch(`/api/examples/${encodeURI(exampleId)}/limbs`);
-    v3dSetLimbs(r.ok ? await r.json() : null, { saved: true });
-  } catch (e) {
-    v3dSetLimbs(null, { saved: true });
-  }
+// Apply a named limb profile; an unknown name (a deleted file, a stale
+// localStorage entry) falls back to `default` rather than to nothing.
+function v3dApplyLimbProfile(name, { generate = true } = {}) {
+  const p = v3dProfile('limbs', name) || v3dProfile('limbs', 'default');
+  v3dSetLimbs(p, { saved: true });
+  const sel = $('v3dlimbprofile');
+  if (sel && p && sel.value !== p.name) sel.value = p.name;
+  v3dRememberProfile('limbs', p ? p.name : '');
+  $('v3dlimbnote').textContent = '';
+  $('v3dlimbfitnote').style.display = 'none';
+  if (generate && vMeta) v3dGenerate();
+}
+
+// Both pickers, once the segment and joint lists exist: every profile of each
+// kind, then whatever was selected last time — or `default` limbs and the
+// solver for the signs on a first visit. Nothing is generated here; the clip
+// that loads next does that with these already in place.
+async function v3dInitProfiles() {
+  await Promise.all([v3dFetchProfiles('limbs'), v3dFetchProfiles('signs')]);
+  v3dApplyLimbProfile(v3dRecallProfile('limbs') || 'default', { generate: false });
+  v3dApplySignProfile(v3dRecallProfile('signs'), { generate: false });
 }
 
 function v3dBuildLimbControls() {
@@ -2580,6 +2870,9 @@ function v3dBuildLimbControls() {
       }
       v3dLimbs.ratios[seg.key] = v;
       inp.value = v.toFixed(3);
+      // Typing a ratio is choosing where the descent starts, so it outranks the
+      // pending revert a new objective would otherwise do.
+      v3dRefitFromProfile = false;
       v3dRenderLimbState();
       if (vMeta) v3dGenerate();
     };
@@ -2593,10 +2886,11 @@ function v3dRenderLimbState() {
   const el = $('v3dlimbname');
   if (!el || !v3dLimbs) return;
   const dirty = v3dLimbsDiffer(v3dLimbs, v3dLimbsSaved);
-  el.textContent = v3dLimbs.name + (dirty ? ' · edited' : '');
-  el.style.color = dirty ? '#f0a020' : '#c3c2b7';
-  const save = $('v3dlimbsave');
-  if (save) save.disabled = !vExampleId || !dirty;
+  const p = v3dProfile('limbs', v3dLimbs.name);
+  el.textContent = dirty ? 'edited' : (p ? (p.builtin ? 'built in' : p.scope) : '');
+  el.style.color = dirty ? '#f0a020' : '#898781';
+  const revert = $('v3dlimbrevert');
+  if (revert) revert.disabled = !dirty;
 }
 
 // One click descends to convergence — small steps, run until all five humanness
@@ -2609,22 +2903,73 @@ function v3dRenderLimbState() {
 // click on "save to example".
 let v3dLimbSteps = 0;              // cumulative, reset whenever the profile is
 let v3dLimbPenalty0 = null;        // penalty when stepping began, for the delta
+// Set when the objective changes: the NEXT optimize starts over from the saved
+// profile instead of from wherever the previous objective's descent stopped.
+// Two objectives compared from the same starting ratios are a comparison; run
+// back to back they are a chain, and the second one's answer depends on the
+// first one having been run at all. Deferred to the click rather than done on
+// the change so that picking an objective never silently discards ratios — and
+// cleared by a hand edit, which is a deliberate choice of where to start.
+let v3dRefitFromProfile = false;
+
+// Fill the objective picker and restore the remembered choice. An objective
+// that no longer exists (renamed in the backend, stale localStorage) falls back
+// to the backend's default rather than posting a name that would 400.
+function v3dInitObjectives(list, fallback) {
+  v3dObjectives = list;
+  const sel = $('v3dlimbobj');
+  if (!sel || !list.length) return;
+  sel.innerHTML = '';
+  for (const o of list) {
+    const opt = document.createElement('option');
+    opt.value = o.name; opt.textContent = o.label;
+    if (o.description) opt.title = o.description;
+    sel.appendChild(opt);
+  }
+  let want = '';
+  try { want = localStorage.getItem(OBJECTIVE_PREF) || ''; } catch (e) { /* private mode */ }
+  if (!list.some(o => o.name === want)) want = fallback || list[0].name;
+  v3dObjective = want;
+  sel.value = want;
+  sel.onchange = () => {
+    v3dObjective = sel.value;
+    try { localStorage.setItem(OBJECTIVE_PREF, v3dObjective); } catch (e) { /* private mode */ }
+    // The running total is a sum over a different objective now, so the count
+    // and the "penalty at the start" it's measured against are both meaningless.
+    // Reset rather than carry them across and quietly compare two scales.
+    v3dLimbSteps = 0; v3dLimbPenalty0 = null;
+    v3dRefitFromProfile = true;
+    $('v3dlimbsteps').textContent = '';
+    $('v3dlimbnote').textContent = '';
+    $('v3dlimbfitnote').style.display = 'none';
+  };
+}
 
 async function v3dStepLimbs() {
   if (!vMeta || !v3dLimbs) return;
   const note = $('v3dlimbnote'), out = $('v3dlimbfitnote');
   note.style.color = '#898781';
   note.textContent = 'optimising…';
+  // A fresh objective descends from the profile, not from the last objective's
+  // answer — otherwise the two can't be compared, and the mirror objective's
+  // result would silently depend on whether the wide one had been run first.
+  let reverted = '';
+  if (v3dRefitFromProfile && v3dLimbsSaved && v3dLimbsDiffer(v3dLimbs, v3dLimbsSaved)) {
+    reverted = v3dLimbsSaved.name || 'default';
+    v3dSetLimbs(v3dLimbsSaved, { saved: true });
+  }
+  v3dRefitFromProfile = false;
   try {
     const { sequence, start } = v3dBuildSequence();
     const idx = v3dCurrentFrame();
-    const r = await fetch('/api/depth/optimize_limbs', {
+    const r = await fetch(BASE + '/api/depth/optimize_limbs', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ width: vMeta.width, height: vMeta.height,
                              current_frame: idx, keypoints: v3dPoseAt(idx),
                              sequence, start_frame: start,
                              lift: document.body.dataset.page || null,
                              bone_ratios: v3dLimbs.ratios,
+                             objective: v3dObjective || undefined,
                              // Small steps with a backtracking line search, so
                              // the descent is monotone and actually terminates;
                              // iters is the guard on that, not the plan.
@@ -2642,25 +2987,38 @@ async function v3dStepLimbs() {
     // Only "iterations" means it stopped because it ran out of budget; every
     // other reason means it stopped because it had nowhere left to go.
     const capped = d.stop_reason === 'iterations';
-    note.textContent = `frame ${d.frame} · penalty ${d.start_total.toFixed(4)}`
+    note.textContent = (reverted ? `back to ${reverted} first · ` : '')
+      + `frame ${d.frame} · penalty ${d.start_total.toFixed(4)}`
       + ` → ${d.total.toFixed(4)} · `
       + (capped ? `stopped at the ${d.iterations}-step cap, not converged`
                 : d.iterations === 0 ? 'already converged'
                 : `converged in ${d.iterations} steps`);
     note.style.color = capped ? '#f0a020' : '#898781';
+    // Every term, not just the ones being fitted. A term at weight 0 still moves
+    // — it just moves as a side effect — and whether the narrow objective is
+    // dragging the dropped facts along or wrecking them is the whole question.
     const rows = Object.keys(d.terms).map(k => {
       const a = d.start_terms[k], b = d.terms[k];
       const arrow = b > a + 1e-6 ? '▲' : (b < a - 1e-6 ? '▼' : '·');
-      return `${arrow} ${(d.labels && d.labels[k]) || k}: ${a.toFixed(4)} → ${b.toFixed(4)}`;
+      const on = (d.weights && d.weights[k]) > 0;
+      const label = (d.labels && d.labels[k]) || k;
+      const f = d.floors && d.floors[k];
+      const floor = (f != null)
+        ? ` <span style="color:#6f6d66">(floor ${f.toFixed(4)},`
+          + ` fixed by the 2D pose)</span>` : '';
+      const line = `${arrow} ${label}: ${a.toFixed(4)} → ${b.toFixed(4)}${floor}`;
+      return on ? line : `<span style="color:#6f6d66">${line} — not fitted</span>`;
     });
     // The depth signs are re-chosen at every evaluation, so the run can end on a
     // different toward/away configuration than it began on. Say so: past that
     // point it is fitting lengths to a different reading of the pose.
     const flipped = JSON.stringify(d.start_signs) !== JSON.stringify(d.signs);
     out.style.display = '';
+    const obj = v3dObjectives.find(o => o.name === d.objective);
     out.innerHTML =
       `<b>penalty ${v3dLimbPenalty0.toFixed(4)} → ${d.total.toFixed(4)}</b>`
-      + ` over ${v3dLimbSteps} steps (torso lengths, 0 = perfect)<br>`
+      + ` over ${v3dLimbSteps} steps, fitting ${obj ? obj.label : d.objective}`
+      + ` (torso lengths, 0 = perfect)<br>`
       + (d.iterations === 0 ? 'last run moved nothing: ' : `last run, ${d.iterations} steps: `)
       + rows.join('<br>')
       + (flipped ? `<br><span style="color:#f0a020">toward/away flipped`
@@ -2668,10 +3026,12 @@ async function v3dStepLimbs() {
                    + ` the run — it ended on a different depth configuration than`
                    + ` it started on. Check the sign table before reading the`
                    + ` lengths.</span>` : '')
+      // What THIS objective is measured to get wrong, quoted from the backend so
+      // the numbers live next to the weights they describe. The headline holds
+      // for all of them: a lower penalty is not the same as correct limbs.
       + `<br><span style="color:#f0a020">A lower penalty is not the same as correct`
-      + ` limbs. Checked against an athlete whose lengths are known, this objective`
-      + ` converges ~0.07 torso away from them — compare with a measured profile`
-      + ` before trusting it.</span>`;
+      + ` limbs — compare with a measured profile before trusting it.`
+      + (obj && obj.caveat ? ' ' + obj.caveat : '') + `</span>`;
   } catch (e) {
     note.style.color = '#f0a020';
     note.textContent = 'optimize failed: ' + e.message;
@@ -2708,7 +3068,7 @@ async function v3dGenerate() {
   $('v3dgen').disabled = true;
   note.textContent = 'generating…';
   try {
-    const r = await fetch('/api/depth/generate', {
+    const r = await fetch(BASE + '/api/depth/generate', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
@@ -2771,7 +3131,9 @@ $('v3dmethod').onchange = () => { if (vMeta) v3dGenerate(); };
 // Populate the method dropdown from the registry; unavailable anchors (e.g. a
 // body model with no weights) are listed but disabled so the set of methods is
 // visible even when one can't run here.
-fetch('/api/depth/methods').then(r => r.json()).then(m => {
+// Awaited by the example loader: a clip must not lift itself before the
+// segment list, the joint list and the remembered profiles are in place.
+const v3dReady = fetch(BASE + '/api/depth/methods').then(r => r.json()).then(async m => {
   // Same response carries the ambiguous-joint list; build the direction
   // controls from it so the markup never hardcodes a joint set.
   v3dSignJoints = m.sign_joints || [];
@@ -2779,8 +3141,9 @@ fetch('/api/depth/methods').then(r => r.json()).then(m => {
   // Same again for the limb ratios: the segment set is a property of the lift,
   // so it arrives with the methods rather than costing a second round trip.
   v3dLimbSegments = m.limb_segments || [];
-  v3dGenericLimbs = m.generic_limbs || {};
-  if (!v3dLimbs) v3dSetLimbs(null, { saved: true });
+  v3dDefaultLimbs = m.default_limbs || {};
+  v3dInitObjectives(m.objectives || [], m.default_objective || '');
+  await v3dInitProfiles();
   const sel = $('v3dmethod');
   for (const meth of (m.methods || [])) {
     const opt = document.createElement('option');
@@ -2796,7 +3159,7 @@ fetch('/api/depth/methods').then(r => r.json()).then(m => {
 // (global = committed with the repo, local = this machine's gitignored clips).
 // Stays hidden if none exist in this checkout, so the control never dangles
 // empty.
-fetch('/api/examples').then(r => r.json()).then(list => {
+fetch(BASE + '/api/examples').then(r => r.json()).then(list => {
   if (!Array.isArray(list) || !list.length) return;
   const sel = $('vexample');
   const groups = {};
@@ -2829,7 +3192,7 @@ setPage('{{DEFAULT_PAGE}}');   // a lift page by default; the image path is the 
      from a CDN (the box is on the tailnet with internet); if the import fails
      the panel just says so and the text note above still reports the result. -->
 <script type="importmap">
-{ "imports": { "three": "/vendor/three.module.js" } }
+{ "imports": { "three": "./vendor/three.module.js" } }
 </script>
 <script type="module">
 const $ = id => document.getElementById(id);
@@ -3301,12 +3664,13 @@ if __name__ == "__main__":
     for line in preflight():
         print(line)
 
-    # Loopback only — same reasoning as tecna: Caddy is the sole LAN/tailnet
-    # facing piece and terminates HTTPS. Override with COACH_HOST=0.0.0.0 if
-    # you ever need to hit this directly.
+    # Loopback only — Caddy is the sole LAN/tailnet facing piece and terminates
+    # HTTPS. Override with COACH_HOST=0.0.0.0 if you ever need to hit this
+    # directly.
     HOST = os.environ.get("COACH_HOST", "127.0.0.1")
-    PORT = int(os.environ.get("COACH_PORT", "8080"))  # matches Caddyfile's reverse_proxy —
-    # same port tecna uses too, fine since the two sites are never run at once
+    # Must match the reverse_proxy upstream in whichever Caddy config fronts
+    # this app; override with COACH_PORT when 8080 is already taken.
+    PORT = int(os.environ.get("COACH_PORT", "8080"))
     try:
         from waitress import serve
         print(f"Serving with waitress (WSGI) on http://{HOST}:{PORT}")

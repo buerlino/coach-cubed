@@ -4,11 +4,13 @@
       "startIdx": 0,
       "endIdx": 15,
       "notes": [
-        "No still period was found before the bar reached the knee — the clip probably starts mid-pull. The phase start is clamped to the first frame, so the beginning of the first pull may be missing."
+        "The wrists were already rising at the first frame with a measurable speed — the clip probably starts mid-pull. The phase start is clamped to the first frame, so the beginning of the first pull may be missing."
       ],
       "triggers": {
-        "onsetSpeed": 0.2775057191112762,
+        "onsetRise": 0.2772349439040065,
+        "setupRise": null,
         "clamped": true,
+        "clampReason": "head",
         "crossGapPx": 12.155655812736427,
         "crossGapTorso": 0.05683932003451499
       },
@@ -1249,7 +1251,7 @@
       "status": "critical"
     },
     "notes": [
-      "No still period was found before the bar reached the knee — the clip probably starts mid-pull. The phase start is clamped to the first frame, so the beginning of the first pull may be missing."
+      "The wrists were already rising at the first frame with a measurable speed — the clip probably starts mid-pull. The phase start is clamped to the first frame, so the beginning of the first pull may be missing."
     ]
   },
   "second-pull-triple-extension": {

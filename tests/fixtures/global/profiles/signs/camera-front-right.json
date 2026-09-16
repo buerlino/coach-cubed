@@ -1,0 +1,14 @@
+{
+ "notes": "Camera front-right of the athlete. Set by eye from the 3D view, not solved: knees toward the camera, feet away, the athlete's right arm toward and left arm away, shoulders toward (the trunk bit, so the athlete's left side is nearer). Applies to any clip shot from that spot; choosing it puts the depth directions in manual mode.",
+ "signs": {
+  "10": 1,
+  "13": 1,
+  "14": 1,
+  "15": -1,
+  "16": -1,
+  "5": 1,
+  "7": -1,
+  "8": 1,
+  "9": -1
+ }
+}

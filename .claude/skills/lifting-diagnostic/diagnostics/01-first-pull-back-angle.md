@@ -43,32 +43,59 @@ Re-fit these.
 
 The first pull: floor to bar-past-knee.
 
-**Start — the hands begin to move.** Wrist centroid speed (mean of the
-confident wrists), normalized by median torso length, exceeding
-**0.15 torso-lengths/s for 3 consecutive samples**.
+**Start — the wrists begin to rise.** The bar leaving the floor is the hands
+going up, and nothing else in the setup is. The signal is the **signed vertical
+speed of the wrist centroid** (mean of the confident wrists) along the bar
+axis's own up, normalized by median torso length; the start is the first frame
+of the run of samples at or above **0.1 torso-lengths/s upward** that leads
+into the end trigger.
 
-Found by walking *backwards* from the end trigger for the last sample where
-the wrists were quiet for 3 consecutive samples, rather than forwards from
-frame 0. Forwards finds the setup: grip adjustments, the hook re-set, the
-lifter rocking into position all clear a motion threshold before the pull
-starts. Backwards from a crisp geometric anchor finds the real onset.
+Found by walking *backwards* from the bar/knee crossing through that run,
+rather than forwards from frame 0. The run ends at **3 consecutive samples**
+that are not rising, and the start is the sample after that block — persistence
+in both directions, so one noisy sample inside the pull does not cut the run
+short and one noisy sample in the setup does not extend it. Forwards from
+frame 0 finds the setup: grip adjustments, the hook re-set, the lifter rocking
+into position all clear a motion threshold before the pull starts.
 
-The speed itself is measured on a 9-sample mean of the centroid, differenced
-over ±2 samples — **not** frame to frame. This is the detail the trigger lives
-or dies on: ±3px of pose jitter over a 1/30s step is ~0.5 torso-lengths/s,
+Requiring the motion to be *upward* — rather than the earlier "last stillness
+before the pull", a threshold on speed magnitude — is what makes this hold on
+a lifter who never goes still. Rolling the bar into the shins is sideways
+motion and never joins the run; a re-grip drops the hands before it lifts them,
+so the drop breaks the run; a slow, quiet first inch off the floor is still a
+rise. The magnitude version had no answer for the first of those (it clamped
+to frame 0 or landed on whatever earlier stillness it found) and could put the
+start inside a slow pull for the last.
+
+The speed is measured on a smoothed centroid (window fixed at 0.3 s, so nine
+samples at 30 fps stride 1), differenced over about a quarter of that window
+either side — **not** frame to frame. This is the detail the trigger lives or
+dies on: ±3px of pose jitter over a 1/30s step is ~0.5 torso-lengths/s,
 several times the threshold, so a one-frame difference reports a motionless
-lifter as moving and the phase start collapses to frame 0 on every real video.
-On the wider baseline that same jitter lands near 0.07 while an actual pull
-runs ~2. Verified stable at ±1.5px, ±3px and ±5px of synthetic jitter.
+lifter as moving and the phase start collapses on every real video. On the
+wider baseline the signed vertical component of that jitter sits around
+0.02–0.05 while an actual pull runs 1–2. Verified on synthetic tracks
+(`tests/diagnostics.test.js`): a busy setup with a re-grip and a continuous
+roll-in right up to lift-off, at ±0, ±3 and ±5px of jitter, and a still lifter
+at up to ±8px over 60 seeded runs, none of which started the phase before the
+scripted lift-off. On the athlete-b clean fixture the rise reads 0.01–0.07 through
+the set position and crosses 0.1 two frames into the pull.
 
-The cost is that the smoothing spreads the pull's motion ~5 samples backwards,
-so onset is detected slightly early — the phase picks up the last ~0.15s of the
-setup. Harmless here (the bar is still on the floor and the trunk angle is
-already static) and the safer direction to err: late onset would cut off the
-part of the pull the cue is about.
+The cost is that the smoothing spreads the pull's motion backwards, so onset is
+detected ~3 samples early — the phase picks up the last ~0.1s of the setup.
+Harmless here (the bar is still on the floor and the trunk angle is already
+static) and the safer direction to err: late onset would cut off the part of
+the pull the cue is about.
 
-*Fallback:* no quiet window before the crossing (video starts mid-lift) → clamp
-to the first sample, flagged in the transparency block.
+*Fallbacks:* the run reaches the first sample that has a speed at all (video
+starts mid-lift) → clamp to the first sample; the run reaches a stretch where
+both wrists were lost for longer than the gap fill → start where they
+reappear. Both are flagged in the transparency block, with which of the two it
+was.
+
+The transparency block reports the rise speed at the start frame and the
+fastest the wrists rose in the three samples before it, so the margin the
+boundary was set on is visible.
 
 **End — the bar crosses the knee.** ViTPose has no bar keypoint, so the bar is
 approximated per side from the wrist:
@@ -126,10 +153,11 @@ and the bar/knee crossing compares heights along it — so camera roll shifts
 neither the number nor the marks that explain it. The forearm correction is
 applied along that axis's own "down" for the same reason. See "The bar axis" in
 the skill; note that this diagnostic's start trigger is what locates the frame
-the axis is read from, via the shared `firstPullWindow`.
+the axis is read from, via the shared `firstPullWindow` — shared with the clean's
+first pull too, see [08-clean-first-pull-back-angle.md](08-clean-first-pull-back-angle.md).
 
 **Transparency block** reports: the phase's frame range and duration; the wrist
-speed at onset and the bar–knee gap at the crossing; samples measured; the
+rise at onset (and just before it) and the bar–knee gap at the crossing; samples measured; the
 fraction interpolated across dropped detections; the fraction with both sides
 visible; the mean left–right disagreement; and the bar axis — its tilt, which
 joint pairs and which frame set it, how well they agreed, and which were dropped

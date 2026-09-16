@@ -524,7 +524,7 @@ def limb_segments() -> list:
     Derived from _SEGMENTS and _BONE_RATIO rather than listed by hand, for the
     same reason sign_joints() is: adding a segment to the prior must not leave
     the interface silently missing its field. `default` is the population value,
-    which is also exactly the "generic" profile.
+    which is also exactly the `default` profile.
     """
     return [{"key": name,
              "label": _SEGMENT_LABELS.get(name, name),
@@ -533,8 +533,9 @@ def limb_segments() -> list:
             for name, sides in _SEGMENTS.items()]
 
 
-def generic_limb_ratios() -> dict:
-    """The population priors as a profile body — the "generic" athlete."""
+def default_limb_ratios() -> dict:
+    """The population priors as a profile body — the `default` profile, i.e.
+    what the lift runs with when nobody has been measured."""
     return {name: _BONE_RATIO[sides[0]] for name, sides in _SEGMENTS.items()}
 
 
@@ -1182,17 +1183,188 @@ def _symmetry(j, scale_px):
 # Every term is in torso lengths (or a dimensionless |cos|) and is 0 when
 # perfect, so they are comparable and the weights below mean something.
 HUMANNESS_TERMS = ("midplane", "symmetry", "hands", "arms", "legs")
-HUMANNESS_LABELS = {
+
+# The same mirror plane again, but fitted to both of its conditions at once
+# instead of to the midpoints and then handed to the separations. Kept apart
+# from the five above because it is a different measurement of the same fact,
+# not a sixth fact: see _penalty_terms for what changes and why it matters.
+MIRROR_TERMS = ("coplanar", "orthogonal")
+
+# Everything measured on a lifted pose, in the column order _penalty_terms uses.
+PENALTY_TERMS = HUMANNESS_TERMS + MIRROR_TERMS
+TERM_LABELS = {
     "midplane": "paired joints share one midplane",
     "symmetry": "left mirrors right across it",
     "hands": "hands in front of the shins",
     "arms": "both arms in one plane",
     "legs": "each leg's plane is vertical",
+    "coplanar": "six midpoints on one plane",
+    "orthogonal": "each pair square to that plane",
 }
 # Starting weights, all 1.0 — every term is already in the same units and
 # nothing yet says one of these facts is more true than another. Tune from
 # measurement rather than taste.
 HUMANNESS_WEIGHTS = {t: 1.0 for t in HUMANNESS_TERMS}
+
+# Which terms the limb optimiser is allowed to fit against. A term at weight 0
+# is still measured and still reported — you want to see what the fit did to the
+# facts it wasn't steering by — it just doesn't pull.
+#
+# Three objectives because the five terms are not equally trustworthy, and it
+# shows. `legs` asks each leg's plane to be vertical, which a snatch set-up
+# breaks on purpose by tracking the knees out over the toes: scored on the one
+# athlete whose lengths are measured, that term alone puts 0.265 of a 0.720
+# penalty on her TRUE ratios, and the full objective's global minimum sits 0.097
+# torso away from them (0.137 on the thigh). `hands` is a hinge and reads 0 at
+# every point tested on both fixtures, so it contributes nothing but a
+# discontinuity. The mirror pair is what's left once those are set aside: a body
+# is mirror-symmetric whatever the lift, and neither statement asks anything of
+# how the athlete has chosen to stand. The third objective is that same pair
+# measured properly — one plane fitted to both halves of the statement instead
+# of to the midpoints alone.
+OBJECTIVES = {
+    "humanness": {
+        "label": "all five anatomical penalties",
+        "terms": HUMANNESS_TERMS,
+        "description": (
+            "Midplane, symmetry, hands, arms and legs, equally weighted. The "
+            "widest objective and the one with the most to say — but `legs` "
+            "penalises correct snatch technique and the global minimum lands "
+            "~0.1 torso off an athlete's measured lengths."),
+        "caveat": (
+            "This one does not reliably reach its own minimum: it stalls at "
+            "0.234 on the snatch fixture where 0.233 exists, and at 0.320 on "
+            "the clean & jerk where 0.125 does. The argmin depth configuration "
+            "flips mid-descent and the line search cannot cross the kink."),
+    },
+    "mirror": {
+        "label": "mirror plane only (midplane + symmetry)",
+        "terms": ("midplane", "symmetry"),
+        "description": (
+            "Only the two terms that say the body is mirror-symmetric: the six "
+            "left/right midpoints share one plane, and each pair lies square "
+            "across it. 15 of the 20 conditions, and the only ones that hold "
+            "regardless of what the lift asks the athlete to do."),
+        "caveat": (
+            "Better behaved, not more accurate. Dropping `legs` and `hands` "
+            "removes the kink the wide objective stalls on, and this reaches "
+            "its own global minimum on both fixtures — but on the athlete whose "
+            "lengths are measured it still settles ~0.11 torso away from them "
+            "(0.19 on the shank). And `symmetry` cannot reach 0 at all: see the "
+            "floor beside it."),
+    },
+    "mirror_joint": {
+        "label": "one mirror plane, fitted to both conditions",
+        "terms": MIRROR_TERMS,
+        "description": (
+            "The same 15 conditions as `mirror`, but one plane has to satisfy "
+            "all of them at once: the six midpoints lie on it AND the six "
+            "same-joint separations are square to it. `mirror` fits the plane "
+            "to the midpoints alone and only then asks the separations about "
+            "it, which lets a badly-determined normal be charged to symmetry."),
+        "caveat": (
+            "It reaches its own minimum — 0.0673 against a global 0.0665 on "
+            "the snatch, 0.0770 against 0.0768 on the clean & jerk — and at "
+            "the same lengths it reads below `mirror` (0.202 vs 0.291, 0.185 "
+            "vs 0.214), because it is allowed to pick a better plane. Neither "
+            "is a claim about accuracy: on the measured athlete it settles "
+            "0.109 torso off, the same as `mirror`'s 0.107. And `orthogonal` "
+            "has its own floor, 0.039 there, which no lengths can go below."),
+    },
+}
+DEFAULT_OBJECTIVE = "humanness"
+
+
+def list_objectives() -> list:
+    """[{name, label, description, terms, caveat}] for the optimiser's picker.
+
+    `caveat` is what this objective is measured to get wrong. It rides along
+    with the list so the number lives in one place and the interface quotes it
+    rather than restating it.
+    """
+    return [{"name": k, "label": v["label"], "description": v["description"],
+             "terms": list(v["terms"]), "caveat": v["caveat"]}
+            for k, v in OBJECTIVES.items()]
+
+
+def objective_weights(name: Optional[str]) -> dict:
+    """{term: 0 or 1} for a named objective. KeyError on an unknown name."""
+    spec = OBJECTIVES[DEFAULT_OBJECTIVE if name is None else str(name)]
+    return {t: (1.0 if t in spec["terms"] else 0.0) for t in PENALTY_TERMS}
+
+
+def symmetry_floor(kp2d, scale_px: float) -> Optional[float]:
+    """Lowest `symmetry` ANY depth assignment can reach on this frame, or None.
+
+    Worth reporting because it is not small and it is not the optimiser's fault.
+    The term is zero only when every left/right separation runs parallel to one
+    shared normal — which forces all six separations to share one direction *in
+    the image*, and the ratios only ever move z. So the floor is a property of
+    the 2D pose, fixed before the lift runs:
+
+        min over phi of  (1/n) * sum_i |u_i| * |sin(theta_i - phi)|
+
+    a length-weighted angular median of the six image separations. Between
+    consecutive directions every |sin| term is a concave arch, so the sum is
+    concave there and its minimum can only sit at one of the directions — which
+    makes this exact at n evaluations rather than a scan. Measured 0.031 torso
+    on the snatch fixture (directions spread 15.4 deg) and 0.027 on the clean &
+    jerk (10.0 deg), and minimising the term numerically over all 17 depths free
+    reproduces both to four places.
+    """
+    if not (scale_px and np.isfinite(scale_px) and scale_px > 0):
+        return None
+    u = [(kp2d[b, :2] - kp2d[a, :2]) / scale_px for a, b in _SYM_PAIRS
+         if kp2d[a, 2] >= CONF_SEEN and kp2d[b, 2] >= CONF_SEEN]
+    if len(u) < 3:
+        return None
+    u = np.array(u)
+    w = np.hypot(u[:, 0], u[:, 1])
+    th = np.arctan2(u[:, 1], u[:, 0])
+    cost = np.abs(np.sin(th[None, :] - th[:, None])) @ w / len(u)
+    return float(cost.min())
+
+
+def orthogonal_floor(kp2d, scale_px: float) -> Optional[float]:
+    """The same floor for `orthogonal`, which is even shorter to write down.
+
+    Same argument as symmetry_floor — the term is zero only if every left/right
+    separation runs along one direction, and depth cannot turn an image
+    direction — but the term is an RMS rather than a mean of norms, and that
+    version minimises in closed form with no candidate list at all. With the
+    depths free the best each pair can do is its image separation's component
+    across the plane, so
+
+        floor^2 = min over phi of (1/n) * sum_i |u_i|^2 sin^2(theta_i - phi)
+
+    and sin^2 = (1 - cos 2x)/2 turns the minimisation into one argmax of a
+    cosine: 2 phi = atan2(sum |u_i|^2 sin 2 theta_i, sum |u_i|^2 cos 2 theta_i).
+    That is the principal direction of the separations, weighted by length
+    squared — the RMS's own version of the angular median above.
+    """
+    if not (scale_px and np.isfinite(scale_px) and scale_px > 0):
+        return None
+    u = [(kp2d[b, :2] - kp2d[a, :2]) / scale_px for a, b in _SYM_PAIRS
+         if kp2d[a, 2] >= CONF_SEEN and kp2d[b, 2] >= CONF_SEEN]
+    if len(u) < 3:
+        return None
+    u = np.array(u)
+    w = u[:, 0] ** 2 + u[:, 1] ** 2
+    th2 = 2.0 * np.arctan2(u[:, 1], u[:, 0])
+    phi2 = np.arctan2(w @ np.sin(th2), w @ np.cos(th2))
+    return float(np.sqrt(max((w @ (1.0 - np.cos(th2 - phi2))) / (2.0 * len(u)), 0.0)))
+
+
+def term_floors(kp2d, scale_px: float) -> dict:
+    """{term: lowest reading the 2D pose allows} for the terms that have one.
+
+    Only the two mirror-symmetry terms do. Reported alongside a run because
+    without them a fit that reached its floor is indistinguishable from a fit
+    that failed, and the difference is the whole question.
+    """
+    out = {"symmetry": symmetry_floor(kp2d, scale_px),
+           "orthogonal": orthogonal_floor(kp2d, scale_px)}
+    return {k: v for k, v in out.items() if v is not None}
 
 # A straight leg has no plane and a knee that hasn't travelled has no forward, so
 # both of those terms read pure noise in exactly the pose where they have nothing
@@ -1215,15 +1387,15 @@ def _fit_plane(pts):
     return V[..., 0], np.sqrt(np.maximum(w[..., 0], 0.0))
 
 
-def _humanness_terms(P, scale_px, valid):
-    """(ncand, 17, 3) poses -> (ncand, 5) penalties, one column per HUMANNESS_TERMS.
+def _penalty_terms(P, scale_px, valid):
+    """(ncand, 17, 3) poses -> (ncand, 7) penalties, a column per PENALTY_TERMS.
 
     A term whose joints aren't all visible scores 0 rather than being guessed at:
     it is then constant across candidates and across limb ratios, so it drops out
     of both the ranking and the gradient instead of biasing them.
     """
     n = P.shape[0]
-    out = np.zeros((n, len(HUMANNESS_TERMS)))
+    out = np.zeros((n, len(PENALTY_TERMS)))
     up = np.array([0.0, -1.0, 0.0])             # image up; y grows downward
 
     # 1 + 2. The body is mirror-symmetric about one plane. Every left/right pair
@@ -1243,6 +1415,43 @@ def _humanness_terms(P, scale_px, valid):
             across = np.einsum("ij,ij->i", d, normal)
             tot += np.sqrt(np.maximum((d * d).sum(1) - across * across, 0.0))
         out[:, 1] = tot / (len(pairs) * scale_px)
+
+        # 6 + 7. The same two statements, fitted together. Above, the normal
+        # comes from the midpoints alone and the separations are then graded
+        # against whatever it turned out to be — but the six midpoints run up
+        # the body and are close to collinear (spread 0.35 / 0.24 / 0.03 torso
+        # on the snatch fixture), so the direction they leave undetermined is
+        # exactly the one the separations care about. The separations are
+        # emphatically not collinear, and they get no vote. Measured, the
+        # difference is real: the jointly fitted normal sits ~8 deg off the
+        # midpoint-fitted one on both fixtures.
+        #
+        # Asking one plane to satisfy all 12 conditions at once, in least
+        # squares, costs nothing to solve. Writing both residuals about a unit
+        # normal n and adding their squares,
+        #
+        #     (1/m) sum_i ((m_i - mbar).n)^2  +  (1/m) sum_j (|d_j|^2 - (d_j.n)^2)
+        #       = n^T (C - D) n + const,   C = cov(midpoints), D = (1/m) sum d d^T
+        #
+        # so the best plane is the smallest eigenvector of C - D: the direction
+        # the midpoints vary least along and the separations most. One eigh per
+        # candidate, exact, and no search to land in the wrong basin of. (Checked
+        # against a 4000-point sweep of the sphere on every candidate of both
+        # fixtures: it is the sweep's minimum, to machine precision.)
+        #
+        # Reported as RMS rather than the mean of norms used above, because RMS
+        # is what this normal minimises and a term should be graded by the thing
+        # that chose it.
+        c = mids - mids.mean(axis=1, keepdims=True)
+        d = np.stack([P[:, b] - P[:, a] for a, b in pairs], axis=1)
+        M = (np.einsum("nki,nkj->nij", c, c)
+             - np.einsum("nki,nkj->nij", d, d)) / len(pairs)
+        nrm = np.linalg.eigh(M)[1][..., 0]
+        off = np.einsum("nki,ni->nk", c, nrm)
+        across = np.einsum("nki,ni->nk", d, nrm)
+        perp = np.maximum((d * d).sum(axis=2) - across * across, 0.0)
+        out[:, 5] = np.sqrt((off ** 2).mean(axis=1)) / scale_px
+        out[:, 6] = np.sqrt(perp.mean(axis=1)) / scale_px
 
     # 3. The hands are in front of the shins — a lifter's grip is on a bar, and
     # the bar is not behind their legs. "In front" is along the body's own
@@ -1297,11 +1506,13 @@ def humanness(j, scale_px) -> dict:
     """One lifted pose -> {term: penalty, "total": weighted sum}.
 
     The scalar counterpart of the vectorised term above, for inspection and for
-    reporting what an optimisation actually bought.
+    reporting what an optimisation actually bought. Every term is reported; the
+    "total" is still over HUMANNESS_TERMS only, because MIRROR_TERMS re-measure
+    two of those and summing both would count the mirror plane twice.
     """
     valid = np.all(np.isfinite(j), axis=1)
-    t = _humanness_terms(np.where(valid[:, None], j, 0.0)[None], scale_px, valid)[0]
-    out = {name: float(v) for name, v in zip(HUMANNESS_TERMS, t)}
+    t = _penalty_terms(np.where(valid[:, None], j, 0.0)[None], scale_px, valid)[0]
+    out = {name: float(v) for name, v in zip(PENALTY_TERMS, t)}
     out["total"] = float(sum(HUMANNESS_WEIGHTS[n] * out[n] for n in HUMANNESS_TERMS))
     return out
 
@@ -1319,14 +1530,24 @@ START_POSE_LIFTS = ("snatch", "clean-and-jerk")
 # range a body can hold in THIS pose. Deliberately wider than any athlete's
 # actual setup: the job is to rule out the impossible, not to assert a style.
 #   hip      — under a bar on the floor the torso is inclined over it and the hip
-#              is deeply flexed. Past ~100 deg the athlete is standing up.
-#   knee     — bent, but neither locked straight nor folded shut.
+#              is deeply flexed: measured 45 and 55 deg on the snatch fixture, 60
+#              and 67 on the clean-and-jerk. Past ~85 the athlete is standing up,
+#              which is not compatible with where their hands are.
+#   knee     — bent, but neither locked straight nor folded shut. The loosest of
+#              the four on purpose: setup depth varies (108 deg on the
+#              clean-and-jerk against 53 on the snatch), and a bound tight enough
+#              to bite would have to cut below 127, which is the reading the
+#              clean-and-jerk's own projection supports.
 #   elbow    — the arms hang straight from the bar. The most certain of the four,
 #              and the one that decides the forearm bit.
 #   shoulder — weak, and kept only to rule out an arm folded behind the torso.
+#              The angle is set by torso inclination, which varies too much to
+#              bound tightly.
+# Note the tolerance below: a bound only rules a candidate out once it is about
+# 5 deg past it, so these are hard limits with a soft edge, not knife edges.
 _SETUP_ANGLES = {
-    "hip":      (((L_SHO, L_HIP, L_KNE), (R_SHO, R_HIP, R_KNE)), (15.0, 100.0)),
-    "knee":     (((L_HIP, L_KNE, L_ANK), (R_HIP, R_KNE, R_ANK)), (55.0, 155.0)),
+    "hip":      (((L_SHO, L_HIP, L_KNE), (R_SHO, R_HIP, R_KNE)), (15.0, 85.0)),
+    "knee":     (((L_HIP, L_KNE, L_ANK), (R_HIP, R_KNE, R_ANK)), (45.0, 145.0)),
     "elbow":    (((L_SHO, L_ELB, L_WRI), (R_SHO, R_ELB, R_WRI)), (140.0, 180.0)),
     "shoulder": (((L_HIP, L_SHO, L_ELB), (R_HIP, R_SHO, R_ELB)), (10.0, 115.0)),
 }
@@ -1734,14 +1955,14 @@ def _lift_candidates(kp2d, scale_px, bones, S):
 
 def optimize_limbs(scene, ratios=None, weights=None, iters=_OPT_ITERS,
                    lr=_OPT_LR, frame=None, line_search=True,
-                   term_tol=_OPT_TERM_TOL):
+                   term_tol=_OPT_TERM_TOL, objective=DEFAULT_OBJECTIVE):
     """Fit the limb ratios to one frame by minimising the humanness penalty.
 
     The lift reads a bone's true length off a prior and turns whatever it has
     left over after the on-screen length into depth. That makes the length the
     thing everything else is downstream of — and it is also the one quantity a
     single view cannot measure, so it has to be inferred from consequences. The
-    consequences used here are HUMANNESS_TERMS: lengths that are wrong bend the
+    consequences used here are PENALTY_TERMS: lengths that are wrong bend the
     body in ways a body doesn't bend.
 
     Descends on the four ratios jointly; at every evaluation the sign search runs
@@ -1763,10 +1984,18 @@ def optimize_limbs(scene, ratios=None, weights=None, iters=_OPT_ITERS,
     is doing something in it, so a leg that never leaves full extension in that
     one frame will just sit at whatever the clamp allows.
 
-    Stops when every humanness term individually moves less than `term_tol` in a
-    step, when the line search can no longer find a downhill move, or at `iters`
-    — whichever comes first; `stop_reason` says which, since "converged" and "ran
-    out of budget" are very different claims about the answer.
+    `objective` names which terms are allowed to pull (OBJECTIVES); an explicit
+    `weights` overrides it per term. The ones left out are still
+    evaluated and still returned, because the interesting thing about narrowing
+    the objective is what happens to the facts you stopped fitting.
+
+    Stops when every term IN THE OBJECTIVE individually moves less than
+    `term_tol` in a step, when the line search can no longer find a downhill
+    move, or at `iters` — whichever comes first; `stop_reason` says which, since
+    "converged" and "ran out of budget" are very different claims about the
+    answer. Only the active terms count towards that: a zeroed term drifts as a
+    by-product and waiting for it to settle would be waiting on something the
+    descent isn't steering.
 
     Returns a dict with the start and final ratios, both term breakdowns, and the
     per-iteration objective, so a caller can show what it bought rather than
@@ -1784,8 +2013,11 @@ def optimize_limbs(scene, ratios=None, weights=None, iters=_OPT_ITERS,
         return None
 
     names = list(_SEGMENTS)
-    w = dict(HUMANNESS_WEIGHTS, **(weights or {}))
-    wv = np.array([w[t] for t in HUMANNESS_TERMS])
+    w = dict(objective_weights(objective), **(weights or {}))
+    wv = np.array([w[t] for t in PENALTY_TERMS])
+    active = wv != 0
+    if not active.any():
+        return None
     # Start from whatever the scene already believes — its posted profile if it
     # has one, else its own per-clip estimate — so this refines the current
     # answer rather than restarting from the population priors every time.
@@ -1805,7 +2037,7 @@ def optimize_limbs(scene, ratios=None, weights=None, iters=_OPT_ITERS,
         P, valid = _lift_candidates(kp2d, scale, bones, S)
         if P is None:
             return np.inf, None, None
-        terms = _humanness_terms(P, scale, valid)
+        terms = _penalty_terms(P, scale, valid)
         total = terms @ wv
         b = int(np.argmin(total))
         return float(total[b]), terms[b], b
@@ -1869,11 +2101,11 @@ def optimize_limbs(scene, ratios=None, weights=None, iters=_OPT_ITERS,
         # Converged when the terms have stopped moving — all of them. Checked on
         # the breakdown rather than the total so a step that only shuffles
         # penalty from one term to another still counts as movement.
-        if float(np.max(np.abs(cur[2] - prev[2]))) < term_tol:
+        if float(np.max(np.abs((cur[2] - prev[2])[active]))) < term_tol:
             stop_reason = "converged"
             break
 
-    brk = lambda t: {name: float(v) for name, v in zip(HUMANNESS_TERMS, t)}
+    brk = lambda t: {name: float(v) for name, v in zip(PENALTY_TERMS, t)}
     return {
         "frame": frame,
         "start": {n: float(start[n]) for n in names},
@@ -1904,7 +2136,11 @@ def optimize_limbs(scene, ratios=None, weights=None, iters=_OPT_ITERS,
         "converged": stop_reason in ("converged", "stalled", "flat"),
         "term_tol": float(term_tol),
         "history": [float(v) for v in history],
-        "weights": {t: float(w[t]) for t in HUMANNESS_TERMS},
+        "objective": (DEFAULT_OBJECTIVE if objective is None else str(objective)),
+        "weights": {t: float(w[t]) for t in PENALTY_TERMS},
+        # How much of a reading no choice of lengths can remove. Without it a
+        # run that reached the floor reads as a run that failed.
+        "floors": term_floors(kp2d, scale),
     }
 
 

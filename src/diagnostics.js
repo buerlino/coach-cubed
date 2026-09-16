@@ -394,14 +394,15 @@ function jointAngle(joint, a, b) {
   return Math.acos(cos) * 180 / Math.PI;
 }
 
-// Wrist-centroid speed in torso-lengths per second.
+// Smoothing for any velocity read off the wrists (see wristRise).
 //
 // Deliberately measured on an extra-smoothed centroid over a wider baseline
 // than one frame: a few px of per-frame pose jitter divided by a 1/30s step
 // reads as ~0.5 torso-lengths/s — several times the onset threshold — so a
 // one-frame difference finds "motion" in a lifter standing perfectly still.
-// Over ±2 samples of a 9-wide mean, that same jitter lands around 0.07 while
-// an actual pull runs ~2, which is the margin the trigger needs.
+// Over ±2 samples of a 9-wide mean, that same jitter lands around 0.02–0.04
+// torso-lengths/s on the signed vertical component, while an actual pull runs
+// ~1–2, which is the margin the trigger needs.
 const SPEED_SMOOTH = 9, SPEED_HALF = 2;
 
 // The smoothing window that finds a peak has to be fixed in TIME, not in
@@ -439,29 +440,30 @@ function smoothSeries(raw, win) {
   });
 }
 
-function wristSpeed(samples, scale) {
-  const raw = samples.map(s => wristCentroid(s.p));
-  const half = (SPEED_SMOOTH - 1) >> 1;
-  const c = raw.map((_, k) => {
-    let sx = 0, sy = 0, n = 0;
-    for (let j = Math.max(0, k - half); j <= Math.min(raw.length - 1, k + half); j++) {
-      if (!raw[j]) continue;
-      sx += raw[j].x; sy += raw[j].y; n++;
-    }
-    return n ? { x: sx / n, y: sy / n } : null;
-  });
+// Signed vertical speed of the wrist centroid, in torso-lengths per second,
+// positive = rising. "Vertical" is along the bar axis's own up, so a rolled
+// camera does not turn a horizontal bar roll-in into a rise. Smoothed over a
+// window fixed in time (smoothWindow) and differenced over a baseline of about
+// a quarter of that window either side, never frame to frame — see the note on
+// SPEED_SMOOTH. Null where the centroid is undefined (both wrists lost for
+// longer than the gap fill reaches) or within the baseline of the clip's ends.
+function wristRise(samples, scale, ax) {
+  const raw = samples.map(s => { const c = wristCentroid(s.p); return c ? elev(c, ax) : null; });
+  const win = smoothWindow(samples);
+  const sm = smoothSeries(raw, win);
+  const half = Math.max(1, (win - 1) >> 2);   // 2 at the 9-sample window it was tuned on
   const out = new Array(samples.length).fill(null);
-  for (let i = SPEED_HALF; i < samples.length - SPEED_HALF; i++) {
-    const a = c[i - SPEED_HALF], b = c[i + SPEED_HALF];
-    const dt = samples[i + SPEED_HALF].t - samples[i - SPEED_HALF].t;
-    if (!a || !b || !(dt > 0)) continue;
-    out[i] = Math.hypot(b.x - a.x, b.y - a.y) / dt / scale;
+  for (let i = half; i < samples.length - half; i++) {
+    const a = sm[i - half], b = sm[i + half];
+    const dt = samples[i + half].t - samples[i - half].t;
+    if (a == null || b == null || !(dt > 0)) continue;
+    out[i] = -(b - a) / dt / scale;   // elevation grows downward, so rising is negative d(elev)
   }
   return out;
 }
 
 const RUN = 3;             // samples a threshold (or its release) must hold for
-const MOVE_ONSET = 0.15;   // torso-lengths/s — provisional
+const RISE_ONSET = 0.1;    // torso-lengths/s of upward wrist speed — provisional
 
 // The bar (wrist + 1/6 forearm) crossing from below knee height to above it,
 // confirmed by persistence. This single event is both the end of the first
@@ -491,42 +493,73 @@ function barKneeCrossing(samples, ax) {
   return { bar, knee, idx: -1, reason: 'no-cross' };
 }
 
-// The first pull's window: the bar/knee crossing that ends it, and the last
-// stillness before that crossing, which is where the lift starts.
+// The first pull's window: the bar/knee crossing that ends it, and the first
+// frame the wrists start rising before that crossing, which is where the lift
+// starts — the bar leaving the floor is the hands going up, and nothing else
+// in the setup is.
 //
 // Anchored on the END trigger, which is a crisp geometric crossing, then
-// searched backwards for the start, which is a soft threshold on noisy velocity.
-// Searching forwards from frame 0 for "the hands start moving" finds the setup
-// instead — grip adjustments, the hook re-set, the lifter rocking into position
-// all clear a motion threshold before the pull starts.
+// searched backwards for the start: walk back from the crossing through the
+// run of samples where the wrists are rising (wristRise at or above
+// RISE_ONSET); the run ends at RUN consecutive samples that are not, and the
+// start is the sample after that block. Persistence cuts both ways here — a
+// single noisy sample inside the pull does not end the run early, and a single
+// noisy sample in the setup does not extend it.
 //
-// Shared rather than left inside diagnostic 1, because the bar axis is read at
-// the start frame this returns: two versions of "where the lift starts" drifting
-// apart would put the axis on a different frame than the phase it belongs to,
-// and each would look right on its own.
+// Searching forwards from frame 0 for "the hands start moving" finds the setup
+// instead — grip adjustments, the hook re-set, the lifter rocking into
+// position all clear a motion threshold before the pull starts. Requiring the
+// motion to be UPWARD, rather than any motion, is what makes this hold on a
+// lifter who never goes still: rolling the bar into the shins is horizontal,
+// a re-set drops the hands before it lifts them, and neither joins the run
+// that leads into the crossing.
+//
+// Shared rather than left inside the first-pull diagnostics, because the bar
+// axis is read at the start frame this returns: two versions of "where the lift
+// starts" drifting apart would put the axis on a different frame than the
+// phase it belongs to, and each would look right on its own. The clean's first
+// pull and the snatch's share it because the event is the same — bar off the
+// floor to bar past the knee — not because the keypoints happen to be.
 function firstPullWindow(samples, scale, ax) {
   const cross = barKneeCrossing(samples, ax);
-  if (cross.idx < 0) return { cross, startIdx: -1, endIdx: -1, clamped: false, onsetSpeed: null };
+  if (cross.idx < 0) {
+    return { cross, startIdx: -1, endIdx: -1, clamped: false, clampReason: null, onsetRise: null, setupRise: null };
+  }
   const endIdx = cross.idx;
-  const speed = wristSpeed(samples, scale);
+  const rise = wristRise(samples, scale, ax);
+  const rising = i => rise[i] != null && rise[i] >= RISE_ONSET;
 
-  let startIdx = -1;
-  for (let i = endIdx - 1; i >= RUN - 1; i--) {
-    let quiet = true;
-    for (let j = 0; j < RUN; j++) {
-      const v = speed[i - j];
-      if (v == null || v >= MOVE_ONSET) { quiet = false; break; }
+  let startIdx = -1, clampReason = null, still = 0;
+  for (let i = endIdx - 1; i >= 0; i--) {
+    if (rise[i] == null) {
+      // Ran out of measurable wrist speed before the run ended. At the head
+      // of the clip that is a clip starting mid-pull; in the middle it is the
+      // wrists being lost for longer than the gap fill reaches.
+      let head = true;
+      for (let j = 0; j < i; j++) if (rise[j] != null) { head = false; break; }
+      clampReason = head ? 'head' : 'lost';
+      startIdx = head ? 0 : i + 1;
+      break;
     }
-    if (quiet) { startIdx = i; break; }
+    if (rising(i)) { still = 0; continue; }
+    if (++still === RUN) { startIdx = i + RUN; break; }
   }
-  const clamped = startIdx < 0;   // clip probably starts mid-pull
-  if (clamped) startIdx = 0;
+  if (startIdx < 0) { clampReason = 'head'; startIdx = 0; }   // rising all the way back to sample 0
+  const clamped = clampReason != null;
 
-  let onsetSpeed = null;
-  for (let i = startIdx + 1; i <= endIdx; i++) {
-    if (speed[i] != null && speed[i] >= MOVE_ONSET) { onsetSpeed = speed[i]; break; }
+  // What the trigger saw: the rise speed at the start frame (on a clamped clip,
+  // at the first frame that has one), and the fastest the wrists were rising in
+  // the still block just before it — the two numbers that put the boundary
+  // where it is.
+  let onsetRise = null;
+  for (let j = startIdx; j <= endIdx; j++) if (rise[j] != null) { onsetRise = rise[j]; break; }
+  let setupRise = null;
+  if (!clamped) {
+    for (let j = startIdx - RUN; j < startIdx; j++) {
+      if (rise[j] != null && (setupRise == null || rise[j] > setupRise)) setupRise = rise[j];
+    }
   }
-  return { cross, startIdx, endIdx, clamped, onsetSpeed };
+  return { cross, startIdx, endIdx, clamped, clampReason, onsetRise, setupRise };
 }
 
 // A rule through `pt` spanning the frame, parallel to the bar — the drawn form
@@ -569,234 +602,271 @@ const driftScore = summary =>
   (!summary || summary.drift == null || !isFinite(summary.drift)) ? null
     : Math.max(0, Math.min(1, Math.abs(summary.drift) / DRIFT_RED));
 
-const firstPullBackAngle = {
+// One first-pull diagnostic per lift, built from the same measurement. The
+// snatch and the clean share the event (bar off the floor to bar past the knee)
+// and the cue (the trunk holds its inclination through it), so the phase
+// trigger, the scalar and the overlay are the same code; what differs is the
+// object each lift's set carries — its own id, title, cue wording and the
+// caveat about where its thresholds came from — so a fixture, a label or a
+// note can name one lift's cue without implying the other's.
+function makeFirstPullBackAngle(spec) {
+  return {
+    id: spec.id,
+    title: spec.title,
+    phaseLabel: 'first pull',
+    cue: spec.cue,
+    unit: '°',
+
+    // Active phase: floor to bar-past-knee — both triggers come from
+    // firstPullWindow, which is shared with the bar-axis estimate (see there for
+    // why the start is searched backwards from the end).
+    phase(samples, scale, ax) {
+      const notes = [];
+      const w = firstPullWindow(samples, scale, ax);
+      if (w.cross.idx < 0) {
+        return { error: w.cross.reason === 'no-below'
+          ? 'The bar never sits below knee height in this clip — there is no first pull to score.'
+          : 'The bar never crosses knee height — the first pull has no end trigger in this clip.' };
+      }
+      const { startIdx, endIdx } = w, bar = w.cross.bar, knee = w.cross.knee;
+      if (w.clamped) {
+        notes.push(w.clampReason === 'lost'
+          ? 'The wrists were lost from the pose track for a stretch before the bar reached the knee, so there is no wrist speed to find the start from. The phase starts where they reappear, so the beginning of the first pull may be missing.'
+          : 'The wrists were already rising at the first frame with a measurable speed — the clip probably starts mid-pull. The phase start is clamped to the first frame, so the beginning of the first pull may be missing.');
+      }
+      if (endIdx - startIdx < RUN) {
+        return { error: `The first pull resolved to only ${endIdx - startIdx + 1} sampled frame(s) — too short to score. Try a lower frame stride.` };
+      }
+
+      const gapPx = elev(knee[endIdx], ax) - elev(bar[endIdx], ax);
+      return {
+        startIdx, endIdx, notes,
+        triggers: {
+          onsetRise: w.onsetRise,
+          setupRise: w.setupRise,
+          clamped: w.clamped,
+          clampReason: w.clampReason,
+          crossGapPx: gapPx,
+          crossGapTorso: gapPx / scale,
+        },
+        bar, knee,
+      };
+    },
+
+    // Two independent estimates from disjoint keypoints: left hip->shoulder and
+    // right hip->shoulder. Their mean is the reported angle; their absolute
+    // difference is the uncertainty band.
+    measure(samples, phase, ax) {
+      const notes = [];
+      const series = [];
+      let both = 0, interp = 0, noForearm = 0;
+
+      for (let i = phase.startIdx; i <= phase.endIdx; i++) {
+        const p = samples[i].p;
+        const aL = trunkAngle(p[KP.lHip], p[KP.lSho], ax);
+        const aR = trunkAngle(p[KP.rHip], p[KP.rSho], ax);
+        const vals = [aL, aR].filter(v => v != null);
+        if (!vals.length) continue;
+        if (vals.length === 2) both++;
+        if ([KP.lHip, KP.lSho, KP.rHip, KP.rSho].some(k => p[k] && p[k].interp)) interp++;
+        if (phase.bar[i] && phase.bar[i].noForearm) noForearm++;
+        series.push({
+          idx: i,
+          frame: samples[i].frame,
+          t: samples[i].t,
+          value: vals.reduce((a, b) => a + b, 0) / vals.length,
+          lo: Math.min.apply(null, vals),
+          hi: Math.max.apply(null, vals),
+          spread: vals.length === 2 ? Math.abs(aL - aR) : null,
+        });
+      }
+      if (series.length < RUN) {
+        return { error: 'Neither hip–shoulder pair stayed above the confidence threshold for long enough inside the first pull.' };
+      }
+
+      const vals = series.map(s => s.value);
+      const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+      const sd = Math.sqrt(vals.reduce((a, v) => a + (v - mean) * (v - mean), 0) / vals.length);
+      const spreads = series.map(s => s.spread).filter(v => v != null);
+      const summary = {
+        mean, sd,
+        range: Math.max.apply(null, vals) - Math.min.apply(null, vals),
+        drift: vals[vals.length - 1] - vals[0],
+        meanSpread: spreads.length ? spreads.reduce((a, b) => a + b, 0) / spreads.length : null,
+        n: series.length,
+        bothSides: both / series.length,
+        interpFrac: interp / series.length,
+        duration: series[series.length - 1].t - series[0].t,
+      };
+
+      if (mean > 75) {
+        notes.push('The trunk reads near-vertical for the whole pull, which usually means the clip is filmed front-on rather than side-on. The angle saturates near 90° in that view and this score is not meaningful.');
+      }
+      if (summary.meanSpread != null && summary.meanSpread > 8) {
+        notes.push('The two sides disagree by ' + fmt(summary.meanSpread) + '° on average. A steady offset means the camera is not square to the lifter (or the lifter is twisted on the bar) — real signal, not error. A jittery one means the pose track is unreliable; check the band on the plot.');
+      }
+      if (noForearm > series.length * 0.25) {
+        notes.push('An elbow dropped below confidence on ' + Math.round(100 * noForearm / series.length) + '% of frames, so the bar estimate fell back to the bare wrist there — the phase end may be a frame or two early.');
+      }
+      return { series, summary, notes };
+    },
+
+    // A missing summary scores null (mid-ramp) rather than a false pass.
+    score: driftScore,
+
+    verdict(summary) {
+      if (summary.sd <= SD_GOOD) return { label: 'holds well', status: 'good' };
+      if (summary.sd <= SD_WARN) return { label: 'some rise', status: 'warning' };
+      return { label: 'chest rises early', status: 'critical' };
+    },
+
+    // Dashed reference line: the phase's own mean, since the cue is about
+    // constancy relative to the lift itself, not a fixed external target.
+    referenceLine(summary) {
+      return { value: summary.mean, label: 'mean ' + fmt(summary.mean) + '°' };
+    },
+
+    tiles(summary, verdict) {
+      return [
+        { label: 'Back-angle constancy', value: fmt(summary.sd) + '°',
+          sub: verdict.label + ' · SD over the pull', status: verdict.status },
+        // The tile that names the number the ramp is built from carries the ramp
+        // colour itself, so the plot's hue has a legend somewhere.
+        { label: 'Drift', value: (summary.drift >= 0 ? '+' : '') + fmt(summary.drift) + '°',
+          sub: 'end minus start', status: scoreColor(driftScore(summary)) },
+        { label: 'Mean angle', value: fmt(summary.mean) + '°', sub: 'to the floor' },
+        { label: 'L/R disagreement', value: summary.meanSpread == null ? '—' : '±' + fmt(summary.meanSpread) + '°', sub: 'uncertainty' },
+      ];
+    },
+
+    transparencyLines(res, samples, ctxExtra) {
+      const s = res.summary, ph = res.phase, tr = ph.triggers;
+      const pct = v => Math.round(v * 100) + '%';
+      return [
+        '<strong>Phase</strong> — frames ' + samples[ph.startIdx].frame + '–' +
+          samples[ph.endIdx].frame + ', ' + fmt(s.duration, 2) + 's, ' + s.n + ' sampled frames measured.',
+        '<strong>Start trigger</strong> — first frame the wrists rise, walking back from the knee crossing: upward wrist speed of at least ' +
+          fmt(RISE_ONSET, 2) + ' torso-lengths/s' +
+          (tr.clamped
+            ? (tr.clampReason === 'lost'
+                ? ', but the wrists dropped out of the track before that — the phase starts where they reappear (' + fmt(tr.onsetRise, 2) + ' at that frame).'
+                : ', already met at the first measurable frame (' + fmt(tr.onsetRise, 2) + ') — no start found; clamped to the first frame.')
+            : ' (measured ' + fmt(tr.onsetRise, 2) + ' at the start frame; the ' + RUN + ' frames before it peaked at ' +
+              fmt(tr.setupRise, 2) + '). Sideways wrist motion does not count, so a bar roll-in or a re-grip before the pull is not the pull.'),
+        '<strong>End trigger</strong> — estimated bar (wrist + 1/6 forearm) crossed knee height, clearing it by ' +
+          fmt(tr.crossGapPx, 0) + 'px (' + fmt(tr.crossGapTorso, 2) + ' torso-lengths).',
+        '<strong>Measurement</strong> — left and right hip→shoulder scored separately; ' +
+          pct(s.bothSides) + ' of frames had both sides visible, ' + pct(s.interpFrac) +
+          ' relied on a detection filled in from neighbouring frames.',
+        axisNote(ctxExtra.axis),
+        '<strong>Time smoothing</strong> — ' + (ctxExtra.smoothingMs
+          ? 'trajectories were smoothed with a Gaussian of σ = ' + ctxExtra.smoothingMs +
+            ' ms before scoring (the slider under the video). Widening it lowers the SD ' +
+            'above whether or not the back angle actually held, so compare lifts at one setting.'
+          : 'off — scored on raw per-frame detections, so pose jitter is counted as ' +
+            'back-angle movement and the SD reads high.'),
+        '<strong>Caveat</strong> — angles are in the image plane, so this assumes a side-on camera. The good/warning bands (' +
+          fmt(SD_GOOD, 1) + '° / ' + fmt(SD_WARN, 1) + '° SD) are provisional and not fitted to labelled lifts' + spec.thresholdNote + '. ' +
+          'The green-to-red colour is a separate reading — total drift, full red at ' + fmt(DRIFT_RED, 0) +
+          '° — so a lift can score red on constancy while the colour stays green, if the angle wandered and came back.',
+      ].concat(res.notes.map(n => '<strong>Note</strong> — ' + n));
+    },
+
+    // Everything the two triggers and the measurement rest on, drawn on the frame
+    // itself while the playhead is inside the phase.
+    //
+    // `view` is the track at the playhead's actual time (see pointsAtTime), not a
+    // sampled frame: view.p are the points now, view.at(t) the points at any other
+    // instant inside the phase, view.dt the mean spacing of processed frames.
+    overlay(ctx, view, phase, res, size) {
+      const p = view.p, ax = view.axis;
+      // Recomputed from the points being drawn rather than indexed out of the
+      // phase arrays. At a processed frame these are the same two points — same
+      // functions, same axis — and in between them the rules track the bar
+      // instead of holding the last frame's height, so the crossing the phase end
+      // is defined by is visible at the moment it happens.
+      const bar = barPoint(p, ax), knee = kneePoint(p);
+      const lw = Math.max(2, size / 260);
+
+      // Both hip->shoulder segments carry the lift's colour: the mark that IS the
+      // measurement is also the readout of it, so the frame and the plot cannot
+      // disagree about how the pull scored.
+      const segments = pp => [[KP.lHip, KP.lSho], [KP.rHip, KP.rSho]]
+        .map(([h, sh]) => [pp[h], pp[sh]])
+        .filter(([a, b]) => a && b);
+      const stroke = pp => {
+        for (const [a, b] of segments(pp)) {
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        }
+      };
+      const col = alpha => scoreColor(this.score(res.summary), alpha);
+
+      // A short trail of the previous few sampled frames, in the same colour at a
+      // fading alpha: a chest that rises leaves a spreading fan, one that holds
+      // leaves a tight bundle. Kept faint and clipped to the phase — it is context
+      // for the current frame, not a second reading of it, and it must not compete
+      // with the white pose track underneath.
+      //
+      // Spaced one processed frame apart in TIME rather than taken at the last
+      // few sample indices, so the whole fan slides with the playhead instead of
+      // popping a new segment in each time a frame is crossed.
+      if (view.dt > 0) {
+        ctx.save();
+        ctx.lineWidth = lw * 1.2;
+        for (let k = TRAIL; k >= 1; k--) {
+          const pp = view.at(view.t - k * view.dt);   // null before the phase starts
+          if (!pp) continue;
+          ctx.strokeStyle = col(TRAIL_ALPHA * (1 - k / (TRAIL + 1)));
+          stroke(pp);
+        }
+        ctx.restore();
+      }
+
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = lw * 3.2;   // ring for legibility
+      stroke(p);
+      ctx.strokeStyle = col(1); ctx.lineWidth = lw * 1.8;
+      stroke(p);
+
+      // Phase-end trigger: the two heights it compares, each as a hairline right
+      // across the frame, parallel to the bar. Purple, not ramped — these say WHEN
+      // the phase ends, they are not a judgement of the lift, and hue is what
+      // separates the two roles. Solid at full strength is the bar estimate the
+      // trigger actually uses (wrist dropped by a sixth of the forearm); dashed is
+      // the bare wrist it was corrected from, so the size of that correction is
+      // visible rather than taken on trust; the knee reference sits behind both at
+      // half strength. Unlabelled — with all three spanning the frame it's weight,
+      // not length, that separates the measurement from its reference.
+      const wrist = wristCentroid(p);
+      const thin = Math.max(1, lw * 0.35);
+      barRule(ctx, knee, ax, [], 0.5, thin);
+      // Skip the uncorrected rule when it would land under the corrected one — on
+      // a frame where the elbow was missing they are the same estimate.
+      if (wrist && bar && Math.abs(elev(wrist, ax) - elev(bar, ax)) > Math.max(thin * 2, size / 200)) {
+        barRule(ctx, wrist, ax, [thin * 4, thin * 4], 0.55, thin);
+      }
+      barRule(ctx, bar, ax, [], 1, thin);
+    },
+  };
+}
+
+const firstPullBackAngle = makeFirstPullBackAngle({
   id: 'first-pull-back-angle',
   title: 'First pull — constant back angle',
-  phaseLabel: 'first pull',
   cue: 'Through the first pull the back angle to the floor stays constant: the knees open and the bar rises, but the trunk keeps its inclination.',
-  unit: '°',
+  thresholdNote: '',
+});
 
-  // Active phase: floor to bar-past-knee — both triggers come from
-  // firstPullWindow, which is shared with the bar-axis estimate (see there for
-  // why the start is searched backwards from the end).
-  phase(samples, scale, ax) {
-    const notes = [];
-    const w = firstPullWindow(samples, scale, ax);
-    if (w.cross.idx < 0) {
-      return { error: w.cross.reason === 'no-below'
-        ? 'The bar never sits below knee height in this clip — there is no first pull to score.'
-        : 'The bar never crosses knee height — the first pull has no end trigger in this clip.' };
-    }
-    const { startIdx, endIdx } = w, bar = w.cross.bar, knee = w.cross.knee;
-    if (w.clamped) {
-      notes.push('No still period was found before the bar reached the knee — the clip probably starts mid-pull. The phase start is clamped to the first frame, so the beginning of the first pull may be missing.');
-    }
-    if (endIdx - startIdx < RUN) {
-      return { error: `The first pull resolved to only ${endIdx - startIdx + 1} sampled frame(s) — too short to score. Try a lower frame stride.` };
-    }
-
-    const gapPx = elev(knee[endIdx], ax) - elev(bar[endIdx], ax);
-    return {
-      startIdx, endIdx, notes,
-      triggers: {
-        onsetSpeed: w.onsetSpeed,
-        clamped: w.clamped,
-        crossGapPx: gapPx,
-        crossGapTorso: gapPx / scale,
-      },
-      bar, knee,
-    };
-  },
-
-  // Two independent estimates from disjoint keypoints: left hip->shoulder and
-  // right hip->shoulder. Their mean is the reported angle; their absolute
-  // difference is the uncertainty band.
-  measure(samples, phase, ax) {
-    const notes = [];
-    const series = [];
-    let both = 0, interp = 0, noForearm = 0;
-
-    for (let i = phase.startIdx; i <= phase.endIdx; i++) {
-      const p = samples[i].p;
-      const aL = trunkAngle(p[KP.lHip], p[KP.lSho], ax);
-      const aR = trunkAngle(p[KP.rHip], p[KP.rSho], ax);
-      const vals = [aL, aR].filter(v => v != null);
-      if (!vals.length) continue;
-      if (vals.length === 2) both++;
-      if ([KP.lHip, KP.lSho, KP.rHip, KP.rSho].some(k => p[k] && p[k].interp)) interp++;
-      if (phase.bar[i] && phase.bar[i].noForearm) noForearm++;
-      series.push({
-        idx: i,
-        frame: samples[i].frame,
-        t: samples[i].t,
-        value: vals.reduce((a, b) => a + b, 0) / vals.length,
-        lo: Math.min.apply(null, vals),
-        hi: Math.max.apply(null, vals),
-        spread: vals.length === 2 ? Math.abs(aL - aR) : null,
-      });
-    }
-    if (series.length < RUN) {
-      return { error: 'Neither hip–shoulder pair stayed above the confidence threshold for long enough inside the first pull.' };
-    }
-
-    const vals = series.map(s => s.value);
-    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
-    const sd = Math.sqrt(vals.reduce((a, v) => a + (v - mean) * (v - mean), 0) / vals.length);
-    const spreads = series.map(s => s.spread).filter(v => v != null);
-    const summary = {
-      mean, sd,
-      range: Math.max.apply(null, vals) - Math.min.apply(null, vals),
-      drift: vals[vals.length - 1] - vals[0],
-      meanSpread: spreads.length ? spreads.reduce((a, b) => a + b, 0) / spreads.length : null,
-      n: series.length,
-      bothSides: both / series.length,
-      interpFrac: interp / series.length,
-      duration: series[series.length - 1].t - series[0].t,
-    };
-
-    if (mean > 75) {
-      notes.push('The trunk reads near-vertical for the whole pull, which usually means the clip is filmed front-on rather than side-on. The angle saturates near 90° in that view and this score is not meaningful.');
-    }
-    if (summary.meanSpread != null && summary.meanSpread > 8) {
-      notes.push('The two sides disagree by ' + fmt(summary.meanSpread) + '° on average. A steady offset means the camera is not square to the lifter (or the lifter is twisted on the bar) — real signal, not error. A jittery one means the pose track is unreliable; check the band on the plot.');
-    }
-    if (noForearm > series.length * 0.25) {
-      notes.push('An elbow dropped below confidence on ' + Math.round(100 * noForearm / series.length) + '% of frames, so the bar estimate fell back to the bare wrist there — the phase end may be a frame or two early.');
-    }
-    return { series, summary, notes };
-  },
-
-  // A missing summary scores null (mid-ramp) rather than a false pass.
-  score: driftScore,
-
-  verdict(summary) {
-    if (summary.sd <= SD_GOOD) return { label: 'holds well', status: 'good' };
-    if (summary.sd <= SD_WARN) return { label: 'some rise', status: 'warning' };
-    return { label: 'chest rises early', status: 'critical' };
-  },
-
-  // Dashed reference line: the phase's own mean, since the cue is about
-  // constancy relative to the lift itself, not a fixed external target.
-  referenceLine(summary) {
-    return { value: summary.mean, label: 'mean ' + fmt(summary.mean) + '°' };
-  },
-
-  tiles(summary, verdict) {
-    return [
-      { label: 'Back-angle constancy', value: fmt(summary.sd) + '°',
-        sub: verdict.label + ' · SD over the pull', status: verdict.status },
-      // The tile that names the number the ramp is built from carries the ramp
-      // colour itself, so the plot's hue has a legend somewhere.
-      { label: 'Drift', value: (summary.drift >= 0 ? '+' : '') + fmt(summary.drift) + '°',
-        sub: 'end minus start', status: scoreColor(driftScore(summary)) },
-      { label: 'Mean angle', value: fmt(summary.mean) + '°', sub: 'to the floor' },
-      { label: 'L/R disagreement', value: summary.meanSpread == null ? '—' : '±' + fmt(summary.meanSpread) + '°', sub: 'uncertainty' },
-    ];
-  },
-
-  transparencyLines(res, samples, ctxExtra) {
-    const s = res.summary, ph = res.phase, tr = ph.triggers;
-    const pct = v => Math.round(v * 100) + '%';
-    return [
-      '<strong>Phase</strong> — frames ' + samples[ph.startIdx].frame + '–' +
-        samples[ph.endIdx].frame + ', ' + fmt(s.duration, 2) + 's, ' + s.n + ' sampled frames measured.',
-      '<strong>Start trigger</strong> — last stillness before the pull' +
-        (tr.clamped ? ' (not found; clamped to the first frame)'
-                    : ', wrist speed then rising past ' + fmt(MOVE_ONSET, 2) + ' torso-lengths/s (measured ' + fmt(tr.onsetSpeed, 2) + ').'),
-      '<strong>End trigger</strong> — estimated bar (wrist + 1/6 forearm) crossed knee height, clearing it by ' +
-        fmt(tr.crossGapPx, 0) + 'px (' + fmt(tr.crossGapTorso, 2) + ' torso-lengths).',
-      '<strong>Measurement</strong> — left and right hip→shoulder scored separately; ' +
-        pct(s.bothSides) + ' of frames had both sides visible, ' + pct(s.interpFrac) +
-        ' relied on a detection filled in from neighbouring frames.',
-      axisNote(ctxExtra.axis),
-      '<strong>Time smoothing</strong> — ' + (ctxExtra.smoothingMs
-        ? 'trajectories were smoothed with a Gaussian of σ = ' + ctxExtra.smoothingMs +
-          ' ms before scoring (the slider under the video). Widening it lowers the SD ' +
-          'above whether or not the back angle actually held, so compare lifts at one setting.'
-        : 'off — scored on raw per-frame detections, so pose jitter is counted as ' +
-          'back-angle movement and the SD reads high.'),
-      '<strong>Caveat</strong> — angles are in the image plane, so this assumes a side-on camera. The good/warning bands (' +
-        fmt(SD_GOOD, 1) + '° / ' + fmt(SD_WARN, 1) + '° SD) are provisional and not fitted to labelled lifts. ' +
-        'The green-to-red colour is a separate reading — total drift, full red at ' + fmt(DRIFT_RED, 0) +
-        '° — so a lift can score red on constancy while the colour stays green, if the angle wandered and came back.',
-    ].concat(res.notes.map(n => '<strong>Note</strong> — ' + n));
-  },
-
-  // Everything the two triggers and the measurement rest on, drawn on the frame
-  // itself while the playhead is inside the phase.
-  //
-  // `view` is the track at the playhead's actual time (see pointsAtTime), not a
-  // sampled frame: view.p are the points now, view.at(t) the points at any other
-  // instant inside the phase, view.dt the mean spacing of processed frames.
-  overlay(ctx, view, phase, res, size) {
-    const p = view.p, ax = view.axis;
-    // Recomputed from the points being drawn rather than indexed out of the
-    // phase arrays. At a processed frame these are the same two points — same
-    // functions, same axis — and in between them the rules track the bar
-    // instead of holding the last frame's height, so the crossing the phase end
-    // is defined by is visible at the moment it happens.
-    const bar = barPoint(p, ax), knee = kneePoint(p);
-    const lw = Math.max(2, size / 260);
-
-    // Both hip->shoulder segments carry the lift's colour: the mark that IS the
-    // measurement is also the readout of it, so the frame and the plot cannot
-    // disagree about how the pull scored.
-    const segments = pp => [[KP.lHip, KP.lSho], [KP.rHip, KP.rSho]]
-      .map(([h, sh]) => [pp[h], pp[sh]])
-      .filter(([a, b]) => a && b);
-    const stroke = pp => {
-      for (const [a, b] of segments(pp)) {
-        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-      }
-    };
-    const col = alpha => scoreColor(this.score(res.summary), alpha);
-
-    // A short trail of the previous few sampled frames, in the same colour at a
-    // fading alpha: a chest that rises leaves a spreading fan, one that holds
-    // leaves a tight bundle. Kept faint and clipped to the phase — it is context
-    // for the current frame, not a second reading of it, and it must not compete
-    // with the white pose track underneath.
-    //
-    // Spaced one processed frame apart in TIME rather than taken at the last
-    // few sample indices, so the whole fan slides with the playhead instead of
-    // popping a new segment in each time a frame is crossed.
-    if (view.dt > 0) {
-      ctx.save();
-      ctx.lineWidth = lw * 1.2;
-      for (let k = TRAIL; k >= 1; k--) {
-        const pp = view.at(view.t - k * view.dt);   // null before the phase starts
-        if (!pp) continue;
-        ctx.strokeStyle = col(TRAIL_ALPHA * (1 - k / (TRAIL + 1)));
-        stroke(pp);
-      }
-      ctx.restore();
-    }
-
-    ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = lw * 3.2;   // ring for legibility
-    stroke(p);
-    ctx.strokeStyle = col(1); ctx.lineWidth = lw * 1.8;
-    stroke(p);
-
-    // Phase-end trigger: the two heights it compares, each as a hairline right
-    // across the frame, parallel to the bar. Purple, not ramped — these say WHEN
-    // the phase ends, they are not a judgement of the lift, and hue is what
-    // separates the two roles. Solid at full strength is the bar estimate the
-    // trigger actually uses (wrist dropped by a sixth of the forearm); dashed is
-    // the bare wrist it was corrected from, so the size of that correction is
-    // visible rather than taken on trust; the knee reference sits behind both at
-    // half strength. Unlabelled — with all three spanning the frame it's weight,
-    // not length, that separates the measurement from its reference.
-    const wrist = wristCentroid(p);
-    const thin = Math.max(1, lw * 0.35);
-    barRule(ctx, knee, ax, [], 0.5, thin);
-    // Skip the uncorrected rule when it would land under the corrected one — on
-    // a frame where the elbow was missing they are the same estimate.
-    if (wrist && bar && Math.abs(elev(wrist, ax) - elev(bar, ax)) > Math.max(thin * 2, size / 200)) {
-      barRule(ctx, wrist, ax, [thin * 4, thin * 4], 0.55, thin);
-    }
-    barRule(ctx, bar, ax, [], 1, thin);
-  },
-};
+// The clean's first pull: same event, same cue, same measurement — see
+// .claude/skills/lifting-diagnostic/diagnostics/08-clean-first-pull-back-angle.md
+// for why sharing is mechanically justified here and what still differs (the
+// narrower grip sets the trunk up more upright, so the MEAN differs between the
+// lifts; the constancy the cue is about does not).
+const cleanFirstPullBackAngle = makeFirstPullBackAngle({
+  id: 'clean-first-pull-back-angle',
+  title: 'Clean first pull — constant back angle',
+  cue: 'Through the clean\'s first pull the back angle to the floor stays constant: the knees open and the bar rises, but the trunk keeps its inclination until the bar passes the knee.',
+  thresholdNote: ', and were carried over from the snatch rather than set on clean footage',
+});
 
 
 // --- diagnostic 2: second pull, full triple extension --------------------
@@ -1617,8 +1687,8 @@ const lateralRaiseElbowLead = {
 // Ascent and descent speed, compared per rep rather than per frame — the cue
 // is about a whole rep's shape (up under control, down under control), not an
 // instant. Each rep contributes one measurement, same as the top-height
-// diagnostic, but built from wristSpeed's ascent/descent rather than the peak
-// position alone.
+// diagnostic, but built from the wrists' ascent/descent speed rather than the
+// peak position alone.
 const TEMPO_GOOD = 1.5, TEMPO_WARN = 2.5, TEMPO_RED = 4;   // descent/ascent speed ratio — provisional
 const tempoScore = summary => (!summary || summary.worst == null || !isFinite(summary.worst)) ? null
   : Math.max(0, Math.min(1, (summary.worst - 1) / (TEMPO_RED - 1)));
@@ -1903,7 +1973,7 @@ const lateralRaiseSymmetry = {
 const DIAGNOSTIC_SETS = {
   'snatch': [firstPullBackAngle, secondPullTripleExtension],
   'lateral-raise': [lateralRaiseTopHeight, lateralRaiseTorsoLean, lateralRaiseElbowLead, lateralRaiseTempo, lateralRaiseSymmetry],
-  'clean-and-jerk': [],         // page exists, no cues yet — see .claude/skills/lifting-diagnostic
+  'clean-and-jerk': [cleanFirstPullBackAngle],
 };
 const DEFAULT_SET = 'snatch';
 
