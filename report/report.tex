@@ -6,6 +6,9 @@
                        % outline fonts, and the bitmap CM set isn't installed
 \usepackage{microtype}
 \usepackage{graphicx}
+\usepackage{tikz}      % the two appendix sketches are drawn inline, not by the
+                       % notebook: they are schematics, not measurements
+\usetikzlibrary{decorations.pathreplacing}
 \usepackage[hidelinks]{hyperref}
 
 \newcommand{\Lt}{L}                      % torso scale
@@ -26,9 +29,11 @@ estimation over every frame, and turns individual coaching cues into scalars
 computed from the resulting keypoint track. This note records the model, the
 deployment, the temporal filtering applied to the track, and the geometry of
 each implemented diagnostic. Every threshold below is provisional: none has
-been fitted to labelled lifts. Figures are produced by \texttt{analysis.ipynb}
-from one example clip (\texttt{examples/athlete-a-trim.mp4}, 107 frames at
-30\,fps) through a line-for-line Python port of the browser code.
+been fitted to labelled lifts. Measured figures are produced by
+\texttt{analysis.ipynb} from one example clip
+(\texttt{examples/athlete-a-trim.mp4}, 107 frames at 30\,fps) through a
+line-for-line Python port of the browser code; the two appendix sketches are
+schematics, drawn inline.
 \end{abstract}
 
 \section{Model}
@@ -407,225 +412,397 @@ $\sigma$ is printed with every score.
 
 Everything above is planar: ViTPose returns $(x,y)$ and the diagnostics measure
 angles in the image. The 3D viewer needs a $z$ per joint, and one uncalibrated
-camera does not supply one. This appendix is the geometry used to invent it,
-the ambiguity that survives, and --- \S\ref{sec:depth-broken} --- what the two
-errors it used to make cost, since both shaped the method that replaced them.
-Implementation: \texttt{src/depth\_backend.py}.
+camera does not supply one. This appendix is the geometry used to invent it and
+the ambiguity that survives. Implementation:
+\texttt{src/depth\_backend.py}.
 
-\subsection{Foreshortening}\label{sec:depth-fore}
+\paragraph{Coordinates, units, lengths.} $x$ runs right and $y$ down, as the
+image does; $z$ runs away from the camera. Only differences in $z$ are ever
+used, so the pelvis is pinned at $z=0$ and every other joint is placed relative
+to it. The unit is the torso length $\Lt$ (pelvis-to-neck), one number for the
+whole clip rather than per frame: that distance is itself a projection --- on
+the example lift $141\,\mathrm{px}$ at the bottom of the pull against $251$
+stood up --- and a per-frame value would shrink the bone priors, and only the
+priors, exactly when the pose is most foreshortened. Every per-frame reading is
+a lower bound on one fixed quantity, so the estimate is the top of that
+distribution (the 95th percentile, the rest being keypoint noise).
 
-Take a bone whose true 3D length $L$ is known and whose endpoints project to a
-screen separation $\ell$. Under an orthographic camera the screen length is the
-projection of the bone onto the image plane, so the out-of-plane extent follows
-from Pythagoras (Fig.~\ref{fig:depthgeom}a):
+Bone lengths are priors in those units, one ratio per segment shared by the two
+sides: thigh and shank $0.85$, upper arm $0.62$, forearm $0.50$. They are a
+\emph{profile}, editable per athlete in the interface and saved by name,
+because \S\ref{sec:depth-limbs} is about how badly they can be inferred.
+
+\paragraph{The projector.} The lift treats the camera as orthographic, so
+projection is the map
 \[
-  dz=\sqrt{\max(L^2-\ell^2,\,0)}.
+  P:(x,y,z)\mapsto(x,y),
 \]
-A bone of fixed length that looks short is pointing at the camera, and the
-shortfall is the depth. The clamp handles $\ell>L$ --- a wrong prior or a bad
-keypoint --- by placing the joint flat rather than failing.
+and for a bone with 3D vector $\mathbf{b}$ between two joints we write
+$L=\lVert\mathbf{b}\rVert$ for its true length and
+$\ell=\lVert P(\mathbf{b})\rVert$ for the separation actually seen on screen.
+$P$ throws away one number per joint, and the whole appendix is about putting
+it back: \S\ref{sec:depth-sign} recovers the one bit $P$ destroys per bone,
+\S\ref{sec:depth-lift} recovers the magnitude from $L$ and $\ell$,
+\S\ref{sec:depth-limbs} is about where $L$ comes from, and
+\S\ref{sec:depth-parallax} is the error in $P$ itself.
 
 Joints are placed by walking outward from the trunk, each child taking its
-parent's depth plus its own $dz$, so flipping a forearm swings the wrist about
-the elbow instead of translating the whole arm. The priors $L$ are population
-anthropometry expressed in torso lengths (pelvis-to-neck $=1$): thigh and shank
-$0.85$, upper arm $0.62$, forearm $0.50$.
+parent's depth plus its own signed offset, so flipping a forearm swings the
+wrist about the elbow instead of translating the whole arm. The head is not
+walked: it is carried as a single point at the eye midpoint, which lies on the
+body's sagittal midline where $z=0$ holds by construction, so it needs no prior
+and has no sign to choose.
 
-The head is not walked. COCO gives five head keypoints; the lift carries one,
-at the midpoint of the two eyes, and the nose, ears and eyes are dropped. Five
-points inside a head's width resolve nothing at this scale, and they accounted
-for four of the depth directions the interface asked the user about. Reaching
-that point from the neck with a fixed prior would be wrong in the same way the
-scale below is: neck-to-eyes is not rigid, because the athlete looks down
-through the pull, and on the example clip it projects to $0.37\,\Lt$ at the
-median against $0.59$ at its longest. A prior long enough to cover the $0.59$
-would invent $\sqrt{0.62^2-0.37^2}=0.50\,\Lt$ of depth at a typical frame. The
-head point lies on the body's sagittal midline instead, where $z=0$ holds by
-construction --- so it needs no prior and has no sign to choose, and it follows
-the trunk.
+\subsection{Choosing the depth signs}\label{sec:depth-sign}
 
-The torso length they are scaled by must be one number for the clip, not the
-pelvis-to-neck distance measured on each frame. That distance is itself a
-projection: on the example lift it runs $141\,\mathrm{px}$ at the bottom of the
-pull against $251$ stood up, a factor of $1.78$, while the athlete's torso
-plainly does not change length. Using the per-frame value shrinks every bone
-prior by that factor exactly when the pose is most foreshortened --- and only
-the priors, since $x$ and $y$ stay in real pixels --- so the recovered $z$ is
-scaled by the foreshortening of a different body part. Because a projection is
-never longer than what it projects, the per-frame values are all lower bounds on
-one fixed quantity and the largest is the estimate; the code takes the 95th
-percentile, the top of that distribution being keypoint noise.
+$P$ preserves $\lVert P(\mathbf{b})\rVert$ and destroys the sign of
+$\mathbf{b}_z$: a bone foreshortened by $30\,\mathrm{px}$ is equally consistent
+with pointing toward the camera or away from it, and both reconstructions fit
+the image \emph{exactly}. The search covers nine bits --- the trunk plus the
+eight limb bones --- so $512$ reconstructions reproduce the observed pose
+perfectly. Half of that is gauge: negating \emph{every} sign reflects the pose
+about the image plane, preserving all pairwise distances, so the $512$ are
+$256$ poses each appearing twice and no distance-based criterion can prefer one
+mirror to the other. Which mirror is right is a user decision by construction.
 
-\subsection{Scale}
+A sign only ever multiplies its own bone's offset and a joint's depth is the
+sum of the signed offsets along the walk from the pelvis, so depth is
+\emph{linear} in the sign vector $\mathbf{s}\in\{\pm1\}^{9}$: per frame the
+geometry factors as one matrix with $\mathbf{z}=M\mathbf{s}$, every candidate
+is a row of a matmul, and all $256$ are evaluated in about $30\,\mathrm{ms}$.
 
-The lift needs $L$ in the same units as $\ell$. Two sources, in order of
-preference:
+\paragraph{(a) From the start position.} The snatch and the clean begin with
+the bar on the floor and the athlete momentarily still, square to the bar, hips
+and knees flexed, arms straight. Every sign assignment implies a hip, knee,
+shoulder and elbow angle in that pose, and most of the $256$ imply one no body
+can hold. \texttt{start\_pose\_gate} therefore does not choose --- it
+\emph{eliminates}, keeping only the assignments whose implied angles fall in
+deliberately wide anatomical bands, and reports which joints take the same sign
+in every survivor (decided by anatomy rather than by any cost). The bands
+assume a level, side-on camera, which is the filming this is for; applied to a
+standing athlete they are meaningless, so the gate is restricted to lifts with
+a floor start.
 
-\emph{Metric, from the equipment.} A bumper plate is a $450\,\mathrm{mm}$ disc,
-and a circle seen at an angle $\alpha$ to the camera projects to an ellipse
-whose minor axis is foreshortened and whose major axis is not
-(Fig.~\ref{fig:depthgeom}c). Fitting that ellipse gives the scale and the tilt
-at once,
+Order matters and is forced. Gating and limb optimisation do not commute: gate
+strength is monotone in the length prior ($16/256$ survive at the profile
+lengths, $256/256$ at $0.8\times$ them --- no ruling at all) and the optimiser
+shrinks limbs, so optimising first dissolves the evidence the gate runs on.
+Iterating the two on the example snatch converges in three rounds to exactly
+that degenerate corner: thigh $0.386\,\Lt$, gate $256/256$, margin $0.000$. The
+gate is therefore computed once, from lengths that did not come from the
+optimiser, and held.
+
+What the gate leaves undecided is the user's. Every surviving bit is exposed
+per joint in the sidebar and by clicking the joint in the 3D view, and travels
+with the saved profile; the interface is built so that flipping one and looking
+again is the cheap operation, because for the mirror bit it is the only
+operation there is.
+
+All nine bits are free, which they were not always. Ankles used to inherit the
+knee's sign and wrists the elbow's --- true of a straight limb, backwards for a
+flexed one, since in a squat the thigh runs forward and down from the hip while
+the shank runs \emph{backward} and down from the knee. Sweeping every
+assignment at every frame, the smallest foot separation the tied scheme can
+reach has a median of $0.50\,\Lt$ against $0.15\,\Lt$ with the bits free: a
+feet-together catch was not disfavoured, it was unreachable, and the search
+returned a pose satisfying every bone length and every joint angle with the
+feet $1.86\,\Lt$ --- roughly a metre --- apart in depth.
+
+\paragraph{(b) Flips during the lift, which is a construction site.} A sign is
+currently one value per joint for the whole clip. A limb that genuinely crosses
+the image plane switches, and the switch can only happen where the bone is
+parallel to the image plane --- where $\ell=L$, the two roots of
+\S\ref{sec:depth-lift} coincide and the reconstruction is continuous through
+the change. That gives a \emph{detectable} switching point, which is the easy
+half. The hard half is deciding which side of it takes which sign, and a wrong
+switch is worse than no switch, so nothing is implemented yet.
+
+\begin{figure}[t]
+  \centering
+  \begin{tikzpicture}[x=1cm,y=1cm,>=latex,line cap=round,line join=round]
+    \definecolor{acc}{RGB}{190,60,40}
+    % depth axis and image-plane direction, seen from above
+    \draw[->,gray] (-2.1,0) -- (4.7,0) node[right,black] {\small image $x$};
+    \draw[->,gray] (1.2,-3.1) -- (1.2,3.2) node[above,black] {\small $z$ (depth)};
+    % orthographic rays
+    \foreach \X in {-1.4,-0.6,0.2,1.0,1.8,2.6,3.4,4.2}
+      \draw[->,gray!55] (\X,-4.3) -- (\X,-3.55);
+    \node[gray!80] at (-0.1,-4.6) {\small camera: rays parallel, so $P$ drops $z$};
+    \draw[gray!55] (-2.1,-3.5) -- (4.7,-3.5);
+    \node[gray!80,anchor=west] at (3.55,-3.25) {\small image};
+    % sphere of allowed child positions
+    \draw[dashed,acc!70] (1.2,0) circle (2.8);
+    \node[acc,anchor=south west] at (-1.85,1.75) {\small $\lVert\mathbf{b}\rVert=L$};
+    % the ray through the child's image point
+    \draw[dashed,gray] (3.1,-3.5) -- (3.1,3.0);
+    \node[gray!80,anchor=west,align=left] at (3.2,2.6)
+      {\small ray through the\\\small child's image point};
+    % the triangle
+    \draw[very thick,acc] (1.2,0) -- (3.1,2.057);
+    \draw[thick] (1.2,0) -- (3.1,0);
+    \draw[thick] (3.1,0) -- (3.1,2.057);
+    \draw (2.85,0) -- (2.85,0.25) -- (3.1,0.25);
+    \fill (1.2,0) circle (2.4pt);
+    \fill[acc] (3.1,2.057) circle (2.4pt);
+    \draw[acc,fill=white,thick] (3.1,-2.057) circle (2.4pt);
+    \node[anchor=east] at (1.1,-0.28) {\small parent (placed)};
+    \node[acc,anchor=west] at (3.22,2.057) {\small child, $s=+1$};
+    \node[acc,anchor=west] at (3.22,-2.057) {\small child, $s=-1$};
+    \node[anchor=north] at (2.15,-0.1) {\small $\ell$};
+    \node[anchor=west] at (3.12,1.05) {\small $dz$};
+    \node[acc,anchor=south east] at (2.2,1.1) {\small $L$};
+    % projections onto the image line
+    \draw[dotted,gray] (1.2,0) -- (1.2,-3.5);
+  \end{tikzpicture}
+  \caption{Placing one joint, seen from above. The parent is already placed;
+  the child lies on a sphere of radius $L$ about it, and on the ray through its
+  own image point --- vertical here, because an orthographic $P$ makes the rays
+  parallel. Ray and sphere meet twice, and $\ell$, $dz$, $L$ are the legs and
+  hypotenuse of a right triangle, so $dz=\sqrt{L^2-\ell^2}$ with the sign the
+  only thing left to choose. The true rays diverge from the camera rather than
+  running parallel, which is \S\ref{sec:depth-parallax}.}
+  \label{fig:raysphere}
+\end{figure}
+
+\subsection{Estimating the depths}\label{sec:depth-lift}
+
+A point in the image is not a point in space but a ray out from the camera, and
+what fixes a position along that ray is the one thing known independently: how
+far the joint is from the joint it hangs off. So the reconstruction starts at
+an anchor --- the pelvis, at $z=0$ --- and walks outward, each child constrained
+to a sphere of radius $L$ about its already-placed parent
+(Fig.~\ref{fig:raysphere}). Ray and sphere intersect in two points, $\ell$ and
+$dz$ are the legs of a right triangle with hypotenuse $L$, and
 \[
-  s=\frac{225\,\mathrm{mm}}{\mathrm{major}/2}\quad[\mathrm{mm/px}],
-  \qquad
-  \cos\alpha=\frac{\mathrm{minor}}{\mathrm{major}},
+  dz=\sqrt{\max(L^2-\ell^2,\,0)},
 \]
-and since the plate's normal is the bar's axis, the same fit orients the bar in
-3D. This is the only true metric anchor in the system: one frame fixes both a
-real distance and a real direction. It is also the only path that requires the
-equipment detector, and it degrades to the alternative when no plate is found.
+with \S\ref{sec:depth-sign} supplying the sign that picks one of the two. A
+bone of fixed length that looks short is pointing at the camera, and the
+shortfall is the depth. The clamp handles $\ell>L$ --- a wrong prior or a bad
+keypoint --- by placing the joint flat rather than failing, which also makes
+that bone's ratio inert: its gradient in \S\ref{sec:depth-limbs} is exactly
+zero.
 
-\emph{Relative, from the body.} Otherwise $\Lt$ (\S\ref{sec:smooth}) is the
-unit and the reconstruction is in torso lengths --- enough for shape and
-angles, not for measurements.
-
-\subsection{The trunk is not a flat plate}
-
-Shoulders and hips were originally pinned to $z=0$, which asserts the trunk is
-parallel to the screen. Filmed side-on that is false and the error is not
-small: on the example clip the shoulders project $0.43\,\Lt$ apart against a
-true width near $0.85\,\Lt$. The same relation as
-\S\ref{sec:depth-fore} applies to a left/right pair of known width $W$ and
-observed separation $d$,
+Shoulders and hips are not pinned to $z=0$; that would assert the trunk is
+parallel to the screen, and filmed side-on it is not --- on the example clip
+the shoulders project $0.43\,\Lt$ apart against a true width near $0.85\,\Lt$.
+The same relation applies to a left/right pair of known width $W$ and observed
+separation $d$,
 \[
   dz_{\text{pair}}=\tfrac{1}{2}\sqrt{\max(W^2-d^2,\,0)},
 \]
 applied with opposite signs to the two sides so the trunk turns about its own
-axis rather than the body sliding in depth. Shoulders and hips share one sign:
-independent signs would permit a $180^\circ$ twist between hip and shoulder. The
-cost is that real, modest torso twist is not modelled.
+axis rather than the body sliding in depth. Shoulders and hips share one sign,
+since independent signs would permit a $180^\circ$ twist between hip and
+shoulder; the cost is that real, modest torso twist is not modelled.
+
+\subsection{Fitting the limb lengths}\label{sec:depth-limbs}
+
+$L$ is the thing everything else is downstream of, and it is also the one
+quantity a single view cannot measure --- so it is inferred from consequences.
+Wrong lengths bend the body in ways a body does not bend, and the amount of
+un-bodylike-ness is a signal about the lengths. Three objectives are offered
+over four ratios (thigh, shank, upper arm, forearm), built from seven
+penalties, each in torso lengths (or a $|\cos|$) and each $0$ when perfect:
+
+\begin{center}\small
+\begin{tabular}{lp{3.9cm}p{6.8cm}}
+\hline
+objective & terms & what it asserts\\
+\hline
+\texttt{humanness} & \texttt{midplane}, \texttt{symmetry}, \texttt{hands},
+\texttt{arms}, \texttt{legs} & the six left/right midpoints share a plane and
+each pair lies square across it; the hands are in front of the shins; the six
+arm joints are coplanar; each leg's hip--knee--ankle plane is vertical\\[2pt]
+\texttt{mirror} & \texttt{midplane}, \texttt{symmetry} & only the first two:
+a body is mirror-symmetric whatever the lift asks of it\\[2pt]
+\texttt{mirror\_joint} & \texttt{coplanar}, \texttt{orthogonal} & the same two
+statements, but \emph{one} plane has to satisfy both at once\\
+\hline
+\end{tabular}
+\end{center}
+
+\noindent The last is worth separating because of how the first two are
+computed: \texttt{mirror} fits the plane to the six midpoints and only then
+grades the separations against whatever normal came out. The midpoints run up
+the body and are nearly collinear (principal spreads $0.35/0.24/0.03\,\Lt$ on
+the example snatch), so the axis they leave undetermined is exactly the one the
+separations care about, and the separations --- which are emphatically not
+collinear --- get no vote. Adding the two squared residuals about a unit normal
+$\mathbf{n}$ gives $\mathbf{n}^\top(C-D)\mathbf{n}$ with $C$ the midpoint
+covariance and $D$ the mean outer product of the separations, so the best plane
+is the smallest eigenvector of $C-D$: closed form, one symmetric eigenproblem
+per candidate. The jointly fitted normal sits about $8^\circ$ off the
+midpoint-fitted one.
+
+The fit itself is plain: numerical gradients on the four ratios, a backtracking
+line search, and convergence declared when every term \emph{in the objective}
+individually moves less than $2\times10^{-4}\,\Lt$ in a step. The sign search of
+\S\ref{sec:depth-sign} runs underneath at every evaluation --- confined to the
+gate's survivors --- so this is a minimum over lengths with the directions
+re-chosen, which makes the objective only piecewise smooth and is the other
+reason the gradient is numerical.
+
+\paragraph{How well they can be satisfied, and what is wrong with each.}
+Measured on the two fixtures (the snatch has an athlete whose limbs were
+actually measured, so its lengths can be scored; the clean \& jerk cannot):
+
+\begin{center}\small
+\begin{tabular}{lrrrr}
+\hline
+ & \multicolumn{2}{c}{snatch} & \multicolumn{2}{c}{clean \& jerk}\\
+ & reached & best & reached & best\\
+\hline
+\texttt{humanness} & $0.234$ & $0.233$ & $0.320$ & $0.109$\\
+\texttt{mirror}      & $0.066$ & $0.065$ & $0.072$ & $0.072$\\
+\texttt{mirror\_joint} & $0.067$ & $0.067$ & $0.077$ & $0.077$\\
+\hline
+\texttt{symmetry} floor (2D) & \multicolumn{2}{c}{$0.031$} & \multicolumn{2}{c}{$0.027$}\\
+\texttt{orthogonal} floor (2D) & \multicolumn{2}{c}{$0.039$} & \multicolumn{2}{c}{$0.034$}\\
+\texttt{arms} at the optimum & \multicolumn{2}{c}{$0.020$} & \multicolumn{2}{c}{$0.051$}\\
+error vs.\ measured limbs & \multicolumn{2}{c}{$0.107$--$0.109$} & \multicolumn{2}{c}{---}\\
+\hline
+\end{tabular}
+\end{center}
+
+None of them can reach zero, for four separate reasons. \emph{It is
+over-determined}: six midpoints coplanar is 3 equalities, six separations
+parallel to one normal is 12, six arm joints coplanar is 3, two vertical leg
+planes is 2 --- twenty conditions against four ratios. \emph{Two terms have a
+floor the 2D pose alone fixes}: \texttt{symmetry} is zero only when all six
+left/right separations run parallel, which forces their \emph{image} directions
+to agree, and no choice of depth turns an image direction. Minimising
+$\min_\varphi\frac{1}{n}\sum_i\lVert u_i\rVert\,\lvert\sin(\theta_i-\varphi)\rvert$
+--- a length-weighted angular median of the six image separations --- gives the
+$0.031/0.027$ above, and the RMS version used by \texttt{orthogonal} minimises
+to the length-squared-weighted principal direction,
+$2\varphi=\operatorname{atan2}(\sum\lVert u_i\rVert^2\sin2\theta_i,\ \sum\lVert
+u_i\rVert^2\cos2\theta_i)$. \emph{The wide objective does not find its own
+minimum}: on the clean \& jerk it stalls at $0.320$ where $0.109$ exists, and
+walking the straight line between the two shows why --- the argmin sign flips
+partway and the objective bumps upward there, so a single steepest-descent
+direction cannot cross the kink. The two mirror objectives drop the terms that
+cause it and do reach their minima.
+
+\emph{And the objective ranks the truth worst.} On the one athlete whose limbs
+were measured, her true ratios score $0.720$ under \texttt{humanness} against
+$0.466$ for the generic priors and $0.233$ at the global minimum --- which sits
+$0.097\,\Lt$ from her real lengths. The term responsible is \texttt{legs},
+$0.265$ of that $0.720$: it asks each leg's plane to be vertical, and a snatch
+set-up breaks that on purpose by tracking the knees out over the toes. Dropping
+it fixes the stall and not the bias --- all three objectives settle about
+$0.11\,\Lt$ from the measured lengths. Nor is \texttt{arms} innocent. It never
+reaches zero either, and the arms are not in fact coplanar: at setup the far
+elbow's image position sits $0.058\,\Lt$ (snatch) and $0.072\,\Lt$ (clean \&
+jerk) off the straight line between its own shoulder and wrist, against
+$0.008$ and $0.024$ for the near elbow --- it is the occluded keypoint, and the
+residual being fitted is the size of the 2D error in the joint that defines it.
+
+Finally the box the descent runs in, $[0.1,2.0]\,\Lt$ per ratio, is not a human
+range. Once the gate stopped the descent from buying improvement by changing
+the depth configuration, it bought it by shrinking limbs instead: on the
+example snatch the thigh runs to $0.39\,\Lt$.
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=\textwidth]{figures/depth-geometry.pdf}
-  \caption{The three pieces of geometry, all seen from above. (a) A bone of
-  known length $L$ measured at screen length $\ell$ spends the difference in
-  depth. (b) The same triangle has two solutions --- toward the camera and away
-  --- projecting to the identical 2D point; one unobservable bit per joint.
-  (c) A plate is a circle of known diameter, so its fitted ellipse yields the
-  metric scale $s$ and the tilt $\alpha$ of the bar out of the image plane.}
-  \label{fig:depthgeom}
+  \begin{tikzpicture}[x=1cm,y=1cm,>=latex,line cap=round,line join=round]
+    \definecolor{acc}{RGB}{190,60,40}
+    % (a) the pinhole truth
+    \fill (0,0) circle (2.2pt);
+    \node[anchor=east] at (-0.14,0) {\small camera};
+    \draw[->,gray!60] (0,0) -- (7.5,0);
+    \node[gray!80,anchor=south] at (7.35,0.04) {\small $z$};
+    \draw[gray] (2.6,-1.55) -- (2.6,1.55);
+    \node[gray!80,anchor=south] at (2.6,1.6) {\small image plane};
+    % near and far limbs, identical length, both square to the camera
+    \draw[dotted,gray] (0,0) -- (4.0,1.3);
+    \draw[dotted,gray] (0,0) -- (4.0,-1.3);
+    \draw[dotted,gray] (0,0) -- (6.6,1.3);
+    \draw[dotted,gray] (0,0) -- (6.6,-1.3);
+    \draw[very thick,acc] (4.0,-1.3) -- (4.0,1.3);
+    \draw[very thick,acc] (6.6,-1.3) -- (6.6,1.3);
+    \node[acc,anchor=south] at (4.0,1.34) {\small $L$};
+    \node[acc,anchor=south] at (6.6,1.34) {\small $L$};
+    % what each projects to, braced clear of the image plane so they don't collide
+    \draw[dotted,acc!50] (2.15,0.845) -- (2.6,0.845);
+    \draw[dotted,acc!50] (2.15,-0.845) -- (2.6,-0.845);
+    \draw[decorate,decoration={brace,amplitude=4pt,mirror},acc]
+      (2.15,-0.845) -- (2.15,0.845);
+    \node[acc,anchor=south east] at (2.22,0.90) {\small $\ell_{\text{near}}$};
+    \draw[dotted,gray] (2.6,0.512) -- (3.05,0.512);
+    \draw[dotted,gray] (2.6,-0.512) -- (3.05,-0.512);
+    \draw[decorate,decoration={brace,amplitude=4pt}] (3.05,-0.512) -- (3.05,0.512);
+    \node[anchor=north west] at (2.98,-0.58) {\small $\ell_{\text{far}}$};
+    \node[anchor=north,align=center] at (3.75,-1.95)
+      {\small (a) two identical limbs, both square to the camera;\\
+       \small the further one simply projects shorter};
+    % (b) what the orthographic lift concludes
+    \begin{scope}[xshift=10.0cm,yshift=-0.55cm]
+      \fill (0,0) circle (2.2pt);
+      \node[anchor=east] at (-0.12,0) {\small parent};
+      \draw[dashed,gray] (0,0) -- (2.37,0);
+      \node[anchor=north] at (1.19,-0.08) {\small $\ell=0.91\,L$};
+      \draw[very thick,acc] (0,0) -- (2.37,1.08);
+      \node[acc,anchor=south east] at (1.45,0.63) {\small $L$};
+      \draw[thick] (2.37,0) -- (2.37,1.08);
+      \draw (2.16,0) -- (2.16,0.21) -- (2.37,0.21);
+      \node[anchor=west] at (2.45,0.6) {\small $dz=0.41\,L$};
+      \draw[->,acc!80] (0.75,0.0) arc (0:24.5:0.75);
+      \node[anchor=north,align=center] at (1.19,-0.65)
+        {\small (b) with no parallax the lift spends\\
+         \small the shortfall on depth that is not there};
+    \end{scope}
+  \end{tikzpicture}
+  \caption{Depth parallax. The reconstruction assumes rays are parallel
+  (Fig.~\ref{fig:raysphere}); they are not, and a limb further from the camera
+  than the anchor projects shorter for that reason alone. Nothing downstream
+  can tell that shortfall apart from foreshortening, so
+  \S\ref{sec:depth-lift} converts it into depth.}
+  \label{fig:parallax}
 \end{figure}
 
-\subsection{The sign ambiguity}\label{sec:depth-sign}
+\subsection{Depth parallax}\label{sec:depth-parallax}
 
-$dz$ has a magnitude but no sign: an elbow foreshortened by $30\,\mathrm{px}$ is
-equally consistent with bending toward the camera or away from it
-(Fig.~\ref{fig:depthgeom}b). Both reconstructions fit the image \emph{exactly},
-so no amount of 2D evidence separates them, and with $n$ such joints there are
-$2^n$ reconstructions that reproduce the observed pose perfectly. The search
-covers nine bits --- trunk orientation, both elbows, both wrists, both knees,
-both ankles --- so $512$ candidates. \S\ref{sec:depth-broken} is why the distal
-four cannot be folded into their parents.
+$P$ is wrong. A real camera is a pinhole, so a segment at distance $d$ from it
+projects with magnification $f/d$ and things further away are simply smaller.
+Nothing in \S\ref{sec:depth-lift} knows this, and the consequence is a
+systematic one: a limb that is genuinely square to the camera but further away
+than the anchor measures $\ell<L$, and the lift has exactly one explanation for
+$\ell<L$ available to it --- that the limb is angled away
+(Fig.~\ref{fig:parallax}).
 
-Half of that is gauge. Negating \emph{every} sign reflects the reconstruction
-about the image plane, which preserves all pairwise distances, so the $512$
-candidates are $256$ poses each appearing twice and no distance-based criterion
-can ever prefer one mirror to the other. Scoring one representative per pair is
-what makes a runner-up gap meaningful; comparing the two halves of the same pair
-reports a margin of exactly zero. Which mirror is physically right stays a user
-decision, exposed per joint in the interface and by clicking the joint itself in
-the 3D view.
+The magnitude is not negligible. Take an athlete filmed at $d=4\,\mathrm{m}$
+with a torso of $0.5\,\mathrm{m}$, and a thigh whose midpoint sits
+$\Delta z=0.4\,\mathrm{m}$ further away than the pelvis. It projects by a factor
+$d/(d+\Delta z)=0.909$, so a $0.85\,\Lt$ thigh held perfectly square to the
+camera measures $0.773\,\Lt$, and \S\ref{sec:depth-lift} manufactures
+$\sqrt{0.85^2-0.773^2}=0.354\,\Lt$ of depth --- some $18\,\mathrm{cm}$ --- out
+of nothing. The error compounds along the walk, since every child inherits its
+parent's invented depth.
 
-Scoring $256$ candidates by lifting each one costs about $11\,\mathrm{s}$ on a
-107-frame clip, which would be too slow to sit behind an interactive control. It
-is avoidable: a sign only ever multiplies its own bone's $dz$, and a joint's
-depth is the sum of the signed $dz$ along the walk from the pelvis, so depth is
-\emph{linear} in the sign vector $\mathbf{s}\in\{\pm1\}^{9}$. Per frame the
-geometry factors as a single matrix $M$ with $\mathbf{z}=M\mathbf{s}$, every
-candidate is one row of a matmul, and the search runs in about $30\,\mathrm{ms}$
---- less than the $32$-candidate version it replaced, which lifted them one at a
-time.
+The correction is implemented and switched off. \texttt{\_perspective\_refine}
+runs a damped fixed point $X=u\,(1-z/f_{\text{px}})$ that settles below
+$0.005\,\Lt$ within eight passes, and \texttt{COACH\_PERSP\_ITERS} defaults to
+$0$. Measured, turning it on makes the reconstructions \emph{worse} on the
+current priors --- mirror symmetry degrades on three of four clips and peak
+$|z|$ inflates about $20\%$ --- and the reason is that it entangles two
+unknowns. The focal length cannot be recovered from these videos and is a
+guess (\texttt{\_FOCAL\_MUL} $=1.0$, about $53^\circ$ horizontal), and the
+priors it would correct are themselves biased by \S\ref{sec:depth-limbs}. A
+correction that is right in mechanism can still move a pose the wrong way if
+the quantity it corrects toward is wrong, so this waits on the lengths. It
+would also cost the one-matmul sign search: un-projection makes depth nonlinear
+in $\mathbf{s}$, and the linearity \S\ref{sec:depth-sign} relies on is what
+makes $256$ candidates cost $30\,\mathrm{ms}$.
 
-\subsection{Choosing by balance}
-
-The criterion is that a lifter is standing up: their centre of mass is over
-their base of support. Let $\mathrm{COM}$ be the mean of the solved joints and
-$\mathbf{f}$ the mean of the two ankles; minimise, over candidates,
-\[
-  \mathcal{C}=\underbrace{\frac{1}{|Q|}\sum_{k\in Q}\frac{|\mathrm{COM}^{(k)}_z-\mathbf{f}^{(k)}_z|}{\Lt}}_{\text{balance}}
-  \;+\;\underbrace{\frac{\mu}{|F|}\sum_{k\in F}\frac{|z^{(k)}_{\text{L ank}}-z^{(k)}_{\text{R ank}}|}{\Lt}}_{\text{stance}}
-  \;+\;\lambda\sum\text{(distance violations)},
-\]
-with $\mu=1$ and $\lambda=10^{-3}$, where $Q$ is the quietest frames --- least
-motion, where a static balance assumption actually holds --- and $F$ every frame
-with both ankles solved. What makes balance the right test is that the
-\emph{horizontal} half of the same offset comes entirely from the 2D pose and is
-therefore identical across all candidates (Fig.~\ref{fig:depthsign}a, measured
-$0.183\,\Lt$ for all $256$). Every bit of discrimination sits in the depth term,
-which is precisely the unknown.
-
-The stance term is the guard that makes freeing the distal signs safe: both feet
-are on the floor under the athlete and are never a thigh-plus-shank apart in
-depth. It is a direct statement about the one quantity the reconstruction gets
-most wrong, so it goes in at par with balance rather than as a tuned weight ---
-any $\mu\in[0.5,2]$ picks the same assignment on the example clip.
-
-The third term bounds the distance between joints sharing no bone --- two knees
-cannot occupy one point. It is weighted almost to nothing on purpose. As an
-upper bound it ranks candidates close to backwards, because giving every limb
-the same sign packs the body into one depth plane and shortens every cross-body
-distance, so a maximum-distance cost is minimised by the degenerate all-same
-answer. It survives only as a tie-break.
-
-\begin{figure}[t]
-  \centering
-  \includegraphics[width=\textwidth]{figures/depth-signs.pdf}
-  \caption{The sign search on the example clip, at its deepest frame (46).
-  (a) Total cost $\mathcal{C}$ for the $256$ mirror classes, sorted; the winner is
-  marked. The horizontal offset is $0.183\,\Lt$ for every one of them, so the ranking is
-  purely a depth judgement. (b) That winner seen from above, legs highlighted:
-  its feet sit $0.33\,\Lt$ apart in depth, against $1.86$ under the tied rule
-  this replaced. (c) Why --- the smallest foot separation any sign assignment
-  can reach, per frame. With the ankle's sign tied to the knee's the floor is
-  $0.50\,\Lt$ median: the tied search cannot put the feet together at any frame
-  of the catch, whatever it scores. Freeing the bit drops the floor to $0.15$.}
-  \label{fig:depthsign}
-\end{figure}
-
-\subsection{The plate-anchored variant}
-
-When plates are detected the depths are anchored rather than guessed: the
-ellipse fit gives $s$ and the 3D bar axis; each wrist is taken to lie on the bar
-and inherits the bar's depth beneath its own image position; the remaining
-joints are reached by breadth-first propagation with the same $dz$ as
-\S\ref{sec:depth-fore}, now in millimetres. This is the only path that produces
-absolute lengths. It needs both a plate ellipse and a visible wrist, and falls
-back to pinning the pelvis at $z=0$.
-
-\subsection{The tied-sign failure, and what it cost}\label{sec:depth-broken}
-
-Ankles used to inherit the knee's sign and wrists the elbow's, on the argument
-that a limb segment follows the segment it hangs off. For a straight limb that
-holds. For a flexed one it is backwards: in a squat the thigh runs forward and
-down from the hip while the shank runs \emph{backward} and down from the knee,
-so the two segments have opposite depth signs. Tying them sends the foot out to
-$z_{\text{knee}}+dz_{\text{shank}}$ instead of back under the hip.
-
-The consequence was structural, not a tuning failure.
-Fig.~\ref{fig:depthsign}c sweeps every assignment at every frame and keeps the
-smallest foot separation each scheme can reach: tied, the median floor is
-$0.50\,\Lt$; with the distal signs free it is $0.15\,\Lt$. A feet-together squat
-was therefore not merely disfavoured by the search --- it was unreachable, and
-the balance criterion was left choosing the least-bad member of a set that did
-not contain the answer. The result satisfied every bone length, every joint
-angle and the balance test, and put the athlete's feet $1.86\,\Lt$ apart in
-depth, roughly a metre, where the video shows them planted side by side.
-
-That is the general shape of the risk here, and it is worth stating plainly: a
-cost function can only rank the reconstructions its parameterisation can
-express. A good score is evidence about the search, not about the body, and the
-two are only the same thing if the truth is in the candidate set. Both fixes in
-this appendix --- freeing the distal signs, and scaling off the clip rather than
-the frame --- were found by checking a reconstruction against anatomy rather
-than against its own objective.
-
-What remains genuinely unresolved is the front/back mirror (\S\ref{sec:depth-sign}):
-it is gauge, no image-plane criterion can touch it, and it is left to the user.
-The per-joint controls and click-to-flip in the 3D view exist for that. Absolute
-depth is still only available on the plate-anchored path; the keypoint lift
-remains unit-torso and should be read as a solved sketch, not a measurement.
+\paragraph{What to take from all of this.} A cost function can only rank the
+reconstructions its parameterisation can express, and a good score is evidence
+about the search, not about the body. Every fix recorded above --- freeing the
+distal signs, scaling off the clip rather than the frame, gating on the start
+position, fitting one mirror plane instead of two --- was found by checking a
+reconstruction against anatomy rather than against its own objective. The
+keypoint lift remains unit-torso and should be read as a solved sketch, not a
+measurement.
 
 \begin{thebibliography}{9}\small
 \bibitem{vitpose} Y.~Xu, J.~Zhang, Q.~Zhang, D.~Tao. \emph{ViTPose: Simple Vision Transformer Baselines for Human Pose Estimation.} NeurIPS 35, 2022. arXiv:2204.12484. Implementation used: \texttt{github.com/JunkyByte/easy\_ViTPose}.
