@@ -17,7 +17,7 @@ import threading
 import time
 from pathlib import Path
 
-from flask import Flask, request, jsonify, Response, send_file
+from flask import Flask, request, jsonify, Response, send_file, send_from_directory, redirect
 
 import depth_backend
 import equipment_backend
@@ -625,6 +625,21 @@ def three_module_js():
     return send_file(THREE_JS, mimetype="application/javascript")
 
 
+@app.route("/squat/")
+def squat_lab():
+    return send_from_directory(Path(__file__).parent / "squat", "index.html")
+
+
+@app.route("/squat/<path:filename>")
+def squat_lab_asset(filename):
+    return send_from_directory(Path(__file__).parent / "squat", filename)
+
+
+@app.route("/anatomy/<path:filename>")
+def anatomy_asset(filename):
+    return send_from_directory(Path(__file__).parent / "anatomy", filename)
+
+
 @app.route("/diagnostics.js")
 def diagnostics_js():
     return Response(DIAGNOSTICS_JS.read_text(), mimetype="application/javascript")
@@ -632,13 +647,22 @@ def diagnostics_js():
 
 @app.route("/")
 def index():
+    config = (Path(__file__).parent / 'anatomy/ui-config.mjs').read_text()
+    if re.search(r"DEFAULT_UI\s*=\s*['\"]anatomy['\"]", config):
+        return redirect('/squat/')
     return Response(render_index(), mimetype="text/html")
+
+
+@app.route('/original/')
+def original_workspace():
+    return Response(render_index(), mimetype='text/html')
 
 
 INDEX_HTML = """<!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>coach</title>
 <style>
   :root { --bg:#101211; --surface:#171a18; --surface-raised:#1d211e; --line:#343a35;
@@ -886,6 +910,7 @@ INDEX_HTML = """<!doctype html>
          same choice as the dropdowns above, put where the mistake is actually
          visible: you see a knee pointing the wrong way in the turntable, and the
          fix is to click the knee — not to work out which of thirteen rows it is. -->
+    <details id="wireframe-inspection"><summary>Inspect original 3D reconstruction</summary>
     <div id="v3dpanel" style="display:none;margin:2px 0 6px">
       <div id="v3dcanvasWrap" style="position:relative;width:100%;background:#0d0d0d;border-radius:8px;overflow:hidden;cursor:grab">
         <canvas id="v3dcanvas" style="display:block;width:100%;height:340px"></canvas>
@@ -907,6 +932,7 @@ INDEX_HTML = """<!doctype html>
         <span id="v3dscrubtime" class="scrub-time">0.00s / 0.00s</span>
       </div>
     </div>
+    </details>
     <p id="vsummary" style="font-size:12px;color:#c3c2b7"></p>
     <!-- live sync readout: if the overlay ever looks frozen, this says whether
          playback time is stuck or the frame lookup is. -->
@@ -995,7 +1021,7 @@ INDEX_HTML = """<!doctype html>
 
 </div><!-- /layout -->
 
-<script src="./diagnostics.js"></script>
+<script src="/diagnostics.js"></script>
 <script>
 // Where this page is mounted. Normally '' (served at /), but a reverse proxy
 // may mount the app under a path prefix and strip that prefix before
@@ -1014,7 +1040,7 @@ INDEX_HTML = """<!doctype html>
 // INDEX_HTML is a plain (not raw) Python string, where a backslash before a
 // slash is an invalid escape sequence — harmless at runtime, but it warns on
 // every start.
-const BASE = location.pathname.replace(/[/]+$/, '');
+const BASE = location.pathname.startsWith('/original') ? '' : location.pathname.replace(/[/]+$/, '');
 const $ = id => document.getElementById(id);
 
 $('run').onclick = async () => {
@@ -1323,6 +1349,7 @@ function applySmoothing() {
   // Overlay and plot before diagnostics: diagnostics.js is the file under
   // active iteration, and a throw from a half-written cue must not be able to
   // strand the slider looking dead.
+  window.CoachAnatomy?.updateTrack({keypoints:vKeypoints, meta:vMeta});
   updatePlotControls();
   drawOverlay();
   Diagnostics.setTrack(vKeypoints, vMeta, { smoothingMs: vSigmaMs });
@@ -1791,6 +1818,7 @@ function drawOverlay(t) {
     `${vInterp ? ' · interpolated' : ''}` +
     `${vLoopRestarts ? ` · overlay revived ${vLoopRestarts}×` : ''}`;
   const frame = poseAtTime(time, slot);
+  window.CoachAnatomy?.frame({points: frame ? Object.values(frame)[0] : null, meta: vMeta, time, idx, exercise: document.body.dataset.page});
 
   drawPlot(time); // Update playhead line on plot canvas
   Diagnostics.draw(time);
@@ -1872,6 +1900,7 @@ function noteFrame(media) {
 }
 
 function clockTime() {
+  if (window.CoachAnatomy?.isModelOnly()) return vvideo.currentTime;
   if (!vClock) return vvideo.currentTime;
   // The anchor (anchorLoop's rVFC subscription) is known to go silent across a
   // looping <video>'s wrap. Without this, ahead below clamps to vClock.gap and
@@ -1904,7 +1933,7 @@ function overlayLoop(now, metadata) {
   // diagnostics renderer, and re-arming afterwards means the first exception
   // any of them throws kills the overlay for the rest of the session.
   if (vvideo.paused || vvideo.ended) { vRafId = null; vRafKind = null; }
-  else if (HAS_RVFC && !vInterp) {
+  else if (HAS_RVFC && !vInterp && !window.CoachAnatomy?.isModelOnly()) {
     vRafKind = 'vfc'; vRafId = vvideo.requestVideoFrameCallback(overlayLoop);
   } else {
     vRafKind = 'raf'; vRafId = requestAnimationFrame(overlayLoop);
@@ -2245,6 +2274,7 @@ async function vPoll() {
 // pose run (vPoll) and of picking a cached example clip. The caller owns the
 // status line; this only touches the track and what's derived from it.
 function applyTrack(data) {
+  window.CoachAnatomy?.loadTrack(data);
   vTrackFull = data;          // the track exactly as computed, at its own stride;
                               // vApplyExampleStride decimates a copy of this for
                               // display when a coarser stride is picked.
@@ -2408,6 +2438,7 @@ function setPage(id) {
   const page = PAGES_BY_ID[id] || PAGES[0];
   const video = page.media === 'video';
   document.body.dataset.page = page.id;
+  window.CoachReview?.setPage(page.id);
   $('pageContext').textContent = video
     ? `${page.label} · video analysis and movement diagnostics`
     : 'single-frame pose inspection';
@@ -2451,6 +2482,7 @@ fetch(BASE + '/api/capabilities').then(r => r.json()).then(c => {
 let v3dLast = null;
 
 function v3dReset() {
+  window.CoachAnatomy?.reset();
   const g = $('v3dgen'); if (g) g.disabled = true;
   const n = $('v3dnote'); if (n) n.textContent = '';
   const p = $('v3dpanel'); if (p) p.style.display = 'none';
@@ -3292,7 +3324,7 @@ async function v3dGenerate() {
   const run = ++v3dRun;
   const method = $('v3dmethod').value;
   const idx = v3dCurrentFrame();
-  const wantSeq = (method === 'plate-anchor' || method === 'auto');
+  const wantSeq = ['plate-anchor', 'keypoint-lift', 'auto'].includes(method);
   const body = { method, width: vMeta.width, height: vMeta.height,
                  current_frame: idx, keypoints: v3dPoseAt(idx),
                  equipment: vEquipment ? (vEquipment[String(idx)] || null) : null,
@@ -3333,6 +3365,7 @@ async function v3dGenerate() {
       if (changed) v3dBuildSignControls();
     }
     const c = d.candidate;
+    window.CoachAnatomy?.loadDepth(c);
     const nJoints = c.joints3d.filter(p => p).length;
     const nFrames = c.frames ? Object.keys(c.frames).length : 0;
     note.innerHTML =
@@ -3366,6 +3399,7 @@ async function v3dGenerate() {
   }
 }
 
+$('wireframe-inspection').addEventListener('toggle',()=>window.Viewer?.resize());
 $('v3dgen').onclick = v3dGenerate;
 // Switching method recomputes immediately against the loaded clip.
 $('v3dmethod').onchange = () => { if (vMeta) v3dGenerate(); };
@@ -3376,6 +3410,7 @@ $('v3dmethod').onchange = () => { if (vMeta) v3dGenerate(); };
 // Awaited by the example loader: a clip must not lift itself before the
 // segment list, the joint list and the remembered profiles are in place.
 const v3dReady = fetch(BASE + '/api/depth/methods').then(r => r.json()).then(async m => {
+  if (m.error) { $('v3dnote').textContent = m.error; return; }
   // Same response carries the ambiguous-joint list; build the direction
   // controls from it so the markup never hardcodes a joint set.
   v3dSignJoints = m.sign_joints || [];
@@ -3426,7 +3461,18 @@ fetch(BASE + '/api/examples').then(r => r.json()).then(list => {
 for (const btn of document.querySelectorAll('.tab')) {
   btn.onclick = () => setPage(btn.dataset.page);
 }
-setPage('{{DEFAULT_PAGE}}');   // a lift page by default; the image path is the side trip
+window.CoachBridge = {applyTrack, setPage, seek(time){vvideo.pause();vvideo.currentTime=time;drawOverlay(time);}, getTrack:()=>vTrackFull};
+setPage('{{DEFAULT_PAGE}}');
+window.addEventListener('coach:displaychange',()=>{vClock=null;if(!vvideo.paused&&!vvideo.ended)startOverlayLoop();else drawOverlay();});
+if (window.COACH_LOCAL_PREVIEW) import('/anatomy/local-mode.mjs').then(m => m.setup({applyTrack, video:vvideo}));
+window.addEventListener('coach:anatomy-ready', () => {
+  if (vTrackFull) {
+    window.CoachAnatomy?.loadTrack(vTrackFull);
+    window.CoachAnatomy?.updateTrack({keypoints:vKeypoints,meta:vMeta});
+  }
+  if (v3dLast?.candidate) window.CoachAnatomy?.loadDepth(v3dLast.candidate);
+  drawOverlay(vvideo.currentTime);
+});   // a lift page by default; the image path is the side trip
 </script>
 
 <!-- The 3D viewer is the one place coach reaches for a third-party lib: a
@@ -3435,7 +3481,7 @@ setPage('{{DEFAULT_PAGE}}');   // a lift page by default; the image path is the 
      from a CDN (the box is on the tailnet with internet); if the import fails
      the panel just says so and the text note above still reports the result. -->
 <script type="importmap">
-{ "imports": { "three": "./vendor/three.module.js" } }
+{ "imports": { "three": "/vendor/three.module.js" } }
 </script>
 <script type="module">
 const $ = id => document.getElementById(id);
@@ -3736,6 +3782,9 @@ try {
 }
 window.Viewer = Viewer;
 </script>
+<script type="module" src="/anatomy/integration.mjs"></script>
+<script type="module" src="/anatomy/review.mjs"></script>
+<script type="module" src="/anatomy/ui.mjs"></script>
 </body>
 </html>
 """
@@ -3750,6 +3799,7 @@ window.Viewer = Viewer;
 # yet. Add a lift by appending an entry here and its set in diagnostics.js —
 # see .claude/skills/panel-add/.
 PAGES = [
+    {"id": "squat", "label": "squat", "media": "video", "diagnostics": "squat"},
     {"id": "image", "label": "image", "media": "image"},
     {"id": "snatch", "label": "snatch", "media": "video", "diagnostics": "snatch"},
     {"id": "lateral-raise", "label": "lateral raise", "media": "video",
@@ -3933,4 +3983,3 @@ if __name__ == "__main__":
     except ImportError:
         print("waitress not installed — falling back to Flask dev server.")
         app.run(host=HOST, port=PORT, debug=False, threaded=True)
-

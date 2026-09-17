@@ -1,0 +1,54 @@
+{
+  "README.md": {
+    "bytes": 379,
+    "sha256": "9dad28188ae54ea420e3d29c23360b040a0dfb88954b99a3e456b8a8c93cf2a1"
+  },
+  "index.d.ts": {
+    "bytes": 5712,
+    "sha256": "e9aaa308792164402e47d4879fb24460d1bc99bc39f414fc9a5972177b829bfe"
+  },
+  "package.json": {
+    "bytes": 849,
+    "sha256": "0e082c0391f92c2c7b1a28585da39017e6a48d36e021cef593fb8b5514ba4478"
+  },
+  "pose.js": {
+    "bytes": 47089,
+    "sha256": "fcb703afcce65d0a1c540f6a70c3bb45fc84521498c21a9d4160265dde648ab4"
+  },
+  "pose_landmark_full.tflite": {
+    "bytes": 6440512,
+    "sha256": "e9a5c5cb17f736fafd4c2ec1da3b3d331d6edbe8a0d32395855aeb2cdfd64b9f"
+  },
+  "pose_solution_packed_assets.data": {
+    "bytes": 2962288,
+    "sha256": "a63c614bef30d35947f13be361820b1e4e3bec9cfeebf4d11216a18373108e85"
+  },
+  "pose_solution_packed_assets_loader.js": {
+    "bytes": 8002,
+    "sha256": "d7aa29b7d8e11b5c97a58d719e982dd15c2de72995d95112d60492b854840a36"
+  },
+  "pose_solution_simd_wasm_bin.data": {
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "pose_solution_simd_wasm_bin.js": {
+    "bytes": 276478,
+    "sha256": "3983d1dca31d945d81abb70b18dd61f28ef4736e112463d7cfb1cbadef588127"
+  },
+  "pose_solution_simd_wasm_bin.wasm": {
+    "bytes": 6104372,
+    "sha256": "195a929430e2ce130b3efb82e64ba27c8e68cb0f6bad870b715688060ea6f7e2"
+  },
+  "pose_solution_wasm_bin.js": {
+    "bytes": 276473,
+    "sha256": "3fcfd9574a04fcf4a0b9271b9b4429c6b9a70278300a5e54c45ddf2001e41422"
+  },
+  "pose_solution_wasm_bin.wasm": {
+    "bytes": 5994571,
+    "sha256": "a5589369289e1f1e007c106e8ffb26e85a5be762c6db9551ed36213f8f58378d"
+  },
+  "pose_web.binarypb": {
+    "bytes": 1007,
+    "sha256": "dc8efd1c2d62007b34278467407fda5f70847f41310e0e39f0f59fc17b1d01f7"
+  }
+}
