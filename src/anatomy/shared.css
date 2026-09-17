@@ -1,0 +1,35 @@
+.anatomy-toolbar {display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 12px;background:var(--surface,#15232d);border:1px solid var(--line,#34454b);border-radius:8px;margin:8px 0}
+.anatomy-toolbar label {display:flex;align-items:center;gap:6px;font-size:13px}
+.anatomy-toolbar select,.anatomy-toolbar button {font-size:12px}
+#anatomy-comparison {min-width:0}
+#anatomy-comparison.is-comparison {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start}
+#anatomy-comparison #videoWrap {margin-top:0;box-sizing:border-box;min-width:0}
+.anatomy-comparison-panel {min-width:0;background:#101b25;border:1px solid #34454b;border-radius:8px;overflow:hidden}
+.anatomy-panel-heading {display:flex;justify-content:space-between;padding:8px 12px;font-size:12px}
+#anatomy-stage {position:relative;height:460px}
+#anatomy-canvas {display:block;width:100%;height:100%;touch-action:none}
+#anatomy-panel>.control-help {padding:8px 12px}
+#anatomy-video-layer,#anatomy-marks {position:absolute;pointer-events:none;z-index:3}
+#anatomy-marks {z-index:4}
+#anatomy-status {min-height:32px}
+#anatomy-options {display:grid;gap:7px}
+.anatomy-anchor-labels {z-index:5}
+.coach-review {margin:20px 0;padding:20px;border:1px solid var(--line,#34454b);background:var(--surface,#15232d);border-radius:10px}
+.coach-review h2 {margin:0 0 14px;padding:0;border:0}
+.coach-review .review-row {display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.coach-review .review-columns {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin-top:16px}
+.coach-review p,.coach-review li {font-size:13px;line-height:1.55}
+.coach-review .activity-scale {height:5px;background:linear-gradient(90deg,#294856,#419f8e,#c0d86c,#ff9f57);border-radius:4px;width:140px}
+.coach-review .activity-value {display:inline-block;width:140px;height:6px;background:#263945;position:relative;border-radius:3px}
+.coach-review .activity-value i {display:block;height:100%;background:#86cdb5;border-radius:3px}
+.coach-feedback {max-width:560px;width:calc(100% - 40px);padding:24px;color:#edf4f3;background:#15232d;border:1px solid #46616d;border-radius:14px}
+.coach-feedback::backdrop {background:#061017b8}
+.coach-feedback fieldset {border:1px solid #40545d;margin:14px 0}
+.coach-feedback label {display:block;margin:8px 0;font-size:14px}
+.coach-feedback textarea {width:95%;background:#0c1921;color:#edf4f3}
+@media(max-width:650px){#anatomy-comparison.is-comparison {grid-template-columns:1fr 1fr;gap:6px}.anatomy-toolbar{gap:5px}.coach-review .review-columns{grid-template-columns:1fr}.anatomy-panel-heading span{display:none}}
+/* Version 5: explicit display modes, keeping the original page's styling. */
+.view-modes{display:flex;gap:4px;flex-wrap:wrap}.view-modes button{font-size:12px;padding:7px 9px;cursor:pointer}.view-modes button[aria-pressed=true]{background:var(--accent);color:#141814;border-color:var(--accent)}
+#anatomy-comparison.is-model-only{display:block}#anatomy-comparison.is-model-only #anatomy-stage{height:560px}
+#anatomy-transport{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0}#anatomy-timeline{flex:1;min-width:80px}#anatomy-time{font-size:12px;min-width:45px}#anatomy-transport label,#anatomy-transport select{font-size:12px}
+.app-header .ui-switch{font-size:12px;color:var(--muted);border:1px solid var(--line);padding:8px 12px;border-radius:5px}

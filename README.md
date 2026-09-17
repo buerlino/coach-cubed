@@ -1,5 +1,7 @@
 # coach
 
+Local anatomy preview, version 5: see [START_HERE.md](START_HERE.md). Use `python run_original.py` for the original UI or `python run_anatomy.py` for the teal UI. Generic `python run_local.py` respects the package default. The anatomy workspace at `/squat/` and the original workspace at `/original/` both support the integrated exercise tools.
+
 A minimal website around the ViTPose model: upload or record a lift, get a
 pose track, and see per-rep technique diagnostics scored from the keypoints
 (back angle, extension, tempo, symmetry, ...). Same deploy shape as `tecna`
@@ -53,4 +55,9 @@ doc describes, update that doc in the same commit rather than this index.
 - This README's tables are the map — update them in the same commit whenever
   a doc moves or a new one is added.
 
-  Test git for josh
+
+### Local anatomy revision 3
+
+Two local workspace variants share the same anatomy, squat review and original
+3D backend. See `START_HERE.md` for setup and `CHANGES_LOCAL_V3.md` for changes.
+The source integrates the newly uploaded snapshot; nothing was pushed.
