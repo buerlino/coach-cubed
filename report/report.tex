@@ -602,8 +602,10 @@ $L$ is the thing everything else is downstream of, and it is also the one
 quantity a single view cannot measure --- so it is inferred from consequences.
 Wrong lengths bend the body in ways a body does not bend, and the amount of
 un-bodylike-ness is a signal about the lengths. Three objectives are offered
-over four ratios (thigh, shank, upper arm, forearm), built from seven
-penalties, each in torso lengths (or a $|\cos|$) and each $0$ when perfect:
+over six ratios --- thigh, shank, upper arm, forearm, and the two trunk widths,
+which are the same kind of unknown and are what turn the trunk's 2D separations
+into trunk depth --- built from seven penalties, each in torso lengths (or a
+$|\cos|$) and each $0$ when perfect:
 
 \begin{center}\small
 \begin{tabular}{lp{3.9cm}p{6.8cm}}
@@ -635,7 +637,7 @@ is the smallest eigenvector of $C-D$: closed form, one symmetric eigenproblem
 per candidate. The jointly fitted normal sits about $8^\circ$ off the
 midpoint-fitted one.
 
-The fit itself is plain: numerical gradients on the four ratios, a backtracking
+The fit itself is plain: numerical gradients on the six ratios, a backtracking
 line search, and convergence declared when every term \emph{in the objective}
 individually moves less than $2\times10^{-4}\,\Lt$ in a step. The sign search of
 \S\ref{sec:depth-sign} runs underneath at every evaluation --- confined to the
@@ -645,7 +647,10 @@ reason the gradient is numerical.
 
 \paragraph{How well they can be satisfied, and what is wrong with each.}
 Measured on the two fixtures (the snatch has an athlete whose limbs were
-actually measured, so its lengths can be scored; the clean \& jerk cannot):
+actually measured, so its lengths can be scored; the clean \& jerk cannot). The
+two trunk widths were added to the fit after these numbers were taken, so the
+table is the four-limb descent; what they change is in the last paragraph of
+this section.
 
 \begin{center}\small
 \begin{tabular}{lrrrr}
@@ -668,7 +673,7 @@ error vs.\ measured limbs & \multicolumn{2}{c}{$0.107$--$0.109$} & \multicolumn{
 None of them can reach zero, for four separate reasons. \emph{It is
 over-determined}: six midpoints coplanar is 3 equalities, six separations
 parallel to one normal is 12, six arm joints coplanar is 3, two vertical leg
-planes is 2 --- twenty conditions against four ratios. \emph{Two terms have a
+planes is 2 --- twenty conditions against six ratios. \emph{Two terms have a
 floor the 2D pose alone fixes}: \texttt{symmetry} is zero only when all six
 left/right separations run parallel, which forces their \emph{image} directions
 to agree, and no choice of depth turns an image direction. Minimising
@@ -698,10 +703,39 @@ jerk) off the straight line between its own shoulder and wrist, against
 $0.008$ and $0.024$ for the near elbow --- it is the occluded keypoint, and the
 residual being fitted is the size of the 2D error in the joint that defines it.
 
-Finally the box the descent runs in, $[0.1,2.0]\,\Lt$ per ratio, is not a human
-range. Once the gate stopped the descent from buying improvement by changing
-the depth configuration, it bought it by shrinking limbs instead: on the
-example snatch the thigh runs to $0.39\,\Lt$.
+Finally the box the descent runs in, $[0.1,2.0]\,\Lt$ per limb ratio, is not a
+human range. Once the gate stopped the descent from buying improvement by
+changing the depth configuration, it bought it by shrinking limbs instead: on
+the example snatch the thigh runs to $0.39\,\Lt$.
+
+\paragraph{The two trunk widths.} They are fitted alongside the limbs, and they
+matter more than their number suggests: the shoulder and hip separations are
+what a foreshortened trunk is read against, and every limb is walked outward
+from a trunk joint, so a wrong width displaces an arm before the arm's own
+length is considered. Fitting them lowers every objective on both fixtures
+(\texttt{mirror} $0.066\to0.055$ and $0.072\to0.052$; \texttt{mirror\_joint}
+$0.067\to0.057$ on the snatch) and moves the snatch's error against the
+measured athlete from $0.107$--$0.109$ to $0.079$--$0.098\,\Lt$, the first
+change in this section that improves the number that actually matters.
+
+They are also the one place a box is load-bearing rather than cosmetic, and in
+the opposite direction to the limbs. A narrower trunk is a \emph{shallower}
+trunk --- width is exactly what converts the 2D separation into depth --- and a
+shallower trunk flattens the whole body, which every mirror term scores as an
+improvement. Left in the $[0.1,2.0]$ box the descent takes that free lunch: on
+the clean \& jerk \texttt{humanness} drives the hip width to $0.240\,\Lt$, half
+the population value and not a pelvis, inflating the thigh to $0.919$ to
+compensate. Both widths are therefore held to $\pm25\%$ of the population prior
+--- the same band a per-clip estimate is clamped to --- and two of the six runs
+above end sitting on that bound, so it is doing work rather than decorating.
+
+For the same reason the widths are never estimated from the clip the way the
+limb lengths are. That estimator takes the 95th percentile of the observed 2D
+extent, which needs the segment to come near-parallel to the image plane at some
+point; a limb does, swinging through the lift, and a trunk filmed side-on never
+does. It would return $0.43\,\Lt$ of shoulder width on the snatch and $0.49$ on
+the clean \& jerk against a $0.74$ prior --- reading ``filmed from the side'' as
+``narrow athlete'', which is the exact failure the widths exist to prevent.
 
 \begin{figure}[t]
   \centering

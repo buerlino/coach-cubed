@@ -116,11 +116,81 @@ it gets wrong through the sign and the length.
    limbs instead — on the snatch fixture the thigh ran to 0.39 torso. A
    per-segment range would cost nothing and rule that out.
 
+   *(half done)* The mechanism exists — `SEGMENT_RANGE` / `segment_range`, used
+   by the optimiser, the wire parser and the UI fields alike — but only the two
+   trunk widths have entries. The four limbs still sit in the wide box and still
+   want per-segment numbers.
+
+   **The trunk widths are now fitted parameters** (`_SEGMENTS` gained
+   `shoulders` and `hips`, so they are six-way descent, wire format, UI field
+   and profile entry without a special case anywhere). They were two constants,
+   and they had no business being constants: the width is what converts a
+   foreshortened trunk separation into trunk depth, and every limb is walked
+   outward from a trunk joint, so a wrong width displaces an arm before the arm's
+   own length is considered. Fitting them lowers every objective on both
+   fixtures (`mirror` 0.066 -> 0.055 snatch, 0.072 -> 0.052 c&j; `mirror_joint`
+   0.067 -> 0.057 snatch) and — the part that matters — moves the snatch's error
+   against the measured athlete from 0.107-0.109 to 0.079-0.098 torso. The lift
+   itself is bit-identical to before for any profile that doesn't name them
+   (verified against HEAD on both fixtures, max |old - new| = 0.0 px).
+
+   Their bound is load-bearing, and in the opposite direction to the limbs':
+   narrower trunk = shallower trunk = flatter body, which every mirror term
+   rewards. In the wide box the c&j `humanness` run drives the hip width to
+   0.240 torso (half the prior, not a pelvis) and inflates the thigh to 0.919 to
+   compensate. Held to +/-25% of the population prior, two of six runs still end
+   sitting on the bound. They are also never estimated per clip the way limb
+   lengths are — the p95-of-projection estimator needs the segment to come
+   near-parallel to the image plane at some point, which a swinging limb does and
+   a side-on trunk never does; it would return 0.43 / 0.49 torso of shoulder
+   width against a 0.74 prior. Next: `athlete-a.json` was measured off a frontal
+   still with the arms overhead, which is exactly the frame that can also measure
+   her shoulder and hip width — do it, and the fitted widths get something to be
+   scored against.
+
 4. **Incorporate depth corrections.** Perspective refinement exists
    (`_perspective_refine`, `COACH_PERSP_ITERS`) but is off by default, and the
    orthographic `dz = sqrt(L^2 - l^2)` clamp silently reconstructs a bone as
    `max(L, l)` whenever the prior is too short. Both corrections need to be
    measured against the fixtures and turned on if they pay.
+
+   **Half done: the limb optimiser can now correct for it** (`optimize_limbs`'
+   `perspective`, the "perspective" tickbox next to the objective picker). Every
+   `_PERSP_EVERY` = 3 steps the current mesh's depths become a per-bone factor
+   `(1 - zbar/f_px)` on the *projected lengths* — `_depth_plan`'s `shrink` — and
+   the descent carries on against those. Lengths only, not positions: treating a
+   bone as sitting at one depth makes the correction a scaling of its image
+   separation and so independent of the principal point, which is what makes it
+   cheap and safe. Damped at `_PERSP_DAMP` for the measured reason in the
+   `_PERSP_ITERS` note; undamped on the snatch the correction wanders (8.49 ->
+   7.76 -> 8.70% of a projected length and still moving when the descent stops)
+   and ends at 0.237 where the damped run reaches 0.065.
+
+   It is the first change that moves the *accuracy* number rather than the
+   penalty. On athlete-a, the one athlete whose limbs are measured, the wide
+   `humanness` objective goes from 0.088 torso mean error to **0.042** with the
+   correction on, and on athlete-b it crosses the kink item 1 describes: 0.320
+   "stalled" becomes 0.129 "converged". The two mirror objectives are unmoved
+   (0.107 -> 0.109, 0.109 -> 0.106), which fits — they are the ones that had
+   already stopped fitting limb *length* as such. Corrections run 5-9% of a
+   projected length, i.e. the same order as the prior error, so this is still a
+   plausible correction and not a calibrated one: `f_px` is `_FOCAL_MUL` times
+   the frame's long side and nothing in one video measures it.
+
+   Swept, and the guess turns out not to be load-bearing in the direction that
+   matters. `humanness` error on athlete-a against `_FOCAL_MUL`:
+
+       off    0.5    0.75   1.0    1.5    2.0    3.0
+       0.088  0.034  0.039  0.042  0.084  0.086  0.086
+
+   Every plausible focal length (0.5-1.0, i.e. wide to normal) roughly halves
+   the error, and the long end walks back to the orthographic answer, which is
+   exactly what a long lens should do. So the correction's *sign* is the thing
+   being confirmed here, not its size. `mirror` is flat across the whole sweep
+   (0.098-0.109) and `mirror_joint` nearly so (0.093-0.109). Next: the same
+   sweep needs a second measured athlete before the 0.042 means anything, and
+   the rendered mesh should probably be lifted the same way the fit was — today
+   it is still orthographic, so the fit and the drawing disagree.
 
 5. **Sign switches mid-clip.** A sign is currently one value per joint for the
    whole clip. A limb that actually crosses the image plane switches, and it can

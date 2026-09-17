@@ -7,6 +7,7 @@ vendor/easy_ViTPose/easy_ViTPose.egg-info/
 .venv
 **/.venv/
 private/
+.claude/worktrees/
 
 # Scratch landing spot for raw clips waiting to be batch-extracted into
 # tests/fixtures/ (see tests/README.md) — only the curated, trimmed output

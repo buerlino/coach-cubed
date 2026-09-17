@@ -288,6 +288,11 @@ def api_depth_optimize_limbs():
     depth_backend.OBJECTIVES, listed for the picker by /api/depth/methods. The
     terms it leaves out are still measured and still returned.
 
+    `perspective` (the interface's tickbox) re-corrects the projected lengths
+    from the current mesh's depths every few steps instead of reading them
+    orthographically — see optimize_limbs. It changes the lengths the descent
+    lands on, not how the resulting mesh is then lifted.
+
     `iters`, `lr`, `line_search` and `term_tol` are exposed because the interface
     runs this in small steps to convergence rather than in a few big ones: the
     objective is known to descend to the wrong lengths on the fixtures, so the
@@ -312,7 +317,8 @@ def api_depth_optimize_limbs():
             scene, frame=None if frame is None else int(frame),
             iters=max(1, min(iters, 1000)), lr=lr,
             line_search=bool(payload.get("line_search", True)),
-            term_tol=max(0.0, tol), objective=objective)
+            term_tol=max(0.0, tol), objective=objective,
+            perspective=bool(payload.get("perspective", False)))
     except (TypeError, ValueError) as e:
         return jsonify({"error": f"bad optimiser settings: {e}"}), 400
     except Exception as e:
@@ -429,7 +435,8 @@ def api_examples():
             "stance": entry.get("stance"),
             "notes": entry.get("notes", ""),
             # Which model sizes have a cached track, in UI order — the frontend
-            # greys out the rest and only offers to switch overlay to these.
+            # labels the rest as "not cached" and runs the pose pipeline on the
+            # example clip if one of them is picked.
             "sizes": [s for s in MODEL_SIZES if s in tracks],
         })
     # Committed examples first, then your own; alphabetical within each.
@@ -784,6 +791,9 @@ INDEX_HTML = """<!doctype html>
         <label style="margin-left:4px;color:#c3c2b7" title="Which anatomical penalties the descent is allowed to fit against. The terms left out are still measured and still shown below — what a narrower objective does to the facts it stopped steering by is the point of having the choice. Switching objective makes the next optimize start over from the profile, so two objectives are always compared from the same lengths.">fit against
           <select id="v3dlimbobj" style="font-size:12px;padding:1px 4px;margin:0"></select>
         </label>
+        <label style="color:#c3c2b7" title="A limb leaning toward the lens images LONGER than its in-plane extent, and the lift credits the difference to depth it doesn't have. With this on, every 3 steps the descent re-measures each bone's projected length against the depth it currently sits at (factor 1 − z/f) and carries on against the corrected lengths. The focal length is guessed from the frame size — nothing in one video measures it — so this is a plausible correction, not a calibrated one. It changes the lengths the fit lands on; the mesh you see is still lifted orthographically.">
+          <input type="checkbox" id="v3dlimbpersp" style="margin:0 3px 0 0;vertical-align:-1px">perspective
+        </label>
         <button id="v3dlimbfit" type="button" style="font-size:12px;padding:2px 8px" title="Small gradient steps on the FIRST frame, from wherever the ratios are now, minimising the selected objective — runs until every term in it stops moving. Measured against a known athlete this drifts ~0.1 torso off the true lengths and settles there, so read the breakdown rather than trusting it.">optimize</button>
         <span id="v3dlimbsteps" style="font-size:12px;color:#898781"></span>
         <span id="v3dlimbnote"></span>
@@ -1029,15 +1039,16 @@ let vExampleId = null, vExampleSizes = null;
 // decimate a fresh copy of it rather than a previously-decimated one.
 let vTrackFull = null;
 
-// Reflect an example's cached sizes onto the #vsize picker: available ones stay
-// selectable, the rest grey out with a note. `sizes` null clears the restriction
-// (a fresh upload/recording can be run at any size). `selected`, if available,
-// becomes the current value.
+// Reflect an example's cached sizes onto the #vsize picker: every size stays
+// selectable, but the ones without a cached track are labelled so the user
+// knows picking one starts a pose run on the example clip instead of a swap.
+// `sizes` null clears the labels (a fresh upload/recording can be run at any
+// size). `selected`, if available, becomes the current value.
 function vSetSizeAvailability(sizes, selected) {
   for (const opt of $('vsize').options) {
     const ok = !sizes || sizes.includes(opt.value);
-    opt.disabled = !ok;
-    opt.textContent = opt.dataset.label + (ok ? '' : ' — no cached track');
+    opt.disabled = false;
+    opt.textContent = opt.dataset.label + (ok ? '' : ' — not cached, will run');
   }
   if (selected && (!sizes || sizes.includes(selected))) $('vsize').value = selected;
 }
@@ -1996,7 +2007,7 @@ $('vexample').onchange = async () => {
   $('vsummary').textContent = '';
   $('vsync').textContent = '';
   // Keep the current model pick if this example was analysed with it; otherwise
-  // fall to whichever size it does ship. Grey the rest out.
+  // fall to whichever size it does ship. Label the rest as needing a run.
   vExampleId = id;
   vExampleSizes = sizes;
   // Profiles are not per-example, but the chosen ones have to be in place
@@ -2027,11 +2038,21 @@ $('vexample').onchange = async () => {
 };
 
 // Switching the model while an example is loaded swaps the overlay to that
-// model's cached track — no pose run, since the example ships one per available
-// size. Greyed-out sizes can't be picked, so a cached hit is guaranteed here.
+// model's cached track when the example ships one. For a size with no cached
+// track the example's video is sent through the pose pipeline like an upload —
+// same as pressing "run" — so every model is usable on every example.
 $('vsize').onchange = async () => {
-  if (!vExampleId || !vExampleSizes || !vExampleSizes.includes($('vsize').value)) return;
+  if (!vExampleId || !vExampleSizes) return;
   const size = $('vsize').value;
+  if (!vExampleSizes.includes(size)) {
+    if ($('vrun').disabled) {
+      $('vstatus').textContent = 'a run is already in progress — wait or cancel it first';
+      return;
+    }
+    $('vstatus').textContent = 'no cached ' + size + ' track for this example — running it now…';
+    vStartRun();
+    return;
+  }
   $('vstatus').textContent = 'switching to ' + size + ' overlay…';
   try {
     const r = await fetch(`${BASE}/api/examples/${encodeURI(vExampleId)}/track?size=${encodeURIComponent(size)}`);
@@ -2261,7 +2282,11 @@ function vApplyExampleStride() {
 
 $('vstride').onchange = () => { if (vExampleId) vApplyExampleStride(); };
 
-$('vrun').onclick = async () => {
+$('vrun').onclick = () => vStartRun();
+
+// Start a pose run on the current source at the picked size and stride. Shared
+// by the run button and by picking an uncached model size on a loaded example.
+async function vStartRun() {
   if (!vSource) { $('vstatus').textContent = 'pick a video or record from camera first'; return; }
   const fd = new FormData();
   fd.append('video', vSource.blob, vSource.filename);
@@ -2279,7 +2304,7 @@ $('vrun').onclick = async () => {
   $('vstatus').textContent = 'starting…';
   vPolling = true;
   vPoll();
-};
+}
 
 $('vcancel').onclick = async () => {
   if (!confirm('Abort the current video analysis?')) return;
@@ -2789,6 +2814,12 @@ let v3dDefaultLimbs = {};            // the population priors, the `default` pro
 let v3dObjectives = [];              // [{name,label,description,terms,caveat}]
 let v3dObjective = '';               // the selected name
 const OBJECTIVE_PREF = 'coach.limbObjective';
+// Whether the descent corrects each bone's projected length for the depth it
+// currently sits at (see the backend's optimize_limbs `perspective`). Off by
+// default and remembered per browser, like the objective: it is a different
+// camera model, not a better setting, and which one is right is exactly what a
+// single video does not tell you.
+const PERSP_PREF = 'coach.limbPerspective';
 let v3dLimbs = null;                 // {name, notes, ratios} in use
 let v3dLimbsSaved = null;            // the selected profile as saved, for the dirty marker
 
@@ -2945,6 +2976,28 @@ function v3dInitObjectives(list, fallback) {
   };
 }
 
+// The perspective tickbox. Restored from localStorage and, when toggled, it
+// resets the running totals and marks the next optimize as a fresh start from
+// the profile — for the same reason changing the objective does. Corrected and
+// uncorrected lengths are two answers to the same question, and chaining one
+// descent onto the other's output makes the second one depend on whether the
+// first was ever run.
+function v3dInitPerspective() {
+  const box = $('v3dlimbpersp');
+  if (!box) return;
+  try { box.checked = localStorage.getItem(PERSP_PREF) === '1'; }
+  catch (e) { /* private mode */ }
+  box.onchange = () => {
+    try { localStorage.setItem(PERSP_PREF, box.checked ? '1' : '0'); }
+    catch (e) { /* private mode */ }
+    v3dLimbSteps = 0; v3dLimbPenalty0 = null;
+    v3dRefitFromProfile = true;
+    $('v3dlimbsteps').textContent = '';
+    $('v3dlimbnote').textContent = '';
+    $('v3dlimbfitnote').style.display = 'none';
+  };
+}
+
 async function v3dStepLimbs() {
   if (!vMeta || !v3dLimbs) return;
   const note = $('v3dlimbnote'), out = $('v3dlimbfitnote');
@@ -2970,6 +3023,7 @@ async function v3dStepLimbs() {
                              lift: document.body.dataset.page || null,
                              bone_ratios: v3dLimbs.ratios,
                              objective: v3dObjective || undefined,
+                             perspective: !!($('v3dlimbpersp') || {}).checked,
                              // Small steps with a backtracking line search, so
                              // the descent is monotone and actually terminates;
                              // iters is the guard on that, not the plan.
@@ -3013,6 +3067,20 @@ async function v3dStepLimbs() {
     // different toward/away configuration than it began on. Say so: past that
     // point it is fitting lengths to a different reading of the pose.
     const flipped = JSON.stringify(d.start_signs) !== JSON.stringify(d.signs);
+    // What the perspective correction actually did, when it was asked for. The
+    // size matters more than the fact: a 2% change in projected length is noise
+    // next to the length prior's own error, while 15% means the fit is being
+    // steered by a focal length nobody measured.
+    const p = d.perspective;
+    const persp = !p ? ''
+      : !p.on ? `<br><span style="color:#f0a020">perspective correction asked`
+                + ` for but not applied — this frame carries no pixel size, so`
+                + ` there is no focal length to guess from.</span>`
+      : `<br><span style="color:#6f6d66">perspective: ${p.passes} correction`
+        + `${p.passes === 1 ? '' : 's'} (every ${p.every} steps, damped`
+        + ` ${p.damp}), up to ${(p.max_change * 100).toFixed(1)}% off the`
+        + ` projected lengths at f = ${Math.round(p.f_px)} px — a guessed focal`
+        + ` length, and the mesh is still drawn orthographically.</span>`;
     out.style.display = '';
     const obj = v3dObjectives.find(o => o.name === d.objective);
     out.innerHTML =
@@ -3021,6 +3089,7 @@ async function v3dStepLimbs() {
       + ` (torso lengths, 0 = perfect)<br>`
       + (d.iterations === 0 ? 'last run moved nothing: ' : `last run, ${d.iterations} steps: `)
       + rows.join('<br>')
+      + persp
       + (flipped ? `<br><span style="color:#f0a020">toward/away flipped`
                    + ` ${d.sign_flips} time${d.sign_flips === 1 ? '' : 's'} during`
                    + ` the run — it ended on a different depth configuration than`
@@ -3143,6 +3212,7 @@ const v3dReady = fetch(BASE + '/api/depth/methods').then(r => r.json()).then(asy
   v3dLimbSegments = m.limb_segments || [];
   v3dDefaultLimbs = m.default_limbs || {};
   v3dInitObjectives(m.objectives || [], m.default_objective || '');
+  v3dInitPerspective();
   await v3dInitProfiles();
   const sel = $('v3dmethod');
   for (const meth of (m.methods || [])) {

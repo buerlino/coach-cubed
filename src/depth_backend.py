@@ -322,6 +322,16 @@ class Scene:
         given, unclamped — it is a measurement of this athlete rather than an
         inference about them, and the clamp exists only to bound a guess. The
         estimate still covers any segment the caller didn't measure.
+
+        The two trunk widths (_WIDTH_PAIRS) are the exception: given or prior,
+        never estimated. The p95 argument needs the segment to come near-parallel
+        to the image plane at SOME point in the clip, and a limb does — it swings
+        through the lift — while a trunk filmed side-on never turns square to the
+        lens. Measured, the estimator would hand back 0.43 torso of shoulder
+        width on the snatch and 0.49 on the clean & jerk against a 0.74 prior,
+        i.e. it would read "filmed from the side" as "narrow athlete" and flatten
+        the trunk that this whole property exists to stop flattening. What the
+        widths get instead is the descent (optimize_limbs) and a bound.
         """
         if "clip_bones" not in self._cache:
             frames = (list(self.sequence.values()) if self.sequence
@@ -334,6 +344,9 @@ class Scene:
                 ref = given.get(_SEGMENT_OF[pair])
                 if ref is not None:
                     out[pair] = float(ref)
+                    continue
+                if pair in _WIDTH_PAIRS:
+                    out[pair] = L
                     continue
                 vals = [d for (a, b) in sides for d in (
                     float(np.hypot(*(fr["kp2d"][b, :2] - fr["kp2d"][a, :2]))) / scale
@@ -469,14 +482,68 @@ class DepthDetector(ABC):
 
 # --- shared bone-length lift ------------------------------------------------
 
+# --- the torso is not a flat plate -------------------------------------------
+# Shoulders and hips used to be pinned to z == 0, which asserts the trunk is
+# exactly parallel to the screen. Filmed from the side that is plainly false,
+# and it is not a small error: on the test lift the shoulders sit 0.43 torso
+# apart on screen against a true ~0.85, so 0.67 torso of depth was being thrown
+# away across that one pair, and 0.45 across the hips — as much as or more than
+# the limb depths this module goes to such trouble to sign. Worse, every limb
+# is walked outward from those joints, so flattening the trunk put every arm
+# and leg in the wrong place before their own signs were ever considered.
+#
+# Same trick as the bones: a width known in 3D, measured foreshortened in 2D,
+# gives the out-of-plane extent. Widths are relative to torso length
+# (pelvis->neck).
+#
+# These come from _BONE_MM, the module's other anthropometry table, so the two
+# lifts can't disagree about the same athlete. Its 520mm is the LATERAL
+# shoulder->hip run, so the midline torso the ratios are keyed on is
+# sqrt(520^2 - ((380-240)/2)^2) = 515mm, giving 380/515 = 0.74 shoulders and
+# 240/515 = 0.47 hips.
+#
+# They were previously 0.85 and 0.72, picked to sit above the largest separation
+# seen on one clip. That was too generous by a lot, and the hips especially:
+# 0.72 says the pelvis is nearly as wide as the shoulders, which is wrong for
+# COCO hip keypoints because they sit on the pelvis rather than the trochanters.
+# The cost was a fixed ~0.32 torso of depth on EACH hip and 0.38 on each
+# shoulder — on an athlete standing square to the lens — and because
+# _depth_plan inherits the parent's row (M[child] = M[parent]) every limb joint
+# was displaced by it before its own sign was considered.
+#
+# Widest separation actually observed, over all four fixture clips:
+#     shoulders  0.57 / 0.75 / 0.44 / 0.55      hips  0.36 / 0.48 / 0.44 / 0.50
+# so two clips overshoot these widths on 10-14% of frames and clamp to zero
+# trunk depth there. That is benign rather than a bug: a pair projects widest
+# exactly when it is squarest to the camera, which is when its true out-of-plane
+# extent really is ~0. The old values avoided the clamp only by manufacturing
+# depth on every other frame to do it.
+SHOULDER_WIDTH = float(os.environ.get("COACH_SHOULDER_WIDTH", "0.74"))
+HIP_WIDTH = float(os.environ.get("COACH_HIP_WIDTH", "0.47"))
+
+# The pairs that are widths rather than bones. They are not in _WALK — nothing
+# is walked across the trunk, it is fitted as one rigid body — and
+# Scene.clip_bones refuses to estimate them from the clip, for the reason
+# given there.
+_WIDTH_PAIRS = ((L_SHO, R_SHO), (L_HIP, R_HIP))
+
 # Expected 3D bone lengths as a fraction of torso length (pelvis->neck == 1).
 # Rough population anthropometry — enough to turn a 2D projection into a depth
-# guess, not a biomechanics model. Keyed by (parent, child) in the walk order.
+# guess, not a biomechanics model. Keyed by (parent, child) in the walk order,
+# plus the two trunk widths above.
+#
+# The widths are in here, rather than staying the two constants they used to be,
+# because they are fitted per athlete exactly like the limb lengths now: the
+# descent, the per-clip estimate, the wire format and a saved profile all have
+# to read the same table or they will disagree about the same body. SHOULDER_WIDTH
+# and HIP_WIDTH survive as the population PRIOR — what an unmeasured athlete
+# starts from, and what the per-segment bound is centred on.
 _BONE_RATIO = {
     (L_HIP, L_KNE): 0.85, (L_KNE, L_ANK): 0.85,
     (R_HIP, R_KNE): 0.85, (R_KNE, R_ANK): 0.85,
     (L_SHO, L_ELB): 0.62, (L_ELB, L_WRI): 0.50,
     (R_SHO, R_ELB): 0.62, (R_ELB, R_WRI): 0.50,
+    (L_SHO, R_SHO): SHOULDER_WIDTH, (L_HIP, R_HIP): HIP_WIDTH,
 }
 # Walk order: each child reached from an already-placed parent. Hips, shoulders
 # and the head are placed directly off the synthetic pelvis/neck first.
@@ -497,11 +564,17 @@ _WALK = [
 # The same segment on the two sides of one body. Named because these names are
 # the wire format: a caller that has measured a particular athlete posts
 # {"thigh": 0.73, ...} and Scene.clip_bones uses it instead of guessing.
+# The trunk widths are in here too, each as a one-sided "segment": a body has
+# two femurs but only one shoulder span, so their tuple has one entry and
+# everything derived from this map — the wire format, the UI fields, the
+# optimiser's parameter vector — picks them up without a special case.
 _SEGMENTS = {
     "thigh": ((L_HIP, L_KNE), (R_HIP, R_KNE)),
     "shank": ((L_KNE, L_ANK), (R_KNE, R_ANK)),
     "uarm":  ((L_SHO, L_ELB), (R_SHO, R_ELB)),
     "farm":  ((L_ELB, L_WRI), (R_ELB, R_WRI)),
+    "shoulders": ((L_SHO, R_SHO),),
+    "hips":      ((L_HIP, R_HIP),),
 }
 # Keyed both ways so either half of a pair finds its partner. clip_bones pools
 # the two sides' measurements, which is the only place the left and right halves
@@ -511,11 +584,31 @@ _SEGMENT_OF = {p: name for name, sides in _SEGMENTS.items() for p in sides}
 _SEGMENT_LABELS = {
     "thigh": "thigh (hip→knee)", "shank": "shank (knee→ankle)",
     "uarm": "upper arm (shoulder→elbow)", "farm": "forearm (elbow→wrist)",
+    "shoulders": "shoulder width (L↔R)", "hips": "hip width (L↔R)",
 }
 # A ratio outside this band is not a limb, it is a bug at the other end. Wide on
 # purpose: the whole point of measuring an athlete is to leave the population
 # priors behind, so this bounds nonsense rather than disagreement.
 LIMB_RATIO_RANGE = (0.1, 2.0)
+
+# ...except for the two trunk widths, which are bounded hard, and not because
+# anatomy is tighter there. It is because the descent has a free lunch available
+# in one direction: a narrower trunk is a SHALLOWER trunk — the width is what
+# turns a foreshortened 2D separation into depth — and a shallower trunk flattens
+# the whole body, which every mirror-plane term scores as an improvement. Left in
+# the (0.1, 2.0) box the widths run to the floor and take the pose with them.
+# +/-25% of the population prior, the same band Scene.clip_bones clamps its
+# estimates to, so "measured this athlete" and "fitted this athlete" can disagree
+# by the same amount before either is called nonsense.
+SEGMENT_RANGE = {
+    "shoulders": (0.75 * SHOULDER_WIDTH, 1.25 * SHOULDER_WIDTH),
+    "hips": (0.75 * HIP_WIDTH, 1.25 * HIP_WIDTH),
+}
+
+
+def segment_range(name: str) -> tuple:
+    """(lo, hi) a segment's ratio is allowed in — the wide default, or its own."""
+    return SEGMENT_RANGE.get(name, LIMB_RATIO_RANGE)
 
 
 def limb_segments() -> list:
@@ -529,7 +622,7 @@ def limb_segments() -> list:
     return [{"key": name,
              "label": _SEGMENT_LABELS.get(name, name),
              "default": _BONE_RATIO[sides[0]],
-             "min": LIMB_RATIO_RANGE[0], "max": LIMB_RATIO_RANGE[1]}
+             "min": segment_range(name)[0], "max": segment_range(name)[1]}
             for name, sides in _SEGMENTS.items()]
 
 
@@ -679,44 +772,6 @@ _SYM_MIN_SIN = 0.10
 # fixed, because ranking cannot repair poses that are wrong for another reason.
 _SYMMETRY_WEIGHT = 0.0
 
-# --- the torso is not a flat plate -------------------------------------------
-# Shoulders and hips used to be pinned to z == 0, which asserts the trunk is
-# exactly parallel to the screen. Filmed from the side that is plainly false,
-# and it is not a small error: on the test lift the shoulders sit 0.43 torso
-# apart on screen against a true ~0.85, so 0.67 torso of depth was being thrown
-# away across that one pair, and 0.45 across the hips — as much as or more than
-# the limb depths this module goes to such trouble to sign. Worse, every limb
-# is walked outward from those joints, so flattening the trunk put every arm
-# and leg in the wrong place before their own signs were ever considered.
-#
-# Same trick as the bones: a width known in 3D, measured foreshortened in 2D,
-# gives the out-of-plane extent. Widths are relative to torso length
-# (pelvis->neck).
-#
-# These come from _BONE_MM, the module's other anthropometry table, so the two
-# lifts can't disagree about the same athlete. Its 520mm is the LATERAL
-# shoulder->hip run, so the midline torso the ratios are keyed on is
-# sqrt(520^2 - ((380-240)/2)^2) = 515mm, giving 380/515 = 0.74 shoulders and
-# 240/515 = 0.47 hips.
-#
-# They were previously 0.85 and 0.72, picked to sit above the largest separation
-# seen on one clip. That was too generous by a lot, and the hips especially:
-# 0.72 says the pelvis is nearly as wide as the shoulders, which is wrong for
-# COCO hip keypoints because they sit on the pelvis rather than the trochanters.
-# The cost was a fixed ~0.32 torso of depth on EACH hip and 0.38 on each
-# shoulder — on an athlete standing square to the lens — and because
-# _depth_plan inherits the parent's row (M[child] = M[parent]) every limb joint
-# was displaced by it before its own sign was considered.
-#
-# Widest separation actually observed, over all four fixture clips:
-#     shoulders  0.57 / 0.75 / 0.44 / 0.55      hips  0.36 / 0.48 / 0.44 / 0.50
-# so two clips overshoot these widths on 10-14% of frames and clamp to zero
-# trunk depth there. That is benign rather than a bug: a pair projects widest
-# exactly when it is squarest to the camera, which is when its true out-of-plane
-# extent really is ~0. The old values avoided the clamp only by manufacturing
-# depth on every other frame to do it.
-SHOULDER_WIDTH = float(os.environ.get("COACH_SHOULDER_WIDTH", "0.74"))
-HIP_WIDTH = float(os.environ.get("COACH_HIP_WIDTH", "0.47"))
 
 # --- the camera is not orthographic ------------------------------------------
 # dz = sqrt(L^2 - l^2) is the ORTHOGRAPHIC relation: it reads the on-screen
@@ -885,7 +940,7 @@ _TRUNK_JOINTS = (L_HIP, R_HIP, L_SHO, R_SHO)
 _TRUNK_MODEL = np.array([[ 0.5, 0.0], [-0.5, 0.0], [ 0.5, -1.0], [-0.5, -1.0]])
 
 
-def _fit_trunk(xy, seen, scale_px):
+def _fit_trunk(xy, seen, scale_px, sho_w=None, hip_w=None):
     """Orthographic pose of the rigid trunk -> its four depths, or None.
 
     Returns (17,) of depth PER +1 OF TWIST, nonzero only on _TRUNK_JOINTS, so it
@@ -924,9 +979,13 @@ def _fit_trunk(xy, seen, scale_px):
     if not (all(seen[j] for j in _TRUNK_JOINTS) and scale_px > 0):
         return None
     P = xy[list(_TRUNK_JOINTS)]
-    m = _TRUNK_MODEL * np.array([[SHOULDER_WIDTH, 1.0]]) * scale_px
-    # HIP_WIDTH is the only per-row difference, so scale the hip row after.
-    m[:2, 0] *= HIP_WIDTH / SHOULDER_WIDTH
+    sho_w = SHOULDER_WIDTH if sho_w is None else float(sho_w)
+    hip_w = HIP_WIDTH if hip_w is None else float(hip_w)
+    if not (sho_w > 0 and hip_w > 0):
+        return None
+    m = _TRUNK_MODEL * np.array([[sho_w, 1.0]]) * scale_px
+    # The hip width is the only per-row difference, so scale the hip row after.
+    m[:2, 0] *= hip_w / sho_w
     mc, pc = m - m.mean(0), P - P.mean(0)
     A, *_ = np.linalg.lstsq(mc, pc, rcond=None)      # mc @ A ~= pc
     a1, a2 = A[:, 0], A[:, 1]
@@ -945,7 +1004,7 @@ def _fit_trunk(xy, seen, scale_px):
     return z if np.all(np.isfinite(z)) else None
 
 
-def _depth_plan(kp2d, scale_px: float, xy=None, bones=None):
+def _depth_plan(kp2d, scale_px: float, xy=None, bones=None, shrink=None):
     """The frame's geometry, factored so depth is LINEAR in the sign bits.
 
     Returns (M, base, valid) or None, where for any sign vector s over
@@ -970,10 +1029,30 @@ def _depth_plan(kp2d, scale_px: float, xy=None, bones=None):
     un-projected positions without a second copy of the geometry. `bones` is the
     segment-length table, defaulting to the population priors; callers with a
     whole clip pass Scene.clip_bones instead, which is measured off the athlete.
+
+    `shrink` is the other, weaker perspective correction: a (17,) of per-joint
+    (1 - z/f_px) from a previous pass, applied to each limb bone's PROJECTED
+    LENGTH as the mean of its two ends' factors. It is what optimize_limbs
+    switches on (see its `perspective`), and the approximation it makes is
+    exactly the one that makes it safe — treat a bone as lying at one depth and
+    the correction becomes a scaling of its image separation, independent of
+    where the principal point is. Correcting the POSITIONS instead needs the
+    optical axis and shifts the whole pose off the video; that is
+    _perspective_refine's job, not this one's.
+
+    The trunk is deliberately left orthographic under `shrink`. Its depths come
+    from a rigid pose fit, which takes positions rather than lengths and so
+    would need the principal point again — and the pelvis IS the depth origin,
+    so the factor it would get is within a percent of 1 anyway. What the
+    correction bites on is the limb walk.
     """
     if not (scale_px and np.isfinite(scale_px) and scale_px > 0):
         return None
     bones = _BONE_RATIO if bones is None else bones
+    # The trunk widths come out of the same table as the bones, defaulting to the
+    # population prior so a profile saved before they were fitted still lifts.
+    sho_w = float(bones.get((L_SHO, R_SHO), SHOULDER_WIDTH))
+    hip_w = float(bones.get((L_HIP, R_HIP), HIP_WIDTH))
     seen = kp2d[:, 2] >= CONF_SEEN
     xy = kp2d[:, :2] if xy is None else xy
     if not (seen[L_HIP] and seen[R_HIP]):
@@ -1005,7 +1084,7 @@ def _depth_plan(kp2d, scale_px: float, xy=None, bones=None):
     # disagree, and pinning the lean to zero (the state before this) held the
     # spine flat in the image plane by algebra rather than by evidence.
     t = _SLOT[TORSO_SIGN_KEY]
-    z_trunk = _fit_trunk(xy, seen, scale_px)
+    z_trunk = _fit_trunk(xy, seen, scale_px, sho_w, hip_w)
     if z_trunk is not None:
         for joint in _TRUNK_JOINTS:
             M[joint, t] = z_trunk[joint]
@@ -1014,8 +1093,7 @@ def _depth_plan(kp2d, scale_px: float, xy=None, bones=None):
     else:
         # Not enough of the trunk in frame to orient it. Fall back to the pair
         # rule, which needs only one pair and asserts no lean.
-        for a, b, width in ((L_HIP, R_HIP, HIP_WIDTH),
-                            (L_SHO, R_SHO, SHOULDER_WIDTH)):
+        for a, b, width in ((L_HIP, R_HIP, hip_w), (L_SHO, R_SHO, sho_w)):
             dz = pair_depth(a, b, width)
             for joint, sgn in ((a, +1.0), (b, -1.0)):
                 if seen[joint]:
@@ -1039,6 +1117,13 @@ def _depth_plan(kp2d, scale_px: float, xy=None, bones=None):
             continue
         l2d = float(np.hypot(xy[child, 0] - xy[parent, 0],
                              xy[child, 1] - xy[parent, 1]))
+        if shrink is not None:
+            # The bone, taken as a whole, sits at the mean depth of its ends, so
+            # a camera magnified its in-plane extent by one factor and one
+            # factor undoes it. Bigger l2d means less depth left over, so a bone
+            # leaning TOWARD the lens (z > 0, shrink < 1) gives some of the
+            # depth back that the orthographic reading invented for it.
+            l2d *= (shrink[parent] + shrink[child]) / 2.0
         L = bones[(parent, child)] * scale_px
         M[child] = M[parent]
         M[child, _SLOT[child]] += float(np.sqrt(max(L * L - l2d * l2d, 0.0)))
@@ -1939,10 +2024,18 @@ _OPT_TERM_TOL = 2e-4
 _OPT_UI_LR = 0.005
 _OPT_UI_MAX = 400
 
+# How often the optional perspective correction is re-taken during a descent
+# (optimize_limbs' `perspective`). Re-taking it every step would be a fixed
+# point chasing a moving objective; never re-taking it is today's orthographic
+# lift. Three steps in between gives the descent room to react to one correction
+# before the next lands, and keeps the objective piecewise constant for long
+# enough that a line search inside those three steps is comparing like with like.
+_PERSP_EVERY = 3
 
-def _lift_candidates(kp2d, scale_px, bones, S):
+
+def _lift_candidates(kp2d, scale_px, bones, S, shrink=None):
     """(poses (ncand, 17, 3), valid (17,)) for one frame under every sign."""
-    plan = _depth_plan(kp2d, scale_px, bones=bones)
+    plan = _depth_plan(kp2d, scale_px, bones=bones, shrink=shrink)
     if plan is None:
         return None, None
     M, base, valid = plan
@@ -1955,7 +2048,8 @@ def _lift_candidates(kp2d, scale_px, bones, S):
 
 def optimize_limbs(scene, ratios=None, weights=None, iters=_OPT_ITERS,
                    lr=_OPT_LR, frame=None, line_search=True,
-                   term_tol=_OPT_TERM_TOL, objective=DEFAULT_OBJECTIVE):
+                   term_tol=_OPT_TERM_TOL, objective=DEFAULT_OBJECTIVE,
+                   perspective=False):
     """Fit the limb ratios to one frame by minimising the humanness penalty.
 
     The lift reads a bone's true length off a prior and turns whatever it has
@@ -1965,7 +2059,15 @@ def optimize_limbs(scene, ratios=None, weights=None, iters=_OPT_ITERS,
     consequences used here are PENALTY_TERMS: lengths that are wrong bend the
     body in ways a body doesn't bend.
 
-    Descends on the four ratios jointly; at every evaluation the sign search runs
+    Descends on all six ratios jointly — four limb lengths and the two trunk
+    widths, which are the same kind of unknown: a 3D extent that only shows up
+    in the projection foreshortened. The widths earn their place by being what
+    turns the trunk's 2D separations into trunk depth, and every limb is walked
+    outward from a trunk joint, so a wrong width displaces an arm before the
+    arm's own length is ever considered. They are bounded far tighter than the
+    limbs; SEGMENT_RANGE says why.
+
+    At every evaluation the sign search runs
     underneath and the best of its candidates is taken, so this is a minimum over
     (lengths, signs) rather than a fit against one frozen guess of the directions.
     That makes the objective piecewise smooth — the argmin sign can switch under
@@ -1988,6 +2090,24 @@ def optimize_limbs(scene, ratios=None, weights=None, iters=_OPT_ITERS,
     `weights` overrides it per term. The ones left out are still
     evaluated and still returned, because the interesting thing about narrowing
     the objective is what happens to the facts you stopped fitting.
+
+    `perspective` switches on the correction the orthographic lift ignores: a
+    bone that leans toward the lens images longer than its in-plane extent, and
+    dz = sqrt(L^2 - l^2) credits the difference to depth it doesn't have. Every
+    _PERSP_EVERY steps the current mesh's depths are turned into a per-bone
+    factor (1 - zbar/f_px) on the projected lengths and the descent carries on
+    against those (see _depth_plan's `shrink`). It is a fixed point — the
+    correction needs the depths and the depths need the correction — so it is
+    damped at _PERSP_DAMP, for the measured reason in the _PERSP_ITERS note:
+    toward-camera is positive feedback and the undamped map limit-cycles.
+
+    Two things it is NOT. It does not measure the focal length, which no single
+    video does; f_px is _FOCAL_MUL times the frame's long side, and the caveat
+    at _PERSP_ITERS about that guess being the same order as the error it
+    corrects applies here unchanged. And it corrects the FIT only: the mesh the
+    viewer draws afterwards is still lifted orthographically, so switching this
+    on changes which lengths come out, not how the lengths that come out are
+    then drawn.
 
     Stops when every term IN THE OBJECTIVE individually moves less than
     `term_tol` in a step, when the line search can no longer find a downhill
@@ -2025,22 +2145,55 @@ def optimize_limbs(scene, ratios=None, weights=None, iters=_OPT_ITERS,
     if ratios:
         start.update({k: float(v) for k, v in ratios.items() if k in _SEGMENTS})
     x = np.array([start[n] for n in names], dtype=float)
-    lo, hi = LIMB_RATIO_RANGE
+    # Per parameter, not one box for all six: the trunk widths get a much
+    # tighter one, and the reason is in SEGMENT_RANGE — narrower trunk means
+    # shallower trunk, which the mirror terms reward without it being true.
+    lo = np.array([segment_range(n)[0] for n in names])
+    hi = np.array([segment_range(n)[1] for n in names])
+    x = np.clip(x, lo, hi)
     S = _candidate_signs()
     gate = start_pose_gate(scene, S)
     if gate is not None:
         S = S[gate["keep"]]
 
+    # The perspective correction, off unless asked for. `shrink` is None on the
+    # orthographic path so nothing downstream changes shape; f_px is None when
+    # it was asked for and the frame has no pixel dimensions to take a focal
+    # length from, which the payload reports rather than silently ignoring.
+    side = max(scene.width or 0, scene.height or 0)
+    f_px = (_FOCAL_MUL * side) if (perspective and side > 0) else None
+    shrink = None
+    z_persp = np.zeros(N_JOINTS)      # px, damped across passes
+    persp_passes = 0
+
+    def _bones(vec):
+        return {p: float(vec[i]) for i, n in enumerate(names)
+                for p in _SEGMENTS[n]}
+
     def evaluate(vec):
-        bones = {p: float(vec[i]) for i, n in enumerate(names)
-                 for p in _SEGMENTS[n]}
-        P, valid = _lift_candidates(kp2d, scale, bones, S)
+        P, valid = _lift_candidates(kp2d, scale, _bones(vec), S, shrink=shrink)
         if P is None:
             return np.inf, None, None
         terms = _penalty_terms(P, scale, valid)
         total = terms @ wv
         b = int(np.argmin(total))
         return float(total[b]), terms[b], b
+
+    def reproject(vec, b):
+        """Re-take the length correction from the mesh the descent is standing on.
+
+        Damped against the previous pass rather than replaced: toward-camera is
+        positive feedback (deeper -> shorter apparent bone -> more depth), and
+        undamped this map limit-cycles — measured, see the _PERSP_ITERS note.
+        """
+        nonlocal shrink, z_persp, persp_passes
+        P, _ = _lift_candidates(kp2d, scale, _bones(vec), S, shrink=shrink)
+        if P is None:
+            return False
+        z_persp = (1.0 - _PERSP_DAMP) * z_persp + _PERSP_DAMP * P[b, :, 2]
+        shrink = 1.0 - z_persp / f_px
+        persp_passes += 1
+        return True
 
     f0, terms0, sign0 = evaluate(x)
     if not np.isfinite(f0):
@@ -2055,8 +2208,8 @@ def optimize_limbs(scene, ratios=None, weights=None, iters=_OPT_ITERS,
         grad = np.zeros(len(names))
         for i in range(len(names)):
             up_, dn = x.copy(), x.copy()
-            up_[i] = min(hi, x[i] + _OPT_STEP)
-            dn[i] = max(lo, x[i] - _OPT_STEP)
+            up_[i] = min(hi[i], x[i] + _OPT_STEP)
+            dn[i] = max(lo[i], x[i] - _OPT_STEP)
             span = up_[i] - dn[i]
             if span <= 0:
                 continue
@@ -2098,6 +2251,24 @@ def optimize_limbs(scene, ratios=None, weights=None, iters=_OPT_ITERS,
         if cur[1] < best[1]:
             best = cur
         history.append(cur[1])
+        if (f_px is not None and steps % _PERSP_EVERY == 0
+                and reproject(cur[0], cur[3])):
+            # The objective just moved under everything: these lengths are being
+            # graded against different projected lengths than they were a step
+            # ago. Re-measure at the same point, or the next line search starts
+            # from a total that no longer exists and reads every trial as
+            # uphill — a correction would look like a stall. `best` restarts for
+            # the same reason: a total from before the correction was taken on a
+            # different geometry and comparing the two is meaningless.
+            f, terms, sgn = evaluate(x)
+            if sgn != cur[3]:
+                flips += 1
+            cur = (x.copy(), f, terms, sgn)
+            best = cur
+            history.append(f)
+            # Not a convergence test: the terms moved for a reason that isn't
+            # the descent, and the next iteration measures against this geometry.
+            continue
         # Converged when the terms have stopped moving — all of them. Checked on
         # the breakdown rather than the total so a step that only shuffles
         # penalty from one term to another still counts as movement.
@@ -2141,15 +2312,33 @@ def optimize_limbs(scene, ratios=None, weights=None, iters=_OPT_ITERS,
         # How much of a reading no choice of lengths can remove. Without it a
         # run that reached the floor reads as a run that failed.
         "floors": term_floors(kp2d, scale),
+        # None when it wasn't asked for. `on` false means it WAS asked for and
+        # couldn't run (no frame size, so no focal length), which is a different
+        # thing from a run that didn't want it — and the reading of the lengths
+        # afterwards differs, so it is said out loud rather than defaulted away.
+        # `max_change` is the largest factor the correction ended up putting on
+        # a projected length: 0.06 means a bone was read 6% shorter than the
+        # image says it is.
+        "perspective": (None if not perspective else {
+            "on": f_px is not None,
+            "every": _PERSP_EVERY,
+            "passes": persp_passes,
+            "damp": _PERSP_DAMP,
+            "f_px": (None if f_px is None else float(f_px)),
+            "max_change": (0.0 if shrink is None
+                           else float(np.max(np.abs(1.0 - shrink)))),
+        }),
     }
 
 
 def parse_bone_ratios(raw) -> Optional[dict]:
     """{segment name: fraction of torso} from whatever the frontend posted.
 
-    Keeps only the names in _SEGMENTS and only finite values inside
-    LIMB_RATIO_RANGE, so a malformed post degrades to the per-clip estimate
-    rather than poisoning the lift.
+    Keeps only the names in _SEGMENTS and only finite values inside that
+    segment's own range, so a malformed post degrades to the per-clip estimate
+    rather than poisoning the lift. The trunk widths are bounded tighter than
+    the limbs (see SEGMENT_RANGE); +/-25% is generous for a shoulder span, so
+    this rejects typos rather than unusual athletes.
     """
     if not isinstance(raw, dict):
         return None
@@ -2161,7 +2350,8 @@ def parse_bone_ratios(raw) -> Optional[dict]:
             v = float(val)
         except (TypeError, ValueError):
             continue
-        if np.isfinite(v) and LIMB_RATIO_RANGE[0] <= v <= LIMB_RATIO_RANGE[1]:
+        lo, hi = segment_range(name)
+        if np.isfinite(v) and lo <= v <= hi:
             out[name] = v
     return out or None
 
