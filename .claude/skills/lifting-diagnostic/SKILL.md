@@ -298,6 +298,68 @@ State every trigger's fallback. If the video starts mid-pull there is no quiet
 period to find — clamp to the first sample and *say so in the notes*, don't
 silently return a phase that starts at 0.
 
+### The lift window
+
+`liftWindow` in `src/diagnostics.js` is the one window that belongs to the
+**lift**, not to a cue: where the attempt starts and where it finishes. It is
+not a diagnostic — no cue, no scalar, no plot, no entry in `DIAGNOSTIC_SETS`.
+It is computed once per track in `run()` alongside the bar axis, exposed as
+`Diagnostics.liftWindow()`, and drawn by `src/app.py` as the two markers on the
+video's and the 3D view's time sliders (the "lift start/end markers" tickbox).
+
+- **Start** = `firstPullWindow(...).startIdx`, the same call the first-pull
+  diagnostics make. Shared, not re-derived: the marker on the slider and the
+  shaded phase on the first-pull chart have to be the same instant.
+- **End** = the first sample from which all four of these hold for
+  `LOCK_HOLD_SECONDS`: both elbows above `LOCK_ELBOW` (150°), both knees above
+  `LOCK_KNEE` (170°), the body slower than `STILL_SPEED` at every instant, and
+  the body's *net* travel across the whole hold under `STILL_DRIFT`.
+
+The end trigger is worth reading before writing any "the lifter finished"
+trigger of your own, because each of its four gates was added after the one
+before it shipped and fired early:
+
+1. **Angles alone** fire on the scoop and on the triple extension — a tenth of
+   a second each, which a persistence window rejects.
+2. **Angles held half a second** still fire during the *stand-up out of the
+   catch*, where all four joints come open together, slowly, for a full second,
+   while the lifter is still rising. The position is a finish; the movement
+   isn't. So the hold also asks the body to be slow — and only slow, since a
+   finish contains sway, a step back and the bar settling. `bodyMotion` reports
+   the **median** speed over every keypoint (so the arms under a settling bar
+   cannot veto a body that has plainly stopped) and `STILL_SPEED` is a third of
+   a torso-length per second, not zero.
+3. **One threshold on speed** is still not enough, because slow is not the same
+   as stationary: a recovery creeping up at 0.3 torso-lengths/s is under the
+   gate at every instant and has still moved a third of a body by the time the
+   half second is out. `STILL_DRIFT` is the same measurement taken end to end
+   over the hold — net displacement, not path length — so rocking in place
+   scores near zero however busy it looks, and monotone creep fails however
+   gentle it is. On the fixtures the separation is an order of magnitude: a
+   recovery in progress drifts 0.2–0.65, a real finish 0.05–0.09.
+4. **The knees are not the elbows.** An elbow is locked or it isn't. A knee is
+   *soft* for the whole recovery — it drifts up through the 150s and 160s long
+   before the lifter is standing — so it gets its own, tighter threshold. Any
+   joint whose angle changes gradually through the movement needs one.
+
+Three rules this leaves behind for any similar trigger:
+
+- **A posture is not an event.** Where a body *is* rarely distinguishes a
+  transient from a destination; where it is *going* does. Pair every position
+  threshold that has to mean "arrived" with a motion one — and check the motion
+  both instant by instant and end to end, because they fail differently.
+- **Unknown is not false.** Speed is differenced across a baseline either side
+  of a sample, so the few samples at each end of the clip have none — exactly
+  where a finish that runs off the end of the clip lives. `liftWindow` treats
+  those as a third state: a hold cannot *start* on one, but it survives them,
+  and a hold that reaches the end of the clip that way is reported with
+  `truncated: true` rather than thrown away.
+- **A short window cannot judge a slow signal.** That truncated path is also
+  how a clip ending with the lifter merely upright collects a spurious marker
+  from its last three frames — over a few samples, net travel is mostly the
+  smoothing window's own lag. `LOCK_MIN_SPAN` is the floor below which the
+  question is declined rather than answered.
+
 ## Visualization and transparency
 
 The plot goes **below the video**, shares its time axis, and is click-to-seek —

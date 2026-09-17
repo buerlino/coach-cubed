@@ -696,6 +696,35 @@ INDEX_HTML = """<!doctype html>
                background:#0b0c0b; border:1px solid var(--line); border-radius:10px; box-shadow:0 18px 45px rgba(0,0,0,.22); }
   #videoWrap video { max-width:100%; display:block; border-radius:5px; }
   #videoWrap canvas { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+  /* Time sliders. One under the video, one under the 3D view, and they are the
+     same control twice (see SCRUBS in the script) — so they are styled once
+     here, thumb width included: the lift markers are positioned against the
+     track the thumb slides along, which is the element's width minus one thumb,
+     and that arithmetic needs the thumb to be a number this file sets rather
+     than whatever each browser's default happens to be. */
+  .scrub-row { display:flex; align-items:center; gap:8px; padding:7px 0 2px; }
+  .scrub-wrap { position:relative; flex:1; }
+  .scrub { -webkit-appearance:none; appearance:none; display:block; width:100%;
+           height:16px; margin:0; padding:0; border:0; background:transparent; }
+  .scrub::-webkit-slider-runnable-track { height:6px; border-radius:3px; background:#2c2f2b; }
+  .scrub::-moz-range-track { height:6px; border-radius:3px; background:#2c2f2b; }
+  .scrub::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; margin-top:-4px;
+                                 border:0; border-radius:50%; background:var(--accent); cursor:pointer; }
+  .scrub::-moz-range-thumb { width:14px; height:14px; border:0; border-radius:50%; background:var(--accent); cursor:pointer; }
+  .scrub-time { font-size:11px; color:#898781; white-space:nowrap; min-width:86px; text-align:right; }
+  /* The lift's start/end, laid over the track. Purple, like every other phase
+     boundary in coach (see the colour scheme in the lifting-diagnostic skill):
+     a marker says WHEN the lift was, not how well it went. pointer-events stay
+     off so a marker can never swallow a drag of the slider under it. */
+  .scrub-marks { position:absolute; left:0; right:0; top:0; height:16px; pointer-events:none; }
+  .scrub-span { position:absolute; top:5px; height:6px; border-radius:3px; background:rgba(179,157,219,0.30); }
+  .scrub-mark { position:absolute; top:1px; width:2px; height:14px; margin-left:-1px;
+                border-radius:1px; background:#b39ddb; box-shadow:0 0 0 1px rgba(0,0,0,0.55); }
+  .scrub-mark::after { content:''; position:absolute; left:-3px; top:-5px;
+                       border-left:4px solid transparent; border-right:4px solid transparent;
+                       border-top:5px solid #b39ddb; }
+  #vliftnote { font-size:12px; color:#898781; margin:0 0 4px; }
+  #vliftnote .lift-seek { color:#b39ddb; cursor:pointer; border-bottom:1px dotted #b39ddb; }
   /* diagnostics — dark chart surface + ink tokens from the validated palette */
   #diagWrap { display:none; }
   .diag-toggles { margin:8px 0 0; display:flex; flex-direction:column; gap:4px; }
@@ -759,6 +788,24 @@ INDEX_HTML = """<!doctype html>
       <video id="vout" controls muted playsinline loop></video>
       <canvas id="voverlay"></canvas>
     </div>
+    <!-- The video's own time bar, beside the native one. A <video controls>
+         seek bar is browser chrome: nothing can be drawn on it, and the lift's
+         start and end markers are exactly a drawing on a time bar. So the clip
+         gets a real slider of its own, the same one the 3D view below has, and
+         the native controls stay for play/pause/volume. Hidden until a clip has
+         a duration to scrub. -->
+    <div id="vscrubrow" class="scrub-row" style="display:none">
+      <div class="scrub-wrap">
+        <input id="vscrub" class="scrub" type="range" min="0" max="1" step="0.001" value="0" title="Scrub the clip">
+        <div id="vscrubmarks" class="scrub-marks"></div>
+      </div>
+      <span id="vscrubtime" class="scrub-time">0.00s / 0.00s</span>
+    </div>
+    <!-- What the two markers on the sliders above mean and what put them there.
+         A marker with no account of its trigger is the same failure as a score
+         with no transparency block: a wrong one looks exactly like a right one.
+         Times are click-to-seek, same contract as the plots. -->
+    <p id="vliftnote"></p>
     <!-- Generate-3D picker: choose which depth anchor lifts the current frame
          to 3D. "Auto" lets the router pick by confidence; a named method forces
          it so a specific anchor can be inspected. Populated from
@@ -852,9 +899,12 @@ INDEX_HTML = """<!doctype html>
            click-to-seek already drive — dragging it seeks the video, and it
            follows along during playback or a seek from anywhere else, same as
            the plot's playhead line does (see drawOverlay). -->
-      <div id="v3dscrubrow" style="display:flex;align-items:center;gap:8px;margin-top:4px">
-        <input id="v3dscrub" type="range" min="0" max="1" step="0.001" value="0" style="flex:1;vertical-align:middle" title="Scrub the clip — syncs the video and the mesh">
-        <span id="v3dscrubtime" style="font-size:11px;color:#898781;white-space:nowrap;min-width:86px;text-align:right">0.00s / 0.00s</span>
+      <div id="v3dscrubrow" class="scrub-row">
+        <div class="scrub-wrap">
+          <input id="v3dscrub" class="scrub" type="range" min="0" max="1" step="0.001" value="0" title="Scrub the clip — syncs the video and the mesh">
+          <div id="v3dscrubmarks" class="scrub-marks"></div>
+        </div>
+        <span id="v3dscrubtime" class="scrub-time">0.00s / 0.00s</span>
       </div>
     </div>
     <p id="vsummary" style="font-size:12px;color:#c3c2b7"></p>
@@ -1276,6 +1326,9 @@ function applySmoothing() {
   updatePlotControls();
   drawOverlay();
   Diagnostics.setTrack(vKeypoints, vMeta, { smoothingMs: vSigmaMs });
+  // The lift window is part of what setTrack just recomputed, and drawOverlay
+  // above ran against the previous one.
+  renderLiftMarks();
 }
 
 $('vsmooth').addEventListener('input', applySmoothing);
@@ -1318,7 +1371,7 @@ const pcanvas = $('plotCanvas'), pctx = pcanvas.getContext('2d');
 // Stubbed if that script failed to load, so a ReferenceError here doesn't take
 // the rest of the page's handlers down with it.
 const Diagnostics = window.Diagnostics ||
-  { mount(){}, setPage(){}, setTrack(){}, draw(){}, overlay(){} };
+  { mount(){}, setPage(){}, setTrack(){}, draw(){}, overlay(){}, liftWindow(){ return null; } };
 Diagnostics.mount({
   sections: $('diagSections'),
   select: $('diagPersonSelect'),
@@ -1718,6 +1771,10 @@ function drawEquipment(idx) {
 
 function drawOverlay(t) {
   vctx.clearRect(0, 0, vcanvas.width, vcanvas.height);
+  // Before the early return: clearing the track has to clear the lift markers
+  // too, or they keep describing a clip that is no longer loaded. A no-op
+  // unless the window actually moved.
+  renderLiftMarks();
   if (!vKeypoints || !vMeta || !vSample) return;
 
   const time = (typeof t === 'number' && isFinite(t)) ? t : vvideo.currentTime;
@@ -1749,7 +1806,7 @@ function drawOverlay(t) {
   // Step the 3D view to the same frame, so the reconstruction plays in sync
   // with the video (no-op until a sequence candidate is loaded).
   if (window.Viewer) window.Viewer.showFrame(idx);
-  v3dSyncScrub(time);
+  syncScrubs(time);
 
   if (!frame) return;
 
@@ -2714,39 +2771,155 @@ $('v3dplay').addEventListener('click', e => {
 });
 v3dSyncPlayIcon();
 
-// --- 3D panel: time slider ------------------------------------------------
-// One more way into vvideo.currentTime, alongside the native controls and the
-// plot's click-to-seek — dragging this scrubs the video, and the video moving
-// for ANY reason (playback, the native seek bar, a plot click) scrubs this,
-// via v3dSyncScrub below (called from drawOverlay with the same `time` the
-// mesh and the plot's playhead already use — one clock, three displays).
-let v3dScrubbing = false;   // true while the user has this slider's thumb down
+// --- time sliders ---------------------------------------------------------
+// Two of them, and they are the same control twice: one under the video (the
+// native seek bar cannot be drawn on, and these carry markers) and one under
+// the 3D view. Both are just another way into vvideo.currentTime, alongside the
+// native controls and the plot's click-to-seek — dragging one scrubs the video,
+// and the video moving for ANY reason (playback, the native seek bar, a plot
+// click, the other slider) scrubs both, via syncScrubs below. It is called from
+// drawOverlay with the same `time` the mesh and the plot's playhead already
+// use: one clock, every display.
+const SCRUBS = [
+  { input: 'vscrub', time: 'vscrubtime', marks: 'vscrubmarks' },
+  { input: 'v3dscrub', time: 'v3dscrubtime', marks: 'v3dscrubmarks' },
+];
+// Which slider's thumb is currently down, if any. Per-element rather than a
+// single flag so a drag on one does not also freeze the other's thumb: they
+// show the same clock, and only the one being dragged must not be written to.
+let scrubDrag = null;
 
-function v3dSyncScrubRange() {
-  const el = $('v3dscrub');
-  if (!el) return;
-  el.max = String(vvideo.duration && isFinite(vvideo.duration) ? vvideo.duration : 1);
+function syncScrubRange() {
+  const dur = (vvideo.duration && isFinite(vvideo.duration)) ? vvideo.duration : null;
+  for (const s of SCRUBS) {
+    const el = $(s.input);
+    if (el) el.max = String(dur || 1);
+  }
+  // A dead slider on a page with no clip is worse than no slider; the 3D one is
+  // inside a panel that is itself hidden until a reconstruction exists.
+  $('vscrubrow').style.display = dur ? 'flex' : 'none';
+  renderLiftMarks();   // the marker positions are fractions of the duration
 }
-vvideo.addEventListener('loadedmetadata', v3dSyncScrubRange);
+vvideo.addEventListener('loadedmetadata', syncScrubRange);
 
 // Skipped while the user is actively dragging: reassigning a range input's
 // .value out from under an in-progress drag makes the thumb visibly fight the
 // pointer on some browsers, even when the reassigned value is correct.
-function v3dSyncScrub(time) {
-  const el = $('v3dscrub'), out = $('v3dscrubtime');
-  if (!el || !isFinite(time)) return;
-  if (!v3dScrubbing) el.value = String(time);
-  if (out) out.textContent = `${time.toFixed(2)}s / ${(vvideo.duration || 0).toFixed(2)}s`;
+function syncScrubs(time) {
+  if (!isFinite(time)) return;
+  for (const s of SCRUBS) {
+    const el = $(s.input), out = $(s.time);
+    if (el && scrubDrag !== s.input) el.value = String(time);
+    if (out) out.textContent = `${time.toFixed(2)}s / ${(vvideo.duration || 0).toFixed(2)}s`;
+  }
 }
-$('v3dscrub').addEventListener('pointerdown', () => { v3dScrubbing = true; });
-$('v3dscrub').addEventListener('input', () => {
-  const t = parseFloat($('v3dscrub').value);
+for (const s of SCRUBS) {
+  const el = $(s.input);
+  el.addEventListener('pointerdown', () => { scrubDrag = s.input; });
+  el.addEventListener('input', () => {
+    const t = parseFloat(el.value);
+    if (isFinite(t)) vvideo.currentTime = t;
+  });
+  // 'change' is the reliable release signal for a range input; the window
+  // listener is a fallback for a pointer released off the element.
+  el.addEventListener('change', () => { if (scrubDrag === s.input) scrubDrag = null; });
+}
+window.addEventListener('pointerup', () => { scrubDrag = null; }, true);
+
+// --- lift start/end markers -----------------------------------------------
+// The lift itself, on the time bars: where the first pull starts and where the
+// lifter finishes locked out (diagnostics.js: liftWindow). Every lift page gets
+// them, because the window is computed from the track and not from the page's
+// cue set — but not every lift HAS them (no bar off the floor, no lockout to
+// hold), so the trigger either fires or says why it didn't, and the tickbox
+// turns the whole thing off for a clip where they are noise.
+//
+// Positioned against the slider's TRACK, not its box: the thumb's centre only
+// ever reaches from half a thumb in to half a thumb from the end, so t maps to
+// `7px + ratio * (100% - 14px)` for the 14px thumb the stylesheet sets. Written
+// as a CSS calc rather than resolved to pixels here so the markers survive a
+// resize without anything having to listen for one.
+const SCRUB_THUMB = 14;
+const markLeft = r => `calc(${(SCRUB_THUMB / 2).toFixed(1)}px + ${(r * 100).toFixed(4)}% - ${(r * SCRUB_THUMB).toFixed(3)}px)`;
+const markWidth = r => `calc(${(r * 100).toFixed(4)}% - ${(r * SCRUB_THUMB).toFixed(3)}px)`;
+
+function liftMarkHtml(t0, t1, dur) {
+  const r = t => Math.max(0, Math.min(1, t / dur));
+  let html = '';
+  if (t0 != null && t1 != null) {
+    html += `<div class="scrub-span" style="left:${markLeft(r(t0))};width:${markWidth(r(t1) - r(t0))}"></div>`;
+  }
+  for (const t of [t0, t1]) {
+    if (t == null) continue;
+    html += `<div class="scrub-mark" style="left:${markLeft(r(t))}"></div>`;
+  }
+  return html;
+}
+
+// Rebuilds both sliders' markers and the note under the video.
+//
+// Driven from drawOverlay rather than from each of the half-dozen places the
+// window can move (a new clip, the smoothing slider, the lifter picker, the
+// lift tab, the tickbox): every one of those repaints the overlay already, and
+// a marker that silently belongs to the previous track is exactly the failure
+// this is meant to prevent. The paint loop runs per frame during playback, so
+// the DOM is only touched when the window object, the duration or the tickbox
+// actually changed — liftWindow() hands back a fresh object per run(), so
+// identity is a sufficient and exact test.
+let liftMarksKey = null;
+function renderLiftMarks() {
+  const note = $('vliftnote');
+  const on = $('vliftmarks').checked;
+  const win = Diagnostics.liftWindow ? Diagnostics.liftWindow() : null;
+  const dur = (vvideo.duration && isFinite(vvideo.duration)) ? vvideo.duration : null;
+  if (liftMarksKey && liftMarksKey.win === win && liftMarksKey.dur === dur && liftMarksKey.on === on) return;
+  liftMarksKey = { win, dur, on };
+
+  const lift = on ? win : null;
+  const t0 = lift && lift.t0 != null ? lift.t0 : null;
+  const t1 = lift && lift.t1 != null ? lift.t1 : null;
+  const html = (lift && dur) ? liftMarkHtml(t0, t1, dur) : '';
+  for (const s of SCRUBS) {
+    const el = $(s.marks);
+    if (el) el.innerHTML = html;
+  }
+
+  if (!lift) { note.innerHTML = ''; return; }
+  const seek = (t, label) =>
+    `<span class="lift-seek" data-seek="${t}" title="jump to ${t.toFixed(2)}s">${label}</span>`;
+  const head = t0 == null
+    ? '<b>lift</b> not found'
+    : t1 == null
+      ? `<b>lift</b> starts ${seek(t0, t0.toFixed(2) + 's')} — no end marker`
+      : `<b>lift</b> ${seek(t0, t0.toFixed(2) + 's')} → ${seek(t1, t1.toFixed(2) + 's')} ` +
+        `(${(t1 - t0).toFixed(2)}s)`;
+  // What fired, in the same breath as the numbers — the markers' transparency
+  // block. The trigger wording is the definition, not a restatement: a reader
+  // who disagrees with where a marker sits needs to know what it was looking
+  // for before they can say it is wrong.
+  const tr = lift.triggers;
+  const how = tr
+    ? ` · start: wrists begin rising toward the bar/knee crossing at ` +
+      `${tr.crossT.toFixed(2)}s · end: elbows past ${tr.lockElbow}° ` +
+      `(least ${tr.minElbow.toFixed(0)}°) and knees past ${tr.lockKnee}° ` +
+      `(least ${tr.minKnee.toFixed(0)}°), body under ${tr.stillSpeed} torso-lengths/s ` +
+      `(peak ${tr.peakSpeed.toFixed(2)}) and drifting ${tr.netDrift == null ? '—' : tr.netDrift.toFixed(2)} of ` +
+      `${tr.stillDrift}, held ${tr.holdSeconds.toFixed(2)}s over ${tr.holdSamples} samples`
+    : '';
+  const why = (lift.error ? [lift.error] : []).concat(lift.notes || []);
+  note.innerHTML = head + how + (why.length ? `<br>${why.join(' ')}` : '');
+}
+
+// Click-to-seek on the times in the note, same contract as the plots: any
+// instant named on the page goes back to the frame that produced it.
+$('vliftnote').addEventListener('click', e => {
+  const el = e.target.closest ? e.target.closest('[data-seek]') : null;
+  if (!el) return;
+  const t = parseFloat(el.dataset.seek);
   if (isFinite(t)) vvideo.currentTime = t;
 });
-// 'change' is the reliable release signal for a range input; the window
-// listener is a fallback for a pointer released off the element.
-$('v3dscrub').addEventListener('change', () => { v3dScrubbing = false; });
-window.addEventListener('pointerup', () => { v3dScrubbing = false; }, true);
+
+$('vliftmarks').addEventListener('change', renderLiftMarks);
 
 $('v3dlimbprofile').onchange = () => v3dApplyLimbProfile($('v3dlimbprofile').value);
 $('v3dlimbfit').onclick = async () => {
@@ -3659,6 +3832,15 @@ VIDEO_SETTINGS_HTML = """<div class="settings">
            model actually produced; on = the in-between poses are inferred. -->
       <label style="white-space:nowrap" title="Interpolate the mesh between processed frames so it glides instead of stepping. In-between poses are computed, not detected.">
         <input id="vinterp" type="checkbox" checked style="vertical-align:middle;margin:0 4px 0 0"> smooth motion
+      </label>
+      <!-- Start and end of the lift, on both time sliders (diagnostics.js:
+           liftWindow). On for every lift, because the window is read off the
+           track rather than off the page's cue set — but a lift that doesn't
+           start with a bar on the floor or finish locked out has no such
+           markers, and this is how you turn an answer that doesn't apply off.
+           The note under the video says which trigger produced each one. -->
+      <label style="white-space:nowrap" title="Mark the start of the lift (the first pull leaving the floor) and its end (elbows past 150° and knees past 170°, with the body neither moving quickly nor still travelling one way, held for half a second) on the video and 3D time sliders.">
+        <input id="vliftmarks" type="checkbox" checked style="vertical-align:middle;margin:0 4px 0 0"> lift start/end markers
       </label>
       </details>
       <details class="control-group">

@@ -562,6 +562,270 @@ function firstPullWindow(samples, scale, ax) {
   return { cross, startIdx, endIdx, clamped, clampReason, onsetRise, setupRise };
 }
 
+
+// --- the lift window ----------------------------------------------------
+//
+// Where the LIFT starts and ends, as opposed to where any one cue applies. It
+// is not a diagnostic: it scores nothing, has no cue and no plot. It is the
+// pair of markers the time sliders carry, so a clip that is mostly walk-up and
+// celebration can be scrubbed to the attempt itself.
+//
+// Start: the start of the first pull — `firstPullWindow`'s own onset, the same
+// call the first-pull diagnostics make, with the clip's real bar axis. Shared
+// rather than re-derived: the marker on the slider and the shaded phase on the
+// first-pull chart have to be the same instant, or one of them is lying.
+//
+// End: the first frame from which both elbows stay above LOCK_ELBOW, both
+// knees above LOCK_KNEE, and the body stays both slower than STILL_SPEED and
+// inside STILL_DRIFT of where it started, for LOCK_HOLD_SECONDS — the lifter
+// standing locked out and holding it, and going nowhere. The same
+// trigger for every barbell lift by request: the snatch finishes overhead and
+// the clean & jerk finishes overhead after the jerk, and in both the finish
+// position is four extended joints held still. It does NOT describe a lift that
+// finishes with the elbows bent (a clean left in the rack position, a curl),
+// which is why the tickbox in app.py can turn the markers off per clip.
+//
+// Four things this trigger is not:
+//
+// - Not a threshold on one frame. Full extension is passed THROUGH on the way
+//   up — the scoop at the top of the first pull, the triple extension of the
+//   second — for a tenth of a second at a time. The half-second hold is what
+//   separates those from a finish, and it is stated in seconds and measured
+//   against the samples' own timestamps, so it means the same thing at 30fps,
+//   at 60fps and at frame stride 3.
+// - Not angles alone. The four joints also come open mid-flight, at speed and
+//   for longer than a tenth of a second: a lifter rising out of the catch is
+//   extending every one of them while the bar is still travelling. Angles that
+//   merely pass through the threshold on the way somewhere put the end marker
+//   early, so the hold also asks the body to be SLOW — not still. A finish has
+//   sway, a step back, and the bar settling overhead in it, and a threshold
+//   tight enough to exclude those would find no finish at all.
+// - Not one threshold on speed. A recovery can be slower than STILL_SPEED at
+//   every instant and still be a recovery, because all of that slow motion
+//   goes the SAME WAY: a lifter rising 0.3 torso-lengths per second is under
+//   the speed gate and has still travelled a third of a body up the frame by
+//   the time the half second is out. So the hold is checked twice over — once
+//   instant by instant (STILL_SPEED, which catches the fast), and once end to
+//   end (STILL_DRIFT on the NET travel across the whole hold, which catches the
+//   steady). Sway and a settling bar go nowhere in net terms and pass both;
+//   monotone drift fails the second however gentle it is.
+// - Not searched from frame 0. The lifter standing over the bar before they
+//   set up is four extended joints held far longer than half a second. The
+//   search starts at the bar/knee crossing that ends the first pull, so nothing
+//   before the bar is past the knee can end the lift.
+// - Not a 3-D joint angle. `jointAngle` is measured in the image plane: a limb
+//   pointing at the lens reads straighter than it is. Reported in the notes
+//   rather than corrected, since one camera cannot tell the difference.
+// The knees are held to a tighter angle than the elbows, because they are the
+// joint that lies. An elbow is either locked or it isn't, and the difference is
+// tens of degrees. A knee is "soft" for the whole recovery out of a catch — it
+// comes open gradually, spends a long time somewhere in the 150s and 160s, and
+// only squares up at the very end. 150° on a knee is most of the way through a
+// stand-up; 170° is standing.
+const LOCK_ELBOW = 150;         // degrees — provisional
+const LOCK_KNEE = 170;          // degrees; tighter, see above — provisional
+const LOCK_HOLD_SECONDS = 0.5;  // how long all four must hold it before it is a finish
+const LOCK_MIN_SAMPLES = 2;     // a hold observed in one sample is not a hold
+// A hold that runs off the end of the clip is accepted short (see `truncated`),
+// but not arbitrarily short. Both gates below need a span to look at: the net
+// travel between two instants a couple of frames apart is mostly the smoothing
+// window's own lag, and every clip that happens to end with the lifter upright
+// would otherwise collect an end marker from its last three frames.
+const LOCK_MIN_SPAN = LOCK_HOLD_SECONDS * 0.4;
+const STILL_SPEED = 0.35;       // torso-lengths/s the body may be moving at, instant by instant
+const STILL_DRIFT = 0.10;       // torso-lengths/s of NET travel it may make across the hold
+
+// How the body moves: smoothed keypoint paths, a speed per sample, and the net
+// travel between any two samples. All three are the MEDIAN over every keypoint
+// the track has, never one landmark — at a finish the lifter is standing under
+// a settling bar, so the arms are the part still moving, and a mean (or a
+// wrist-only reading) lets them veto a body that has plainly stopped. Half the
+// skeleton has to be moving before any of these rises.
+//
+// Measured exactly like wristRise: smoothed over a window fixed in TIME, then
+// differenced across a baseline, never frame to frame. Per-frame pose jitter of
+// a few pixels over a 1/30s step reads as most of a torso-length per second,
+// which would put every sample of the clip above any threshold worth setting.
+function median(v) {
+  if (!v.length) return null;
+  v.sort((a, b) => a - b);
+  return v.length % 2 ? v[v.length >> 1] : (v[(v.length >> 1) - 1] + v[v.length >> 1]) / 2;
+}
+
+function bodyMotion(samples, scale) {
+  const win = smoothWindow(samples);
+  const half = Math.max(1, (win - 1) >> 2);
+  const sm = {};
+  for (const i of USED) {
+    sm[i] = {
+      x: smoothSeries(samples.map(s => s.p[i] ? s.p[i].x : null), win),
+      y: smoothSeries(samples.map(s => s.p[i] ? s.p[i].y : null), win),
+    };
+  }
+  // Median joint travel between two samples, per second of the span. For a body
+  // rocking in place this is near zero however fast the rocking is, because the
+  // travel is a straight line between the endpoints and not a path length; for
+  // a body going somewhere it is the speed of going there.
+  const drift = (a, b) => {
+    const dt = samples[b].t - samples[a].t;
+    if (!(dt > 0)) return null;
+    const v = [];
+    for (const i of USED) {
+      const x0 = sm[i].x[a], x1 = sm[i].x[b], y0 = sm[i].y[a], y1 = sm[i].y[b];
+      if (x0 == null || x1 == null || y0 == null || y1 == null) continue;
+      v.push(Math.hypot(x1 - x0, y1 - y0) / dt / scale);
+    }
+    return median(v);
+  };
+
+  const speed = new Array(samples.length).fill(null);
+  for (let k = half; k < samples.length - half; k++) speed[k] = drift(k - half, k + half);
+  return { speed, drift };
+}
+
+// The four joint angles the finish is defined by, at one sample. `missing` is
+// how many could not be measured at all — a dropped ankle is missing data, not
+// a bent knee, so it breaks the hold rather than passing it.
+function extensionAt(p) {
+  const elbows = [
+    jointAngle(p[KP.lElb], p[KP.lSho], p[KP.lWri]),
+    jointAngle(p[KP.rElb], p[KP.rSho], p[KP.rWri]),
+  ];
+  const knees = [
+    jointAngle(p[KP.lKnee], p[KP.lHip], p[KP.lAnk]),
+    jointAngle(p[KP.rKnee], p[KP.rHip], p[KP.rAnk]),
+  ];
+  const angles = elbows.concat(knees);
+  const have = angles.filter(v => v != null);
+  return {
+    angles,
+    missing: angles.length - have.length,
+    minElbow: elbows.every(v => v != null) ? Math.min.apply(null, elbows) : null,
+    minKnee: knees.every(v => v != null) ? Math.min.apply(null, knees) : null,
+    min: have.length ? Math.min.apply(null, have) : null,
+  };
+}
+
+function liftWindow(samples, scale, ax) {
+  const none = (error, extra) => Object.assign(
+    { error, startIdx: -1, endIdx: -1, t0: null, t1: null, notes: [] }, extra || {});
+
+  const w = firstPullWindow(samples, scale, ax);
+  if (w.cross.idx < 0) {
+    return none(w.cross.reason === 'no-below'
+      ? 'The bar never sits below knee height in this clip, so there is no start of the lift to mark.'
+      : 'The bar never crosses knee height in this clip, so there is no lift to mark.');
+  }
+
+  const ext = samples.map(s => extensionAt(s.p));
+  const { speed, drift } = bodyMotion(samples, scale);
+  const extended = i =>
+    ext[i].missing === 0 && ext[i].minElbow > LOCK_ELBOW && ext[i].minKnee > LOCK_KNEE;
+  // Three states, not two. Speed is differenced across a baseline either side
+  // of a sample, so the few samples at each end of the clip have none — and a
+  // finish that runs off the end of the clip is exactly the case where those
+  // samples matter. Unknown neither confirms a hold nor breaks it: a run can't
+  // START on one, but it survives them, and a run that reaches the end of the
+  // clip on unknowns is reported as an unconfirmed (`truncated`) hold rather
+  // than thrown away.
+  const held = i => !extended(i) ? 'no'
+                  : speed[i] == null ? 'unknown'
+                  : speed[i] <= STILL_SPEED ? 'yes' : 'no';
+  const locked = i => held(i) === 'yes';
+
+  let endIdx = -1, holdSpan = null, holdSamples = 0, holdDrift = null, truncated = false;
+  let driftSeen = false;   // a hold failed on net travel alone, for the notes
+  for (let i = w.cross.idx; i < samples.length; i++) {
+    if (!locked(i)) continue;
+    // Walk forward until the hold is satisfied, broken, or the clip runs out.
+    let j = i, broke = false;
+    while (samples[j].t - samples[i].t < LOCK_HOLD_SECONDS && j + 1 < samples.length) {
+      j++;
+      if (held(j) === 'no') { broke = true; break; }
+    }
+    if (broke) { i = j; continue; }   // no run containing j can hold either
+    const span = samples[j].t - samples[i].t;
+    const n = j - i + 1;
+    if (n < LOCK_MIN_SAMPLES || span < LOCK_MIN_SPAN) continue;
+    // End to end: slow at every instant is not the same as staying put.
+    const net = drift(i, j);
+    if (net != null && net > STILL_DRIFT) { driftSeen = true; continue; }
+    endIdx = i; holdSpan = span; holdSamples = n; holdDrift = net;
+    truncated = span < LOCK_HOLD_SECONDS;   // the clip ended mid-hold
+    break;
+  }
+
+  const notes = [];
+  if (w.clamped) {
+    notes.push(w.clampReason === 'lost'
+      ? 'The wrists were lost from the track before the bar reached the knee, so the start marker sits where they reappear — the beginning of the lift may be missing.'
+      : 'The wrists were already rising at the first measurable frame, so the clip probably starts mid-pull and the start marker is clamped to the first frame.');
+  }
+  if (endIdx < 0) {
+    // Which of the three it was: the joints never all visible, never all
+    // extended at once, extended but never slow, or both but never for long
+    // enough. They are the same empty slider, and a different thing to fix.
+    let everComplete = false, everExtended = false, everLocked = false;
+    for (let i = w.cross.idx; i < samples.length; i++) {
+      if (ext[i].missing === 0) everComplete = true;
+      if (extended(i)) everExtended = true;
+      if (locked(i)) everLocked = true;
+    }
+    const angles = `both elbows above ${LOCK_ELBOW}° and both knees above ${LOCK_KNEE}°`;
+    notes.push(!everComplete
+      ? `After the bar passed the knee, no frame had all four joints (both elbows, both knees) above the confidence gate at once, so the finish could not be looked for.`
+      : !everExtended
+        ? `The clip never has ${angles} at the same time after the bar clears the knee, so the lift has no end marker.`
+        : !everLocked
+          ? `The clip reaches ${angles} after the bar clears the knee, but never while the body is slower than ${fmt(STILL_SPEED, 2)} torso-lengths/s — the extension is passed through in flight, not held. The lift has no end marker.`
+          : driftSeen
+            ? `The clip reaches ${angles} slowly enough to look like a finish, but the body keeps travelling the same way throughout — more than ${fmt(STILL_DRIFT, 2)} torso-lengths/s of net movement across the half second. That is a recovery still in progress, not a finish, so the lift has no end marker.`
+            : `The clip reaches ${angles} with the body slower than ${fmt(STILL_SPEED, 2)} torso-lengths/s after the bar clears the knee, but never for ${fmt(LOCK_HOLD_SECONDS, 1)}s together, so the lift has no end marker.`);
+    return none(null, {
+      startIdx: w.startIdx, t0: samples[w.startIdx].t,
+      startClamped: w.clamped, clampReason: w.clampReason, notes,
+    });
+  }
+  if (truncated) {
+    notes.push(`The clip ends ${fmt(holdSpan, 2)}s into the hold, short of the ${fmt(LOCK_HOLD_SECONDS, 1)}s the trigger asks for. The end marker is where the extension started; whether it was held is unknown.`);
+  }
+  notes.push(`Joint angles are measured in the image plane, so a limb pointing toward or away from the camera reads straighter than it is. Filmed square to the lifter this is small; filmed down the platform it can turn a soft knee into a locked one.`);
+
+  return {
+    error: null,
+    startIdx: w.startIdx,
+    endIdx,
+    t0: samples[w.startIdx].t,
+    t1: samples[endIdx].t,
+    startClamped: w.clamped,
+    clampReason: w.clampReason,
+    truncated,
+    notes,
+    triggers: {
+      onsetRise: w.onsetRise,
+      setupRise: w.setupRise,
+      crossIdx: w.cross.idx,
+      crossT: samples[w.cross.idx].t,
+      holdSeconds: holdSpan,
+      holdSamples,
+      minAngle: ext[endIdx].min,
+      minElbow: ext[endIdx].minElbow,
+      minKnee: ext[endIdx].minKnee,
+      angles: ext[endIdx].angles,
+      // The fastest the body got anywhere inside the hold — the number the
+      // stillness gate was actually decided on, not the one at its first frame.
+      peakSpeed: Math.max.apply(null,
+        samples.slice(endIdx, endIdx + holdSamples).map((_, k) => speed[endIdx + k] || 0)),
+      netDrift: holdDrift,
+      lockElbow: LOCK_ELBOW,
+      lockKnee: LOCK_KNEE,
+      holdRequired: LOCK_HOLD_SECONDS,
+      stillSpeed: STILL_SPEED,
+      stillDrift: STILL_DRIFT,
+    },
+  };
+}
+
 // A rule through `pt` spanning the frame, parallel to the bar — the drawn form
 // of a height. Purple in every diagnostic that uses it: a rule says which
 // heights a trigger compared, not how the lift went. Drawn from the axis rather
@@ -2018,14 +2282,14 @@ function computeResults(keypoints, meta, personId) {
   if (samples.length < FILL_WIN) {
     const err = { error: `Person ${personId} was detected in only ${samples.length} sampled frame(s).` };
     for (const d of DIAGNOSTICS) results[d.id] = err;
-    return { samples, scale: null, axis: null, results };
+    return { samples, scale: null, axis: null, lift: { error: err.error, startIdx: -1, endIdx: -1, t0: null, t1: null, notes: [] }, results };
   }
   preparePoints(samples);
   const scale = torsoScale(samples);
   if (!scale) {
     const err = { error: 'No frame had a confident hip and shoulder on the same side, so there is no body scale to work from.' };
     for (const d of DIAGNOSTICS) results[d.id] = err;
-    return { samples, scale: null, axis: null, results };
+    return { samples, scale: null, axis: null, lift: { error: err.error, startIdx: -1, endIdx: -1, t0: null, t1: null, notes: [] }, results };
   }
   // One axis for the whole clip, computed here rather than inside any one
   // diagnostic: two diagnostics disagreeing about which way is up would be the
@@ -2038,6 +2302,13 @@ function computeResults(keypoints, meta, personId) {
   // accept, and the setup frame it leads to is a still one either way.
   const anchor = firstPullWindow(samples, scale, IMAGE_AXIS);
   const axis = bodyAxis(samples, scale, anchor.startIdx, anchor.startIdx >= 0 && !anchor.clamped);
+
+  // The lift's own start/end, independent of which cues this page scores: it is
+  // the same window whether the panel is showing two diagnostics or none, so it
+  // is computed here rather than inside the loop below. Whether a given lift
+  // HAS meaningful markers is the page's call (PAGES in app.py), not this
+  // file's — see liftWindow.
+  const lift = liftWindow(samples, scale, axis);
 
   for (const d of DIAGNOSTICS) {
     const phase = d.phase(samples, scale, axis);
@@ -2052,7 +2323,7 @@ function computeResults(keypoints, meta, personId) {
       notes: (phase.notes || []).concat(m.notes || []),
     };
   }
-  return { samples, scale, axis, results };
+  return { samples, scale, axis, lift, results };
 }
 
 function run() {
@@ -2061,6 +2332,7 @@ function run() {
   state.samples = out.samples;
   state.scale = out.scale;
   state.axis = out.axis;
+  state.lift = out.lift;
   state.results = out.results;
 }
 
@@ -2450,6 +2722,10 @@ const Diagnostics = {
       state.personId = el.select.value;
       run();
       redrawAll();
+      // Everything painted ON the video — the marks, and the lift window the
+      // sliders carry — belongs to the selected lifter too, and the paint loop
+      // isn't running while the video sits paused, which is when you change it.
+      if (el.redraw) el.redraw();
     });
   },
 
@@ -2511,12 +2787,24 @@ const Diagnostics = {
     state = { keypoints, meta, personId: keep };
     if (!state.personId) {
       state.results = {};
+      state.lift = null;
       const err = { error: 'No person was detected in any sampled frame.' };
       for (const d of DIAGNOSTICS) state.results[d.id] = err;
     } else {
       run();
     }
     redrawAll();
+  },
+
+  // The current clip's lift window — `{ t0, t1, ... }` in seconds, or null when
+  // no track is loaded. Read by app.py to place the start/end markers on the
+  // time sliders; it re-reads this after every setTrack/setPage rather than
+  // caching, since the window moves with the smoothing slider like everything
+  // else derived from the track. `t1` is null when no finish was found — a
+  // clip with a start marker and no end one is a normal outcome, explained by
+  // `notes`.
+  liftWindow() {
+    return (state && state.lift) ? state.lift : null;
   },
 
   draw(time) {
