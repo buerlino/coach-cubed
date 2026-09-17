@@ -5,12 +5,15 @@ separate. Both packages contain both real pages and the same features.
 
 | Package | Intended interface | Windows launcher | Default address |
 | --- | --- | --- | --- |
-| coach-original-ui-v5.zip | Your friends' original layout, with added anatomy / squat tools | OPEN_ORIGINAL_UI_WINDOWS.bat | http://127.0.0.1:8785/original/ |
-| coach-anatomy-ui-v5.zip | Our teal Movement Lab, with original exercise diagnostics / 3D tools | OPEN_ANATOMY_UI_WINDOWS.bat | http://127.0.0.1:8784/squat/ |
+| coach-original-ui-v5.zip | Your friends' original layout, with added anatomy / squat tools | launchers/OPEN_ORIGINAL_UI_WINDOWS.bat | http://127.0.0.1:8785/original/ |
+| coach-anatomy-ui-v5.zip | Our teal Movement Lab, with original exercise diagnostics / 3D tools | launchers/OPEN_ANATOMY_UI_WINDOWS.bat | http://127.0.0.1:8784/squat/ |
 
-On macOS use the matching `OPEN_ORIGINAL_UI_MACOS.command` or
-`OPEN_ANATOMY_UI_MACOS.command`. First-time setup remains
-`setup-local-windows.bat` / `setup-local-macos.command` (Python 3.10+ recommended).
+On macOS use the matching `launchers/OPEN_ORIGINAL_UI_MACOS.command` or
+`launchers/OPEN_ANATOMY_UI_MACOS.command`. First-time setup remains
+`launchers/setup-local-windows.bat` / `launchers/setup-local-macos.command` (Python 3.10+ recommended).
+All of the above live in the `launchers/` folder; double-click them from there
+(or run them from the repo root) — they find `.venv` and `src/` by walking up
+from their own location, so moving just one file out of `launchers/` breaks it.
 The header must say **Original UI · Version 5** or **VERSION 5 · ANATOMY UI**.
 
 The earlier `start-squat` launcher forced the teal page even in the original-UI
@@ -24,7 +27,10 @@ session first because switching pages reloads it.
 
 Both interfaces now show these buttons directly above the video/model:
 
-- **Video + model**: draw anatomy directly over the video.
+- **3D pane + model**: composite the anatomy model into the existing 3D
+  reconstruction pane ("Inspect original 3D reconstruction", below the video)
+  instead of drawing it over the video image itself — it's a real, orbit-able
+  3D object there, draggable independently of whatever size video produced it.
 - **Model only**: hide the video and show a full-size model, with rotation/zoom.
   The same clip keeps driving the model. Play, pause, speed and scrubbing remain
   available; hiding the video does not discard or replace it.
@@ -33,7 +39,7 @@ Both interfaces now show these buttons directly above the video/model:
 Clicking one of these buttons enables anatomy if needed. **Show anatomy** still
 switches the entire feature off and restores the video. **Match video camera**
 returns the model to the recorded viewpoint. Overlay opacity applies only to
-Video + model; the model is opaque in the other two modes.
+3D pane + model; the model is opaque in the other two modes.
 
 ## Stabilize the hands against a bar
 
@@ -65,11 +71,13 @@ Normal 3D occlusion and the video crop still apply.
 
 ## Launch from a terminal
 
+Run from the repo root (not from inside `launchers/`):
+
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements-preview.txt
-.venv/bin/python run_original.py
-# or: .venv/bin/python run_anatomy.py
+.venv/bin/python launchers/run_original.py
+# or: .venv/bin/python launchers/run_anatomy.py
 ```
 
 Windows uses `.venv\Scripts\python.exe`. Pass `--port 8786` for an occupied port.

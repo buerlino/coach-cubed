@@ -139,6 +139,12 @@ def process_clip(base_url, clip_path, stance, size, frame_stride, detect_equipme
         # what the pose pass produced, never a verdict on the lift.
         "labels": manifest.get(slug, {}).get("labels", []),
         "notes": manifest.get(slug, {}).get("notes", ""),
+        # Which lift's cues this clip is scored against (a key in
+        # DIAGNOSTIC_SETS). Also hand-set, and carried across a re-extract for
+        # the same reason: re-running the pose pass on a clip must not quietly
+        # re-file it under another lift. Absent means the tests' default.
+        **({"diagnostics": manifest[slug]["diagnostics"]}
+           if manifest.get(slug, {}).get("diagnostics") else {}),
     }
     print(f"   {meta.get('frames_processed')} frames, kept person {manifest[slug]['kept_person']}")
 

@@ -29,8 +29,8 @@ function frameBasis(direction,lateral){
 }
 /** Real atlas surfaces with approximate regional skinning; no force simulation. */
 export class AnatomyViewer{
- constructor(canvas,{onSelect=()=>{},onStatus=()=>{},overlay=false,cameraAligned=false}={}){
-  Object.assign(this,{canvas,onSelect,onStatus,overlay,cameraAligned,items:[],opacity:.8,selected:'all',angle:0,pitch:0,zoom:1,frame:null,visible:true,initialized:false,bounds:null});
+ constructor(canvas,{onSelect=()=>{},onStatus=()=>{},overlay=false,cameraAligned=false,blend=false}={}){
+  Object.assign(this,{canvas,onSelect,onStatus,overlay,cameraAligned,blend,items:[],opacity:.8,selected:'all',angle:0,pitch:0,zoom:1,frame:null,visible:true,initialized:false,bounds:null});
   this.barOptions={mode:'auto',plates:false,length:2.2,lockHands:true,gripTime:null};
   this.flags={bones:true,muscles:true,activation:true,joints:true,spine:true};
   this.renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true});
@@ -54,7 +54,10 @@ export class AnatomyViewer{
    canvas.addEventListener('pointermove',e=>{if(!drag||this.overlay)return;const dx=e.clientX-drag[0],dy=e.clientY-drag[1];moved+=Math.abs(dx)+Math.abs(dy);if(moved>4){this.cameraAligned=false;this.useCamera();}this.angle-=dx*.008;this.pitch=clamp(this.pitch+dy*.003,-.6,.6);drag=[e.clientX,e.clientY];this.render();},event);
    canvas.addEventListener('pointerup',e=>{if(drag&&moved<5)this.pick(e);drag=null;},event);
    canvas.addEventListener('pointercancel',()=>{drag=null;},event);
-   canvas.addEventListener('wheel',e=>{if(this.overlay||this.cameraAligned)return;e.preventDefault();this.zoom=clamp(this.zoom+e.deltaY*.0006,.5,2);this.render();},{...event,passive:false});
+   // Multiplicative rather than additive: a mouse wheel notch (deltaY ~100)
+   // and a trackpad's many small scroll/pinch events (deltaY ~1-10 each) both
+   // end up feeling like the same "amount" of zoom per gesture this way.
+   canvas.addEventListener('wheel',e=>{if(this.overlay||this.cameraAligned)return;e.preventDefault();this.zoom=clamp(this.zoom*Math.pow(1.0015,e.deltaY),.35,3);this.render();},{...event,passive:false});
   }
   this.ready=loadAssets().then(data=>{this.build(data);this.initialized=true;this.setPose(this.frame);this.onStatus(`${data.meta.parts.length} BodyParts3D meshes loaded`);return this;});
   this.ready.catch(e=>this.onStatus(e.message,true));this.useCamera();this.resize();
@@ -131,12 +134,36 @@ export class AnatomyViewer{
   for(let i=0;i<2;i++){const mesh=this.barPlates[i];mesh.visible=b.plates;mesh.position.copy(a).lerp(end,i?.9:.1);mesh.quaternion.copy(this.barShaft.quaternion);mesh.scale.setScalar(scale);}
  }
  configure(flags){Object.assign(this.flags,flags);this.setPose(this.frame);}
- setOpacity(v){this.opacity=clamp(v,.15,1);this.canvas.style.opacity=String(this.overlay?this.opacity:1);this.render();}
+ // `overlay` couples "translucent" with "camera locked to the video, no drag" —
+ // right for compositing pixel-for-pixel onto a video element. `blend` is the
+ // translucent half of that alone, for a caller (src/anatomy/integration.mjs)
+ // that wants the opacity slider without giving up orbit rotation, because
+ // it's compositing onto another 3D pane rather than a flat video frame.
+ setOpacity(v){this.opacity=clamp(v,.15,1);this.canvas.style.opacity=String(this.overlay||this.blend?this.opacity:1);this.render();}
  isolate(id){this.selected=id;this.setPose(this.frame);}
  setVisible(value){this.visible=value;this.canvas.hidden=!value;this.labels.hidden=!value;if(value){this.resize();this.render();}}
  useCamera(){const ortho=this.overlay||this.cameraAligned;if(ortho!==!!this.camera.isOrthographicCamera)this.camera=ortho?new THREE.OrthographicCamera(-1,1,.5,-.5,.01,30):new THREE.PerspectiveCamera(36,1,.01,30);}
- setLayout(overlay){this.overlay=overlay;this.canvas.style.opacity=String(this.overlay?this.opacity:1);this.useCamera();this.resize();this.setPose(this.frame);}
- setSequence(sequence){this.sequence=sequence;this.gripTrack=buildGripTrack(sequence,this.barOptions);const points=sequence?.frames?.flatMap(f=>Object.values(f.points).map(V))??[];this.bounds=points.length?new THREE.Box3().setFromPoints(points).expandByScalar(.15*(sequence.bodyScale||1)):null;}
+ setLayout(overlay){this.overlay=overlay;this.canvas.style.opacity=String(this.overlay||this.blend?this.opacity:1);this.useCamera();this.resize();this.setPose(this.frame);}
+ setSequence(sequence){
+  this.sequence=sequence;this.gripTrack=buildGripTrack(sequence,this.barOptions);
+  const frames=sequence?.frames??[];
+  // The largest joint-to-joint distance seen anywhere in the clip (e.g. an
+  // extended arm to the opposite foot), fixed once per clip rather than
+  // per-frame so the view doesn't "breathe" as the pose changes. This is what
+  // orbit-mode framing scales to, in place of the old scale/pixel-derived
+  // radius — see the comment in render().
+  let spread=0;
+  for(const f of frames){
+   const pts=Object.values(f.points);
+   for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++){
+    const dx=pts[i][0]-pts[j][0],dy=pts[i][1]-pts[j][1],dz=pts[i][2]-pts[j][2],d=Math.sqrt(dx*dx+dy*dy+dz*dz);
+    if(d>spread)spread=d;
+   }
+  }
+  this.spread=spread||1.7;
+  const points=frames.flatMap(f=>Object.values(f.points).map(V));
+  this.bounds=points.length?new THREE.Box3().setFromPoints(points).expandByScalar(.15*(sequence.bodyScale||1)):null;
+ }
  setView(view){this.cameraAligned=view==='camera';this.angle={front:0,side:Math.PI/2,back:Math.PI,'three-quarter':.65}[view]??0;this.pitch=0;this.zoom=1;this.useCamera();this.resize();}
  resize(){const r=this.canvas.getBoundingClientRect(),w=r.width||640,h=r.height||440;this.renderer.setSize(w,h,false);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();this.render();}
  render(){
@@ -146,8 +173,14 @@ export class AnatomyViewer{
    const scale=pose?.scale||1,points=pose?Object.values(pose.points).map(V):[V([0,0,0]),V([0,1.7,0])];
    if(pose?.points.head)points.push(V(pose.points.head).add(V([0,.14*scale,0])));
    if(!this.bounds&&pose)this.bounds=new THREE.Box3().setFromPoints(points).expandByScalar(.1*scale);
-   const box=this.bounds??new THREE.Box3().setFromPoints(points),target=box.getCenter(new THREE.Vector3()),size=box.getSize(new THREE.Vector3());
-   const radius=Math.max(.6,2.7*scale,size.y/(2*Math.tan(Math.PI/10)) * 1.15,size.x/(2*Math.tan(Math.PI/10)*this.camera.aspect)*1.15)*this.zoom;
+   const box=this.bounds??new THREE.Box3().setFromPoints(points),target=box.getCenter(new THREE.Vector3());
+   // Frame on the pose's own largest joint-to-joint distance (this.spread,
+   // fixed per clip — see setSequence), not on `scale`/pixel-derived size: the
+   // same body fills the same fraction of the panel however big or small it
+   // was in the source video. Fit that span to 3/4 of the panel's height,
+   // then let `zoom` move the camera in/out from there.
+   const vfov=this.camera.fov*Math.PI/180,span=this.spread||box.getSize(new THREE.Vector3()).length()||1.7;
+   const radius=Math.max(.3,span/(1.5*Math.tan(vfov/2)))*this.zoom;
    this.camera.position.copy(target).add(new THREE.Vector3(Math.sin(this.angle)*radius,Math.sin(this.pitch)*radius,Math.cos(this.angle)*radius));this.camera.lookAt(target);
   }
   this.scene.updateMatrixWorld(true);this.camera.updateMatrixWorld(true);this.renderer.render(this.scene,this.camera);

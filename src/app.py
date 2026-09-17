@@ -909,7 +909,12 @@ INDEX_HTML = """<!doctype html>
          Clicking a joint flips which way it bends out of the screen. That is the
          same choice as the dropdowns above, put where the mistake is actually
          visible: you see a knee pointing the wrong way in the turntable, and the
-         fix is to click the knee — not to work out which of thirteen rows it is. -->
+         fix is to click the knee — not to work out which of thirteen rows it is.
+         When the optional anatomy overlay is set to display in the 3D pane
+         (src/anatomy/integration.mjs), it composites its own canvas absolutely
+         inside #v3dcanvasWrap on top of #v3dcanvas — a second, independent
+         three.js scene sharing this box rather than trying to pixel-align to the
+         video, which broke as soon as a differently-shaped video came along. -->
     <details id="wireframe-inspection"><summary>Inspect original 3D reconstruction</summary>
     <div id="v3dpanel" style="display:none;margin:2px 0 6px">
       <div id="v3dcanvasWrap" style="position:relative;width:100%;background:#0d0d0d;border-radius:8px;overflow:hidden;cursor:grab">
@@ -1021,7 +1026,7 @@ INDEX_HTML = """<!doctype html>
 
 </div><!-- /layout -->
 
-<script src="/diagnostics.js"></script>
+<script src="./diagnostics.js"></script>
 <script>
 // Where this page is mounted. Normally '' (served at /), but a reverse proxy
 // may mount the app under a path prefix and strip that prefix before
@@ -3400,6 +3405,19 @@ async function v3dGenerate() {
 }
 
 $('wireframe-inspection').addEventListener('toggle',()=>window.Viewer?.resize());
+// The anatomy overlay (src/anatomy/integration.mjs) composites its own,
+// independent three.js model into #v3dcanvasWrap rather than pixel-aligning
+// to the video — this is the hook it uses to reveal that pane on demand. It
+// works even if window.Viewer (the original reconstruction) never loaded,
+// since the two are separate three.js instances sharing one piece of layout.
+window.CoachV3D = {
+  ensureVisible() {
+    const panel = $('v3dpanel'), details = $('wireframe-inspection');
+    if (panel) panel.style.display = '';
+    if (details) details.open = true;
+    window.Viewer?.resize();
+  },
+};
 $('v3dgen').onclick = v3dGenerate;
 // Switching method recomputes immediately against the loaded clip.
 $('v3dmethod').onchange = () => { if (vMeta) v3dGenerate(); };
@@ -3481,7 +3499,7 @@ window.addEventListener('coach:anatomy-ready', () => {
      from a CDN (the box is on the tailnet with internet); if the import fails
      the panel just says so and the text note above still reports the result. -->
 <script type="importmap">
-{ "imports": { "three": "/vendor/three.module.js" } }
+{ "imports": { "three": "./vendor/three.module.js" } }
 </script>
 <script type="module">
 const $ = id => document.getElementById(id);
@@ -3782,9 +3800,9 @@ try {
 }
 window.Viewer = Viewer;
 </script>
-<script type="module" src="/anatomy/integration.mjs"></script>
-<script type="module" src="/anatomy/review.mjs"></script>
-<script type="module" src="/anatomy/ui.mjs"></script>
+<script type="module" src="./anatomy/integration.mjs"></script>
+<script type="module" src="./anatomy/review.mjs"></script>
+<script type="module" src="./anatomy/ui.mjs"></script>
 </body>
 </html>
 """

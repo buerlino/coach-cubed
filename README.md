@@ -1,6 +1,6 @@
 # coach
 
-Local anatomy preview, version 5: see [START_HERE.md](START_HERE.md). Use `python run_original.py` for the original UI or `python run_anatomy.py` for the teal UI. Generic `python run_local.py` respects the package default. The anatomy workspace at `/squat/` and the original workspace at `/original/` both support the integrated exercise tools.
+Local anatomy preview, version 5: see [START_HERE.md](START_HERE.md). Use `python launchers/run_original.py` for the original UI or `python launchers/run_anatomy.py` for the teal UI. Generic `python launchers/run_local.py` respects the package default. The anatomy workspace at `/squat/` and the original workspace at `/original/` both support the integrated exercise tools.
 
 A minimal website around the ViTPose model: upload or record a lift, get a
 pose track, and see per-rep technique diagnostics scored from the keypoints
@@ -26,7 +26,8 @@ conda env, auth).
 | Path | What's there |
 | --- | --- |
 | [`src/`](src/) | The app: `app.py` (routes), `vitpose_backend.py` / `equipment_backend.py` / `depth_backend.py` (ML, kept out of `app.py`), `diagnostics.js` (the diagnostic registry, runs client-side). |
-| [`scripts/`](scripts/) | Everything you run: setup, model download, launch/stop, port cleanup, fixture batch-extraction. |
+| [`scripts/`](scripts/) | Everything you run for the production deploy: setup, model download, launch/stop, port cleanup, fixture batch-extraction. |
+| [`launchers/`](launchers/) | The zero-install local preview: `run_local.py`/`run_original.py`/`run_anatomy.py`/`run_squat.py` and their double-click `.command`/`.bat` twins. All `cd` to the repo root before touching `.venv` or `src/`, so they only work run from (or launched from within) this folder — don't move them further apart. |
 | [`tests/`](tests/) | Fixture-driven golden tests for `diagnostics.js`. Start at [`tests/README.md`](tests/README.md). |
 | [`report/`](report/) | LaTeX writeup of the pose model, smoothing math, and diagnostic geometry, plus the notebook that generates its figures. Start at [`report/README.md`](report/README.md). |
 | [`docs/`](docs/) | Everything below. |

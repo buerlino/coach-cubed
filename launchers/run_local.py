@@ -14,7 +14,9 @@ import threading
 import urllib.parse
 import webbrowser
 
-ROOT = pathlib.Path(__file__).resolve().parent
+# This file lives in launchers/, one level below the repo root — everything
+# else it touches (src/, tests/fixtures/) is rooted one level up from here.
+ROOT = pathlib.Path(__file__).resolve().parent.parent
 SRC = ROOT / 'src'
 sys.path.insert(0, str(SRC))
 from local_depth import dispatch as depth_dispatch

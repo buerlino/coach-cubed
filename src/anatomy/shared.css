@@ -9,8 +9,13 @@
 #anatomy-stage {position:relative;height:460px}
 #anatomy-canvas {display:block;width:100%;height:100%;touch-action:none}
 #anatomy-panel>.control-help {padding:8px 12px}
-#anatomy-video-layer,#anatomy-marks {position:absolute;pointer-events:none;z-index:3}
-#anatomy-marks {z-index:4}
+#anatomy-marks {position:absolute;pointer-events:none;z-index:4}
+/* "3D pane + model" mode re-parents #anatomy-canvas into app.py's own
+   #v3dcanvasWrap (the original reconstruction's turntable) instead of
+   pixel-aligning it to the video — v3dcanvasWrap is already position:relative
+   with its box driven by #v3dcanvas, so inset:0 exactly matches that box
+   regardless of what size video produced it. */
+#v3dcanvasWrap #anatomy-canvas {position:absolute;inset:0;z-index:2;cursor:grab}
 #anatomy-status {min-height:32px}
 #anatomy-options {display:grid;gap:7px}
 .anatomy-anchor-labels {z-index:5}

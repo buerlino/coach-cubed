@@ -7,7 +7,8 @@ import sys
 import unittest
 from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+LAUNCHERS = ROOT / 'launchers'
+sys.path.insert(0, str(LAUNCHERS))
 import run_local
 
 class Server:
@@ -33,7 +34,7 @@ class Launchers(unittest.TestCase):
     def test_legacy_and_named_entry_points(self):
         for entry, kwargs in [('run_squat.py', {}), ('run_original.py', {'workspace': 'original'}), ('run_anatomy.py', {'workspace': 'anatomy'})]:
             with patch.object(run_local, 'main') as main:
-                runpy.run_path(str(ROOT / entry), run_name='__main__')
+                runpy.run_path(str(LAUNCHERS / entry), run_name='__main__')
                 main.assert_called_once_with(**kwargs)
 
 if __name__ == '__main__': unittest.main()

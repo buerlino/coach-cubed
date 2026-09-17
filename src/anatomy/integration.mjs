@@ -6,7 +6,7 @@ const $=id=>document.getElementById(id),settings=$('videoPanel')?.querySelector(
 if(settings){
  const style=document.createElement('link');style.rel='stylesheet';style.href='/anatomy/shared.css';document.head.append(style);
  const toolbar=document.createElement('div');toolbar.id='anatomy-toolbar';toolbar.className='anatomy-toolbar';
- toolbar.innerHTML=`<label><input id="anatomy-enabled" type="checkbox"> Show anatomy</label><select id="anatomy-layout" hidden aria-label="Display mode"><option value="overlay">Video + model</option><option value="model">Model only</option><option value="comparison">Side by side</option></select><div class="view-modes" role="group" aria-label="Display mode"><button type="button" data-anatomy-display="overlay" aria-pressed="true">Video + model</button><button type="button" data-anatomy-display="model" aria-pressed="false">Model only</button><button type="button" data-anatomy-display="comparison" aria-pressed="false">Side by side</button></div><span class="anatomy-mode-note">One video with the model on top</span><button id="anatomy-camera" type="button">Match video camera</button>`;
+ toolbar.innerHTML=`<label><input id="anatomy-enabled" type="checkbox"> Show anatomy</label><select id="anatomy-layout" hidden aria-label="Display mode"><option value="overlay">3D pane + model</option><option value="model">Model only</option><option value="comparison">Side by side</option></select><div class="view-modes" role="group" aria-label="Display mode"><button type="button" data-anatomy-display="overlay" aria-pressed="true">3D pane + model</button><button type="button" data-anatomy-display="model" aria-pressed="false">Model only</button><button type="button" data-anatomy-display="comparison" aria-pressed="false">Side by side</button></div><span class="anatomy-mode-note">Model composited into the 3D reconstruction pane below</span><button id="anatomy-camera" type="button">Match video camera</button>`;
  $('videoView').prepend(toolbar);
  const row=document.createElement('div');row.id='anatomy-comparison';$('videoWrap').before(row);row.append($('videoWrap'));
  const controls=document.createElement('details');controls.className='control-group';controls.id='anatomy-controls';
@@ -42,7 +42,6 @@ if(settings){
  $('anatomy-timeline').oninput=e=>{const v=$('vout');v.pause();v.currentTime=Number(e.target.value);};
  $('anatomy-speed').onchange=e=>$('vout').playbackRate=Number(e.target.value);
  for(const event of ['play','pause','ended','timeupdate','seeked','loadedmetadata'])$('vout').addEventListener(event,syncTransport);
- const overlay=document.createElement('div');overlay.id='anatomy-video-layer';overlay.hidden=true;$('videoWrap').append(overlay);
  const markerCanvas=document.createElement('canvas');markerCanvas.id='anatomy-marks';markerCanvas.hidden=true;$('videoWrap').append(markerCanvas);
  let viewer=null,current=null,manual={},pending=false,enabled=false,trackIdentity='',sequence=null,trackData=null,candidate=null,previousLayout=null;
  const status=(s,error=false)=>{$('anatomy-status').textContent=s;$('anatomy-status').style.color=error?'#ef9e88':'';};
@@ -52,7 +51,7 @@ if(settings){
  function pose(){const f=flatPose(),p=sequence?.sample(current?.time??0,f);return p?withAnchors(p,nearestManual(manual,current?.time??0)):null;}
  function alignLayers(){
   const video=$('vout');if(isModelOnly()){$('anatomy-stage').style.height='560px';viewer?.resize();return;}if(!video.clientWidth||!video.clientHeight)return;
-  for(const layer of [overlay,markerCanvas]){layer.style.left=video.offsetLeft+'px';layer.style.top=video.offsetTop+'px';layer.style.width=video.clientWidth+'px';layer.style.height=video.clientHeight+'px';}
+  markerCanvas.style.left=video.offsetLeft+'px';markerCanvas.style.top=video.offsetTop+'px';markerCanvas.style.width=video.clientWidth+'px';markerCanvas.style.height=video.clientHeight+'px';
   $('anatomy-stage').style.height=video.clientHeight+'px';viewer?.resize();
  }
  new ResizeObserver(alignLayers).observe($('vout'));
@@ -80,12 +79,27 @@ if(settings){
  }
  function isModelOnly(){return enabled&&$('anatomy-layout').value==='model';}
  function mode(){
-  const layout=$('anatomy-layout').value,onVideo=layout==='overlay',model=isModelOnly();
-  document.querySelector('.anatomy-mode-note').textContent=onVideo?'One video with the model on top':model?'Video hidden · model uses the same playback clock':'Two synchronized views';
-  panel.hidden=!enabled||onVideo;overlay.hidden=!enabled||!onVideo;$('videoWrap').hidden=model;transport.hidden=!model;
+  // "overlay" no longer means drawn on top of the video: it composites into
+  // the existing 3D reconstruction pane (#v3dcanvasWrap in app.py) instead,
+  // so the model stays a real, orbit-able 3D object regardless of the video's
+  // own dimensions — see the comment above #wireframe-inspection in app.py.
+  const layout=$('anatomy-layout').value,in3d=layout==='overlay',model=isModelOnly();
+  document.querySelector('.anatomy-mode-note').textContent=in3d?'Model composited into the 3D reconstruction pane below — drag it to rotate':model?'Video hidden · model uses the same playback clock':'Two synchronized views';
+  panel.hidden=!enabled||in3d;$('videoWrap').hidden=model;transport.hidden=!model;
   row.classList.toggle('is-comparison',enabled&&layout==='comparison');row.classList.toggle('is-model-only',model);
   document.querySelectorAll('[data-anatomy-display]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.anatomyDisplay===layout)));
-  if(viewer){const canvas=$('anatomy-canvas'),host=onVideo?overlay:$('anatomy-stage');host.append(canvas,viewer.labels);viewer.resizeObserver.observe(host);viewer.setLayout(onVideo);if(layout!==previousLayout)viewer.setView(model?'front':'camera');viewer.setVisible(enabled);previousLayout=layout;}
+  if(viewer){
+   const canvas=$('anatomy-canvas'),host=in3d?$('v3dcanvasWrap'):$('anatomy-stage');
+   host.append(canvas,viewer.labels);viewer.resizeObserver.observe(host);
+   // Always the non-locked camera/pointer path now (`setLayout(false)`); only
+   // opacity blending is still wanted for the composited pane, via `blend`,
+   // which is independent of the video-locked `overlay` behaviour viewer.mjs
+   // still offers to other callers (see the comment on setOpacity there).
+   viewer.blend=in3d;viewer.setLayout(false);
+   if(layout!==previousLayout)viewer.setView(in3d||model?'front':'camera');
+   viewer.setVisible(enabled);previousLayout=layout;
+   if(in3d&&enabled)window.CoachV3D?.ensureVisible();
+  }
   markerCanvas.hidden=!enabled||model;alignLayers();render();syncTransport();window.dispatchEvent(new Event('coach:displaychange'));
  }
  $('anatomy-enabled').onchange=async e=>{enabled=e.target.checked;$('anatomy-options').hidden=!enabled;if(enabled){await ensureViewer();if(!viewer){enabled=false;e.target.checked=false;$('anatomy-options').hidden=true;}}else{pending=false;markerCanvas.style.pointerEvents='none';}mode();};

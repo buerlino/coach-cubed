@@ -77,11 +77,25 @@ compare `frame_count` to the clip's real length and eyeball whether the
 picked up a bystander or split the lifter across two ids is worth re-trimming
 or discarding rather than keeping as a fixture.
 
+Both of those usually mean the same thing, and have the same fix: **crop
+tight to the platform**. Competition footage is the common case —
+`_keep_main_person` keeps whoever was detected in the most frames, and a
+spectator's head parked at the bottom edge for the whole clip beats a lifter
+who is only there for 397 of 400 frames. A lifter who is small in frame is
+also the one the tracker loses and re-numbers halfway through. Cropping to a
+box around the platform (`ffmpeg -vf crop=W:H:X:Y`, keeping the bar's full
+travel and the feet) fixes both at once, because it is the same underlying
+problem: the lifter has to be the biggest, most obvious person in the frame.
+Record the crop in the fixture's `notes` — it is part of how the clip was
+made, not a detail of how it was framed. `tests/fixtures/local/snatch/` (if
+you have it) is a worked example.
+
 ### 5. (Optional) hand-label technique for the fixtures worth asserting on
 
-Edit the fixture's entry in its scope's `manifest.json` — `labels` and
-`notes` are never touched by the batch script once they've been filled in, so
-this is safe to do by hand at any point, including before or after
+Edit the fixture's entry in its scope's `manifest.json` — `labels`, `notes`
+and `diagnostics` are never touched by the batch script once they've been
+filled in, so this is safe to do by hand at any point, including before or
+after
 re-extracting the same clip:
 
 ```json

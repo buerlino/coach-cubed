@@ -24,7 +24,13 @@ only detector coordinates/confidence to squat review and original diagnostics.
 `viewer.mjs` skins 337 BodyParts3D surfaces to regional segments. It never hides
 a surface because an attachment joint was missed. Opaque depth-tested materials
 plus whole-canvas opacity avoid per-surface transparent sorting artifacts.
-Camera mode uses the video's contain rectangle; orbit mode uses clip bounds.
+"Match video camera" mode approximates the recorded framing; orbit mode uses
+clip bounds. In the original workspace, "3D pane + model" composites the
+model into `app.py`'s own `#v3dcanvasWrap` (the original 3D reconstruction
+turntable) rather than pixel-aligning it to the video element — see the
+comment above `#wireframe-inspection` in `app.py` and `setOpacity`'s `blend`
+flag in `viewer.mjs` for why: locking the model's camera to a specific video's
+box broke as soon as a differently-shaped video came through it.
 `pose-rig.mjs` provides inferred pelvis/back anchors, manual corrections and an
 optional limb-length / soft ROM prior. Vertebral points are not newly detected.
 
