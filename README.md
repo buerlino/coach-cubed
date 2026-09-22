@@ -95,6 +95,22 @@ weight, attempt number, and the three referee-decision lights), then:
   moving the bar get mistaken for an attempt. Worth a skim of `--review`
   contact sheets, especially for clips much longer than ~10 seconds, before
   relying on the output unattended.
+- **A broadcast that frequently cuts away from the platform camera (other
+  camera feeds, picture-in-picture, a big-screen results-table graphic) loses
+  whole attempts, not just cut quality.** Found on a real session where
+  `analyze.py`'s camera-layout confidence was low (3/12): the scoreboard
+  graphic matched the template fine whenever it was on screen, but the clock
+  freeze that marks an attempt's start is invisible during a cutaway, so that
+  attempt never becomes a candidate at all — it's silently missing from
+  `clips.json`, not mis-cut. On that session only 24 of 50 referee-light
+  decisions (48%) made it into the output. Run `src/audit_coverage.py
+  SIGNALS.npz` (on the `.clipper_work/<session>/signals.npz` a normal run
+  already leaves behind) to check this for any session: it compares the
+  referee-light count (the true attempt count) against what actually got
+  detected and kept, and reports how many were lost to no-candidate-at-all
+  vs. the `>97%`-visibility filter. A low camera-layout confidence score is
+  worth treating as "go run this audit," not just "maybe the template is
+  wrong."
 - **No lifter name / weight / attempt-number labels** — only order, timestamp,
   and made/miss. The scoreboard does show this text, but reading it reliably
   (OCR on a small LED/dot-matrix display) wasn't built. It's a plausible
