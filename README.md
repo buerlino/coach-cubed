@@ -44,6 +44,7 @@ conda env, auth).
 | [`report/README.md`](report/README.md) | What's in the LaTeX report, how to build the PDF, how to regenerate its figures. |
 | [`tests/README.md`](tests/README.md) | End to end: turning lift videos into fixtures, labels, golden snapshots, running `npm test`. |
 | [`tests/fixtures/README.md`](tests/fixtures/README.md) | The fixture directory layout, `manifest.json` schema, global vs. local scope. |
+| [`docs/clipper-pipeline.md`](docs/clipper-pipeline.md) | Step by step: how `scripts/sync_clipper_fixtures.py` turns a weightlifting-clipper clip into a coach test case. |
 
 Each doc is the source of truth for its own area — if you change something a
 doc describes, update that doc in the same commit rather than this index.
