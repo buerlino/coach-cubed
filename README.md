@@ -26,7 +26,7 @@ conda env, auth).
 | Path | What's there |
 | --- | --- |
 | [`src/`](src/) | The app: `app.py` (routes), `vitpose_backend.py` / `equipment_backend.py` / `depth_backend.py` (ML, kept out of `app.py`), `diagnostics.js` (the diagnostic registry, runs client-side). |
-| [`scripts/`](scripts/) | Everything you run for the production deploy: setup, model download, launch/stop, port cleanup, fixture batch-extraction. |
+| [`scripts/`](scripts/) | Everything you run for the production deploy: setup, model download, launch/stop, port cleanup, fixture batch-extraction (incl. syncing fixtures straight from the sibling `weightlifting-clipper` repo's output — see [`tests/README.md`](tests/README.md)). |
 | [`launchers/`](launchers/) | The zero-install local preview: `run_local.py`/`run_original.py`/`run_anatomy.py`/`run_squat.py` and their double-click `.command`/`.bat` twins. All `cd` to the repo root before touching `.venv` or `src/`, so they only work run from (or launched from within) this folder — don't move them further apart. |
 | [`tests/`](tests/) | Fixture-driven golden tests for `diagnostics.js`. Start at [`tests/README.md`](tests/README.md). |
 | [`report/`](report/) | LaTeX writeup of the pose model, smoothing math, and diagnostic geometry, plus the notebook that generates its figures. Start at [`report/README.md`](report/README.md). |

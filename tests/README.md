@@ -20,6 +20,44 @@ end to end. Two things live here:
 
 Run everything with `npm test`.
 
+## Syncing from weightlifting-clipper
+
+If your clips come from the sibling `weightlifting-clipper` repo (it cuts
+one clip per attempt from competition footage — see its own README), use
+`scripts/sync_clipper_fixtures.py` instead of the manual `clips_inbox/` flow
+below:
+
+```sh
+./scripts/coach_launch.sh local
+python scripts/sync_clipper_fixtures.py --dry-run   # see what it would do first
+python scripts/sync_clipper_fixtures.py
+```
+
+It reads straight from `../weightlifting-clipper/downloads/Clips/*/*.mp4`
+(override with `--clipper-dir`) — nothing gets copied into this repo except
+the fixtures it decides to keep. Per clip it: skips anything it's already
+extracted (by content hash, not filename, so a re-cut that renumbers an
+already-seen attempt isn't treated as new); pose-extracts it (there's no
+avoiding this — see below); guesses snatch vs clean-and-jerk from the
+resulting wrist/bar-height trajectory (`scripts/pose_stance.py` — a snatch is
+one continuous rise to an overhead catch, a clean & jerk is two, separated by
+a rack pause); and, for anything it kept, writes the fixture + manifest entry
+the same shape `batch_extract_tracks.py` does and regenerates its golden. A
+clip it can't confidently classify — including one whose track looks
+physically broken, not just lift-ambiguous — is left alone and reported,
+never guessed: fix it with `--stance-override SUBSTRING=STANCE` or
+investigate, then re-run (already-classified clips are skipped via the dedup
+cache, so re-running is cheap). Lands in `tests/fixtures/local/` like any
+other local fixture; promoting one to `global/` is still the manual step in
+`tests/fixtures/README.md`.
+
+Unlike the manual flow below, there's no free preview step: stance can only
+be read off the pose track, so even `--dry-run` extracts every new clip (it
+just skips writing fixtures/manifest/golden/dedup-state afterwards). See
+`scripts/pose_stance.py`'s docstring for what the classifier has and hasn't
+been validated against — worth a skim before trusting a large batch of
+clean-and-jerk verdicts specifically.
+
 ## Step by step: turning clips into test cases
 
 ### 1. Start the app
