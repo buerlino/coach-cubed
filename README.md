@@ -55,10 +55,3 @@ doc describes, update that doc in the same commit rather than this index.
 - Every subfolder with its own docs gets a `README.md`.
 - This README's tables are the map — update them in the same commit whenever
   a doc moves or a new one is added.
-
-
-### Local anatomy revision 3
-
-Two local workspace variants share the same anatomy, squat review and original
-3D backend. See `START_HERE.md` for setup and `CHANGES_LOCAL_V3.md` for changes.
-The source integrates the newly uploaded snapshot; nothing was pushed.
