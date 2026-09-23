@@ -1,12 +1,12 @@
 # clipper → coach test case pipeline
 
-How a weightlifting-clipper clip becomes a coach test case, end to end, via
+How a clip from `clipper/` becomes a coach test case, end to end, via
 `scripts/sync_clipper_fixtures.py`. Verified working on one real clip
 (2026-09-22) — see the proof-of-concept run at the bottom.
 
 ## The chain, step by step
 
-1. **weightlifting-clipper cuts the clip.** It downloads a session video and
+1. **`clipper/` cuts the clip.** It downloads a session video and
    trims one file per lift attempt (bar pickup → lockout) into
    `<its downloads dir>/Clips/<session>/<session>_NN_HhMMmSSs_<made|miss>.mp4`.
    It knows order, timestamp and referee decision — never lift type.
@@ -56,7 +56,7 @@ python scripts/sync_clipper_fixtures.py             # for real: writes fixture/m
 npm test
 ```
 
-Default `--clipper-dir` is `../weightlifting-clipper/downloads`; pass
+Default `--clipper-dir` is `clipper/downloads`; pass
 `--clipper-dir /path/to/actual/downloads` to point at wherever clipper's
 output really lives (e.g. a session archive under `~/Downloads`).
 

@@ -20,10 +20,10 @@ end to end. Two things live here:
 
 Run everything with `npm test`.
 
-## Syncing from weightlifting-clipper
+## Syncing from clipper
 
-If your clips come from the sibling `weightlifting-clipper` repo (it cuts
-one clip per attempt from competition footage — see its own README), use
+If your clips come from `clipper/` (it cuts one clip per attempt from
+competition footage — see [`clipper/README.md`](../clipper/README.md)), use
 `scripts/sync_clipper_fixtures.py` instead of the manual `clips_inbox/` flow
 below:
 
@@ -33,7 +33,7 @@ python scripts/sync_clipper_fixtures.py --dry-run   # see what it would do first
 python scripts/sync_clipper_fixtures.py
 ```
 
-It reads straight from `../weightlifting-clipper/downloads/Clips/*/*.mp4`
+It reads straight from `clipper/downloads/Clips/*/*.mp4`
 (override with `--clipper-dir`) — nothing gets copied into this repo except
 the fixtures it decides to keep. Per clip it: skips anything it's already
 extracted (by content hash, not filename, so a re-cut that renumbers an

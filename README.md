@@ -26,7 +26,8 @@ conda env, auth).
 | Path | What's there |
 | --- | --- |
 | [`src/`](src/) | The app: `app.py` (routes), `vitpose_backend.py` / `equipment_backend.py` / `depth_backend.py` (ML, kept out of `app.py`), `diagnostics.js` (the diagnostic registry, runs client-side). |
-| [`scripts/`](scripts/) | Everything you run for the production deploy: setup, model download, launch/stop, port cleanup, fixture batch-extraction (incl. syncing fixtures straight from the sibling `weightlifting-clipper` repo's output — see [`tests/README.md`](tests/README.md)). |
+| [`clipper/`](clipper/) | The clip-cutting tool (downloads a session video, trims one file per lift attempt) — its own project, merged in with history intact; see [`clipper/README.md`](clipper/README.md). |
+| [`scripts/`](scripts/) | Everything you run for the production deploy: setup, model download, launch/stop, port cleanup, fixture batch-extraction (incl. syncing fixtures straight from `clipper/`'s output — see [`tests/README.md`](tests/README.md)). |
 | [`launchers/`](launchers/) | The zero-install local preview: `run_local.py`/`run_original.py`/`run_anatomy.py`/`run_squat.py` and their double-click `.command`/`.bat` twins. All `cd` to the repo root before touching `.venv` or `src/`, so they only work run from (or launched from within) this folder — don't move them further apart. |
 | [`tests/`](tests/) | Fixture-driven golden tests for `diagnostics.js`. Start at [`tests/README.md`](tests/README.md). |
 | [`report/`](report/) | LaTeX writeup of the pose model, smoothing math, and diagnostic geometry, plus the notebook that generates its figures. Start at [`report/README.md`](report/README.md). |
@@ -44,7 +45,7 @@ conda env, auth).
 | [`report/README.md`](report/README.md) | What's in the LaTeX report, how to build the PDF, how to regenerate its figures. |
 | [`tests/README.md`](tests/README.md) | End to end: turning lift videos into fixtures, labels, golden snapshots, running `npm test`. |
 | [`tests/fixtures/README.md`](tests/fixtures/README.md) | The fixture directory layout, `manifest.json` schema, global vs. local scope. |
-| [`docs/clipper-pipeline.md`](docs/clipper-pipeline.md) | Step by step: how `scripts/sync_clipper_fixtures.py` turns a weightlifting-clipper clip into a coach test case. |
+| [`docs/clipper-pipeline.md`](docs/clipper-pipeline.md) | Step by step: how `scripts/sync_clipper_fixtures.py` turns a `clipper/` clip into a coach test case. |
 
 Each doc is the source of truth for its own area — if you change something a
 doc describes, update that doc in the same commit rather than this index.

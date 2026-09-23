@@ -1,13 +1,14 @@
-"""Pull newly-cut clips out of weightlifting-clipper's output and turn them
+"""Pull newly-cut clips out of clipper's output and turn them
 into coach test fixtures, end to end — no manual clips_inbox/ copying.
 
     ./scripts/coach_launch.sh local          # or coach_launch_venv.sh
     python scripts/sync_clipper_fixtures.py
-    python scripts/sync_clipper_fixtures.py --clipper-dir /path/to/weightlifting-clipper/downloads
+    python scripts/sync_clipper_fixtures.py --clipper-dir /path/to/clipper/downloads
     python scripts/sync_clipper_fixtures.py --dry-run     # classify, don't persist fixtures
 
-weightlifting-clipper (a sibling repo, not part of coach) writes one file per
-lift attempt into <its downloads dir>/Clips/<session>/, named
+clipper/ (formerly the standalone weightlifting-clipper repo, merged in with
+its history intact) writes one file per lift attempt into <its downloads
+dir>/Clips/<session>/, named
 "<session>_NN_HhMMmSSs_<made|miss>.mp4" (see its README/src/cut.py). It knows
 order, timestamp and referee decision, but never lift type: coach needs a
 --stance (snatch vs clean-and-jerk) to know which diagnostics to score a clip
@@ -65,10 +66,10 @@ import batch_extract_tracks as bet
 from pose_stance import classify_stance_from_track
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_CLIPPER_DIR = REPO_ROOT.parent / "weightlifting-clipper" / "downloads"
+DEFAULT_CLIPPER_DIR = REPO_ROOT / "clipper" / "downloads"
 STATE_FILE = REPO_ROOT / "tests" / "fixtures" / "local" / ".clipper_sync_state.json"
 
-# session_NN_HhMMmSSs_result.mp4 — see weightlifting-clipper/src/cut.py.
+# session_NN_HhMMmSSs_result.mp4 — see clipper/src/cut.py.
 CLIP_NAME_RE = re.compile(r"^(?P<session>.+)_(?P<idx>\d{2})_(?P<hh>\d+)h(?P<mm>\d{2})m(?P<ss>\d{2})s_(?P<result>made|miss)\.mp4$")
 
 
@@ -132,7 +133,7 @@ def write_fixture(out_dir, manifest, clip, stance, result, attempt_result, args,
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--clipper-dir", type=Path, default=DEFAULT_CLIPPER_DIR,
-                     help=f"weightlifting-clipper's downloads/ dir (default: {DEFAULT_CLIPPER_DIR})")
+                     help=f"clipper's downloads/ dir (default: {DEFAULT_CLIPPER_DIR})")
     ap.add_argument("--host", default="127.0.0.1:8080", help="host:port the coach app is listening on")
     ap.add_argument("--scope", default="local", choices=("local", "global"),
                      help="local (default): gitignored, this machine only; "
