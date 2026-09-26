@@ -625,6 +625,19 @@ def three_module_js():
     return send_file(THREE_JS, mimetype="application/javascript")
 
 
+# Header logo: the cropped (margins trimmed) copy of logo/coach_logo_v1.png. The
+# page references it as ./logo.png, relative, so it resolves under the /coach/
+# prefix the same way ./diagnostics.js does.
+LOGO_PNG = Path(__file__).parent.parent / "logo" / "coach_logo_v1_cropped.png"
+
+
+@app.route("/logo.png")
+def logo_png():
+    if not LOGO_PNG.exists():
+        return jsonify({"error": "logo is missing"}), 404
+    return send_file(LOGO_PNG, mimetype="image/png")
+
+
 @app.route("/squat/")
 def squat_lab():
     return send_from_directory(Path(__file__).parent / "squat", "index.html")
@@ -674,7 +687,10 @@ INDEX_HTML = """<!doctype html>
   body[data-page="lateral-raise"] { --accent:#57d3c7; --accent-soft:rgba(87,211,199,.14); }
   body[data-page="image"] { --accent:#a8d96c; --accent-soft:rgba(168,217,108,.14); }
   h1 { font-weight:600; letter-spacing:0; margin:0; }
-  .app-header { display:flex; align-items:end; justify-content:space-between; gap:20px; }
+  .app-header { display:flex; align-items:center; gap:20px; }
+  /* The logo is black line art on transparent, so invert it onto the dark page.
+     Overrides the global img rule's margin/radius. */
+  .app-logo { height:72px; width:auto; margin:0; border-radius:0; filter:invert(1); flex:none; }
   .app-kicker { color:var(--accent); font-size:12px; letter-spacing:0; text-transform:uppercase; margin:0 0 6px; }
   .page-context { color:#c3c2b7; font-size:14px; margin:6px 0 0; }
   h2 { font-weight:600; font-size:18px; border-top:1px solid #333; padding-top:24px; margin-top:32px; }
@@ -785,6 +801,7 @@ INDEX_HTML = """<!doctype html>
 </head>
 <body>
 <header class="app-header">
+  <img class="app-logo" src="./logo.png" alt="coach logo">
   <div>
     <p class="app-kicker">movement analysis</p>
     <h1>coach</h1>

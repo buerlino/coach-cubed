@@ -46,7 +46,7 @@ colour. The new display smoothing and contact constraints never affect findings.
 preview. `src/local_depth.py` reuses geometric depth/profile route bodies from
 `app.py` without requiring ViTPose. The full Flask entry point remains present.
 
-See `ROM.md`, `models/ATTRIBUTION.md` and the root `VALIDATION.md`.
+See `ROM.md` and `models/ATTRIBUTION.md`.
 
 `grip.mjs` adds optional fixed hand contacts on a smoothed bar, with elbow
 placement and manual grip calibration/width. Constraints are display-only and

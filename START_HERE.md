@@ -85,6 +85,5 @@ Keep the terminal open; Ctrl+C stops the server. Do not double-click HTML files.
 Use a browser with WebGL and WebAssembly, such as Chrome or Edge.
 
 Video inference runs locally in the browser; geometric reconstruction uses pose
-coordinates on the local loopback server. No GitHub changes were made. This
-build uses the supplied project snapshot, not a verified current GitHub HEAD.
-See `VALIDATION.md`, `CHANGES_LOCAL_V5.md`, and the anatomy attribution for details.
+coordinates on the local loopback server. Use the anatomy attribution files for
+the bundled model's source information.
