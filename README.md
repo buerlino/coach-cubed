@@ -16,7 +16,9 @@ pose track, and see per-rep technique diagnostics scored from the keypoints
 ./scripts/coach_launch.sh local  # app only, http://127.0.0.1:8080, no TLS/Caddy
 ```
 
-`./scripts/coach_launch.sh full` also brings up Caddy for LAN/tailnet access;
+`./scripts/coach_launch.sh full` also ensures the shared gateway for
+LAN/tailnet access (coach is served at `/coach/`, alongside the box's other
+apps) and claims GPU priority so its models load into a free card;
 `./scripts/coach_launch.sh stop` stops either mode. See
 [`docs/deploy.md`](docs/deploy.md) for the full picture (checkpoints, ports,
 conda env, auth).

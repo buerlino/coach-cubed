@@ -1,60 +1,52 @@
 #!/bin/bash
-# Frees the ports coach needs (80, 443, 8080) so ./coach_launch.sh can bind
-# them cleanly — meant to be safe to run anytime, including when nothing is in
-# the way (clean no-op), so it can just be a standard pre-step before starting.
+# Frees the ONE port coach binds (8080 by default), so coach_launch.sh can
+# rebind it cleanly. Safe to run anytime, including when nothing is in the way.
 #
-# Why systemctl, not pkill: tecna's and llm-server's units all carry
-# Restart=on-failure, so killing the process directly just gets it respawned
-# 5s later — systemd only treats it as an intentional stop (no restart) via
-# `systemctl stop`.
+# WHAT CHANGED. This used to sweep 80, 443 and 8080 and stop every other app on
+# the box to get them, because only one app could run at a time and they all
+# wanted :8080 and :443. That is no longer true: each app has its own port and
+# its own path prefix behind one shared gateway (see ~/Caddyfile), so they run
+# side by side. 80 and 443 belong to the gateway, which must be left alone —
+# stopping it took every other app on the box off the network as collateral,
+# which is how restarting coach came to break its neighbours.
 #
-# Known neighbors (tecna, llm-server) are stopped by name first — no sudo
-# prompt in the common case. Anything left on the target ports after that is
-# reaped generically via `sudo fuser -k`: identifying an arbitrary process
-# bound to a privileged port without root doesn't work on this box —
-# `ss -ltnp` / `lsof` / `fuser` can't map port 80/443 to a pid unless run as
-# root, because Caddy's cap_net_bind_service file capability (see
-# tecna-caddy.service) makes the kernel hide its /proc/<pid>/fd from
-# same-user inspectors, the same protection setuid binaries get.
+# So this now stops exactly one thing: a stale coach. Either its unit, or a raw
+# app.py left behind by a previous launch — both of which would hold the port
+# against the process about to start.
 set -e
-PORTS=(80 443 8080)
-KNOWN_UNITS=(tecna-app llm-server-app tecna-caddy tecna-comfyui)
-
-echo "=== stopping known neighbors ==="
-stopped_any=0
-for unit in "${KNOWN_UNITS[@]}"; do
-	if systemctl --user is-active --quiet "$unit" 2>/dev/null; then
-		echo "  systemctl --user stop $unit"
-		systemctl --user stop "$unit"
-		stopped_any=1
-	fi
-done
-# In case either was started with its own *_launch.sh (a raw process) rather
-# than through systemd — the units above cover the normal case.
-pkill -f "envs/tecna/bin/python app.py" 2>/dev/null && stopped_any=1
-pkill -f "llm-server/.venv/bin/python app.py" 2>/dev/null && stopped_any=1
-pkill -f "ComfyUI/main.py" 2>/dev/null && stopped_any=1
-[ "$stopped_any" = 1 ] && sleep 1   # let sockets actually release
+PORT="${COACH_PORT:-8080}"
+APP_UNIT=coach-app.service
 
 held() { ss -ltn 2>/dev/null | awk '{print $4}' | grep -qE "[:.]${1}\$"; }
 
-echo "=== checking target ports: ${PORTS[*]} ==="
-status=0
-for port in "${PORTS[@]}"; do
-	if held "$port"; then
-		echo "  :$port held by an unknown process — killing via sudo fuser"
-		sudo fuser -k -n tcp "$port" 2>/dev/null || true
-		sleep 1
-		if held "$port"; then
-			echo "  :$port STILL HELD after sudo fuser -k — investigate by hand:" >&2
-			echo "      sudo ss -ltnp | grep :$port" >&2
-			status=1
-		else
-			echo "  :$port freed"
-		fi
-	else
-		echo "  :$port free"
-	fi
-done
+if ! held "$PORT"; then
+	echo ":$PORT free"
+	exit 0
+fi
 
-exit $status
+echo ":$PORT held — stopping coach's own processes"
+# The unit first. It carries Restart=on-failure, so a bare pkill just gets the
+# process respawned 5s later; only `systemctl stop` counts as intentional.
+if systemctl --user is-active --quiet "$APP_UNIT" 2>/dev/null; then
+	echo "  systemctl --user stop $APP_UNIT"
+	systemctl --user stop "$APP_UNIT"
+fi
+# Then a raw one, matched on coach's own interpreter + src/app.py. The other two
+# apps on this box each run an app.py the same way, so a bare "python app.py"
+# pattern here would kill a neighbour — which is exactly what this rewrite is
+# removing.
+pkill -f "envs/coach/bin/python src/app.py" 2>/dev/null || true
+pkill -f "coach/.venv/bin/python src/app.py" 2>/dev/null || true
+sleep 1
+
+if held "$PORT"; then
+	# Not coach, then. Deliberately NOT reaped: on this box an unknown process
+	# on a port we merely want is more likely to be something that matters than
+	# something to kill, and the old `sudo fuser -k` here is what made this
+	# script dangerous. Name it and stop.
+	echo "  :$PORT STILL HELD, and not by coach — investigate before starting:" >&2
+	echo "      sudo ss -ltnp | grep :$PORT" >&2
+	echo "      ~/gpu.sh list        # if it is one of the model apps" >&2
+	exit 1
+fi
+echo "  :$PORT freed"

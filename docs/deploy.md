@@ -82,22 +82,33 @@ importing a backend outside `src/` (`report/extract_track.py`) puts `src/` on
 
 ## Caddy / port 443
 
-coach has its own `Caddyfile`, copied from `../tecna/Caddyfile` with just the
-project paths swapped (`.caddy` storage dir, `pki-public/`) — same hostnames,
-same tailnet IPs, same `reverse_proxy 127.0.0.1:8080`, since it's the same
-physical box either way. Dropped tecna's `/qwen/openai/v1/*` passthrough block
-(no equivalent route in coach's `src/app.py`).
+**The `Caddyfile` in this repo is not the live config.** It is a single-site
+leftover: it proxies everything on :443 to `127.0.0.1:8080`, which only works if
+coach is the only app on the box. The live gateway is `~/Caddyfile`, outside this
+repo, which fronts every app on one Caddy and mounts this one at `/coach/*` with
+`handle_path` (so the prefix is stripped and Flask still sees `/`). Read that
+file when you need to know how a request actually reaches this app.
 
-This only works because **tecna, llm-server and coach are never run at the
-same time** — all three want :443 and :8080. `scripts/coach_launch.sh` starts/stops
-`src/app.py` *and* Caddy together (`./scripts/coach_launch.sh` / `./scripts/coach_launch.sh stop`)
-and calls `scripts/free_ports.sh` first, which stops whichever of tecna/llm-server is
-up (systemd units, or a raw process from their own `*_launch.sh`) — no manual
-stop-first step needed.
+The apps are **no longer mutually exclusive**. Each has its own port and its own
+path prefix, so they run side by side:
 
-First `./scripts/coach_launch.sh` run also mints a fresh local CA (separate from tecna's
-— different `.caddy` storage dir) and publishes its root cert to
-`pki-public/root.crt` for phones/laptops to install, same as tecna's does.
+| app | port | mounted at |
+|---|---|---|
+| coach | 8080 | `/coach/` |
+| tecna | 8083 | `/tecna/` |
+| llm-server | 8084 | `/llm-server/` (+ `/qwen/openai/v1` at the root) |
+
+`scripts/coach_launch.sh` therefore touches only coach's own process. It no
+longer stops the neighbours, and `scripts/free_ports.sh` no longer sweeps
+:80/:443 — those belong to the shared gateway, and taking it down dropped the
+other two apps off the network as collateral. What the launch script does do is
+claim **GPU priority** first (`~/gpu.sh prio coach`): one card is shared by three
+apps that can each fill it, so the arbiter asks the others to unload before
+coach's own models load. Pass `--no-prio` to skip that.
+
+The local CA lives in the gateway's storage dir, not here — `.caddy/` in this
+repo holds the root that devices on the tailnet already trust, so it must never
+be deleted or regenerated.
 
 ## conda env
 

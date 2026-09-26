@@ -3566,6 +3566,18 @@ const buildViewer = () => {
   let candidate = null;      // the loaded MeshCandidate JSON
   let frameKeys = [];        // sorted numeric frame indices, when a sequence
   let camDist = 3;           // set on load to frame the figure
+  // The largest joint-to-joint distance seen anywhere in the clip (e.g. an
+  // extended arm to the opposite foot) — fixed once per load, same idea as
+  // AnatomyViewer.spread in src/anatomy/viewer.mjs, and for the same reason:
+  // framing off a fixed anatomical span rather than raw reconstructed units
+  // keeps the figure the same apparent size regardless of the clip's own
+  // scale. `zoom` is the user's wheel/trackpad multiplier on top of that.
+  // `farthest` is a safety floor (see applyCamera): this viewer's origin is
+  // wherever the backend's picked anchor put it, not necessarily the point
+  // cloud's centroid, so `spread` alone can't guarantee nothing clips out of
+  // the frustum the way it can for AnatomyViewer, which re-centers on its
+  // own bounding box.
+  let spread = 0.8, farthest = 0.4, zoom = 1;
   // Buffer order -> COCO joint index. The position buffer only carries the
   // joints that were solved, so its indices are NOT joint indices; without this
   // map a click on the 12th drawn point flips whichever joint happens to be
@@ -3578,10 +3590,39 @@ const buildViewer = () => {
   // mm (x right, y down, z toward camera) -> three.js metres, Y up.
   const toVec = p => new THREE.Vector3(p[0] / 1000, -p[1] / 1000, p[2] / 1000);
 
-  function fit(j3d) {
-    let r = 0.4;
-    for (const p of j3d) if (p) r = Math.max(r, toVec(p).length());
-    camDist = r / Math.tan((camera.fov * Math.PI / 180) / 2) * 1.5;
+  // Scans every frame of a sequence candidate (or just the one set of joints
+  // for a single-frame candidate) so the fit doesn't change as the figure
+  // moves through the clip — only applyCamera()'s `zoom` moves the camera
+  // after this.
+  function fit(c) {
+    const frameSets = c.frames ? Object.values(c.frames) : [c.joints3d];
+    let s = 0, r = 0;
+    for (const j3d of frameSets) {
+      if (!j3d) continue;
+      const pts = j3d.filter(Boolean).map(toVec);
+      for (let i = 0; i < pts.length; i++) {
+        r = Math.max(r, pts[i].length());
+        for (let k = i + 1; k < pts.length; k++) {
+          const d = pts[i].distanceTo(pts[k]);
+          if (d > s) s = d;
+        }
+      }
+    }
+    spread = s || 0.8;
+    farthest = r || 0.4;
+    zoom = 1;
+    applyCamera();
+  }
+  // Fit `spread` to 3/4 of the panel's height — same formula as AnatomyViewer's
+  // orbit camera in src/anatomy/viewer.mjs, so both 3D panes feel consistent —
+  // then apply the wheel/trackpad zoom multiplier on top. Also never let the
+  // single farthest joint from the origin (camera.lookAt's fixed target) clip
+  // out of the frustum: for well-centred reconstructions this never binds,
+  // since `spread`'s 3/4-height fit already sits farther back than that, but
+  // it keeps an off-centre point cloud safely in frame instead of overflowing.
+  function applyCamera() {
+    const halfFov = camera.fov * Math.PI / 360;
+    camDist = Math.max(spread / (1.5 * Math.tan(halfFov)), farthest / Math.tan(halfFov)) * zoom;
     camera.position.set(0, 0, camDist);
     camera.lookAt(0, 0, 0);
     // No pick tolerance to set here: picking is done in screen pixels (see
@@ -3733,6 +3774,16 @@ const buildViewer = () => {
   window.addEventListener('mousemove', move);
   window.addEventListener('mouseup', end);
 
+  // Multiplicative, not additive: a mouse wheel notch (deltaY ~100) and a
+  // trackpad's stream of small scroll/pinch events (deltaY ~1-10 each) both
+  // end up feeling like the same "amount" of zoom per gesture this way — see
+  // the matching comment on AnatomyViewer's wheel handler in viewer.mjs.
+  wrap.addEventListener('wheel', e => {
+    e.preventDefault();
+    zoom = Math.max(.35, Math.min(3, zoom * Math.pow(1.0015, e.deltaY)));
+    applyCamera(); render();
+  }, { passive: false });
+
   // Hover feedback, so it's discoverable that the joints are live at all.
   // Bound to the wrapper rather than the window on purpose: the drag listener
   // has to be global (a turntable drag that leaves the canvas should keep
@@ -3762,7 +3813,7 @@ const buildViewer = () => {
       candidate = c;
       frameKeys = c.frames ? Object.keys(c.frames).map(Number).sort((a, b) => a - b) : [];
       group.rotation.set(0, 0, 0);
-      fit(c.joints3d);
+      fit(c);
       setJoints(c.joints3d);
       resize();
     },
