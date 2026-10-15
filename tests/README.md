@@ -33,9 +33,13 @@ python scripts/sync_clipper_fixtures.py --dry-run   # see what it would do first
 python scripts/sync_clipper_fixtures.py
 ```
 
-It reads straight from `clipper/downloads/Clips/*/*.mp4`
-(override with `--clipper-dir`) — nothing gets copied into this repo except
-the fixtures it decides to keep. Per clip it: skips anything it's already
+It reads straight from `$CLIPPER_OUT/**/clips/*.mp4` — clipper puts each
+source video's cut attempts in a `clips/` folder inside a folder named after
+that video — falling back to `clipper/downloads/` when that variable isn't set
+(override either with `--clipper-dir`) — nothing gets copied into this repo except the fixtures
+it decides to keep. `$CLIPPER_OUT` is the same variable `clipper/clip.sh` uses
+for its own output directory, so pointing the downloads at bulk storage is one
+export, not a flag you have to remember in two places. Per clip it: skips anything it's already
 extracted (by content hash, not filename, so a re-cut that renumbers an
 already-seen attempt isn't treated as new); pose-extracts it (there's no
 avoiding this — see below); guesses snatch vs clean-and-jerk from the

@@ -1,0 +1,295 @@
+# Fixture data contract
+
+What the pose pass writes, where it writes it, and how the page reads it. For
+anyone building against the extracted ViTPose data rather than producing it —
+see [`clipper-pipeline.md`](clipper-pipeline.md) for the producing side.
+
+Measured on this box 2026-10-13, mid-run: 785 fixtures of an expected 3,226
+(811 by the evening, with the training data explorer added — see its section).
+
+## Layout
+
+```
+tests/fixtures/
+  global/                                committed, ships with the repo
+    manifest.json
+    <stance>/<stem>.mp4
+    <stance>/<stem>.track.json
+    profiles/limbs/<name>.json
+    profiles/signs/<name>.json
+  local/                                 gitignored, this machine only
+    manifest.json
+    .clipper_sync_state.json             sha256 dedup state for the sync
+    train_labels.json                    explorer labels per clipper clip (see below)
+    train_links.json                     manifest entries the explorer linked (see below)
+    snatch           -> /mnt/datasets/coach/fixtures-local/snatch
+    clean-and-jerk   -> /mnt/datasets/coach/fixtures-local/clean-and-jerk
+    profiles/limbs/<name>.json
+    profiles/signs/<name>.json
+```
+
+`FIXTURES_DIR` is `src/app.py`; scopes are `("global", "local")` and a `local`
+name shadows a `global` one. Outside the manifest files a fixture is named by
+its full slug, `<scope>/<stance>/<stem>`.
+
+**The two stance directories under `local/` are symlinks to bulk storage.** A
+full sync copies every clip into the fixture tree, which is ~7.3 GB of video
+the clips already hold elsewhere, and root had 32 G free at 89%. Only those two
+dirs are redirected: they are covered by `.gitignore`'s `tests/fixtures/local/*`
+so git never sees the symlink, whereas `local/.gitkeep` is tracked, which is why
+`local/` itself has to stay a real directory. The manifest and the dedup state
+stay on the SSD — small, and read on every request.
+
+## `<stem>.track.json`
+
+`vitpose_backend`'s own output, unmodified. The same shape
+`/api/pose/video/result` returns, so page code that reads one reads the other.
+
+```js
+{
+  "keypoints": {
+    "<frameIndex>": {          // STRING key: "0", "1", ... "479"
+      "<personId>": [          // tracker id, e.g. "2218" — only the kept person
+        [x, y, confidence],    // 17 rows, COCO order
+        ...
+      ]
+    }
+  },
+  "meta": {
+    "fps": 30.0,
+    "frame_count": 480,
+    "frames_processed": 480,
+    "frame_stride": 1,
+    "width": 1920, "height": 1080,       // x,y are SOURCE pixels, not normalised
+    "frame_indices": [0, 1, 2, ...],     // which frames were processed
+    "frame_times_ms": [0.0, 33.33, ...], // decoder timestamps
+    "skeleton": [[15,13], [13,11], ...], // bone pairs, indices into the joint list
+    "tracks": { "kept": "2218", "kept_frames": 371,
+                "dropped": [{"id": "2221", "frames": 240}, ...] },
+    "equipment": null, "equipment_error": null, "equipment_prompts": null
+  }
+}
+```
+
+Joint order, which `meta.skeleton` indexes into:
+
+```
+0 nose  1 l_eye  2 r_eye  3 l_ear  4 r_ear  5 l_shoulder  6 r_shoulder
+7 l_elbow  8 r_elbow  9 l_wrist  10 r_wrist  11 l_hip  12 r_hip
+13 l_knee  14 r_knee  15 l_ankle  16 r_ankle
+```
+
+Three things that bite:
+
+- Frame keys are **strings**, not numbers. `Object.keys()` comes back in
+  insertion order, which is not numeric order — sort before you iterate.
+- The inner dict is keyed by **tracker id**, which differs per clip. Read
+  `meta.tracks.kept` rather than assuming a name or taking the first key.
+- `frame_times_ms` is the authority on timing when present. `index / fps` is
+  wrong under a stride, and wrong again on variable frame timing.
+
+## `manifest.json`
+
+One entry per fixture, keyed `"<stance>/<stem>"` within its scope.
+
+```json
+"clean-and-jerk/01-2019-arafura-games-session-1-uzbodnfldbu_04_0h07m35s_unknown": {
+  "stance": "clean-and-jerk",
+  "diagnostics": "clean-and-jerk",      // DIAGNOSTIC_SETS key it is scored against
+  "source_file": "..._unknown.mp4",
+  "model_size": "l",
+  "frame_stride": 1,
+  "frame_count": 400, "frames_processed": 400,
+  "kept_person": "8111",
+  "attempt_result": "unknown",          // clipper's referee verdict: made|miss|unknown
+  "detect_equipment": false,
+  "generated_at": "2026-10-13T19:37:12+00:00",
+  "labels": [],                         // hand-written; the pose pass never touches it
+  "notes": "stance auto-detected from pose trajectory: ..."
+}
+```
+
+`labels` and `notes` are the hand-review channel: `batch_extract_tracks.py` and
+`sync_clipper_fixtures.py` both preserve whatever they find there.
+
+## Adding a fixture: the mechanism
+
+`_load_manifest()` re-reads both manifests **from disk on every call**, with no
+cache. A fixture is therefore live the moment its three pieces exist — no
+restart, no reload:
+
+1. `tests/fixtures/<scope>/<stance>/<stem>.mp4`
+2. `tests/fixtures/<scope>/<stance>/<stem>.track.json`
+3. an entry in that scope's `manifest.json`
+
+`/api/examples` skips any entry whose video or track is missing, so a
+half-written fixture is invisible rather than broken. Per-size tracks are
+`<stem>.<size>.track.json` for sizes `l` and `h`; a bare `<stem>.track.json`
+counts as the size named in `model_size`, and an explicit per-size file wins.
+
+### `/api/examples` used to be quadratic — fixed 2026-10-13
+
+It was measured at 788 entries as **293 KB, 5.4 s per request**: `api_examples`
+called `_example_tracks(key)` and `_example_video(key)` per entry, and each of
+those re-parsed both manifests — 2n+1 full parses per request, heading for
+~90 s at the full 3,226. Both helpers now take the already-loaded entry
+(`_example_tracks(key, entry)`), so the manifests are parsed once per request.
+Measured after the change at 811 entries: **303 KB, 0.06 s** (0.061 / 0.059 /
+0.058). The zero-restart property above is kept: nothing is cached across
+requests.
+
+The response now also carries `attempt_result`, `labels`, `frame_count` and
+`generated_at` from the manifest, so a picker can filter on made/miss without
+fetching the manifests itself. There is still no pagination or filter
+parameter; the training data explorer (next section) filters client-side
+over its own listing instead.
+
+## The training data explorer (`train data` tab, `/api/train/*`)
+
+The in-app browser over clipper's output — every cut clip, not only the
+fixtures. It reads `$CLIPPER_OUT` (`COACH_TRAIN_DIR` overrides it; the
+systemd unit gets it from a drop-in under
+`~/.config/systemd/user/coach-app.service.d/`, since a user unit does not
+read `~/.bashrc`).
+
+```
+GET /api/train/clips                 {dir, lifts, clips: [...]} — one row per **/clips/*.mp4
+GET /api/train/clip/<path>           the clip itself (path relative to CLIPPER_OUT)
+PUT /api/train/labels/<path>         {exercise?, category?, gender?} -> train_labels.json
+POST /api/train/link                 {path, size, frame_stride, detect_equipment,
+                                      fallback_exercise, track: {keypoints, meta}}
+```
+
+A row has what the filename and `clips.json` give (`event`, `session`,
+`session_idx`, `attempt`, `t`, `result`, `duration`, `bytes`, `mtime`), whether
+a fixture with a cached track exists for that clip (`precomputed`,
+`example_id`, `sizes` — matched on `source_file`), and the three labels the
+footage can't supply: `exercise`, `category`, `gender`. `exercise_source` says
+where the exercise came from: `label` (set by hand), `track` (the stance
+classifier), `default` (the classifier abstained and the link endpoint fell
+back to the panel the clip was opened in — the manifest `notes` start with
+`stance NOT classified`), or `null`. Labels live in `train_labels.json`, keyed
+by the clip's path relative to `CLIPPER_OUT`, and a hand-set exercise beats the
+classifier's.
+
+Double-clicking a clip with a track loads it as the example it is. One without
+is run through `/api/pose/video/*` at the panel's model size and the result is
+`POST`ed to `/api/train/link`, which writes the same three pieces the sync
+does — clip copy, `<stem>.track.json` (or `<stem>.<size>.track.json` when the
+slug already holds another size), manifest entry — plus the sha256 entry in
+`.clipper_sync_state.json` so a later sync skips it, and regenerates the
+golden. The entry also goes into `train_links.json`: a sync run that started
+with an older copy of `sync_clipper_fixtures.py` rewrites `local/manifest.json`
+from its own in-memory dict, dropping entries linked in the meantime, and
+`_load_manifest()` restores any entry from that file whose track still exists.
+The sync script re-reads the manifest before each save since 2026-10-13, so a
+run started after that no longer does this.
+
+## Reading it from the page
+
+A cached fixture — what you want for the clipper dataset:
+
+```js
+const BASE = location.pathname.replace(/[/]+$/, '').replace(/[/]original$/, '');
+const [vid, track] = await Promise.all([
+  fetch(`${BASE}/api/examples/${encodeURI(id)}/video`),
+  fetch(`${BASE}/api/examples/${encodeURI(id)}/track?size=l`),
+]);
+```
+
+`id` is the full slug. Omit `size` and you get `model_size`, else the smallest
+cached; a size with no cached track is a 404, and the listing's `sizes` tells
+you which exist.
+
+A fresh upload is a job, not a request — one slot per app instance, and
+`start` returns 409 while one is `counting` or `running`:
+
+```
+POST /api/pose/video/start     multipart: video=<file>, size=l|h,
+                               frame_stride=<int >= 1>, detect_equipment=1 (optional)
+GET  /api/pose/video/progress  {status: idle|counting|running|done|error,
+                                processed, total, rateFps, etaSeconds}
+GET  /api/pose/video/result    the {keypoints, meta} object — one-shot, clears the slot
+POST /api/pose/video/cancel
+POST /api/pose                 single image, synchronous
+GET  /api/capabilities         {"equipment": true} — gate controls on this rather than 503
+```
+
+The slot is per instance. On this box :8080 runs on the W7800 and :8081 on the
+1080 Ti with independent slots, which is how a batch run and the UI coexist.
+
+## Profiles: limb lengths and depth directions
+
+Both are **named profiles chosen in the app**, not files attached to a clip,
+because neither is a property of one. `tests/fixtures/README.md` has the full
+rationale; this is the on-disk and over-the-wire shape.
+
+On this machine, yours go in:
+
+```
+tests/fixtures/local/profiles/limbs/<name>.json
+tests/fixtures/local/profiles/signs/<name>.json
+```
+
+Real directories, not symlinked. `<name>` must match
+`^[a-z0-9][a-z0-9._-]{0,63}$`. Move a file to `global/profiles/` to commit it.
+
+**limbs** — each segment as a fraction of torso (pelvis→neck). Belongs to the
+*athlete*:
+
+```json
+{ "notes": "where these came from",
+  "ratios": { "thigh": 0.730, "shank": 0.707, "uarm": 0.461,
+              "farm": 0.442, "shoulders": 0.74, "hips": 0.47 } }
+```
+
+**signs** — which way each limb bends out of the screen. Belongs to the *shot*,
+so one table serves every clip from that camera position:
+
+```json
+{ "notes": "camera front-right of the athlete",
+  "signs": { "5": 1, "7": 1, "8": 1, "9": 1, "10": 1,
+             "13": 1, "14": 1, "15": -1, "16": -1 } }
+```
+
+Keys are joint indices as **strings**; `+1` is toward the camera, `-1` away.
+Choosing a signs profile puts the solver in manual mode with exactly that
+table; *none* lets it solve the directions from the pose.
+
+Do not hardcode either key list. `/api/depth/methods` serves `limb_segments`
+(key, label, min, max, default) and the joint list precisely so the UI and the
+files don't have to, and a partial limbs file is filled per segment from
+`default` rather than rejected.
+
+```
+GET /api/profiles/limbs|signs          {"profiles": [...]}, built-ins first
+PUT /api/profiles/limbs|signs/<name>   body is the profile object
+```
+
+Built-ins (`default`, `all-toward`, `all-away`) are never on disk and `PUT`
+refuses those names. A `PUT` overwrites in whichever scope already holds the
+name; a new name lands in `local`. Malformed or partial files are skipped, not
+fatal.
+
+Present on this box: limbs `default` (built-in), `athlete-a` (global, measured),
+`athlete-a-all-perspective` (local); signs `all-toward` / `all-away` (built-in),
+`camera-front-right` (global), `frontal` (local).
+
+## Caveats on the data itself
+
+From the extraction run in progress, first 1,432 clips:
+
+- **47% are held for review**, not written as fixtures. The dominant reason
+  (529 of 667) is `clip doesn't start with the bar near the bottom of its
+  range`. That is the clipper's window opening late, not a tracking failure:
+  usable rate is 26% for clips at the 3.5 s `MIN_LEN` floor and 72% for 6–10 s
+  clips. Held clips are deliberately **not** cached in
+  `.clipper_sync_state.json`, so they re-extract for free once the windows are
+  widened.
+- **The stance split is 85:15 snatch to clean-and-jerk**, against a true ~50:50
+  — every lifter takes three of each. So `pose_stance.py` is either misreading
+  cleans as snatches or losing them to review. Validate it against a
+  hand-labelled sample before this data trains anything: a wrong stance scores
+  a clip against the wrong lift's cues and nothing downstream notices.
+- made/miss is well mixed within each stance (361/269 snatch, 49/61
+  clean-and-jerk), so the referee verdicts are not skewed.

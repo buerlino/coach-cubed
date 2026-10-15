@@ -114,3 +114,36 @@ Then wait for confirmation instead of proceeding. This is not about being
 overly cautious in general — it's specifically for the narrow set of changes
 above that look fine locally and only fail once deployed, where the person
 approving the change may not know to check for that.
+
+## 5. You are not alone on this box — keep your sibling notes current
+
+This project is one of several web services on the same machine, behind one
+shared HTTPS gateway, sharing one GPU and 22 GiB of RAM. You would not know that
+from reading this repo, and **that is deliberate**: nothing here names another
+service, because every cross-reference that got written turned stale within weeks
+and actively misled whoever read it next. Keeping the coupling out means this app
+still runs correctly alone, at the root, unmodified.
+
+The knowledge has to live somewhere, though, and that somewhere is
+**[`../new-service.md`](../new-service.md)** — the tutorial for adding a service
+here, plus a *sibling notes* registry with one entry per service.
+
+**Your obligation.** If you change anything a sibling could trip over, update
+this project's entry in that file **in the same change**:
+
+- the port it binds, or any port it pins for a subprocess
+- its measured peak VRAM or peak host RAM (measure with `~/gpu.sh` and
+  `~/ram.sh` under real load — write down what you saw, not an estimate)
+- how it can be made to release GPU memory, and how to verify that worked
+- anything it registers in the shared layer (`~/Caddyfile`, `~/gpu.sh`,
+  `~/ram.sh`, `~/serve_all.sh`)
+- a URL that external clients bake in and that therefore cannot move
+- long GPU submissions, or a host-side buffer as large as its model
+
+Do **not** write any of that into this repo's own docs. A sibling-aware note here
+is the bug this split exists to prevent.
+
+Read that file before changing how this app is served, how it loads models, or
+what it holds. The GPU and RAM rules there are not general advice — they are
+measured properties of this box, including several that contradict what the
+tooling reports.

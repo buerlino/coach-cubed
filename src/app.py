@@ -10,11 +10,15 @@ Unauthenticated by design — Caddy/tailnet is the access boundary, same as
 the rest of the deploy.
 """
 import base64
+import hashlib
 import json
 import os
 import re
+import shutil
+import subprocess
 import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 from flask import Flask, request, jsonify, Response, send_file, send_from_directory, redirect
@@ -369,16 +373,41 @@ def _load_manifest():
             continue
         if not isinstance(entries, dict):
             continue
+        if scope == "local":
+            entries = _restore_train_links(manifest, entries)
         for slug, entry in entries.items():
             if isinstance(entry, dict):
                 merged[f"{scope}/{slug}"] = {**entry, "scope": scope}
     return merged
 
 
-def _example_video(example_id):
+def _restore_train_links(manifest_path, entries):
+    """Put back entries the training data explorer linked that a concurrent
+    sync run has since dropped from local/manifest.json (see TRAIN_LINKS_FILE).
+    Writes the repaired manifest so the tests see them too."""
+    try:
+        links = json.loads(TRAIN_LINKS_FILE.read_text())
+    except (ValueError, OSError):
+        return entries
+    if not isinstance(links, dict):
+        return entries
+    missing = {slug: e for slug, e in links.items()
+               if slug not in entries and isinstance(e, dict)
+               and (manifest_path.parent / f"{slug}.track.json").exists()}
+    if not missing:
+        return entries
+    entries = {**entries, **missing}
+    with _train_lock:
+        _write_json_atomic(manifest_path, entries)
+    return entries
+
+
+def _example_video(example_id, entry=None):
     """The clip Path for a manifest key, or None. Membership in the manifest is
-    the only gate, so a crafted id can't escape FIXTURES_DIR — it just 404s."""
-    entry = _load_manifest().get(example_id)
+    the only gate, so a crafted id can't escape FIXTURES_DIR — it just 404s.
+    Callers walking the whole manifest pass each entry in rather than paying
+    for a manifest load per example."""
+    entry = entry if entry is not None else _load_manifest().get(example_id)
     if not entry:
         return None
     src = entry.get("source_file")
@@ -388,13 +417,13 @@ def _example_video(example_id):
     return video if video.exists() else None
 
 
-def _example_tracks(example_id):
+def _example_tracks(example_id, entry=None):
     """Map of model-size -> cached track Path for a manifest key. An example can
     carry a track from more than one model: a per-size `<id>.<size>.track.json`
     is the explicit form, and a bare legacy `<id>.track.json` counts as the
     size named by the manifest's model_size. Explicit per-size files win. Empty
     if the id isn't a real example or has no cached track."""
-    entry = _load_manifest().get(example_id)
+    entry = entry if entry is not None else _load_manifest().get(example_id)
     if not entry:
         return {}
     tracks = {}
@@ -424,8 +453,8 @@ def _default_size(example_id, tracks):
 def api_examples():
     out = []
     for key, entry in _load_manifest().items():
-        tracks = _example_tracks(key)
-        if not _example_video(key) or not tracks:
+        tracks = _example_tracks(key, entry)
+        if not _example_video(key, entry) or not tracks:
             continue
         out.append({
             "id": key,
@@ -434,6 +463,12 @@ def api_examples():
             "scope": entry["scope"],
             "stance": entry.get("stance"),
             "notes": entry.get("notes", ""),
+            # The hand-review and provenance fields, so a picker can filter on
+            # made/miss or labels without parsing the manifests itself.
+            "attempt_result": entry.get("attempt_result"),
+            "labels": entry.get("labels", []),
+            "frame_count": entry.get("frame_count"),
+            "generated_at": entry.get("generated_at"),
             # Which model sizes have a cached track, in UI order — the frontend
             # labels the rest as "not cached" and runs the pose pipeline on the
             # example clip if one of them is picked.
@@ -460,6 +495,336 @@ def api_example_track(example_id):
     if not track:
         return jsonify({"error": "unknown example track"}), 404
     return send_file(track, mimetype="application/json")
+
+
+# --- training data explorer ------------------------------------------------
+# Everything clipper has cut, browsable in the app: one row per attempt clip
+# under $CLIPPER_OUT (the same variable clipper and sync_clipper_fixtures.py
+# read; COACH_TRAIN_DIR overrides it), with whether a ViTPose track is cached
+# for it as a fixture, which lift it is, and the few labels (weight category,
+# gender) that neither the footage nor clipper can supply. A clip with no
+# track is run through the pose pipeline from the explorer and the result is
+# linked back as a local fixture — the same files sync_clipper_fixtures.py
+# writes, plus its dedup entry, so the next open is instant and a later sync
+# pass skips the clip instead of extracting it again.
+TRAIN_DIR = Path(os.environ.get("COACH_TRAIN_DIR") or os.environ.get("CLIPPER_OUT")
+                 or (Path(__file__).parent.parent / "clipper" / "downloads"))
+TRAIN_LABELS_FILE = FIXTURES_DIR / "local" / "train_labels.json"
+# Every manifest entry the explorer has linked, by slug. A sync_clipper_fixtures
+# run that started with an older copy of the script rewrites local/manifest.json
+# from its own stale in-memory dict, dropping whatever was linked here in the
+# meantime; _load_manifest puts those entries back from this file.
+TRAIN_LINKS_FILE = FIXTURES_DIR / "local" / "train_links.json"
+TRAIN_SYNC_STATE = FIXTURES_DIR / "local" / ".clipper_sync_state.json"
+# <session>_NN_HhMMmSSs_<made|miss|unknown>.mp4 — clipper/src/cut.py. NN is
+# two digits in the docs but long sessions run past 99, so any width.
+TRAIN_CLIP_RE = re.compile(
+    r"^(?P<session>.+)_(?P<idx>\d+)_(?P<hh>\d+)h(?P<mm>\d{2})m(?P<ss>\d{2})s_"
+    r"(?P<result>made|miss|unknown)\.mp4$")
+TRAIN_GENDERS = ("", "male", "female")
+_train_lock = threading.RLock()   # re-entrant: the link endpoint holds it while _load_manifest repairs
+
+
+def _train_labels():
+    try:
+        d = json.loads(TRAIN_LABELS_FILE.read_text())
+    except (ValueError, OSError):
+        return {}
+    return d if isinstance(d, dict) else {}
+
+
+def _write_json_atomic(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+    os.replace(tmp, path)
+
+
+def _train_clip_path(rel):
+    """Path for a clip id (its path relative to TRAIN_DIR), or None. Has to
+    resolve inside TRAIN_DIR, sit in a clips/ folder and be an .mp4 — the
+    only files the explorer lists, so nothing else is reachable through it."""
+    if not rel or rel.startswith("/") or ".." in rel.split("/"):
+        return None
+    p = TRAIN_DIR / rel
+    try:
+        p.resolve().relative_to(TRAIN_DIR.resolve())
+    except (ValueError, OSError):
+        return None
+    if p.suffix.lower() != ".mp4" or p.parent.name != "clips" or not p.is_file():
+        return None
+    return p
+
+
+def _lift_page_ids():
+    return [p["id"] for p in PAGES if p["media"] == "video"]
+
+
+def _train_examples_by_source(manifest):
+    """source clip filename -> the example (with cached tracks) built from it.
+    A local fixture wins over a global one of the same clip only when the
+    global has no track."""
+    out = {}
+    for key, entry in manifest.items():
+        src = entry.get("source_file")
+        if not src or src in out:
+            continue
+        tracks = _example_tracks(key, entry)
+        if not tracks or not _example_video(key, entry):
+            continue
+        out[src] = {"id": key, "stance": entry.get("stance"),
+                    # The link endpoint falls back to the panel a clip was opened
+                    # in when the classifier abstains; that is a default, not a
+                    # verdict, and the explorer says so.
+                    "defaulted": str(entry.get("notes", "")).startswith("stance NOT classified"),
+                    "sizes": [s for s in MODEL_SIZES if s in tracks]}
+    return out
+
+
+@app.route("/api/train/clips")
+def api_train_clips():
+    if not TRAIN_DIR.is_dir():
+        return jsonify({"dir": str(TRAIN_DIR), "clips": [],
+                        "error": f"no such directory: {TRAIN_DIR} — set CLIPPER_OUT"})
+    by_source = _train_examples_by_source(_load_manifest())
+    labels = _train_labels()
+    attempts = {}   # session folder -> clips.json list, for durations
+    rows = []
+    for clip in sorted(TRAIN_DIR.rglob("clips/*.mp4")):
+        rel = clip.relative_to(TRAIN_DIR)
+        if any(part.startswith(".") for part in rel.parts):
+            continue   # clipper's scratch folders
+        m = TRAIN_CLIP_RE.match(clip.name)
+        session_dir = clip.parent.parent
+        event = ("" if session_dir.parent == TRAIN_DIR
+                 else session_dir.parent.relative_to(TRAIN_DIR).as_posix())
+        sm = re.match(r"^(\d+)-", session_dir.name)
+        idx = int(m["idx"]) if m else None
+        if session_dir not in attempts:
+            try:
+                attempts[session_dir] = json.loads((session_dir / "clips.json").read_text())
+            except (ValueError, OSError):
+                attempts[session_dir] = []
+        att = attempts[session_dir]
+        duration = None
+        if idx and 1 <= idx <= len(att) and isinstance(att[idx - 1], dict):
+            try:
+                duration = round(float(att[idx - 1]["end"]) - float(att[idx - 1]["start"]), 2)
+            except (KeyError, TypeError, ValueError):
+                pass
+        try:
+            st = clip.stat()
+        except OSError:
+            continue
+        ex = by_source.get(clip.name)
+        lab = labels.get(rel.as_posix(), {})
+        rows.append({
+            "path": rel.as_posix(),
+            "name": clip.name,
+            "event": event,
+            "session": session_dir.name,
+            "session_idx": int(sm[1]) if sm else None,
+            "attempt": idx,
+            "t": (int(m["hh"]) * 3600 + int(m["mm"]) * 60 + int(m["ss"])) if m else None,
+            "result": m["result"] if m else "unknown",
+            "duration": duration,
+            "bytes": st.st_size,
+            "mtime": int(st.st_mtime),
+            "precomputed": bool(ex),
+            "example_id": ex["id"] if ex else None,
+            "sizes": ex["sizes"] if ex else [],
+            # A label set in the explorer beats the stance the track classifier
+            # chose; "unknown" is a clip nobody and nothing has decided yet.
+            "exercise": lab.get("exercise") or (ex["stance"] if ex else None) or "unknown",
+            "exercise_source": ("label" if lab.get("exercise")
+                                else ("default" if ex["defaulted"] else "track") if ex else None),
+            "track_exercise": ex["stance"] if ex else None,
+            "category": lab.get("category") or "",
+            "gender": lab.get("gender") or "",
+        })
+    return jsonify({"dir": str(TRAIN_DIR), "clips": rows, "lifts": _lift_page_ids()})
+
+
+@app.route("/api/train/clip/<path:rel>")
+def api_train_clip(rel):
+    clip = _train_clip_path(rel)
+    if not clip:
+        return jsonify({"error": "unknown clip"}), 404
+    return send_file(clip, conditional=True)
+
+
+@app.route("/api/train/labels/<path:rel>", methods=["PUT"])
+def api_train_label(rel):
+    clip = _train_clip_path(rel)
+    if not clip:
+        return jsonify({"error": "unknown clip"}), 404
+    body = request.get_json(silent=True) or {}
+    patch = {}
+    if "exercise" in body:
+        ex = body["exercise"] or ""
+        if ex not in ("", *_lift_page_ids()):
+            return jsonify({"error": f"exercise must be one of {_lift_page_ids()} or empty"}), 400
+        patch["exercise"] = ex
+    if "gender" in body:
+        g = body["gender"] or ""
+        if g not in TRAIN_GENDERS:
+            return jsonify({"error": f"gender must be one of {TRAIN_GENDERS}"}), 400
+        patch["gender"] = g
+    if "category" in body:
+        c = str(body["category"] or "").strip()[:32]
+        patch["category"] = c
+    with _train_lock:
+        labels = _train_labels()
+        entry = {**labels.get(rel, {}), **patch}
+        entry = {k: v for k, v in entry.items() if v}
+        if entry:
+            labels[rel] = entry
+        else:
+            labels.pop(rel, None)
+        _write_json_atomic(TRAIN_LABELS_FILE, labels)
+    return jsonify({"path": rel, **{k: entry.get(k, "") for k in ("exercise", "category", "gender")}})
+
+
+def _classify_stance(track):
+    """scripts/pose_stance.py's verdict (stance, reason), or (None, why-not).
+    Imported lazily from scripts/ — that module is a pure-Python helper the
+    sync script shares, not part of src/."""
+    try:
+        import sys
+        scripts = str(Path(__file__).parent.parent / "scripts")
+        if scripts not in sys.path:
+            sys.path.insert(0, scripts)
+        from pose_stance import classify_stance_from_track
+        return classify_stance_from_track(track["keypoints"], track["meta"])
+    except Exception as e:   # a classifier failure must not lose the track
+        return None, f"stance classifier unavailable: {e}"
+
+
+@app.route("/api/train/link", methods=["POST"])
+def api_train_link():
+    """Save a track the browser just computed for a training clip as a local
+    fixture, so the clip shows up as an example (with its cached track) from
+    now on. Same layout as sync_clipper_fixtures.py: the clip copied beside
+    <stem>.track.json, a manifest entry keyed <stance>/<stem>, the dedup state
+    entry, and a regenerated golden. A second model size for a clip already
+    linked lands as <stem>.<size>.track.json next to the first."""
+    body = request.get_json(silent=True) or {}
+    clip = _train_clip_path(body.get("path") or "")
+    if not clip:
+        return jsonify({"error": "unknown clip"}), 404
+    track = body.get("track") or {}
+    if not isinstance(track.get("keypoints"), dict) or not isinstance(track.get("meta"), dict):
+        return jsonify({"error": "track must be {keypoints, meta}"}), 400
+    size = body.get("size") or vitpose_backend.DEFAULT_SIZE
+    if size not in MODEL_SIZES:
+        return jsonify({"error": f"size must be one of {MODEL_SIZES}"}), 400
+    rel = clip.relative_to(TRAIN_DIR).as_posix()
+    lifts = _lift_page_ids()
+
+    with _train_lock:
+        manifest = _load_manifest()
+        existing = next(((k, e) for k, e in manifest.items()
+                         if e.get("source_file") == clip.name), (None, None))
+        label = _train_labels().get(rel, {})
+        if existing[0]:
+            # One fixture per clip: a new size joins the slug that already holds it.
+            stance = existing[1].get("stance") or label.get("exercise") or lifts[0]
+            note = existing[1].get("notes") or ""
+        elif label.get("exercise"):
+            stance, note = label["exercise"], "stance set by hand in the training data explorer"
+        else:
+            stance, reason = _classify_stance(track)
+            if stance in lifts:
+                note = f"stance auto-detected from pose trajectory: {reason}"
+            else:
+                fallback = body.get("fallback_exercise")
+                stance = fallback if fallback in lifts else lifts[0]
+                note = (f"stance NOT classified ({reason}); defaulted to {stance} from the "
+                        f"panel it was opened in — relabel in the training data explorer if wrong")
+
+        if existing[0] and existing[1]["scope"] == "global":
+            scope, slug = "global", existing[0].split("/", 1)[1]
+        else:
+            scope, slug = "local", f"{stance}/{clip.stem}"
+        out_dir = FIXTURES_DIR / scope
+        stance_dir = out_dir / slug.split("/", 1)[0]
+        stance_dir.mkdir(parents=True, exist_ok=True)
+        if not (stance_dir / clip.name).exists():
+            shutil.copyfile(clip, stance_dir / clip.name)
+
+        manifest_path = out_dir / "manifest.json"
+        try:
+            entries = json.loads(manifest_path.read_text())
+        except (ValueError, OSError):
+            entries = {}
+        entry = entries.get(slug) or {}
+        legacy = out_dir / f"{slug}.track.json"
+        if not legacy.exists() or entry.get("model_size", size) == size:
+            track_path = legacy
+            entry["model_size"] = size
+        else:
+            track_path = out_dir / f"{slug}.{size}.track.json"
+        track_path.write_text(json.dumps(track))
+
+        meta = track["meta"]
+        m = TRAIN_CLIP_RE.match(clip.name)
+        entries[slug] = {
+            **entry,
+            "stance": stance,
+            "source_file": clip.name,
+            "model_size": entry.get("model_size", size),
+            "frame_stride": int(body.get("frame_stride") or meta.get("frame_stride") or 1),
+            "detect_equipment": bool(body.get("detect_equipment")),
+            "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "frame_count": meta.get("frame_count"),
+            "frames_processed": meta.get("frames_processed"),
+            "kept_person": (meta.get("tracks") or {}).get("kept"),
+            "labels": entry.get("labels", []),
+            "notes": note,
+            "diagnostics": entry.get("diagnostics") or stance,
+            "attempt_result": m["result"] if m else "unknown",
+            "train_clip": rel,
+        }
+        _write_json_atomic(manifest_path, entries)
+
+        if scope == "local":
+            try:
+                links = json.loads(TRAIN_LINKS_FILE.read_text())
+                assert isinstance(links, dict)
+            except (ValueError, OSError, AssertionError):
+                links = {}
+            links[slug] = entries[slug]
+            _write_json_atomic(TRAIN_LINKS_FILE, links)
+            # The sync script's dedup is by content hash; register this clip so
+            # a later pass skips it instead of extracting it a second time.
+            state = {}
+            try:
+                state = json.loads(TRAIN_SYNC_STATE.read_text())
+            except (ValueError, OSError):
+                pass
+            h = hashlib.sha256()
+            with open(clip, "rb") as f:
+                for chunk in iter(lambda: f.read(1 << 20), b""):
+                    h.update(chunk)
+            state[h.hexdigest()] = f"{scope}/{slug}"
+            _write_json_atomic(TRAIN_SYNC_STATE, state)
+
+    example_id = f"{scope}/{slug}"
+    golden = "skipped"
+    if track_path == legacy:
+        # Best effort: the diagnostics tests want a golden per fixture, and a
+        # missing node or a scoring error here shouldn't fail the link itself.
+        try:
+            subprocess.run(["node", "tests/update_golden.js", example_id], check=True,
+                           cwd=str(FIXTURES_DIR.parent.parent), timeout=120,
+                           capture_output=True)
+            golden = "ok"
+        except Exception as e:
+            golden = f"failed: {e}"
+    return jsonify({"example_id": example_id, "exercise": stance, "size": size,
+                    "sizes": [s for s in MODEL_SIZES if s in _example_tracks(example_id)],
+                    "track_file": str(track_path.relative_to(FIXTURES_DIR)),
+                    "notes": note, "golden": golden})
 
 
 # --- named profiles: limb lengths and depth directions ----------------------
@@ -686,6 +1051,26 @@ INDEX_HTML = """<!doctype html>
   body[data-page="snatch"] { --accent:#f4b84a; --accent-soft:rgba(244,184,74,.14); }
   body[data-page="lateral-raise"] { --accent:#57d3c7; --accent-soft:rgba(87,211,199,.14); }
   body[data-page="image"] { --accent:#a8d96c; --accent-soft:rgba(168,217,108,.14); }
+  body[data-page="train-data"] { --accent:#c58cff; --accent-soft:rgba(197,140,255,.14); }
+  /* The explorer is a wide table: give it the larger column on desktop. */
+  @media (min-width: 900px) {
+    body[data-page="train-data"] .layout { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+  }
+  .train-toolbar { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .train-toolbar select, .train-toolbar input, .train-toolbar button { font-size:13px; padding:5px 6px; margin:0; }
+  .train-toolbar label { font-size:13px; color:#c3c2b7; display:flex; align-items:center; gap:4px; }
+  .train-list { max-height:72vh; overflow:auto; border:1px solid var(--line); border-radius:8px; background:rgba(23,26,24,.88); }
+  #trTable { border-collapse:collapse; width:100%; font-size:12px; }
+  #trTable th { position:sticky; top:0; z-index:1; background:#20241f; text-align:left; padding:6px; font-weight:600;
+                color:#c3c2b7; cursor:pointer; white-space:nowrap; border-bottom:1px solid var(--line); user-select:none; }
+  #trTable th.sorted { color:var(--accent); }
+  #trTable td { padding:3px 6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px;
+                border-bottom:1px solid rgba(52,58,53,.5); }
+  #trTable tbody tr { user-select:none; }   /* double-click opens, it should not select text */
+  #trTable tbody tr:hover { background:var(--accent-soft); }
+  #trTable tbody tr.selected { background:var(--accent-soft); box-shadow:inset 2px 0 0 var(--accent); }
+  #trTable tbody tr:focus { outline:1px solid var(--accent); outline-offset:-1px; }
+  .tr-yes { color:#7fd48a; } .tr-no { color:#898781; }
   h1 { font-weight:600; letter-spacing:0; margin:0; }
   .app-header { display:flex; align-items:center; gap:20px; }
   /* The logo is black line art on transparent, so invert it onto the dark page.
@@ -823,6 +1208,50 @@ INDEX_HTML = """<!doctype html>
   <div id="imageView" hidden>
     <img id="out">
     <pre id="kp" style="white-space:pre-wrap;font-size:12px;color:#c3c2b7"></pre>
+  </div>
+  <!-- training data explorer: one row per clip clipper has cut (see
+       /api/train/clips in app.py). Rows are rendered by trRender(); the
+       header cells sort, the toolbar filters. Double-click opens a clip in
+       its lift's panel. -->
+  <div id="trainView" hidden>
+    <div class="train-toolbar">
+      <input id="trSearch" type="search" placeholder="search…" style="flex:1 1 140px;min-width:110px">
+      <select id="trPre"><option value="">precomputed: any</option><option value="1">precomputed: yes</option><option value="0">precomputed: no</option></select>
+      <select id="trExercise"><option value="">exercise: any</option></select>
+      <select id="trCategory"><option value="">category: any</option></select>
+      <select id="trGender"><option value="">gender: any</option><option value="male">male</option><option value="female">female</option><option value="unknown">unknown</option></select>
+      <select id="trEvent"><option value="">event: any</option></select>
+      <select id="trResult"><option value="">result: any</option><option value="made">made</option><option value="miss">miss</option><option value="unknown">unknown</option></select>
+      <label>order
+        <select id="trSort">
+          <option value="session">event / session / attempt</option>
+          <option value="attempt">attempt</option>
+          <option value="time">time in session</option>
+          <option value="result">result</option>
+          <option value="exercise">exercise</option>
+          <option value="precomputed">precomputed</option>
+          <option value="category">category</option>
+          <option value="gender">gender</option>
+          <option value="duration">duration</option>
+          <option value="size">file size</option>
+          <option value="modified">modified</option>
+          <option value="name">file name</option>
+        </select>
+      </label>
+      <button id="trDir" type="button" title="sort direction">asc &uarr;</button>
+    </div>
+    <p id="trCount" class="control-help" style="margin:6px 0"></p>
+    <div class="train-list">
+      <table id="trTable">
+        <thead><tr>
+          <th data-sort="event">event</th><th data-sort="session">#</th><th data-sort="attempt">att.</th>
+          <th data-sort="time">time</th><th data-sort="result">result</th><th data-sort="exercise">exercise</th>
+          <th data-sort="precomputed">track</th><th data-sort="category">category</th><th data-sort="gender">gender</th>
+          <th data-sort="duration">dur</th><th data-sort="size">MB</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
   </div>
   <div id="videoView">
     <div id="videoWrap">
@@ -964,6 +1393,25 @@ INDEX_HTML = """<!doctype html>
 
 <div class="col-panel">
 
+  <div id="trainPanel" hidden>
+    <h2 class="panel-h">training data</h2>
+    <div class="settings">
+      <p class="control-help">Every clip clipper has cut, from <code id="trDirNote"></code>. Double-click a row (or press Enter on it) to open the clip in its lift's panel. A clip with a cached track loads instantly; one without is run through ViTPose at that panel's model size, and the result is linked back as a local example so the next open is instant.</p>
+      <div class="row"><button id="trReload" class="secondary-action" type="button">reload list</button><span id="trStatus" style="font-size:12px;color:#898781"></span></div>
+      <div id="trDetail" class="control-group" hidden>
+        <p id="trName" style="font-weight:600;margin:0 0 4px;word-break:break-all"></p>
+        <p id="trMeta" class="control-help" style="margin:0 0 4px"></p>
+        <p id="trTrack" class="control-help" style="margin:0 0 10px"></p>
+        <!-- The three labels the footage can't supply. Exercise empty = let the
+             track classifier (or the panel it's opened in) decide. -->
+        <label>exercise <select id="trLabelExercise"></select> <span id="trLabelExerciseNote" style="font-size:12px;color:#898781"></span></label>
+        <label>category <input id="trLabelCategory" list="trCatList" placeholder="e.g. 73, +109, junior" style="width:11em"><datalist id="trCatList"></datalist></label>
+        <label>gender <select id="trLabelGender"><option value="">unknown</option><option value="male">male</option><option value="female">female</option></select></label>
+        <button id="trOpen" class="primary-action" type="button">open</button>
+      </div>
+    </div>
+  </div>
+
   <div id="imagePanel" hidden>
     <h2 class="panel-h">settings</h2>
     {{IMAGE_SETTINGS}}
@@ -1062,7 +1510,23 @@ INDEX_HTML = """<!doctype html>
 // INDEX_HTML is a plain (not raw) Python string, where a backslash before a
 // slash is an invalid escape sequence — harmless at runtime, but it warns on
 // every start.
-const BASE = location.pathname.startsWith('/original') ? '' : location.pathname.replace(/[/]+$/, '');
+/* Where this page is mounted. This one page is served at two paths — '/' and
+   '/original/' (see index() and original_workspace()) — and a reverse proxy may
+   mount the whole app under a further prefix and strip it before forwarding, so
+   the server sees '/api/...' either way and only the browser has to know.
+
+   Strip the trailing slash, then strip a trailing '/original': that leaves the
+   app's own mount point in every combination, which a startsWith('/original')
+   test does not. Served at /coach/original/ the pathname is '/coach/original/',
+   which does not START with '/original', so the old test fell through to the
+   else branch and every fetch went to /coach/original/api/... — a 404 behind the
+   proxy while working perfectly at the root, where the test did match.
+
+   The slashes sit in character classes rather than being backslash-escaped:
+   this is a plain (not raw) Python string, where a backslash before a slash is
+   an invalid escape sequence — harmless at runtime, but it warns on every
+   start. */
+const BASE = location.pathname.replace(/[/]+$/, '').replace(/[/]original$/, '');
 const $ = id => document.getElementById(id);
 
 $('run').onclick = async () => {
@@ -2094,6 +2558,7 @@ $('vfile').onchange = () => {
   $('vsync').textContent = '';
   $('vexample').value = '';
   vClearExample();
+  vTrainPath = null;
   setVideoSrc(f);
 };
 
@@ -2103,6 +2568,7 @@ $('vfile').onchange = () => {
 $('vexample').onchange = async () => {
   const id = $('vexample').value;
   if (!id) return;
+  vTrainPath = null;   // trOpen re-sets it after this for a clip it opened
   const opt = $('vexample').selectedOptions[0];
   const sizes = (opt && opt.dataset.sizes ? opt.dataset.sizes.split(',') : []).filter(Boolean);
   stopCameraStream();
@@ -2191,6 +2657,7 @@ $('vcam').onclick = async () => {
   $('vfile').value = '';
   $('vexample').value = '';
   vClearExample();
+  vTrainPath = null;
   vSource = null; vKeypointsRaw = null; vKeypoints = null; vMeta = null; vSample = null; vClock = null;
   vEquipment = null; vEqPrompts = null; vRenderEqNote(); v3dReset();
   updatePlotControls();
@@ -2233,6 +2700,8 @@ $('vcam').onclick = async () => {
 // ever one job on the server, so vPolling is a plain flag rather than
 // anything keyed by an id.
 let vPolling = false;
+let vRunParams = null;   // {size, stride, eq} of the run in flight, for linking its result
+let vTrainPath = null;   // training clip the loaded video came from (see trOpen)
 
 function vSetRunning(running) {
   $('vrun').disabled = running;
@@ -2290,6 +2759,7 @@ async function vPoll() {
   $('vstatus').textContent = vMeta.equipment_error
     ? 'done — equipment detection failed: ' + vMeta.equipment_error
     : 'done';
+  if (vTrainPath) trLink(data);
 }
 
 // Load a {keypoints, meta} track into every view — the shared tail of a fresh
@@ -2405,6 +2875,7 @@ async function vStartRun() {
   const r = await fetch(BASE + '/api/pose/video/start', {method:'POST', body: fd});
   const data = await r.json();
   if (!r.ok) { $('vstatus').textContent = 'error: ' + data.error; return; }
+  vRunParams = { size: $('vsize').value, stride: parseInt($('vstride').value || '1', 10), eq: $('veqrun').checked };
   // A fresh run supersedes any loaded example: its result is the new overlay, so
   // a later size switch shouldn't quietly swap back to the cached example track.
   vClearExample();
@@ -2459,15 +2930,20 @@ for (const p of PAGES) PAGES_BY_ID[p.id] = p;
 function setPage(id) {
   const page = PAGES_BY_ID[id] || PAGES[0];
   const video = page.media === 'video';
+  const train = page.media === 'train';
   document.body.dataset.page = page.id;
-  window.CoachReview?.setPage(page.id);
+  if (!train) window.CoachReview?.setPage(page.id);
   $('pageContext').textContent = video
     ? `${page.label} · video analysis and movement diagnostics`
+    : train ? 'training data · every clip clipper has cut, and which have a cached pose track'
     : 'single-frame pose inspection';
-  $('imageView').hidden = video;
-  $('imagePanel').hidden = video;
+  $('imageView').hidden = video || train;
+  $('imagePanel').hidden = video || train;
+  $('trainView').hidden = !train;
+  $('trainPanel').hidden = !train;
   $('videoView').hidden = !video;
   $('videoPanel').hidden = !video;
+  if (train && !trLoaded) trLoad();
   for (const btn of document.querySelectorAll('.tab')) {
     btn.setAttribute('aria-selected', String(btn.dataset.page === page.id));
   }
@@ -3472,9 +3948,16 @@ const v3dReady = fetch(BASE + '/api/depth/methods').then(r => r.json()).then(asy
 // (global = committed with the repo, local = this machine's gitignored clips).
 // Stays hidden if none exist in this checkout, so the control never dangles
 // empty.
-fetch(BASE + '/api/examples').then(r => r.json()).then(list => {
-  if (!Array.isArray(list) || !list.length) return;
+async function vLoadExamples() {
+  let list;
+  try { list = await (await fetch(BASE + '/api/examples')).json(); }
+  catch (e) { return; }   /* no gallery is fine — upload/record still work */
+  if (!Array.isArray(list)) return;
   const sel = $('vexample');
+  // Rebuilt in place (a link from the training data explorer adds examples at
+  // runtime); the current pick survives if it is still listed.
+  const keep = sel.value;
+  for (const g of [...sel.querySelectorAll('optgroup')]) g.remove();
   const groups = {};
   for (const ex of list) {
     const scope = ex.scope || 'global';
@@ -3490,8 +3973,256 @@ fetch(BASE + '/api/examples').then(r => r.json()).then(list => {
     if (ex.notes) opt.title = ex.notes;
     groups[scope].appendChild(opt);
   }
-  $('vexampleWrap').style.display = '';
-}).catch(() => { /* no gallery is fine — upload/record still work */ });
+  if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
+  $('vexampleWrap').style.display = list.length ? '' : 'none';
+}
+vLoadExamples();
+
+// --- training data explorer -----------------------------------------------
+// One row per clip clipper has cut (/api/train/clips). Double-click (or Enter)
+// opens a clip in its lift's panel: a clip with a cached track loads like any
+// example; one without is fetched, run through the pose pipeline at the panel's
+// model size, and the result linked back as a local fixture (/api/train/link),
+// so it is an example from then on. vTrainPath is the training clip the loaded
+// video came from — set by trOpen, cleared by an upload, a recording or a pick
+// from the example list — and is what makes vPoll link a finished run back.
+let trClips = [], trLifts = [], trSelected = null, trSortDir = 1, trLoaded = false;
+const TR_NONE = '__none__';   // filter value for "label is empty" (the empty string means "any")
+const TR_SORT_KEYS = {
+  session: c => [c.event, c.session_idx ?? 0, c.attempt ?? 0],
+  event: c => [c.event, c.session_idx ?? 0, c.attempt ?? 0],
+  attempt: c => [c.attempt ?? 0, c.event, c.session_idx ?? 0],
+  time: c => [c.t ?? 0, c.event, c.session_idx ?? 0],
+  result: c => [c.result, c.event, c.session_idx ?? 0, c.attempt ?? 0],
+  exercise: c => [c.exercise, c.event, c.session_idx ?? 0, c.attempt ?? 0],
+  precomputed: c => [c.precomputed ? 1 : 0, c.sizes.length, c.event, c.session_idx ?? 0, c.attempt ?? 0],
+  category: c => [c.category, c.event, c.session_idx ?? 0, c.attempt ?? 0],
+  gender: c => [c.gender, c.event, c.session_idx ?? 0, c.attempt ?? 0],
+  duration: c => [c.duration ?? -1],
+  size: c => [c.bytes],
+  modified: c => [c.mtime],
+  name: c => [c.name],
+};
+function trCmp(a, b) {
+  for (let i = 0; i < a.length; i++) { if (a[i] < b[i]) return -1; if (a[i] > b[i]) return 1; }
+  return 0;
+}
+function trFmtT(t) {
+  if (t == null) return '';
+  const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60;
+  return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+function trFillSelect(sel, values, anyLabel) {
+  const cur = sel.value;
+  sel.replaceChildren();
+  const any = document.createElement('option'); any.value = ''; any.textContent = anyLabel; sel.appendChild(any);
+  for (const v of values) {
+    const o = document.createElement('option');
+    o.value = v === '' ? TR_NONE : v;
+    o.textContent = v === '' ? '(none)' : v;
+    sel.appendChild(o);
+  }
+  if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+}
+function trMatch(filter, value) { return !filter || (filter === TR_NONE ? !value : value === filter); }
+
+async function trLoad() {
+  $('trCount').textContent = 'loading clip list…';
+  let j;
+  try {
+    const r = await fetch(BASE + '/api/train/clips');
+    j = await r.json();
+    if (!r.ok) throw new Error(j.error || r.statusText);
+  } catch (e) { $('trCount').textContent = 'error: ' + e.message; return; }
+  trLoaded = true;
+  trClips = j.clips || [];
+  trLifts = j.lifts || [];
+  $('trDirNote').textContent = j.dir || '';
+  const uniq = key => [...new Set(trClips.map(c => c[key] || ''))].sort();
+  trFillSelect($('trEvent'), uniq('event'), 'event: any');
+  trFillSelect($('trExercise'), [...new Set([...trLifts, ...uniq('exercise')])], 'exercise: any');
+  trFillSelect($('trCategory'), uniq('category'), 'category: any');
+  $('trCatList').replaceChildren(...uniq('category').filter(Boolean).map(v => { const o = document.createElement('option'); o.value = v; return o; }));
+  const lab = $('trLabelExercise');
+  lab.replaceChildren(...['', ...trLifts].map(v => { const o = document.createElement('option'); o.value = v; o.textContent = v || '(auto)'; return o; }));
+  $('trStatus').textContent = j.error || '';
+  trRender();
+  if (trSelected) trSelect(trSelected.path);
+}
+
+function trFiltered() {
+  const q = $('trSearch').value.trim().toLowerCase();
+  const pre = $('trPre').value, ex = $('trExercise').value, cat = $('trCategory').value,
+        g = $('trGender').value, ev = $('trEvent').value, res = $('trResult').value;
+  const sortKey = TR_SORT_KEYS[$('trSort').value] || TR_SORT_KEYS.session;
+  const rows = trClips.filter(c =>
+    (!pre || (pre === '1') === c.precomputed) &&
+    trMatch(ex, c.exercise) && trMatch(cat, c.category) && trMatch(ev, c.event) &&
+    (!g || (c.gender || 'unknown') === g) &&
+    (!res || c.result === res) &&
+    (!q || `${c.path} ${c.exercise} ${c.category} ${c.gender} ${c.result}`.toLowerCase().includes(q)));
+  rows.sort((a, b) => trSortDir * trCmp(sortKey(a), sortKey(b)));
+  return rows;
+}
+
+function trRender() {
+  const rows = trFiltered();
+  const nPre = rows.filter(c => c.precomputed).length;
+  $('trCount').textContent = trClips.length
+    ? `${rows.length} of ${trClips.length} clips · ${nPre} with a cached track`
+    : 'no clips found';
+  for (const th of $('trTable').tHead.rows[0].cells) th.classList.toggle('sorted', th.dataset.sort === $('trSort').value);
+  const frag = document.createDocumentFragment();
+  for (const c of rows) {
+    const tr = document.createElement('tr');
+    tr.dataset.path = c.path; tr.tabIndex = 0; tr.title = c.path;
+    if (trSelected && trSelected.path === c.path) tr.classList.add('selected');
+    const cells = [
+      c.event.replace(/-/g, ' '), c.session_idx ?? '', c.attempt ?? '', trFmtT(c.t), c.result,
+      c.exercise, c.precomputed ? '✓ ' + c.sizes.join(' ') : '—', c.category, c.gender,
+      c.duration != null ? c.duration.toFixed(1) + 's' : '', (c.bytes / 1048576).toFixed(1),
+    ];
+    for (const v of cells) { const td = document.createElement('td'); td.textContent = v; tr.appendChild(td); }
+    tr.cells[6].className = c.precomputed ? 'tr-yes' : 'tr-no';
+    frag.appendChild(tr);
+  }
+  $('trTable').tBodies[0].replaceChildren(frag);
+}
+
+function trSelect(path) {
+  trSelected = trClips.find(c => c.path === path) || null;
+  for (const tr of $('trTable').tBodies[0].rows) tr.classList.toggle('selected', !!trSelected && tr.dataset.path === path);
+  const c = trSelected;
+  $('trDetail').hidden = !c;
+  if (!c) return;
+  $('trName').textContent = c.name;
+  $('trMeta').textContent = [c.event, c.session, `attempt ${c.attempt ?? '?'} at ${trFmtT(c.t)}`, c.result,
+      c.duration != null ? c.duration.toFixed(1) + ' s' : null, (c.bytes / 1048576).toFixed(1) + ' MB'].filter(Boolean).join(' · ');
+  $('trTrack').textContent = c.precomputed
+    ? `cached track: ${c.sizes.join(', ')} — example ${c.example_id}`
+    : 'no cached track — opening runs ViTPose and links the result to this clip';
+  $('trLabelExercise').value = c.exercise_source === 'label' ? c.exercise : '';
+  $('trLabelExerciseNote').textContent = c.exercise_source === 'track' ? `classified from the track: ${c.exercise}`
+    : c.exercise_source === 'default' ? `NOT classified — defaulted to ${c.exercise}, set it by hand`
+    : c.exercise_source === 'label' ? '' : 'unknown — set it, or let the run classify it';
+  $('trLabelCategory').value = c.category;
+  $('trLabelGender').value = c.gender;
+  $('trOpen').textContent = c.precomputed ? `open in ${c.exercise} panel` : `run ${$('vsize').value} & open`;
+}
+
+async function trSaveLabel(patch) {
+  const c = trSelected;
+  if (!c) return;
+  try {
+    const r = await fetch(`${BASE}/api/train/labels/${encodeURI(c.path)}`,
+      {method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(patch)});
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || r.statusText);
+    c.category = j.category; c.gender = j.gender;
+    c.exercise = j.exercise || c.track_exercise || 'unknown';
+    c.exercise_source = j.exercise ? 'label' : (c.track_exercise ? 'track' : null);
+    $('trStatus').textContent = 'saved';
+    const uniq = key => [...new Set(trClips.map(x => x[key] || ''))].sort();
+    trFillSelect($('trCategory'), uniq('category'), 'category: any');
+    trFillSelect($('trExercise'), [...new Set([...trLifts, ...uniq('exercise')])], 'exercise: any');
+    trRender();
+    trSelect(c.path);
+  } catch (e) { $('trStatus').textContent = 'label not saved: ' + e.message; }
+}
+
+// Open a clip in its lift's panel. Cached track: load it as the example it
+// already is. No track: load the clip as the video source and start a run,
+// which vPoll links back to the clip when it finishes.
+async function trOpen(clip) {
+  const current = document.body.dataset.page;
+  const lift = (PAGES_BY_ID[clip.exercise] || {}).media === 'video' ? clip.exercise
+             : (PAGES_BY_ID[current] || {}).media === 'video' ? current : '{{DEFAULT_PAGE}}';
+  if (clip.precomputed && clip.example_id) {
+    const sel = $('vexample');
+    if (![...sel.options].some(o => o.value === clip.example_id)) await vLoadExamples();
+    if ([...sel.options].some(o => o.value === clip.example_id)) {
+      setPage(lift);
+      sel.value = clip.example_id;
+      await sel.onchange();
+      vTrainPath = clip.path;   // after onchange, which clears it
+      return;
+    }
+  }
+  if ($('vrun').disabled) { $('trStatus').textContent = 'a run is already in progress — wait or cancel it first'; return; }
+  $('trStatus').textContent = 'fetching clip…';
+  let blob;
+  try {
+    const r = await fetch(`${BASE}/api/train/clip/${encodeURI(clip.path)}`);
+    if (!r.ok) throw new Error('clip not available');
+    blob = await r.blob();
+  } catch (e) { $('trStatus').textContent = 'error: ' + e.message; return; }
+  $('trStatus').textContent = '';
+  setPage(lift);
+  stopCameraStream();
+  $('vfile').value = '';
+  $('vexample').value = '';
+  vClearExample();
+  vKeypointsRaw = null; vKeypoints = null; vMeta = null; vSample = null; vClock = null;
+  vEquipment = null; vEqPrompts = null; vRenderEqNote(); v3dReset();
+  updatePlotControls();
+  Diagnostics.setTrack(null, null);
+  $('vsummary').textContent = '';
+  $('vsync').textContent = '';
+  vSource = { blob, filename: clip.name };
+  setVideoSrc(blob);
+  vTrainPath = clip.path;
+  $('vstatus').textContent = `no cached track — running ${$('vsize').value} now; the result will be linked to the clip`;
+  vStartRun();
+}
+
+// The tail of a run started on a training clip: file the track as a local
+// fixture and turn the loaded video into that example, so a size switch from
+// here behaves exactly as it does for any other example.
+async function trLink(data) {
+  const path = vTrainPath, run = vRunParams || {};
+  $('vstatus').textContent += ' — linking the track to its training clip…';
+  try {
+    const r = await fetch(BASE + '/api/train/link', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({path, size: run.size, frame_stride: run.stride, detect_equipment: run.eq,
+                            fallback_exercise: document.body.dataset.page, track: data}),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || r.statusText);
+    vExampleId = j.example_id; vExampleSizes = j.sizes;
+    vSetSizeAvailability(j.sizes, j.size);
+    $('vstatus').textContent = `done — linked as example ${j.example_id}` + (j.golden === 'ok' ? '' : ` (golden ${j.golden})`);
+    if (PAGES_BY_ID[j.exercise] && j.exercise !== document.body.dataset.page) setPage(j.exercise);
+    await vLoadExamples();
+    $('vexample').value = j.example_id;   // the picker shows what is loaded, as for any example
+    if (trLoaded) trLoad();
+  } catch (e) { $('vstatus').textContent = 'done, but linking the track failed: ' + e.message; }
+}
+
+for (const id of ['trPre', 'trExercise', 'trCategory', 'trGender', 'trEvent', 'trResult', 'trSort']) $(id).onchange = trRender;
+$('trSearch').oninput = trRender;
+$('trDir').onclick = () => { trSortDir = -trSortDir; $('trDir').innerHTML = trSortDir > 0 ? 'asc &uarr;' : 'desc &darr;'; trRender(); };
+for (const th of $('trTable').tHead.rows[0].cells) {
+  th.onclick = () => {
+    if ($('trSort').value === th.dataset.sort) trSortDir = -trSortDir; else { $('trSort').value = th.dataset.sort; trSortDir = 1; }
+    $('trDir').innerHTML = trSortDir > 0 ? 'asc &uarr;' : 'desc &darr;';
+    trRender();
+  };
+}
+$('trTable').tBodies[0].onclick = e => { const tr = e.target.closest('tr'); if (tr) trSelect(tr.dataset.path); };
+$('trTable').tBodies[0].ondblclick = e => { const tr = e.target.closest('tr'); if (tr) { trSelect(tr.dataset.path); trOpen(trSelected); } };
+$('trTable').tBodies[0].onkeydown = e => {
+  const tr = e.target.closest('tr');
+  if (!tr) return;
+  if (e.key === 'Enter') { trSelect(tr.dataset.path); if (trSelected) trOpen(trSelected); e.preventDefault(); }
+  else if (e.key === 'ArrowDown' && tr.nextElementSibling) { tr.nextElementSibling.focus(); trSelect(tr.nextElementSibling.dataset.path); e.preventDefault(); }
+  else if (e.key === 'ArrowUp' && tr.previousElementSibling) { tr.previousElementSibling.focus(); trSelect(tr.previousElementSibling.dataset.path); e.preventDefault(); }
+};
+$('trReload').onclick = trLoad;
+$('trOpen').onclick = () => trSelected && trOpen(trSelected);
+$('trLabelExercise').onchange = () => trSaveLabel({exercise: $('trLabelExercise').value});
+$('trLabelGender').onchange = () => trSaveLabel({gender: $('trLabelGender').value});
+$('trLabelCategory').onchange = () => trSaveLabel({category: $('trLabelCategory').value});
 
 for (const btn of document.querySelectorAll('.tab')) {
   btn.onclick = () => setPage(btn.dataset.page);
@@ -3892,6 +4623,9 @@ PAGES = [
      "diagnostics": "lateral-raise"},
     {"id": "clean-and-jerk", "label": "clean & jerk", "media": "video",
      "diagnostics": "clean-and-jerk"},
+    # The dev pane: a file explorer over clipper's output (media "train" has
+    # its own view and panel, #trainView / #trainPanel, not the video machine).
+    {"id": "train-data", "label": "train data", "media": "train"},
 ]
 DEFAULT_PAGE = "snatch"   # the lift shown on load — the diagnostics live here
 
@@ -4002,7 +4736,7 @@ def _tabs_html():
     """One <button> per page, in registry order, for the tablist."""
     rows = []
     for p in PAGES:
-        controls = "imageView" if p["media"] == "image" else "videoView"
+        controls = {"image": "imageView", "train": "trainView"}.get(p["media"], "videoView")
         selected = "true" if p["id"] == DEFAULT_PAGE else "false"
         rows.append(
             f'  <button data-page="{p["id"]}" class="tab" type="button" role="tab" '

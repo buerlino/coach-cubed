@@ -7,8 +7,9 @@ into coach test fixtures, end to end — no manual clips_inbox/ copying.
     python scripts/sync_clipper_fixtures.py --dry-run     # classify, don't persist fixtures
 
 clipper/ (formerly the standalone weightlifting-clipper repo, merged in with
-its history intact) writes one file per lift attempt into <its downloads
-dir>/Clips/<session>/, named
+its history intact) writes one folder per source video, named after the video
+and sitting beside it, and puts that video's cut attempts in <that
+folder>/clips/, named
 "<session>_NN_HhMMmSSs_<made|miss>.mp4" (see its README/src/cut.py). It knows
 order, timestamp and referee decision, but never lift type: coach needs a
 --stance (snatch vs clean-and-jerk) to know which diagnostics to score a clip
@@ -54,9 +55,11 @@ manual step documented in tests/fixtures/README.md.
 import argparse
 import hashlib
 import json
+import random
 import re
 import shutil
 import subprocess
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -66,15 +69,26 @@ import batch_extract_tracks as bet
 from pose_stance import classify_stance_from_track
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_CLIPPER_DIR = REPO_ROOT / "clipper" / "downloads"
+# Where clipper put its output. $CLIPPER_OUT is the same variable clip.sh reads
+# for its own -o default, so moving the downloads off this box's 288G SSD onto
+# bulk storage needs setting it once, not passing a path to two tools that must
+# agree. Unset falls back to the in-repo path, which keeps a fresh clone working
+# with no environment at all.
+DEFAULT_CLIPPER_DIR = Path(os.environ.get("CLIPPER_OUT")
+                           or REPO_ROOT / "clipper" / "downloads")
 STATE_FILE = REPO_ROOT / "tests" / "fixtures" / "local" / ".clipper_sync_state.json"
 
-# session_NN_HhMMmSSs_result.mp4 — see clipper/src/cut.py.
-CLIP_NAME_RE = re.compile(r"^(?P<session>.+)_(?P<idx>\d{2})_(?P<hh>\d+)h(?P<mm>\d{2})m(?P<ss>\d{2})s_(?P<result>made|miss)\.mp4$")
+# session_NN_HhMMmSSs_result.mp4 — see clipper/src/cut.py. "unknown" is a real
+# verdict here, not a parse failure: some productions show no referee lights at
+# all, and clipper labels those attempts honestly rather than guessing.
+CLIP_NAME_RE = re.compile(r"^(?P<session>.+)_(?P<idx>\d{2})_(?P<hh>\d+)h(?P<mm>\d{2})m(?P<ss>\d{2})s_(?P<result>made|miss|unknown)\.mp4$")
 
 
 def discover_clips(clipper_dir):
-    return sorted(clipper_dir.glob("Clips/*/*.mp4"))
+    # Searched at any depth rather than at a fixed one: the per-video folder
+    # sits wherever its video does, which is one level down for a playlist and
+    # at the top level for a single video or a --local run.
+    return sorted(clipper_dir.rglob("clips/*.mp4"))
 
 
 def sha256_file(path):
@@ -144,6 +158,13 @@ def main():
     ap.add_argument("--stance-override", action="append", default=[], metavar="SUBSTRING=STANCE",
                      help="force this stance for any session name containing SUBSTRING "
                           "(case-insensitive); repeatable, checked before the pose classifier")
+    ap.add_argument("--shuffle", nargs="?", type=int, const=0, default=None, metavar="SEED",
+                     help="extract in random rather than path order. A full pass over a "
+                          "large clipper output is many GPU-hours, and in path order any "
+                          "prefix of it is the first playlists only -- stop it early and "
+                          "you have 2019 Arafura in depth and nothing from 2025. Shuffled, "
+                          "every prefix is a representative sample of all the footage. "
+                          "Seeded (default 0) so a resumed run is reproducible")
     ap.add_argument("--dry-run", action="store_true",
                      help="extract and classify, but write nothing (still uses the GPU — see module docstring)")
     args = ap.parse_args()
@@ -160,8 +181,13 @@ def main():
                  f"(pass --clipper-dir, or set it up at the default location)")
 
     clips = discover_clips(args.clipper_dir)
+    if args.shuffle is not None:
+        # Shuffle the list, not the loop: dedup is by content hash against
+        # STATE_FILE, so a run stopped and resumed picks up exactly the clips
+        # it had not reached, in the same order, and never re-extracts one.
+        random.Random(args.shuffle).shuffle(clips)
     if not clips:
-        print(f"no clips found under {args.clipper_dir}/Clips/*/*.mp4")
+        print(f"no clips found under {args.clipper_dir}/**/clips/*.mp4")
         return
 
     base_url = f"http://{args.host}"
@@ -223,6 +249,10 @@ def main():
             n_new += 1
             continue
 
+        # Re-read before each write: the app's training data explorer links
+        # fixtures into the same manifest while this runs, and saving a stale
+        # in-memory copy would silently drop them.
+        manifest = bet.load_manifest(out_dir)
         slug = write_fixture(out_dir, manifest, clip, stance, result, m["result"], args, note)
         bet.save_manifest(out_dir, manifest)
 

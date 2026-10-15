@@ -48,6 +48,8 @@ conda env, auth).
 | [`tests/README.md`](tests/README.md) | End to end: turning lift videos into fixtures, labels, golden snapshots, running `npm test`. |
 | [`tests/fixtures/README.md`](tests/fixtures/README.md) | The fixture directory layout, `manifest.json` schema, global vs. local scope. |
 | [`docs/clipper-pipeline.md`](docs/clipper-pipeline.md) | Step by step: how `scripts/sync_clipper_fixtures.py` turns a `clipper/` clip into a coach test case. |
+| [`docs/fixture-data-contract.md`](docs/fixture-data-contract.md) | The consuming side: `track.json`/`manifest.json` schemas, where profiles live, the endpoints a page reads them through, and what the extracted data is actually like. |
+| [`docs/train-data-todo.md`](docs/train-data-todo.md) | Open work on the clipper dataset: deployment map, stance/gender labelling gaps, 3D calibration per session, and what has already been ruled out. |
 
 Each doc is the source of truth for its own area — if you change something a
 doc describes, update that doc in the same commit rather than this index.
@@ -59,3 +61,27 @@ doc describes, update that doc in the same commit rather than this index.
 - Every subfolder with its own docs gets a `README.md`.
 - This README's tables are the map — update them in the same commit whenever
   a doc moves or a new one is added.
+
+## Running it on the NVIDIA card, overnight — `clip-nvidia.sh`
+
+Nothing in `src/` uses a GPU: the analysis is OpenCV on the CPU. What *can*
+leave the CPU is ffmpeg's share — decoding every frame of the source (the
+heaviest step) and x264-encoding the cut clips (the burstiest). On a box with
+an NVIDIA card, `./clip-nvidia.sh` runs `clip.sh` unmodified with both of those
+routed to that card's NVDEC/NVENC engines, inside a low-priority cgroup, so a
+whole work list can run overnight without the desktop noticing:
+
+```
+./clip-nvidia.sh check                  # preflight: card, ffmpeg, NVENC/NVDEC smoke test
+./clip-nvidia.sh                        # same arguments as clip.sh, foreground
+./clip-nvidia.sh --detach               # background unit that survives logout
+./clip-nvidia.sh status | log | stop    # the detached run
+```
+
+It works by placing an `ffmpeg` shim ahead on `PATH` for the duration of the
+run; `clip.sh` and `src/` never know. The shim probes each input's codec and
+only uses the NVIDIA decoder for h264/hevc/vp9/vp8 — **AV1 stays on the CPU on
+purpose** (older NVIDIA cards have no AV1 engine and the CUDA path does not fall
+back; it grinds). See the header of `clip-nvidia.sh` for the environment knobs
+(`CLIPPER_NV_DECODE=0`, `CLIPPER_NV_ENCODE=0`, `CLIPPER_FFMPEG_DIR`, …) and
+measured CPU savings.

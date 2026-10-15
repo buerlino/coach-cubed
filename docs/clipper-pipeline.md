@@ -7,12 +7,13 @@ How a clip from `clipper/` becomes a coach test case, end to end, via
 ## The chain, step by step
 
 1. **`clipper/` cuts the clip.** It downloads a session video and
-   trims one file per lift attempt (bar pickup → lockout) into
-   `<its downloads dir>/Clips/<session>/<session>_NN_HhMMmSSs_<made|miss>.mp4`.
+   trims one file per lift attempt (bar pickup → lockout) into a folder
+   named after the source video and sitting beside it:
+   `<video>/clips/<session>_NN_HhMMmSSs_<made|miss>.mp4`.
    It knows order, timestamp and referee decision — never lift type.
 
 2. **`sync_clipper_fixtures.py` discovers new clips.** It globs
-   `Clips/*/*.mp4` under a `--clipper-dir` and dedupes by content hash
+   `**/clips/*.mp4` under a `--clipper-dir` and dedupes by content hash
    (`tests/fixtures/local/.clipper_sync_state.json`), so re-running after
    clipper re-cuts something (which can renumber an already-seen attempt)
    never re-processes it.
