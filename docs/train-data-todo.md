@@ -87,47 +87,45 @@ example", not a corrupt video — so a 502 does not produce this message.
 
 ## 2. Most clips show exercise `unknown`
 
-From `/api/train/clips`, all 3,226 rows:
+Updated 2026-10-15, after the full pose pass finished. From
+`/api/train/clips`, all 3,226 rows:
 
 ```
-exercise         unknown 2405   snatch 700   clean-and-jerk 121
-exercise_source  None    2405   track  820   default 1
-precomputed      False   2405   True   821
+exercise         unknown 1506   snatch 1470   clean-and-jerk 252
 ```
 
-`unknown` is exactly the set with no cached track, so this is two separate
-things wearing one label:
-
-- **Transient** — the run is 48% through. ~1,700 of those will resolve on
-  their own.
-- **Permanent** — clips held for review are extracted but never written as a
-  fixture, so they stay `unknown` forever. At the current 47% review rate that
-  is ~1,500 clips still reading `unknown` when the run finishes.
+`unknown` is exactly the set with no cached track. The transient half of this
+label is gone — the run is done — so what remains is permanent: **1,506 clips
+were held for review, extracted but never written as a fixture, and will read
+`unknown` forever** until the clipper windows are widened and they are re-cut.
+Full breakdown in [`dataset-stats.md`](dataset-stats.md).
 
 Worth separating in the UI: `not analysed yet` and `analysed, stance
 unreadable` are different problems and only the second needs a human.
 
 ## 3. The snatch / clean-and-jerk split is wrong
 
-700 snatch to 121 clean-and-jerk, 85:15, against a true ~50:50 — every lifter
-takes three of each. So `scripts/pose_stance.py` is either reading cleans as
-snatches or losing them to review.
+1,470 snatch to 252 clean-and-jerk, 85:15, against a true ~50:50 — every
+lifter takes three of each. So `scripts/pose_stance.py` is either reading
+cleans as snatches or losing them to review. The ratio did not move between
+48% through the run and the end of it, so it is not a sampling artefact.
 
-Review reasons over the first 1,432 clips, and the length correlation:
+Review reasons and the length correlation, over the full run — the rest is in
+[`dataset-stats.md`](dataset-stats.md):
 
 ```
-529  clip doesn't start with the bar near the bottom of its range
- 68  clip appears to end before the lift settles (possible early cut)
- 27  wrist/hip keypoints never met the confidence gate
- 20  barely any vertical bar motion detected
- 17  likely a tracking glitch, not a real lift
-  6  no person was tracked in this clip
+1176  clip doesn't start with the bar near the bottom of its range
+ 154  clip appears to end before the lift settles (possible early cut)
+  50  barely any vertical bar motion detected
+  46  wrist/hip keypoints never met the confidence gate
+  34  implausible motion range — likely a tracking glitch, not a real lift
+  15  no person was tracked in this clip
 
-           accepted  review  usable        accepted median length 7.1 s
-3.5–4 s         111     308     26%        held     median length 4.2 s
-4–6 s           176     167     51%
-6–10 s          294     112     72%
-10 s+           184      80     69%
+           accepted  review  usable
+3.5–4 s         202     658     23%
+4–6 s           428     414     51%
+6–10 s          665     252     73%
+10 s+           425     180     70%
 ```
 
 The dominant reason is not a tracking failure — it is the clipper's window
@@ -277,3 +275,18 @@ Measured 5.4 s for 788 entries; the n² term puts the full 3,226 near 90 s.
 
 Note `/api/train/clips` does **not** have this problem — 0.5–0.75 s for all
 3,226 rows, because it builds its manifest index once. Same fix shape.
+
+## 7. Two small losses from the first pose pass
+
+Found when the run finished (2026-10-14 07:38) — both cheap, both leave clips
+on the floor:
+
+- **30 clips never looked at.** All of session
+  `18-2025-australian-senior-junior-championships-session-8-and-9-spfvbxuyphq`.
+  The filename pattern in `scripts/sync_clipper_fixtures.py` does not parse
+  `session-8-and-9`, so they log `SKIP (unrecognized filename)` and are
+  silently dropped. Any future multi-session video hits this too.
+- **1 clip crashed.** `division by zero` on
+  `06-2023-pacific-games-oceania-championships-session-6-…_57_1h59m27s_made.mp4`.
+  One clip is not worth chasing for its own sake, but an unguarded divide in
+  the stance/metric path will hit again on a re-cut.

@@ -50,6 +50,7 @@ conda env, auth).
 | [`docs/clipper-pipeline.md`](docs/clipper-pipeline.md) | Step by step: how `scripts/sync_clipper_fixtures.py` turns a `clipper/` clip into a coach test case. |
 | [`docs/fixture-data-contract.md`](docs/fixture-data-contract.md) | The consuming side: `track.json`/`manifest.json` schemas, where profiles live, the endpoints a page reads them through, and what the extracted data is actually like. |
 | [`docs/train-data-todo.md`](docs/train-data-todo.md) | Open work on the clipper dataset: deployment map, stance/gender labelling gaps, 3D calibration per session, and what has already been ruled out. |
+| [`docs/dataset-stats.md`](docs/dataset-stats.md) | How many clips, how many survived pose extraction, why the rest didn't, and the command that regenerates each number. |
 
 Each doc is the source of truth for its own area — if you change something a
 doc describes, update that doc in the same commit rather than this index.
