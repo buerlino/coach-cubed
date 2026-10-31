@@ -375,7 +375,8 @@ What follows describes it as it was.
 ## 12. Docs and agent skills
 
 - **AGENTS.md:** mostly accurate. Its deploy parts describe Noah's machine,
-  not this laptop.
+  not this laptop. (They moved to [server.md](server.md) in step 2.1, its
+  other rules to [rules-core.md](rules-core.md) in step 2.9.)
 - **Skills:** `lifting-diagnostic`, `model-add` (parked with bar detection in
   step 2.3) and `panel-add` were partly stale (wrong registry names, missing
   lifts). Step 2.6 checked the two that stay against the code and fixed them,
@@ -405,7 +406,8 @@ These break silently, not as import errors:
   `pose_stance.py`, `review.mjs` and CSS.
 - **Window globals and events:** `CoachBridge`, `CoachAnatomy`,
   `CoachReview`, `CoachV3D`, `Diagnostics`, and `coach:*` events.
-- **Absolute paths, against AGENTS.md §1** (app.py:1030 and 4233,
+- **Absolute paths, against
+  [rules-core.md](rules-core.md#paths-stay-relative)** (app.py:1030 and 4233,
   `squat/index.html:12` and `local-mode.mjs:10` were fixed in step 2.0):
   - `squat/index.html:56`
   - `squat/app.mjs:325–328`

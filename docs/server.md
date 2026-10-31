@@ -49,7 +49,8 @@ scripts touch only coach's own process and port. Logs go to `log/`.
 coach is not served at the site root. The real deploy (`~/Caddyfile` on
 Noah's machine, *not* the `Caddyfile` copy in this repo) mounts it at
 `/coach/*` via `handle_path`, which **strips the prefix before Flask ever sees
-the request**. That is why every asset path has to be relative (AGENTS.md §1).
+the request**. That is why every asset path has to be relative
+([rules-core.md](rules-core.md#paths-stay-relative)).
 
 Testing against `http://127.0.0.1:8080/` is not sufficient: it passes even
 when the production URL is broken. Test through the proxied path

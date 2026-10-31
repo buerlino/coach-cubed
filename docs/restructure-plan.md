@@ -33,7 +33,11 @@ finish (git keeps the history). Decisions and open questions are in
 - **The example clips are not in git** (since step 2.4): they sit under the
   gitignored `tests/fixtures/local/` on machines that have them, this laptop
   included. A fresh clone runs every test but has no example gallery.
-- **Test baseline:** 68 JS and 6 Python tests.
+- **Test baseline:** 71 JS (3 of them the docs checks, since step 2.9) and
+  6 Python tests.
+- **AGENTS.md stays lean** (step 2.9): status, history and reasoning go in
+  this file, [backlog.md](backlog.md) or [decisions.md](decisions.md), never
+  there. `npm test` fails when AGENTS.md or a big doc passes its budget.
 - **Don't touch:** `main`, the `pre-cleanup` tag, `.caddy/`, and the tablet
   `HA24BZ2Y` (it belongs to other projects' night shifts; the Fairphone 6
   `4d42e62f` is coach's test phone, always via `adb -s`).
@@ -51,11 +55,13 @@ later releases.
 ## Rules for the window
 
 - All work happens in the `phase-0` worktree. `main` is not touched.
-- [rules-core.md](rules-core.md) and [AGENTS.md](../AGENTS.md) bind. AGENTS.md
-  §4 says to stop and ask before a change that can break the deploy: during
-  the window nordmu is the one to ask (Noah gave the go).
-- Every move follows AGENTS.md §2: grep the whole repo for the old name, then
-  run `npm test` and `python3 -m unittest discover -s tests -p 'test_*.py'`.
+- [rules-core.md](rules-core.md) and [AGENTS.md](../AGENTS.md) bind.
+  rules-core's [Stop and ask](rules-core.md#stop-and-ask) says to stop and
+  ask before a change that can break the deploy: during the window nordmu is
+  the one to ask (Noah gave the go).
+- Every move follows rules-core's [Moving a file](rules-core.md#moving-a-file):
+  grep the whole repo for the old name, then run `npm test` and
+  `python3 -m unittest discover -s tests -p 'test_*.py'`.
 - Park, don't delete, until step 2.8.
 - Nothing is pushed, and no history is rewritten, without nordmu's explicit OK.
 - Baseline on 2026-10-31 at `62b2cee`: 66 of 66 JS tests and 3 of 3 Python
@@ -180,7 +186,7 @@ are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
         code that stays), [decisions.md](decisions.md) (the decisions and open
         questions from this file);
       - CLAUDE.md stays a pointer. AGENTS.md lost nothing that is still true:
-        its server-only rules (Caddy, the live CA, restarts, §5's sibling
+        its server-only rules (Caddy, the live CA, restarts, the sibling
         notes) moved to [server.md](server.md), with a pointer, since the
         server stays as dev tooling.
 - [x] 2.2 Per area, nordmu decided (2026-10-31; [decisions.md](decisions.md)):
@@ -313,6 +319,20 @@ are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
       - every old clone is re-cloned (Noah, Nicola, JMLuner);
       - branch protection on `main` stops one push from an old clone
         bringing everything back.
+- [x] 2.9 A lean AGENTS.md, and a test that keeps the docs lean (2026-10-31,
+      done before 2.8, which stays last; nordmu's choices in
+      [decisions.md](decisions.md), "Rules and docs"):
+      - AGENTS.md is down from 120 lines to 38: what coach is, the commands,
+        the workflow, the layout, the conventions. CLAUDE.md stays a pointer;
+      - its rules (relative paths, the minimal root, moving a file, the
+        landmines, stop and ask) moved to [rules-core.md](rules-core.md),
+        "Changing this repo", each war story cut to a line; every
+        "AGENTS.md §N" now points there;
+      - `tests/docs.test.js`, in `npm test`, checks the budgets, every
+        relative link and anchor in tracked Markdown, and the paths named in
+        [README.md](README.md). Its first run found no broken link;
+      - tested: the grep, 71 JS + 6 Python tests, and the check failing on a
+        broken link, a broken anchor and a missing README path.
 
 ### Phase 3: on-device pose spike (2–3 days in `spike/`; can start once the core is named)
 
@@ -357,7 +377,8 @@ are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
       overseer agents, locks and Opus passes come later, if the volume of work
       needs them.
 - [ ] 4.3 The checks: `npm test`, the Python tests, and a new check that
-      fails on absolute asset paths (turning AGENTS.md §1 into a test).
+      fails on absolute asset paths (turning rules-core's "Paths stay
+      relative" into a test).
 
 ### Phase 5: the new app (mobile-first UI and the gym recording session)
 
@@ -383,7 +404,8 @@ the new UI is built fresh as static files, and the old page stays frozen.
       - the pose engine behind one async Worker interface, with the model
         from Phase 3;
       - `diagnostics.js` mounted unchanged;
-      - every asset path relative (AGENTS.md §1).
+      - every asset path relative
+        ([rules-core.md](rules-core.md#paths-stay-relative)).
 - [ ] 5.4 **The gym recording session**, built to nordmu's spec from 5.1.
       Technical questions to settle there:
       - MediaRecorder chunks after the first can't be decoded on their own, so

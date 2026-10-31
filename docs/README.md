@@ -7,16 +7,17 @@ restructuring's steps and status in
 [restructure-plan.md](restructure-plan.md). Each doc is the source of truth
 for its own area: if you change something a doc describes, update that doc in
 the same commit. Update this index only when a doc is added, moved or
-removed.
+removed. `npm test` checks every link, that every path named here exists, and
+the size budgets ([tests/docs.test.js](../tests/docs.test.js)).
 
 ## Read first
 
 | Doc | Holds |
 | --- | --- |
-| [rules-core.md](rules-core.md) | **Binding:** the goal, the four principles, the hard rules (offline, nothing leaves the phone, licence-compatible dependencies). |
+| [rules-core.md](rules-core.md) | **Binding:** the goal, the four principles, the hard rules (offline, nothing leaves the phone, licence-compatible dependencies), and the rules for changing this repo: relative paths, the minimal root, moving a file, landmines, when to stop and ask (in AGENTS.md until step 2.9). |
 | [restructure-plan.md](restructure-plan.md) | The restructuring toward an offline 0.1.0 (from 2026-10-31): "Next session starts here", the findings, the phases and their status. |
 | [map.md](map.md) | Every tracked file in 12 areas: what each does, offline feasibility, hidden couplings, provenance, and the phone test on the Fairphone 6. Read "Hidden couplings" before any move. |
-| [../AGENTS.md](../AGENTS.md) | How to change things here: relative paths, moves and the grep, landmines, when to stop and ask. |
+| [../AGENTS.md](../AGENTS.md) | The entry point every agent loads (CLAUDE.md points to it): what coach is, the commands, the workflow, the layout, the conventions. At most 40 lines and 6 kB. |
 
 ## Where each fact lives
 

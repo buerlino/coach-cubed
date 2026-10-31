@@ -86,6 +86,17 @@ Newest first within each group.
 
 ### Rules and docs
 
+- **2026-10-31, nordmu: AGENTS.md is a lean entry point, and the docs'
+  budgets are tested** (step 2.9), following pascaline. AGENTS.md holds only
+  what every session needs (what coach is, the commands, the workflow, the
+  layout, the conventions) and links to [rules-core.md](rules-core.md), which
+  now holds the rules for changing the repo; CLAUDE.md stays a pointer to it,
+  since AGENTS.md serves every agent. `tests/docs.test.js`, in `npm test`,
+  fails when AGENTS.md passes 40 lines or 6 kB, CLAUDE.md 10 lines,
+  decisions.md, backlog.md or rules-core.md about 1.25× their size of that
+  day, or this window's plan 1.5×; when a relative link or its anchor doesn't
+  resolve; or when a path named in [README.md](README.md) is gone. Raising a
+  budget is a decision recorded here.
 - **2026-10-31, nordmu: one doc per fact, so two docs went** (step 2.6).
   `docs/deploy.md` is deleted after its true facts moved to
   [server.md](server.md). `START_HERE.md` is split: the launch commands into
@@ -103,9 +114,10 @@ Newest first within each group.
   [rules-core.md](rules-core.md) are confirmed: "film a lift on your phone and get
   cue-by-cue technique feedback, offline, with nothing leaving the phone";
   honest verdicts, narrow core, reuse first, one keypoint format.
-- **2026-10-31, nordmu: AGENTS.md keeps the rules for every change;** the
+- **2026-10-31, nordmu: the rules for every change live in
+  [rules-core.md](rules-core.md)** (in AGENTS.md until step 2.9); the
   server-only rules (Caddy, the live CA, restarts, sibling notes) live in
-  [server.md](server.md), with a pointer from AGENTS.md.
+  [server.md](server.md), with a pointer from rules-core.md.
 
 ### The restructuring window
 
