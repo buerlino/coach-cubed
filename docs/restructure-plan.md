@@ -37,7 +37,7 @@ later releases.
 | --- | --- | --- | --- |
 | 1 | License | Noah | GPL-3.0-or-later. AGPL-3.0 only if Noah wants to stop others from hosting coach as a web service: for an offline app its network clause (§13) rarely applies. Every author whose code stays must agree (noah, nordmu, Nicola Walker, JMLuner); the map shows whose code is in the core. |
 | 2 | Where the Android 0.1.0 is published | Noah | Play Store, F-Droid, an APK on GitHub, or a PWA link. Needed before step 3.5, because the shell depends on it. |
-| 3 | Test phones | nordmu, Noah | At least one mid-range Android; an iPhone if iOS matters. |
+| 3 | Test phones | nordmu, Noah | Answered in part (nordmu, 2026-10-31): nordmu's Fairphone 6 (`4d42e62f`; LineageOS, no Google Chrome). A stock Android phone with Chrome and Google's WebView is still missing; an iPhone too, if iOS matters. |
 | 4 | `clipper/` and `report/`: a parked folder here, or their own repos again | nordmu | Decide with the map. |
 | 5 | `.auth_password`: a real password? | Noah | If yes, change it. It leaves the history in step 2.8 either way. |
 | 6 | How long the window lasts | Noah | Step 2.8 (history rewrite) has to finish before Noah resumes. |
@@ -77,6 +77,14 @@ later releases.
     athlete with her measured limb lengths.
 - **Unreviewed pushes.** Contributors pushed straight to `main`; one cleanup
   commit deleted TODO.md, which had to be restored.
+- **On the Fairphone 6**
+  ([map.md, Phone test](map.md#phone-test-2026-10-31)):
+  - WebGPU, including `shader-f16`, and WebCodecs work in Brave and inside a
+    Capacitor WebView (153).
+  - The existing MediaPipe prototype runs; `<video>` seeking, not the model,
+    takes most of the time.
+  - Its tracks give the same diagnostic verdicts as ViTPose-L on the lateral
+    raise (9 of 10), but not on the snatch (0 of 4).
 
 ## Packaging, in short
 
@@ -115,16 +123,12 @@ The spike's WebView numbers (Phase 3) decide.
 
 ### Phase 1: the map, then the core
 
-- [~] 1.1 Map every tracked file into areas into `docs/map.md`, with a
-      suggestion per area (core / dev tool / research / drop). For each area:
-      - what a user can do with it;
-      - entry points and runtime needs;
-      - tests and couplings;
-      - whether it can run offline on a phone;
-      - licence and provenance;
-      - stale parts.
-- [ ] 1.2 Check what each tab actually does by running the app, not from the
-      docs.
+- [x] 1.1 The map: [map.md](map.md), with every tracked file in 12 areas and
+      a suggestion per area.
+- [x] 1.2 Ran the full app (on the CPU) and the local preview. Also ran the
+      existing in-browser pose on the Fairphone 6 and compared its diagnostics
+      with ViTPose-L (map.md, Phone test). The server tabs needing Noah's
+      dataset (train data) and bar detection were not run.
 - [ ] 1.3 **nordmu names the core.** This is the gate for everything below.
 
 ### Phase 2: cleanup (interactive, in `phase-0`)

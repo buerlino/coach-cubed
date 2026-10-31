@@ -44,6 +44,7 @@ conda env, auth).
 | Doc | Covers |
 | --- | --- |
 | [`docs/restructure-plan.md`](docs/restructure-plan.md) | The restructuring toward an offline 0.1.0 (from 2026-10-31): goal, decisions, open questions, phases and their status. Read first. |
+| [`docs/map.md`](docs/map.md) | Every tracked file in 12 areas (snapshot of 2026-10-31): what each does, offline feasibility, couplings, provenance, and the phone test on the Fairphone 6. |
 | [`docs/deploy.md`](docs/deploy.md) | Deploy shape, checkpoints (incl. the gated SAM 3 download), Caddy/ports, conda env, auth, what's not done yet. |
 | [`report/README.md`](report/README.md) | What's in the LaTeX report, how to build the PDF, how to regenerate its figures. |
 | [`tests/README.md`](tests/README.md) | End to end: turning lift videos into fixtures, labels, golden snapshots, running `npm test`. |
