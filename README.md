@@ -27,13 +27,12 @@ conda env, auth).
 
 | Path | What's there |
 | --- | --- |
-| [`src/`](src/) | The app: `app.py` (routes), `vitpose_backend.py` / `equipment_backend.py` / `depth_backend.py` (ML, kept out of `app.py`), `diagnostics.js` (the diagnostic registry, runs client-side), `pose/` (MediaPipe pose in the browser, mapped to COCO-17). |
+| [`src/`](src/) | The app: `app.py` (routes), `vitpose_backend.py` / `depth_backend.py` (ML, kept out of `app.py`), `diagnostics.js` (the diagnostic registry, runs client-side), `pose/` (MediaPipe pose in the browser, mapped to COCO-17). |
 | [`scripts/`](scripts/) | Everything you run for the production deploy: setup, model download, launch/stop, port cleanup, fixture batch-extraction (incl. syncing fixtures straight from clipper's output; clipper is its own repo, `weightlifting-clipper`, since 2026-10-31 — see [`tests/README.md`](tests/README.md)). |
 | [`launchers/`](launchers/) | The zero-install local preview: `run_local.py`/`run_original.py`/`run_anatomy.py`/`run_squat.py` and their double-click `.command`/`.bat` twins. All `cd` to the repo root before touching `.venv` or `src/`, so they only work run from (or launched from within) this folder — don't move them further apart. |
 | [`tests/`](tests/) | Fixture-driven golden tests for `diagnostics.js`. Start at [`tests/README.md`](tests/README.md). |
-| [`parked/`](parked/) | Areas outside 0.1.0's core, moved here unchanged and unwired from the app: today the LaTeX research report ([`parked/report/`](parked/report/)). See [`parked/README.md`](parked/README.md). |
+| [`parked/`](parked/) | Areas outside 0.1.0's core, moved here unchanged and unwired from the app: the LaTeX research report ([`parked/report/`](parked/report/)) and bar and plate detection ([`parked/bar-detection/`](parked/bar-detection/)). See [`parked/README.md`](parked/README.md). |
 | [`docs/`](docs/) | Everything below. |
-| [`reference/`](reference/) | Static images (`barbell.png`, `plates.png`) used as detection prompts/overlay references. |
 | `vendor/` | `easy_ViTPose`, as a git submodule. |
 | `Caddyfile`, `pki-public/`, `log/` | The deploy's reverse proxy, its published root cert, and its logs. |
 | `.claude/skills/` | Playbooks for recurring changes (add a lift page, add a diagnostic, swap the equipment model) — written for an AI pair-programmer but equally a map of how those changes are made by hand. |

@@ -65,8 +65,10 @@ stay on the SSD — small, and read on every request.
     "frame_times_ms": [0.0, 33.33, ...], // decoder timestamps
     "skeleton": [[15,13], [13,11], ...], // bone pairs, indices into the joint list
     "tracks": { "kept": "2218", "kept_frames": 371,
-                "dropped": [{"id": "2221", "frames": 240}, ...] },
-    "equipment": null, "equipment_error": null, "equipment_prompts": null
+                "dropped": [{"id": "2221", "frames": 240}, ...] }
+    // tracks made before 2026-10-31 also carry "equipment", "equipment_error"
+    // and "equipment_prompts" (bar detection, since parked); 3D still reads
+    // "equipment" when it is there
   }
 }
 ```
@@ -102,7 +104,7 @@ One entry per fixture, keyed `"<stance>/<stem>"` within its scope.
   "frame_count": 400, "frames_processed": 400,
   "kept_person": "8111",
   "attempt_result": "unknown",          // clipper's referee verdict: made|miss|unknown
-  "detect_equipment": false,
+  "detect_equipment": false,           // entries made before 2026-10-31 only
   "generated_at": "2026-10-13T19:37:12+00:00",
   "labels": [],                         // hand-written; the pose pass never touches it
   "notes": "stance auto-detected from pose trajectory: ..."
@@ -156,7 +158,7 @@ read `~/.bashrc`).
 GET /api/train/clips                 {dir, lifts, clips: [...]} — one row per **/clips/*.mp4
 GET /api/train/clip/<path>           the clip itself (path relative to CLIPPER_OUT)
 PUT /api/train/labels/<path>         {exercise?, category?, gender?} -> train_labels.json
-POST /api/train/link                 {path, size, frame_stride, detect_equipment,
+POST /api/train/link                 {path, size, frame_stride,
                                       fallback_exercise, track: {keypoints, meta}}
 ```
 
@@ -206,13 +208,16 @@ A fresh upload is a job, not a request — one slot per app instance, and
 
 ```
 POST /api/pose/video/start     multipart: video=<file>, size=l|h,
-                               frame_stride=<int >= 1>, detect_equipment=1 (optional)
+                               frame_stride=<int >= 1>
+                               (detect_equipment=1 answers 400 since bar
+                               detection was parked on 2026-10-31)
 GET  /api/pose/video/progress  {status: idle|counting|running|done|error,
                                 processed, total, rateFps, etaSeconds}
 GET  /api/pose/video/result    the {keypoints, meta} object — one-shot, clears the slot
 POST /api/pose/video/cancel
 POST /api/pose                 single image, synchronous
-GET  /api/capabilities         {"equipment": true} — gate controls on this rather than 503
+GET  /api/capabilities         {} — nothing optional since bar detection was parked;
+                               the fixture scripts use it as a liveness probe
 ```
 
 The slot is per instance. On this box :8080 runs on the W7800 and :8081 on the

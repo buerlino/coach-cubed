@@ -9,13 +9,18 @@ finish (git keeps the history). Decisions and open questions are in
 
 ## Next session starts here
 
-- **Current step:** Phase 2, step 2.3, the third area: bar detection. Phases
-  0 and 1, steps 2.0–2.2, and the clipper and report moves are done.
+- **Current step:** Phase 2, step 2.3, the fourth area: Movement Lab and
+  anatomy. Phases 0 and 1, steps 2.0–2.2, and the clipper, report and bar
+  detection moves are done (commits `423ab8d` to the bar detection one).
+- **Start the next session by reviewing** what the 2026-10-31 evening session
+  did: `git log 916958f..phase-0` and `docs/decisions.md`. nordmu asked for
+  that review before continuing.
 - **In flight:** nothing. The Phase 3 spike can start in parallel; its baseline
   scripts are in `spike/phone-baseline/` (now pointing at `src/pose/`).
 - **Waiting on Noah:** answers to questions 1, 2 and 5 in
   [decisions.md](decisions.md) (the message went out on 2026-10-31).
-- **Test baseline:** 68 JS and 5 Python tests since step 2.0.
+- **Test baseline:** 68 JS and 5 Python tests since step 2.0 (unchanged by
+  the parking so far: no parked area had tests yet).
 - **Don't touch:** `main`, the `pre-cleanup` tag, `.caddy/`, and the tablet
   `HA24BZ2Y` (it belongs to other projects' night shifts; the Fairphone 6
   `4d42e62f` is coach's test phone, always via `adb -s`).
@@ -186,7 +191,19 @@ are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
         `lmodern`/`ecrm` fonts, so `make` fails in the preamble, before any
         moved path) and the notebook's own paths (its reads are denied by
         `.claude/settings.json`);
-      - [ ] bar detection;
+      - [x] bar detection (2026-10-31), backend and UI (nordmu's choice):
+        `parked/bar-detection/` holds the detectors, a full copy of the old
+        download script, the `transformers` requirement, `reference/` and the
+        `model-add` skill; its README lists every unwired call site.
+        `vitpose_backend` lost the equipment thread and the shared GPU lock
+        (its own `_infer_lock` still serializes ViTPose); `/api/capabilities`
+        answers `{}`; a start with `detect_equipment=1` answers 400. Tested:
+        tests, a syntax check of every inline script, and the full app in
+        headless Brave with the athlete-a example (no exceptions; 3D still
+        scores plate-anchor from the cached boxes). Not tested: a real pose
+        run (the night shift had the CPU), the setup scripts, the conda path,
+        anything on the GPU box. `depth_backend.py`'s comments about the
+        detectors move with 3D;
       - [ ] Movement Lab and anatomy;
       - [ ] 3D;
       - [ ] the tabs: train, squat, image, clean & jerk (added 2026-10-31,

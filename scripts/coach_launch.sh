@@ -3,8 +3,8 @@
 #
 #   app.py/waitress (8080, loopback) ──▶ gateway
 #
-# ViTPose and the optional equipment detector load in-process, lazily, on the
-# first request that needs them — there is no subservice to start.
+# ViTPose loads in-process, lazily, on the first request that needs it —
+# there is no subservice to start.
 #
 # WHAT CHANGED, and why this script is now short. It used to call free_ports.sh
 # to stop every other app on the box and take :8080 + :80/:443, because only one
@@ -120,25 +120,6 @@ echo "mode: $MODE"
 [ -f "$HOME/models/easy_vitpose/torch/coco/vitpose-l-coco.pth" ] || {
 	echo "!! checkpoints missing under ~/models/easy_vitpose — run ./scripts/download_models.sh" >&2
 	exit 1; }
-
-# The equipment detector (Grounding DINO, ~700MB) is OPTIONAL — it only powers
-# the video tab's "detect bar & plates" tickbox. /api/capabilities reports it
-# absent and the frontend greys those controls out, so a missing detector never
-# blocks launch. Path must match equipment_backend.DINO_DIR.
-DINO_DIR="${COACH_DINO_DIR:-$HOME/models/grounding-dino-base}"
-if [ -f "$DINO_DIR/model.safetensors" ]; then
-	echo "equipment detector: present ($DINO_DIR)"
-elif [ -t 0 ]; then
-	echo "equipment detector (Grounding DINO, ~700MB): NOT installed — optional."
-	read -r -p "  download it now before starting? [y/N] " reply || reply=""
-	case "$reply" in
-		[Yy]*) COACH_DINO=1 "$ROOT/scripts/download_models.sh" \
-			|| echo "  download failed — starting without it" ;;
-		*) echo "  skipping — add it later with COACH_DINO=1 ./scripts/download_models.sh" ;;
-	esac
-else
-	echo "equipment detector: not installed (optional)"
-fi
 
 # Claimed BEFORE starting: the first pose request is what needs the room, and
 # freeing after a load has already failed is too late.

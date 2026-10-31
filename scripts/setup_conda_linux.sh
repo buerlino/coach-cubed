@@ -69,9 +69,6 @@ print("gpu    :", torch.cuda.get_device_name(0))
 import vitpose_backend
 print("checkpoints:", vitpose_backend.available())
 print("device :", vitpose_backend.DEVICE)
-import equipment_backend
-print("equipment:", equipment_backend.model_source() if equipment_backend.available()
-      else "MISSING (optional — see download_models.sh)")
 PY
 conda run -n $ENV python "$TMPDIR/verify.py"
 

@@ -38,6 +38,11 @@ Newest first within each group.
   now needs `$CLIPPER_OUT` or `--clipper-dir`.
 - **2026-10-31, nordmu: offline is a hard requirement, so no server compute.**
 
+- **2026-10-31, nordmu: bar detection is parked backend and UI together.**
+  The detectors, their download path and skill go to `parked/bar-detection/`;
+  the page loses its equipment controls and box drawing. 3D keeps reading the
+  boxes cached in older tracks until 3D is parked.
+
 ### Rules and docs
 
 - **2026-10-31, nordmu: the goal and the four principles** in

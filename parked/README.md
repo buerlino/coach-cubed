@@ -13,3 +13,4 @@ to; reviving one means moving it back and re-wiring those couplings.
 | Folder | What | Parked |
 | --- | --- | --- |
 | [report/](report/) | The LaTeX research report (pose, smoothing, depth math) and the notebook that makes its figures. `make` in that folder builds the PDF (it needs the TeX fonts its README lists). | 2026-10-31, step 2.3 |
+| [bar-detection/](bar-detection/) | Bar and plate detection (Grounding DINO, SAM 3), its download script and skill. Its README lists what was unwired. | 2026-10-31, step 2.3 |

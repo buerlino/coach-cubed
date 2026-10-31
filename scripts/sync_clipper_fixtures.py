@@ -126,7 +126,6 @@ def write_fixture(out_dir, manifest, clip, stance, result, attempt_result, args,
         "source_file": clip.name,
         "model_size": args.size,
         "frame_stride": args.frame_stride,
-        "detect_equipment": args.detect_equipment,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "frame_count": meta.get("frame_count"),
         "frames_processed": meta.get("frames_processed"),
@@ -153,7 +152,6 @@ def main():
                           "global: committed — use deliberately, not for a routine sync")
     ap.add_argument("--size", default="l", choices=("l", "h"), help="ViTPose checkpoint size")
     ap.add_argument("--frame-stride", type=int, default=1)
-    ap.add_argument("--detect-equipment", action="store_true")
     ap.add_argument("--stance-override", action="append", default=[], metavar="SUBSTRING=STANCE",
                      help="force this stance for any session name containing SUBSTRING "
                           "(case-insensitive); repeatable, checked before the pose classifier")
@@ -225,7 +223,7 @@ def main():
                                  if substr.lower() in m["session"].lower()), None)
 
         try:
-            bet.start_job(base_url, clip, args.size, args.frame_stride, args.detect_equipment)
+            bet.start_job(base_url, clip, args.size, args.frame_stride)
             result = bet.wait_for_result(base_url, clip)
         except Exception as e:
             print(f"FAILED {clip.relative_to(args.clipper_dir)}: {e}")

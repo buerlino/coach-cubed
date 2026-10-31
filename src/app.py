@@ -24,7 +24,6 @@ from pathlib import Path
 from flask import Flask, request, jsonify, Response, send_file, send_from_directory, redirect
 
 import depth_backend
-import equipment_backend
 import vitpose_backend
 
 app = Flask(__name__)
@@ -100,15 +99,11 @@ def api_pose_video_start():
     except (ValueError, AssertionError):
         return jsonify({"error": "frame_stride must be an integer >= 1"}), 400
 
-    # Checkbox on the form, so absent means off — the frontend only sends it
-    # when ticked.
-    detect_equipment = request.form.get("detect_equipment") in ("1", "true", "on")
-    # Checked before the run rather than left to fail inside the worker: the
-    # worker's failure is only reported once the whole pose pass has finished,
-    # which is a long wait to be told about a missing 600MB download.
-    if detect_equipment and not equipment_backend.available():
-        return jsonify({"error": "Grounding DINO is not installed — run "
-                                 "./scripts/download_models.sh"}), 503
+    # Bar and plate detection was parked on 2026-10-31 (parked/bar-detection/).
+    # Say so rather than silently return a track without the boxes asked for.
+    if request.form.get("detect_equipment") in ("1", "true", "on"):
+        return jsonify({"error": "bar and plate detection is parked "
+                                 "(parked/bar-detection/); run without it"}), 400
 
     video_file = request.files["video"]
     ext = os.path.splitext(video_file.filename or "")[1].lstrip(".").lower()
@@ -168,8 +163,7 @@ def api_pose_video_start():
         try:
             keypoints, meta = vitpose_backend.infer_video(
                 video_bytes, size=size, frame_stride=frame_stride, suffix=f".{ext}",
-                progress_cb=progress_cb, cancel_cb=cancel_event.is_set,
-                detect_equipment=detect_equipment)
+                progress_cb=progress_cb, cancel_cb=cancel_event.is_set)
             with job.lock:
                 if job.cancel_event is cancel_event:
                     job.result = {"keypoints": keypoints, "meta": meta}
@@ -231,12 +225,13 @@ def api_pose_video_result():
 
 # --- capabilities ---------------------------------------------------------
 # What this install can actually do, so the page can disable a control rather
-# than offer one that will 503. Only the detector is optional (the pose weights are
-# a hard requirement the launch scripts check for), so this is a thin route
-# today — but it's the right shape for the next optional model.
+# than offer one that will fail. Nothing is optional since bar detection was
+# parked (2026-10-31), so this answers {} — but the fixture scripts
+# (batch_extract_tracks.py, sync_clipper_fixtures.py) use it as their "is the
+# app up" probe, and it's the right shape for the next optional model.
 @app.route("/api/capabilities")
 def api_capabilities():
-    return jsonify({"equipment": equipment_backend.available()})
+    return jsonify({})
 
 
 # --- 3D depth anchors -----------------------------------------------------
@@ -774,7 +769,6 @@ def api_train_link():
             "source_file": clip.name,
             "model_size": entry.get("model_size", size),
             "frame_stride": int(body.get("frame_stride") or meta.get("frame_stride") or 1),
-            "detect_equipment": bool(body.get("detect_equipment")),
             "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "frame_count": meta.get("frame_count"),
             "frames_processed": meta.get("frames_processed"),
@@ -1301,7 +1295,7 @@ INDEX_HTML = """<!doctype html>
          itself. A NAMED profile, chosen here and remembered across clips and
          reloads — it belongs to the athlete, not to the clip. Editing re-runs
          the lift immediately; saving writes a profile file. Collapsed by
-         default, same as equipment overlay — an advanced control, not part of
+         default, like the other advanced controls — not part of
          the everyday flow. -->
     <details id="v3dlimbbar" class="control-group" style="margin:2px 0 6px">
       <summary title="Segment length as a fraction of torso — the lift turns the gap between a bone's true length and its on-screen length into depth, so a wrong length is invented depth.">limb lengths</summary>
@@ -1334,7 +1328,7 @@ INDEX_HTML = """<!doctype html>
          here (the backend's sign_joints()); hips/shoulders/nose are placed in
          the image plane and have no direction to choose. Built from
          /api/depth/methods so this markup never has to list joints itself.
-         Collapsed by default, same as limb lengths and equipment overlay. -->
+         Collapsed by default, same as limb lengths. -->
     <details id="v3dsignbar" class="control-group" style="margin:2px 0 6px">
       <summary title="A single view cannot tell a limb bending toward the camera from one bending away — the depth magnitude is measured, the direction is chosen.">depth direction</summary>
       <p class="control-help">Which way each limb bends out of the screen. <b>toward</b> = toward the camera.</p>
@@ -1591,16 +1585,11 @@ let vSource = null, vObjectUrl = null, vCamStream = null, vRecorder = null, vChu
 const SKELETON = '#ffffff';
 const CONF_THRESHOLD = 0.3;
 
-// Equipment is the third thing that can be on the frame, and it is neither the
-// athlete nor a score: it's an object the segmenter located. So it gets its own
-// hues, deliberately off the diagnostics' green->red ramp, and stays off it —
-// a plate box must never be readable as a cue being met well or badly.
-const EQ_PLATE = '#38bdf8';   // sky
-const EQ_BAR = '#c084fc';     // violet
-const EQ_WINDOW = 'rgba(192,132,252,0.35)';   // where the bar was searched for
-// Per-frame equipment boxes from the run, keyed by frame index exactly like the
-// keypoints, plus the prompts that produced them.
-let vEquipment = null, vEqPrompts = null;
+// Per-frame bar/plate boxes cached in a loaded track (meta.equipment), keyed by
+// frame index like the keypoints. Bar detection was parked on 2026-10-31
+// (parked/bar-detection/), so nothing draws them any more; they are kept only
+// as the 3D plate-anchor method's input until 3D is parked too.
+let vEquipment = null;
 
 // The currently-loaded example: its manifest id and which model sizes have a
 // cached track. Lets switching #vsize swap the overlay to that model's version
@@ -1857,35 +1846,6 @@ function applySmoothing() {
 $('vsmooth').addEventListener('input', applySmoothing);
 $('vkeepvel').addEventListener('change', applySmoothing);
 
-// Overlay-only, so these repaint rather than recompute — and they have to
-// repaint explicitly, since the paint loop isn't running while the video is
-// paused, which is exactly when you tick them.
-$('veqbar').addEventListener('change', () => drawOverlay());
-$('veqplates').addEventListener('change', () => drawOverlay());
-
-// What the boxes on screen mean: the sentences that produced them, and — when
-// a run found nothing — that it was asked at all. Without this a missing box is
-// ambiguous between "not detected" and "not looked for".
-function vRenderEqNote() {
-  const note = $('veqnote');
-  const on = $('veqbar').checked || $('veqplates').checked;
-  if (!vEquipment) {
-    note.textContent = on && vMeta
-      ? 'no equipment in this run — re-run with "detect bar & plates" ticked'
-      : '';
-    return;
-  }
-  const frames = Object.keys(vEquipment).length;
-  let withPlates = 0, withBar = 0, twoStacks = 0;
-  for (const e of Object.values(vEquipment)) {
-    if (e.plates && e.plates.length) withPlates++;
-    if (e.plates && e.plates.length > 1) twoStacks++;
-    if (e.bar) withBar++;
-  }
-  note.textContent =
-    `plates "${vEqPrompts?.plates}" — found on ${withPlates}/${frames} frames ` +
-    `(both stacks on ${twoStacks}) · bar "${vEqPrompts?.bar}" — ${withBar}/${frames}`;
-}
 
 // --- plot canvas ---
 const pcanvas = $('plotCanvas'), pctx = pcanvas.getContext('2d');
@@ -2213,84 +2173,6 @@ function poseAtTime(t, slot) {
   return out;
 }
 
-// Equipment masks for one processed frame. Deliberately NOT interpolated the
-// way the mesh is: a mask is the extent of one segmentation, not a point on a
-// trajectory, and sliding one between two frames would draw a region no mask
-// ever covered. So this paints the nearest processed frame's masks and holds
-// them — an equipment overlay on screen is always one the model actually
-// produced.
-function drawEquipment(idx) {
-  if (!vEquipment) return;
-  const eq = vEquipment[String(idx)];
-  if (!eq) return;
-  const wantBar = $('veqbar').checked, wantPlates = $('veqplates').checked;
-
-  // Fall back to the bounding box when a detection predates polygon support.
-  const box = (b, colour, label) => {
-    const [x0, y0, x1, y1] = b;
-    vctx.strokeStyle = colour;
-    vctx.lineWidth = 3;
-    vctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
-    if (!label) return;
-    vctx.font = '600 15px system-ui';
-    vctx.fillStyle = colour;
-    // Above the box, unless that would be off the top of the frame.
-    vctx.fillText(label, x0, y0 > 20 ? y0 - 6 : y1 + 18);
-  };
-
-  // The per-pixel prediction itself: fill the mask outline translucent so the
-  // frame reads through it, then trace the edge. This is what the box was only
-  // ever approximating.
-  const mask = (d, colour, label) => {
-    const pts = d.polygon;
-    if (!pts || pts.length < 3) { box(d.box, colour, label); return; }
-    vctx.beginPath();
-    vctx.moveTo(pts[0][0], pts[0][1]);
-    for (let i = 1; i < pts.length; i++) vctx.lineTo(pts[i][0], pts[i][1]);
-    vctx.closePath();
-    vctx.save();
-    vctx.globalAlpha = 0.28;
-    vctx.fillStyle = colour;
-    vctx.fill();
-    vctx.restore();
-    vctx.strokeStyle = colour;
-    vctx.lineWidth = 2;
-    vctx.stroke();
-    if (!label) return;
-    // Anchor the label at the mask's topmost vertex, same "above unless it
-    // clips the frame" rule as the box label.
-    let ax = pts[0][0], ay = pts[0][1];
-    for (const [x, y] of pts) if (y < ay) { ay = y; ax = x; }
-    vctx.font = '600 15px system-ui';
-    vctx.fillStyle = colour;
-    vctx.fillText(label, ax, ay > 20 ? ay - 6 : ay + 18);
-  };
-
-  // The search window first, so the boxes sit on top of it. Shown with the bar
-  // because it is the bar's own story: the bar is only ever looked for inside
-  // this rectangle, so "no bar box" means something different depending on
-  // whether the window is where you expected it.
-  if (wantBar && eq.crop) {
-    const [x0, y0, x1, y1] = eq.crop;
-    vctx.save();
-    vctx.setLineDash([6, 6]);
-    vctx.strokeStyle = EQ_WINDOW;
-    vctx.lineWidth = 2;
-    vctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
-    vctx.restore();
-  }
-  if (wantPlates) {
-    for (const p of (eq.plates || [])) {
-      // mm-per-pixel from a 450mm disc — the scale reference this whole
-      // detection exists to produce. Flagged approximate because the short side
-      // of an axis-aligned box under-reads a disc the camera sees at an angle.
-      const mmpx = p.diameter_px ? (450 / p.diameter_px).toFixed(2) : null;
-      mask(p, EQ_PLATE,
-          `plate ${p.score.toFixed(2)}` + (mmpx ? ` · ~${mmpx} mm/px` : ''));
-    }
-  }
-  if (wantBar && eq.bar) mask(eq.bar, EQ_BAR, `bar ${eq.bar.score.toFixed(2)}`);
-}
 
 function drawOverlay(t) {
   vctx.clearRect(0, 0, vcanvas.width, vcanvas.height);
@@ -2323,10 +2205,6 @@ function drawOverlay(t) {
   // the mesh, so they have to be interpolated on the same clock, or the thing
   // measuring the lifter steps while the lifter glides.
   Diagnostics.overlay(vctx, time);
-  // Before the early return below: the plates are in frame whether or not the
-  // pose track has a person on this frame, and a dropped detection is exactly
-  // when you want the equipment still drawn.
-  drawEquipment(idx);
   // Step the 3D view to the same frame, so the reconstruction plays in sync
   // with the video (no-op until a sequence candidate is loaded).
   if (window.Viewer) window.Viewer.showFrame(idx);
@@ -2561,7 +2439,7 @@ $('vfile').onchange = () => {
   stopCameraStream();
   vSource = { blob: f, filename: f.name };
   vKeypointsRaw = null; vKeypoints = null; vMeta = null; vSample = null; vClock = null;
-  vEquipment = null; vEqPrompts = null; vRenderEqNote(); v3dReset();
+  vEquipment = null; v3dReset();
   updatePlotControls();
   Diagnostics.setTrack(null, null);
   $('vsummary').textContent = '';
@@ -2585,7 +2463,7 @@ $('vexample').onchange = async () => {
   $('vfile').value = '';
   vSource = null;
   vKeypointsRaw = null; vKeypoints = null; vMeta = null; vSample = null; vClock = null;
-  vEquipment = null; vEqPrompts = null; vRenderEqNote(); v3dReset();
+  vEquipment = null; v3dReset();
   updatePlotControls();
   Diagnostics.setTrack(null, null);
   $('vsummary').textContent = '';
@@ -2669,7 +2547,7 @@ $('vcam').onclick = async () => {
   vClearExample();
   vTrainPath = null;
   vSource = null; vKeypointsRaw = null; vKeypoints = null; vMeta = null; vSample = null; vClock = null;
-  vEquipment = null; vEqPrompts = null; vRenderEqNote(); v3dReset();
+  vEquipment = null; v3dReset();
   updatePlotControls();
   Diagnostics.setTrack(null, null);
   $('vsummary').textContent = '';
@@ -2766,9 +2644,7 @@ async function vPoll() {
   const data = await rr.json();
   if (!rr.ok) { $('vstatus').textContent = 'error: ' + data.error; return; }
   applyTrack(data);
-  $('vstatus').textContent = vMeta.equipment_error
-    ? 'done — equipment detection failed: ' + vMeta.equipment_error
-    : 'done';
+  $('vstatus').textContent = 'done';
   if (vTrainPath) trLink(data);
 }
 
@@ -2782,13 +2658,7 @@ function applyTrack(data) {
                               // display when a coarser stride is picked.
   vKeypointsRaw = data.keypoints;
   vMeta = data.meta;
-  vEquipment = vMeta.equipment || null;
-  vEqPrompts = vMeta.equipment_prompts || null;
-  // Tick the overlays for them on the run that produced the boxes — having
-  // asked for detection and then seen nothing appear is a worse default than
-  // showing what was found.
-  if (vEquipment) { $('veqbar').checked = true; $('veqplates').checked = true; }
-  vRenderEqNote();
+  vEquipment = vMeta.equipment || null;   // 3D's input only; see its declaration
   syncCanvasSize();
   applySmoothing();   // builds vKeypoints and refreshes every view, exactly as
                       // a slider drag does — the run only supplies raw points
@@ -2881,11 +2751,10 @@ async function vStartRun() {
   fd.append('video', vSource.blob, vSource.filename);
   fd.append('size', $('vsize').value);
   fd.append('frame_stride', $('vstride').value || '1');
-  if ($('veqrun').checked) fd.append('detect_equipment', '1');
   const r = await fetch(BASE + '/api/pose/video/start', {method:'POST', body: fd});
   const data = await r.json();
   if (!r.ok) { $('vstatus').textContent = 'error: ' + data.error; return; }
-  vRunParams = { size: $('vsize').value, stride: parseInt($('vstride').value || '1', 10), eq: $('veqrun').checked };
+  vRunParams = { size: $('vsize').value, stride: parseInt($('vstride').value || '1', 10) };
   // A fresh run supersedes any loaded example: its result is the new overlay, so
   // a later size switch shouldn't quietly swap back to the cached example track.
   vClearExample();
@@ -2969,19 +2838,6 @@ function setPage(id) {
     vvideo.pause();
   }
 }
-// Grounding DINO is an optional download (scripts/download_models.sh offers it),
-// so on a machine without it the three equipment controls are turned off and say
-// why, rather than being tickable into a 503.
-fetch(BASE + '/api/capabilities').then(r => r.json()).then(c => {
-  if (c.equipment) return;
-  for (const id of ['veqrun', 'veqbar', 'veqplates']) {
-    $(id).checked = false;
-    $(id).disabled = true;
-    $(id).closest('label').style.opacity = 0.5;
-  }
-  $('veqnote').textContent =
-    'bar & plate detection needs Grounding DINO — run ./scripts/download_models.sh';
-}).catch(() => { /* leave the controls alone; a run would report the real error */ });
 
 // --- generate-3D picker ---------------------------------------------------
 // The depth framework's cheap/expensive split, surfaced: the picker lists every
@@ -4173,7 +4029,7 @@ async function trOpen(clip) {
   $('vexample').value = '';
   vClearExample();
   vKeypointsRaw = null; vKeypoints = null; vMeta = null; vSample = null; vClock = null;
-  vEquipment = null; vEqPrompts = null; vRenderEqNote(); v3dReset();
+  vEquipment = null; v3dReset();
   updatePlotControls();
   Diagnostics.setTrack(null, null);
   $('vsummary').textContent = '';
@@ -4194,7 +4050,7 @@ async function trLink(data) {
   try {
     const r = await fetch(BASE + '/api/train/link', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({path, size: run.size, frame_stride: run.stride, detect_equipment: run.eq,
+      body: JSON.stringify({path, size: run.size, frame_stride: run.stride,
                             fallback_exercise: document.body.dataset.page, track: data}),
     });
     const j = await r.json();
@@ -4723,22 +4579,6 @@ VIDEO_SETTINGS_HTML = """<div class="settings">
         <input id="vliftmarks" type="checkbox" checked style="vertical-align:middle;margin:0 4px 0 0"> lift start/end markers
       </label>
       </details>
-      <details class="control-group">
-        <summary>equipment overlay</summary>
-      <!-- Equipment detection is part of the run, not a view setting: it costs
-           a second model pass per frame, so it has to be chosen before the run
-           rather than toggled after it. The two overlay tickboxes below are the
-           view settings, and they only do anything once a run has been made
-           with this one on. -->
-      <label style="white-space:nowrap" title="Also locate the barbell and its plates on every processed frame, with Grounding DINO. Roughly halves analysis speed.">
-        <input id="veqrun" type="checkbox" checked style="vertical-align:middle;margin:0 4px 0 0"> detect bar &amp; plates
-      </label>
-      <div class="row" style="gap:14px">
-        <label style="white-space:nowrap"><input id="veqbar" type="checkbox" style="vertical-align:middle;margin:0 4px 0 0"> overlay bar</label>
-        <label style="white-space:nowrap"><input id="veqplates" type="checkbox" style="vertical-align:middle;margin:0 4px 0 0"> overlay plates</label>
-      </div>
-      <p id="veqnote" style="font-size:12px;color:#898781;margin:2px 0 0"></p>
-      </details>
     </div>"""
 
 
@@ -4781,12 +4621,6 @@ def preflight():
     lines = []
     for size, ok in vitpose_backend.available().items():
         lines.append(f"  vitpose-{size}-coco: {'ok' if ok else 'MISSING'}")
-    if equipment_backend.available():
-        lines.append(f"  grounding-dino: ok ({equipment_backend.model_source()})")
-    else:
-        lines.append("  grounding-dino: not installed (optional) — 'detect bar & plates' "
-                     "unavailable, everything else works; add it with "
-                     "COACH_DINO=1 ./scripts/download_models.sh")
     lines.append(f"  device: {vitpose_backend.DEVICE}")
     return lines
 

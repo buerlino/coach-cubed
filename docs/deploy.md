@@ -20,6 +20,10 @@ out of git. `./scripts/download_models.sh` pulls them (and `yolov8s.pt`) straigh
 from the JunkyByte/easy_ViTPose HuggingFace repo into that layout —
 `COACH_MODEL_DIR`/`COACH_SIZES` env vars override the destination/sizes.
 
+> **Parked (2026-10-31):** bar and plate detection (Grounding DINO, SAM 3) left
+> the app; it lives in `parked/bar-detection/`, with its download script. The
+> two sections below describe it as it was.
+
 Grounding DINO (`~/models/grounding-dino-base`, ~700MB) is the one **optional**
 checkpoint: it backs the video tab's "detect bar & plates" overlay
 (`src/equipment_backend.py`) and nothing else, so the same script *offers* it

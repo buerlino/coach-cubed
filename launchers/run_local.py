@@ -92,7 +92,7 @@ class LocalHandler(http.server.SimpleHTTPRequestHandler):
             target = entry['clip' if kind == 'video' else 'track']
             self.path = '/fixtures/' + target.relative_to(ROOT / 'tests/fixtures').as_posix()
             return super().do_GET()
-        if path == '/api/capabilities': return self.respond({'equipment': False, 'browser_pose': True})
+        if path == '/api/capabilities': return self.respond({'browser_pose': True})
         if path == '/api/depth/methods': return self.depth_route('api_depth_methods')
         match = re.fullmatch(r'/api/profiles/(limbs|signs)', path)
         if match: return self.depth_route('api_profiles', None, match[1])

@@ -67,12 +67,10 @@ def discover_clips(paths, directory):
     return out
 
 
-def start_job(base_url, clip_path, size, frame_stride, detect_equipment):
+def start_job(base_url, clip_path, size, frame_stride):
     with open(clip_path, "rb") as f:
         files = {"video": (clip_path.name, f, "application/octet-stream")}
         data = {"size": size, "frame_stride": str(frame_stride)}
-        if detect_equipment:
-            data["detect_equipment"] = "1"
         r = requests.post(f"{base_url}/api/pose/video/start", files=files, data=data)
     if r.status_code != 200:
         raise RuntimeError(f"start failed ({r.status_code}): {r.text}")
@@ -112,10 +110,10 @@ def save_manifest(out_dir, manifest):
     (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
 
 
-def process_clip(base_url, clip_path, stance, size, frame_stride, detect_equipment, out_dir, manifest):
+def process_clip(base_url, clip_path, stance, size, frame_stride, out_dir, manifest):
     slug = f"{stance}/{clip_path.stem}"
     print(f"-> {slug}")
-    start_job(base_url, clip_path, size, frame_stride, detect_equipment)
+    start_job(base_url, clip_path, size, frame_stride)
     result = wait_for_result(base_url, clip_path)
 
     stance_dir = out_dir / stance
@@ -129,7 +127,6 @@ def process_clip(base_url, clip_path, stance, size, frame_stride, detect_equipme
         "source_file": clip_path.name,
         "model_size": size,
         "frame_stride": frame_stride,
-        "detect_equipment": detect_equipment,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "frame_count": meta.get("frame_count"),
         "frames_processed": meta.get("frames_processed"),
@@ -160,8 +157,6 @@ def main():
     ap.add_argument("--host", default="127.0.0.1:8080", help="host:port the app is listening on")
     ap.add_argument("--size", default="l", choices=("l", "h"), help="ViTPose checkpoint size")
     ap.add_argument("--frame-stride", type=int, default=1)
-    ap.add_argument("--detect-equipment", action="store_true",
-                     help="also run Grounding DINO bar/plate detection (roughly halves throughput)")
     ap.add_argument("--scope", default="local", choices=("local", "global"),
                      help="local (default): gitignored, this machine only; "
                           "global: committed with the repo")
@@ -188,7 +183,7 @@ def main():
     for clip in clips:
         try:
             process_clip(base_url, clip, args.stance, args.size, args.frame_stride,
-                         args.detect_equipment, out_dir, manifest)
+                         out_dir, manifest)
             save_manifest(out_dir, manifest)   # after every clip, not just at the end —
                                                 # a later failure shouldn't lose earlier work
         except Exception as e:

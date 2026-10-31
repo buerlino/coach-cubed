@@ -144,7 +144,8 @@ takes about 1 s per 1080p frame once warm.
   - The app.py docstring (lines 1–11) names one backend; it imports three
     (26–28).
   - 4245–4248 says three.js loads from a CDN; it's vendored.
-  - "Grounding DINO" is hard-coded even when SAM 3 is active.
+  - ~~"Grounding DINO" is hard-coded even when SAM 3 is active~~: that line
+    left with bar detection (step 2.3).
 
 ## 2. Diagnostics engine
 
@@ -206,6 +207,11 @@ takes about 1 s per 1080p frame once warm.
   is the yardstick for the phone model (Phase 3).
 
 ## 5. Bar and plate detection
+
+**Parked in step 2.3** (2026-10-31): backend and UI, in
+[parked/bar-detection/](../parked/bar-detection/), whose README lists every
+place that was unwired. 3D still reads the boxes cached in older tracks.
+What follows describes it as it was.
 
 - **Files:**
   - [src/equipment_backend.py](../src/equipment_backend.py): Grounding DINO
@@ -363,7 +369,8 @@ takes about 1 s per 1080p frame once warm.
 
 - **AGENTS.md:** mostly accurate. Its deploy parts describe Noah's machine,
   not this laptop.
-- **Skills:** `lifting-diagnostic`, `model-add` and `panel-add` are partly
+- **Skills:** `lifting-diagnostic`, `model-add` (parked with bar detection in
+  step 2.3) and `panel-add` are partly
   stale (wrong registry names, missing lifts); their per-diagnostic notes match
   the code.
 - **README.md:** ~~ends with clipper's `clip-nvidia` section, copied in by

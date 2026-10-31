@@ -40,7 +40,7 @@ During the restructuring window, the order of work and its status are in
   [server.md](server.md).
 - `tests/README.md` lists 2 of the 8 test files and gives the wrong golden
   path (map area 11).
-- The three skills in `.claude/skills/` are partly stale: wrong registry
+- The two skills left in `.claude/skills/` are partly stale: wrong registry
   names, missing lifts (map area 12).
 
 ## Before anything is published (step 2.8)
