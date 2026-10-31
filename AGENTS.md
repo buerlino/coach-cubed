@@ -6,6 +6,12 @@ looked harmless in isolation — an absolute path here, a moved file there —
 and only failed once deployed behind the real reverse proxy. The rules below
 exist to stop that from happening a third time.
 
+> **Restructuring in progress (from 2026-10-31).** The repo is being cut down
+> to a core for an offline Android release. Work happens on branch `phase-0`;
+> the plan, its status, the decisions so far and the rules for the window are
+> in [`docs/restructure-plan.md`](docs/restructure-plan.md). Read it before
+> changing structure.
+
 ## 1. Paths must be relative, always
 
 Every asset reference this app emits — `<script src=...>`, `import` maps,
