@@ -227,13 +227,10 @@ condition are decided ([decisions.md](decisions.md#what-010-is)).
 - [x] 3.2 Smoothing and the lift window in `src/track/`, pinned to the old
       page by `tests/track.test.js`; the spike scores smoothed tracks with it
       (`bb5dfbb`).
-- [ ] 3.3 One standalone page that:
-      - decodes a fixture video with WebCodecs (not by seeking a `<video>`
-        element), through a demuxer (mp4box.js or a WebM demuxer; its
-        licence goes into [THIRD_PARTY.md](../THIRD_PARTY.md));
-      - runs the model in a Worker (ONNX Runtime Web, WebGPU with a WASM
-        fallback);
-      - writes a `track.json` in the fixture format.
+- [x] 3.3 The page, [spike/pose-bench/](../spike/pose-bench/README.md):
+      mp4box.js and WebCodecs, the model in a worker behind one async
+      `estimate()`, `track.json` in the fixture format, scored with
+      `src/track/`.
 - [ ] 3.4 **Capture checks** for the recording session (milestone B):
       `getUserMedia` at 60 fps and `MediaRecorder` inside the Capacitor
       WebView, and a 30–60 minute heat and battery run on the Fairphone,

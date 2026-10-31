@@ -1,0 +1,429 @@
+[
+ {
+  "clip": "example/lateral-raise-cable-1.mp4",
+  "model": "mediapipe-lite",
+  "ep": "webgpu",
+  "fps": 20
+ },
+ {
+  "clip": "example/lateral-raise-cable-2.mp4",
+  "model": "mediapipe-lite",
+  "ep": "webgpu",
+  "fps": 20
+ },
+ {
+  "clip": "example/athlete-a-trim.mp4",
+  "model": "mediapipe-lite",
+  "ep": "webgpu",
+  "fps": 20
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "mediapipe-lite",
+  "ep": "webgpu",
+  "fps": 20
+ },
+ {
+  "clip": "example/lateral-raise-cable-1.mp4",
+  "model": "mediapipe-lite",
+  "ep": "webgpu",
+  "fps": "full"
+ },
+ {
+  "clip": "example/lateral-raise-cable-2.mp4",
+  "model": "mediapipe-lite",
+  "ep": "webgpu",
+  "fps": "full"
+ },
+ {
+  "clip": "example/athlete-a-trim.mp4",
+  "model": "mediapipe-lite",
+  "ep": "webgpu",
+  "fps": "full"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "mediapipe-lite",
+  "ep": "webgpu",
+  "fps": "full"
+ },
+ {
+  "clip": "example/lateral-raise-cable-1.mp4",
+  "model": "mediapipe-full",
+  "ep": "webgpu",
+  "fps": 20
+ },
+ {
+  "clip": "example/lateral-raise-cable-2.mp4",
+  "model": "mediapipe-full",
+  "ep": "webgpu",
+  "fps": 20
+ },
+ {
+  "clip": "example/athlete-a-trim.mp4",
+  "model": "mediapipe-full",
+  "ep": "webgpu",
+  "fps": 20
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "mediapipe-full",
+  "ep": "webgpu",
+  "fps": 20
+ },
+ {
+  "clip": "example/lateral-raise-cable-1.mp4",
+  "model": "mediapipe-full",
+  "ep": "webgpu",
+  "fps": "full"
+ },
+ {
+  "clip": "example/lateral-raise-cable-2.mp4",
+  "model": "mediapipe-full",
+  "ep": "webgpu",
+  "fps": "full"
+ },
+ {
+  "clip": "example/athlete-a-trim.mp4",
+  "model": "mediapipe-full",
+  "ep": "webgpu",
+  "fps": "full"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "mediapipe-full",
+  "ep": "webgpu",
+  "fps": "full"
+ },
+ {
+  "clip": "example/lateral-raise-cable-1.mp4",
+  "model": "mediapipe-heavy",
+  "ep": "webgpu",
+  "fps": 20
+ },
+ {
+  "clip": "example/lateral-raise-cable-2.mp4",
+  "model": "mediapipe-heavy",
+  "ep": "webgpu",
+  "fps": 20
+ },
+ {
+  "clip": "example/athlete-a-trim.mp4",
+  "model": "mediapipe-heavy",
+  "ep": "webgpu",
+  "fps": 20
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "mediapipe-heavy",
+  "ep": "webgpu",
+  "fps": 20
+ },
+ {
+  "clip": "example/lateral-raise-cable-1.mp4",
+  "model": "mediapipe-heavy",
+  "ep": "webgpu",
+  "fps": "full"
+ },
+ {
+  "clip": "example/lateral-raise-cable-2.mp4",
+  "model": "mediapipe-heavy",
+  "ep": "webgpu",
+  "fps": "full"
+ },
+ {
+  "clip": "example/athlete-a-trim.mp4",
+  "model": "mediapipe-heavy",
+  "ep": "webgpu",
+  "fps": "full"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "mediapipe-heavy",
+  "ep": "webgpu",
+  "fps": "full"
+ },
+ {
+  "clip": "example/lateral-raise-cable-1.mp4",
+  "model": "rtmpose-s",
+  "ep": "wasm",
+  "fps": 20
+ },
+ {
+  "clip": "example/lateral-raise-cable-2.mp4",
+  "model": "rtmpose-s",
+  "ep": "wasm",
+  "fps": 20
+ },
+ {
+  "clip": "example/athlete-a-trim.mp4",
+  "model": "rtmpose-s",
+  "ep": "wasm",
+  "fps": 20
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "rtmpose-s",
+  "ep": "wasm",
+  "fps": 20
+ },
+ {
+  "clip": "example/lateral-raise-cable-1.mp4",
+  "model": "rtmpose-s",
+  "ep": "wasm",
+  "fps": "full"
+ },
+ {
+  "clip": "example/lateral-raise-cable-2.mp4",
+  "model": "rtmpose-s",
+  "ep": "wasm",
+  "fps": "full"
+ },
+ {
+  "clip": "example/athlete-a-trim.mp4",
+  "model": "rtmpose-s",
+  "ep": "wasm",
+  "fps": "full"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "rtmpose-s",
+  "ep": "wasm",
+  "fps": "full"
+ },
+ {
+  "clip": "example/lateral-raise-cable-1.mp4",
+  "model": "rtmpose-m",
+  "ep": "wasm",
+  "fps": 20
+ },
+ {
+  "clip": "example/lateral-raise-cable-2.mp4",
+  "model": "rtmpose-m",
+  "ep": "wasm",
+  "fps": 20
+ },
+ {
+  "clip": "example/athlete-a-trim.mp4",
+  "model": "rtmpose-m",
+  "ep": "wasm",
+  "fps": 20
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "rtmpose-m",
+  "ep": "wasm",
+  "fps": 20
+ },
+ {
+  "clip": "example/lateral-raise-cable-1.mp4",
+  "model": "rtmpose-m",
+  "ep": "wasm",
+  "fps": "full"
+ },
+ {
+  "clip": "example/lateral-raise-cable-2.mp4",
+  "model": "rtmpose-m",
+  "ep": "wasm",
+  "fps": "full"
+ },
+ {
+  "clip": "example/athlete-a-trim.mp4",
+  "model": "rtmpose-m",
+  "ep": "wasm",
+  "fps": "full"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "rtmpose-m",
+  "ep": "wasm",
+  "fps": "full"
+ },
+ {
+  "clip": "example/lateral-raise-cable-1.mp4",
+  "model": "vitpose-s",
+  "ep": "wasm",
+  "fps": 20
+ },
+ {
+  "clip": "example/lateral-raise-cable-2.mp4",
+  "model": "vitpose-s",
+  "ep": "wasm",
+  "fps": 20
+ },
+ {
+  "clip": "example/athlete-a-trim.mp4",
+  "model": "vitpose-s",
+  "ep": "wasm",
+  "fps": 20
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "vitpose-s",
+  "ep": "wasm",
+  "fps": 20
+ },
+ {
+  "clip": "example/lateral-raise-cable-1.mp4",
+  "model": "vitpose-s",
+  "ep": "wasm",
+  "fps": "full"
+ },
+ {
+  "clip": "example/lateral-raise-cable-2.mp4",
+  "model": "vitpose-s",
+  "ep": "wasm",
+  "fps": "full"
+ },
+ {
+  "clip": "example/athlete-a-trim.mp4",
+  "model": "vitpose-s",
+  "ep": "wasm",
+  "fps": "full"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "vitpose-s",
+  "ep": "wasm",
+  "fps": "full"
+ },
+ {
+  "clip": "example/lateral-raise-cable-1.mp4",
+  "model": "vitpose-b",
+  "ep": "wasm",
+  "fps": 20
+ },
+ {
+  "clip": "example/lateral-raise-cable-2.mp4",
+  "model": "vitpose-b",
+  "ep": "wasm",
+  "fps": 20
+ },
+ {
+  "clip": "example/athlete-a-trim.mp4",
+  "model": "vitpose-b",
+  "ep": "wasm",
+  "fps": 20
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "vitpose-b",
+  "ep": "wasm",
+  "fps": 20
+ },
+ {
+  "clip": "example/lateral-raise-cable-1.mp4",
+  "model": "vitpose-b",
+  "ep": "wasm",
+  "fps": "full"
+ },
+ {
+  "clip": "example/lateral-raise-cable-2.mp4",
+  "model": "vitpose-b",
+  "ep": "wasm",
+  "fps": "full"
+ },
+ {
+  "clip": "example/athlete-a-trim.mp4",
+  "model": "vitpose-b",
+  "ep": "wasm",
+  "fps": "full"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "vitpose-b",
+  "ep": "wasm",
+  "fps": "full"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "mediapipe-lite",
+  "ep": "wasm",
+  "fps": 20,
+  "tag": "speed"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "mediapipe-lite",
+  "ep": "wasm",
+  "fps": "full",
+  "tag": "speed"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "mediapipe-full",
+  "ep": "wasm",
+  "fps": 20,
+  "tag": "speed"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "mediapipe-full",
+  "ep": "wasm",
+  "fps": "full",
+  "tag": "speed"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "mediapipe-heavy",
+  "ep": "wasm",
+  "fps": 20,
+  "tag": "speed"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "mediapipe-heavy",
+  "ep": "wasm",
+  "fps": "full",
+  "tag": "speed"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "rtmpose-s",
+  "ep": "webgpu",
+  "fps": 20,
+  "tag": "speed"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "rtmpose-s",
+  "ep": "webgpu",
+  "fps": "full",
+  "tag": "speed"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "rtmpose-m",
+  "ep": "webgpu",
+  "fps": 20,
+  "tag": "speed"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "rtmpose-m",
+  "ep": "webgpu",
+  "fps": "full",
+  "tag": "speed"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "vitpose-s",
+  "ep": "webgpu",
+  "fps": 20,
+  "tag": "speed"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "vitpose-s",
+  "ep": "webgpu",
+  "fps": "full",
+  "tag": "speed"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "vitpose-b",
+  "ep": "webgpu",
+  "fps": 20,
+  "tag": "speed"
+ }
+]
