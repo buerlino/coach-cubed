@@ -65,22 +65,41 @@ the four example clips. Of 341 frames, 340 had a person.
 | athlete-a | 3.6 s | 72 | 17.8 s | 24.7 s | ~95 ms/frame |
 | snatch (1080p, 60 fps) | 7.4 s | 148 | 74.6 s | 86.7 s | ~80 ms/frame |
 
-Decoding frames in order with WebCodecs instead of seeking should take a 7 s
-clip from ~87 s to roughly 15 s.
+Without the seeking, the snatch clip's 148 frames took about 12 s of model
+time. So decoding in order with WebCodecs should bring it to roughly 15 s,
+**at 20 fps**. At the clip's full 60 fps (444 frames, ~80 ms each) it's
+~36 s plus decoding, and a better model may be slower per frame. Phase 3
+measures this.
 
-**The diagnostics match on the lateral raise, not on the snatch.**
+**The diagnostics agree on the lateral raise, not on the snatch.**
 
 The same `diagnostics.js` scored the server's ViTPose-L tracks and the
-phone's MediaPipe tracks:
+phone's MediaPipe tracks (raw tracks, as the goldens are; the UI smooths them
+first):
 
-| Lift | Diagnostics | Same verdict | Notes |
+| Lift | Scored verdicts | Same verdict | Notes |
 | --- | --- | --- | --- |
-| Lateral raise (2 clips) | 10 | **9** | Phases within 0.1–0.3 s and values close. The one miss is borderline (10.8 vs 16 on top height). |
-| Snatch (snatch clip + athlete-a) | 4 | **0** | MediaPipe reads the trunk ~18° flatter, with 3–5× the left/right spread. At 20 fps the 0.2–0.4 s second pull gets 5 samples, against 22 at the clip's 60 fps. |
+| Lateral raise (2 clips) | 8 | **7** | Symmetry can't be scored on either model (one rep per clip). Phases agree within 0.1–0.3 s. The one miss is borderline (top height 10.8 vs 16). Tempo on clip 2 differs (0.4 vs 0.8) under the same verdict. |
+| Snatch (Session14 + athlete-a) | 4 | **0** | See the per-clip numbers below. |
 
-The snatch gap is model quality, sample rate, or both. Phase 3 has to separate
-them (ViTPose-S/B or RTMPose, at full frame rate). ViTPose-L is the reference
-here, not ground truth.
+Snatch, per clip:
+- **Session14** (60 fps, broadcast):
+  - first-pull back angle 78.2° (ViTPose) vs 60.6° (MediaPipe);
+  - left/right spread 3.6× ViTPose's;
+  - the second pull gets 5 samples at 20 fps, against 22 at 60 fps.
+- **athlete-a** (30 fps):
+  - back angle 41.2° vs 61.1°, so the error goes the other way;
+  - spread from 10.6× down to 0.87× of ViTPose's;
+  - the second pull gets 10 samples vs 13, so the sample rate doesn't explain
+    this clip.
+
+Three explanations are open, and Phase 3 has to separate them:
+- **model quality:** test ViTPose-S/B or RTMPose;
+- **sample rate:** test at full frame rate;
+- **camera angle:** both snatch clips are front or oblique views, where the
+  2D back angle is a projection. Phase 3 needs a side-view snatch clip.
+
+ViTPose-L is the reference here, not ground truth.
 
 **For comparison on the laptop:** ViTPose-L + YOLOv8s on the CPU (no GPU)
 takes about 1 s per 1080p frame once warm.
@@ -109,8 +128,8 @@ takes about 1 s per 1080p frame once warm.
   - `/api/profiles/*`
   - `/api/train/*`
   - `/api/capabilities`
-- **Tests:** none for the page or its routes.
-  `tests/viewer.test.js` extracts and tests only the inline 3D viewer.
+- **Tests:** none for the page's routes or UI. Only its inline 3D viewer
+  is tested (`tests/viewer.test.js` extracts it from app.py).
 - **Offline on a phone:**
   - Pull the frontend out of the Python string into static files.
   - Replace pose with on-device pose (area 3).
@@ -171,7 +190,7 @@ takes about 1 s per 1080p frame once warm.
   - `vendor/easy_ViTPose` (submodule, Apache-2.0, pinned `bb98603`);
   - `report/extract_track.py`, which uses it directly.
 - **Models:**
-  - ViTPose-L (1.2 GB) and ViTPose-H (2.4 GB), COCO-17;
+  - ViTPose-L (1.2 GB) and ViTPose-H (2.5 GB), COCO-17;
   - YOLOv8s person detector via `ultralytics`, which is **AGPL-3.0**;
   - SORT tracking.
 - **Runtime:** CUDA, then MPS, then CPU.
@@ -200,7 +219,7 @@ takes about 1 s per 1080p frame once warm.
   - [src/depth_backend.py](../src/depth_backend.py): numpy, plus one
     `cv2.fitEllipse` call for SAM 3 plates.
   - [src/local_depth.py](../src/local_depth.py)
-  - app.py: lines 249–334 and 860–969
+  - app.py: lines 249–334 and ~830–969
   - [TODO.md](../TODO.md)
   - `report/depth-math.md`
 - **What a user gets:** the 3D turntable with click-to-flip, limb and
@@ -242,8 +261,11 @@ takes about 1 s per 1080p frame once warm.
 - **Stale:**
   - `START_HERE.md` describes two ZIP packages that nothing builds.
   - `src/anatomy/workspace.css` is loaded nowhere.
-  - The local preview's `/original/` page fails to load three.js
-    (`/original/vendor/three.module.js` → 404; seen on the phone).
+  - **The local preview's default page `/original/` is broken.** Its relative
+    paths resolve under `/original/`, so `diagnostics.js`, the three anatomy
+    modules, `logo.png` and three.js all return 404 (preview log, 2026-10-31).
+    The phone test bypassed the page: it called `pose.mjs` directly and scored
+    in Node.
 
 ## 8. Dataset tooling
 
@@ -366,10 +388,14 @@ These break silently, not as import errors:
 - **No LICENSE.** The authors whose code stays have to agree to one (see the
   Authors column above).
 - **AGPL:** YOLOv8 via `ultralytics` is AGPL-3.0 (server path only).
-- **`.auth_password`:** it was the app's login password in the first commit
-  (`0529038`, `PASSWORD_FILE` at app.py:25). The code reading it was removed
-  the same day (`c80c14d`), but the file is still tracked. **Treat it as a
-  real password.**
+- **`.auth_password`:** an unsalted SHA-256 hash of the app's old login
+  password.
+  - The first commit (`0529038`, 2026-08-30) read it, with a comment calling
+    the scheme "identical to tecna".
+  - `c80c14d` (2026-09-01) removed the reader and the `.gitignore` entry;
+    `dc30cc9` committed the file that same afternoon.
+  - An unsalted hash of a weak password can be cracked. **Ask Noah whether the
+    password is used anywhere else, tecna included, and change it if so.**
 - **Two `.DS_Store` files are tracked:** `report/` and `tests/`.
 - **Stale branches**, both fully merged: `test-fixtures-pipeline` and
   `origin/feature/keypoint-plotting`.

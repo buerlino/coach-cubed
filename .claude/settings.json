@@ -1,21 +1,22 @@
 {
   "permissions": {
     "deny": [
-      "Read(./src/vendor/**)",
-      "Read(./src/squat/vendor/**)",
-      "Read(./src/anatomy/models/body.*)",
-      "Read(./scripts/anatomy-selection.json)",
-      "Read(./report/analysis.ipynb)",
-      "Read(./**/*.track.json)",
-      "Read(./tests/golden/**)",
-      "Read(./**/*.mp4)",
-      "Read(./clipper/trace.npz)",
-      "Read(./log/**)",
-      "Read(./**/__pycache__/**)",
-      "Read(./.venv/**)",
-      "Read(./.auth_password)",
-      "Read(./.caddy/**)",
-      "Edit(./.caddy/**)"
+      "Read(/src/vendor/**)",
+      "Read(/src/squat/vendor/**)",
+      "Read(/src/anatomy/models/body.*)",
+      "Read(/scripts/anatomy-selection.json)",
+      "Read(/report/analysis.ipynb)",
+      "Read(**/*.track.json)",
+      "Read(/tests/golden/**)",
+      "Read(**/*.mp4)",
+      "Read(/clipper/trace.npz)",
+      "Read(/log/**)",
+      "Read(**/__pycache__/**)",
+      "Read(/.venv/**)",
+      "Read(/.auth_password)",
+      "Read(/.caddy/**)",
+      "Edit(/.caddy/**)",
+      "Read(/spike/**/results/**)"
     ]
   }
 }

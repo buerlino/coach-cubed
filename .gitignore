@@ -30,3 +30,6 @@ tests/fixtures/local/*
 !tests/fixtures/local/.gitkeep
 tests/golden/local/*
 !tests/golden/local/.gitkeep
+
+# Spike results: tracks of third-party videos and device probes stay local.
+spike/**/results/

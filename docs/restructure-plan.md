@@ -5,6 +5,20 @@ release. This file holds the plan, its status, the decisions taken so far and
 the open questions. Rewrite it in place as steps finish (git keeps the
 history). Once `docs/decisions.md` exists (step 2.1), the decisions move there.
 
+## Next session starts here
+
+- **Current step:** Phase 2, starting with step 2.0. Phases 0 and 1 are done,
+  and the verification pass of 2026-10-31 has been applied.
+- **In flight:** nothing. The Phase 3 spike can start in parallel; its baseline
+  scripts are in `spike/phone-baseline/`.
+- **Waiting on Noah:** questions 1, 2 and 5, and the "no pushes to `main`"
+  message (step 2.0).
+- **Don't touch:** `main`, the `pre-cleanup` tag, `.caddy/`, and the tablet
+  `HA24BZ2Y` (it belongs to other projects' night shifts; the Fairphone 6
+  `4d42e62f` is coach's test phone, always via `adb -s`).
+- **Read first:** this file, then [map.md](map.md) (especially "Hidden
+  couplings"), then AGENTS.md.
+
 ## Goal
 
 Release **0.1.0**: an Android app (iOS possibly as a PWA) that works entirely
@@ -23,8 +37,8 @@ later releases.
   pascaline (not APODroid). The pipeline waits for fixes to pascaline's own
   pipeline and for the skill nordmu is extracting from it.
 - 2026-10-31, nordmu: restructuring happens on branch `phase-0` (worktree
-  `.claude/worktrees/phase-0`). `main` stays at tag `pre-cleanup` until nordmu
-  fast-forwards it.
+  `.claude/worktrees/phase-0`). `main` stays at tag `pre-cleanup` until the end of
+  the window (step 2.8).
 - 2026-10-31, nordmu: until the pipeline exists, the Claude Code session
   coordinates. Read-only work fans out to parallel agents. Writing work goes
   to one agent per area (Opus 5.5, high effort), each in its own worktree, and
@@ -46,7 +60,8 @@ later releases.
 | 1 | License | Noah | GPL-3.0-or-later. AGPL-3.0 only if Noah wants to stop others from hosting coach as a web service: for an offline app its network clause (§13) rarely applies. Every author whose code stays must agree (noah, nordmu, Nicola Walker, JMLuner); the map shows whose code is in the core. |
 | 2 | Where the Android 0.1.0 is published | Noah | Play Store, F-Droid, an APK on GitHub, or a PWA link. Needed before step 3.5, because the shell depends on it. |
 | 3 | Test phones | nordmu, Noah | Answered in part (nordmu, 2026-10-31): nordmu's Fairphone 6 (`4d42e62f`; LineageOS, no Google Chrome). A stock Android phone with Chrome and Google's WebView is still missing; an iPhone too, if iOS matters. |
-| 5 | `.auth_password`: a real password? | Noah | If yes, change it. It leaves the history in step 2.8 either way. |
+| 4 | The squat, image and clean & jerk tabs: park them, or keep them hidden in the core? | nordmu | Park squat and image (no core diagnostics). Keep clean & jerk's code but hide its tab until it has more than one cue. |
+| 5 | `.auth_password` is an unsalted SHA-256 hash of the old login password, with a scheme "identical to tecna". Is that password used anywhere else? | Noah | Change it wherever it's used. The file leaves the history in step 2.8 either way. |
 | 6 | How long the window lasts | Noah | Step 2.8 (history rewrite) has to finish before Noah resumes. |
 
 ## Rules for the window
@@ -70,7 +85,7 @@ later releases.
 - **The diagnostics are portable.** `src/diagnostics.js` already runs in the
   browser on COCO-17 keypoints and works as it is.
 - **The frontend is trapped in Python.** It lives inside `src/app.py` as one
-  ~3,600-line string (`INDEX_HTML`) and has no tests.
+  ~3,600-line string (`INDEX_HTML`). Only its inline 3D viewer is tested.
 - **A hidden coupling.** `launchers/run_local.py` and `src/local_depth.py` read
   app.py's *source text* with `ast`. Splitting app.py or renaming its functions
   silently breaks the local preview.
@@ -91,7 +106,9 @@ later releases.
   - The existing MediaPipe prototype runs; `<video>` seeking, not the model,
     takes most of the time.
   - Its tracks give the same diagnostic verdicts as ViTPose-L on the lateral
-    raise (9 of 10), but not on the snatch (0 of 4).
+    raise (7 of 8 scored verdicts), but not on the snatch (0 of 4, on two
+    front or oblique clips; model, sample rate and camera angle are all open
+    explanations).
 
 ## Packaging, in short
 
@@ -122,7 +139,7 @@ The spike's WebView numbers (Phase 3) decide.
 - [x] Tag `pre-cleanup` on `main` (`62b2cee`).
 - [x] Branch `phase-0` and its worktree `.claude/worktrees/phase-0`.
 - [x] This plan.
-- [x] `.claude/settings.json` blocks reads of the huge files: the two
+- [x] `.claude/settings.json` keeps the Read tool away from the huge files (it doesn't stop scripts): the two
       three.js copies, the MediaPipe bundles, the anatomy model, the notebook,
       tracks, goldens and videos.
 - [ ] The message to Noah is sent: license, where 0.1.0 is published, the
@@ -140,6 +157,19 @@ The spike's WebView numbers (Phase 3) decide.
 
 ### Phase 2: cleanup (interactive, in `phase-0`)
 
+The former question 4 was answered on 2026-10-31: clipper goes to its own
+repo, report stays here (see Decisions so far).
+
+- [ ] 2.0 Before any move:
+      - the message to Noah has been sent, including "no pushes to `main`";
+      - **move the core's own files out of the folders being parked:**
+        - `src/squat/pose.mjs` and `src/squat/vendor/pose/` (MediaPipe);
+        - `src/anatomy/local-mode.mjs`;
+        - the 33→17 mapping in `local-mode.mjs:2` and `track-session.mjs:3`
+          (two copies, one to keep);
+      - remove app.py's read of `src/anatomy/ui-config.mjs` (app.py:1028;
+        deleting `src/anatomy/` would otherwise make `/` fail with a 500);
+      - fix the local preview's `/original/` path resolution.
 - [ ] 2.1 The docs skeleton in pascaline's shape, one place per fact:
       - `docs/rules-core.md`: the goal in one sentence, the principles, and
         the hard rules (offline, nothing leaves the phone, licence-compatible
@@ -158,7 +188,9 @@ The spike's WebView numbers (Phase 3) decide.
       - move scraped or unclear clips to `tests/fixtures/local/` (gitignored,
         already supported by the app and the tests);
       - keep tracks and goldens public;
-      - pseudonymize named people.
+      - pseudonymize named people. The athlete's name is in 19 tracked files,
+        6 of them in file paths, and in code: `src/squat/app.mjs:328`
+        branches on `id.includes('athlete-a')`.
 - [ ] 2.5 Stop tracking `.auth_password`, `report/.DS_Store` and
       `tests/.DS_Store`.
 - [ ] 2.6 Rewrite the docs only for what stays (README, `docs/*`), and only
@@ -167,7 +199,14 @@ The spike's WebView numbers (Phase 3) decide.
       answered and the authors have agreed.
 - [ ] 2.8 One history rewrite at the end of the window, before Noah resumes,
       with nordmu's explicit OK. It removes the videos, the password and the
-      removed bloat. Everyone re-clones, then nordmu fast-forwards `main`.
+      removed bloat. Rewritten history doesn't descend from `62b2cee`, so:
+      - `main` is reset and force-pushed to `noahsta/coach`, with Noah's OK;
+      - the `pre-cleanup` tag and the merged branches `test-fixtures-pipeline`
+        and `origin/feature/keypoint-plotting` are deleted or moved to a
+        private backup, or they keep the old files reachable;
+      - every old clone is re-cloned (Noah, Nicola, JMLuner);
+      - branch protection on `main` stops one push from an old clone
+        bringing everything back.
 
 ### Phase 3: on-device pose spike (2–3 days in `spike/`; can start once the core is named)
 
@@ -188,7 +227,8 @@ The spike's WebView numbers (Phase 3) decide.
       ms per frame, decode time, total time per clip, peak memory, download
       size.
 - [ ] 3.4 Run `diagnostics.js` on each track and compare with the ViTPose-L
-      goldens.
+      goldens. Add a **side-view snatch clip**, because the current two are
+      front or oblique views, and count only scored verdicts.
 - [ ] 3.5 A decision record: model, runtime and shell (PWA / Capacitor /
       TWA), with the numbers. The stop condition is agreed before 3.3: if no
       model keeps the diagnostics' results on a mid-range phone, nordmu and
