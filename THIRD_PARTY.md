@@ -66,8 +66,14 @@ on nordmu's laptop on 2026-10-31; the licences are what each package declares.
   The mirror's card says to refer to ViTPose's licence (Apache-2.0) for the
   model; no licence specific to the weights is stated.
 - **YOLOv8s (`yolov8s.pt`):** saved with `ultralytics`. The mirror states no
-  licence; Ultralytics publishes YOLOv8 under AGPL-3.0, so treat the weights
-  as AGPL-3.0. This is why YOLOv8 stays on the dev server.
+  licence. Ultralytics' YOLOv8 page says "YOLOv8 models are provided under
+  AGPL-3.0 and Enterprise licenses"
+  (<https://docs.ultralytics.com/models/yolov8/>), and its licence FAQ says
+  "All Ultralytics YOLO trained models fall under the AGPL-3.0 License by
+  default" (<https://www.ultralytics.com/license>); the
+  `ultralytics/assets` repo the weights come from declares AGPL-3.0. None
+  of them names `yolov8s.pt` itself, so treat the weights as AGPL-3.0
+  (checked 2026-10-31). This is why YOLOv8 stays on the dev server.
 
 ## Data
 
