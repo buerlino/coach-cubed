@@ -1,10 +1,12 @@
 # Repo map (2026-10-31)
 
+> **A frozen snapshot of 2026-10-31; no longer edited.** Current facts live in [authors.md](authors.md) (who wrote what: its `git blame -w -M -C -C` counts supersede the Authors column here, which used plain blame), [backlog.md](backlog.md) and [THIRD_PARTY.md](../THIRD_PARTY.md).
+
 Every tracked file sorted into areas, so the core of 0.1.0 can be chosen
 ([restructure-plan.md](restructure-plan.md), steps 1.1–1.3). It started as a
-snapshot of `62b2cee` (tag `pre-cleanup`). Phase 2 updates it where a step
-moves files or resolves a coupling, and says which step; line numbers are
-still those of `62b2cee` unless a step says otherwise.
+snapshot of `62b2cee` (tag `pre-cleanup`). Phase 2 updated it, up to step
+2.9, where a step moved files or resolved a coupling, and said which step;
+line numbers are those of `62b2cee` unless a step says otherwise.
 
 **Sources:**
 - four read-only mapping passes over the code, with their main claims checked
@@ -314,8 +316,9 @@ What follows describes it as it was.
     (`sync_clipper_fixtures.py:84`, `\d{2}`) where app.py accepts any
     (`\d+`, app.py:522). This is the likely cause of the 30 skipped clips.
   - `clipper/trace.npz` is referenced nowhere (it left with clipper).
-  - **`docs/train-data-todo.md:27–29` lists Noah's LAN and tailnet addresses
-    and hostname.**
+  - Noah's LAN and tailnet addresses and hostname were in
+    `docs/train-data-todo.md`; step 2.6 removed them there. Where they
+    still are, and Noah's call on them: [backlog.md](backlog.md).
 
 ## 9. Research report
 
@@ -381,10 +384,9 @@ What follows describes it as it was.
   their per-diagnostic notes included.
 - **README.md:** ~~ends with clipper's `clip-nvidia` section, copied in by
   mistake~~: removed in step 2.3 (it is in clipper's own README).
-- **[docs/fixture-data-contract.md:53](fixture-data-contract.md) gives
-  keypoints as `[x, y, confidence]`; the code and data use `[y, x, conf]`.**
-  (Fixed on 2026-10-31.)
-  Fix this before Phase 3 writes tracks from a new model.
+- ~~[fixture-data-contract.md](fixture-data-contract.md) gave keypoints as
+  `[x, y, confidence]`~~: fixed on 2026-10-31 (`3c15f62`); it now says
+  `[y, x, conf]`, like the code and data.
 
 ## Hidden couplings
 

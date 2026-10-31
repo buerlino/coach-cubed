@@ -1,10 +1,10 @@
 # Backlog
 
 Open items that no plan step covers yet: bugs, unverified assumptions and
-stale text in code that stays (the core and the dev server). One or two lines
-each, with where it was found. Items in parked areas stay with that area's
-entry in [map.md](map.md). Done items leave this file (git keeps them).
-Rewrite in place.
+stale text, in any area (the frozen and parked ones too, since
+[map.md](map.md) is a frozen snapshot). One or two lines each, with where
+it was found. Done items leave this file (git keeps them). Rewrite in
+place.
 
 ## Where we are
 
