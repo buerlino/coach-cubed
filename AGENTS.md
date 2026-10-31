@@ -19,17 +19,7 @@ Setup for both (the `.venv`, the checkpoints): [README.md](README.md). The serve
 - Decisions belong to nordmu, or to Noah where [docs/decisions.md](docs/decisions.md) says so: ask, don't guess, and record the answer there.
 
 ## Layout
-- `src/`: `diagnostics.js` (the cues), `pose/` (in-browser pose, mapped to COCO-17), `app.py` (the dev server and the old page, frozen), server pose, the 3D reconstruction, `anatomy/` and `squat/`.
-- `launchers/`: the local preview's entry points and their double-click `.command`/`.bat` twins.
-- `scripts/`: the dev server's setup, model download and launch; turning clips into fixtures.
-- `tests/`: the JS and Python tests, the fixtures (cached pose tracks, also the example gallery) and their goldens.
-- `parked/`: areas outside 0.1.0's core, moved here and unwired from the app.
-- `docs/`: the rules, the plan, the decisions, the backlog, the map and the reference docs.
-- `spike/`: the on-device pose spike (plan Phase 3).
-- `vendor/`: `easy_ViTPose`, a git submodule (server pose).
-- `.claude/skills/`: playbooks for recurring changes (add a lift page, add a diagnostic).
-- `logo/`, `pki-public/`, `log/`: the header logo, the published root cert, the dev server's logs.
-- `clips_inbox/`: a gitignored landing spot for raw clips waiting to become fixtures.
+What each folder holds: the Layout table in [README.md](README.md#layout).
 
 ## Conventions
 - One place per fact ([docs/README.md](docs/README.md) says which). A change updates the doc that describes it in the same commit; docs are rewritten in place, git keeps the history. No status, history or reasoning in this file.
