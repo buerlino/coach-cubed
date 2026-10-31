@@ -27,6 +27,8 @@ const PATTERNS = [
   { kind: 'redirect', re: new RegExp(`\\bredirect\\s*\\(\\s*${Q}${ABS}`, 'g') },
   { kind: 'redirect', re: new RegExp(`['"]Location['"]\\s*,\\s*${Q}${ABS}`, 'g') },
   { kind: 'css url', re: new RegExp(`\\burl\\(\\s*['"]?${ABS}`, 'g') },
+  // An import map's entries (`"three": "/vendor/..."`), JSON-quoted.
+  { kind: 'import map', re: new RegExp(`"[^"\\s]+"\\s*:\\s*"${ABS}`, 'g') },
   // Helpers that wrap fetch (`post('/api/...')`, `json('/api/...')`). Not
   // in Python, where Flask's own routes are `/api/...` on purpose.
   { kind: 'api call', re: new RegExp(`\\(\\s*${Q}(?=\\/api\\/)`, 'g'), skip: /\.py$/ },
@@ -100,12 +102,12 @@ test('the pattern catches each kind of absolute path, and leaves relative ones a
     `<script src="/x.js"></script>`, `<a href=/x>`, `el.src = '/x.png'`, `import a from '/x.mjs'`,
     `import('/x.mjs')`, `export { a } from "/x.mjs"`, `fetch('/api/x')`, `fetch(\`/x\`)`,
     `return redirect('/x')`, `self.send_header('Location', '/x')`, `background: url(/x.png)`,
-    `await post('/api/x', body)`,
+    `await post('/api/x', body)`, `{ "imports": { "three": "/vendor/three.module.js" } }`,
   ];
   const good = [
     `<script src="./x.js"></script>`, `<a href="../x">`, `import a from './x.mjs'`, `fetch(BASE + '/api/x')`,
     `fetch(\`\${BASE}/api/x\`)`, `<a href="//example.org/x">`, `src="https://example.org/x"`,
-    `return redirect('../')`,
+    `return redirect('../')`, `{ "imports": { "three": "./vendor/three.module.js" } }`,
   ];
   for (const s of bad) assert.equal(absolutePaths('t.mjs', s).length, 1, `missed: ${s}`);
   for (const s of good) assert.deepEqual(absolutePaths('t.mjs', s), [], `flagged: ${s}`);
