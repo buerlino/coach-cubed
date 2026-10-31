@@ -4,12 +4,15 @@
 //
 //   spike/pose-bench/...            the page, its runtimes (node_modules/)
 //                                   and models (models/)
+//   spike/capture-check/...         step 3.4's capture page (it imports
+//                                   pose-bench's decoder and engine)
 //   src/...                         src/pose/coco17.mjs, src/track/, diagnostics.js
 //   tests/fixtures/...              the clips under local/ and the tracks
 //   spike/pose-bench/clips.json     every clip under tests/fixtures/local/,
 //                                   with the fixture slug and cue set its
 //                                   manifest gives it
-//   POST spike/pose-bench/results/<name>   writes results/<name> (gitignored)
+//   POST spike/<page>/results/<name>   writes that page's results/<name>
+//                                   (gitignored)
 //
 // Open http://127.0.0.1:PORT/spike/pose-bench/ (localhost is a secure
 // context; on the phone, through `adb reverse`). COOP/COEP make the page
@@ -23,9 +26,9 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..');
 const FIXTURES = join(REPO, 'tests', 'fixtures');
 const CLIPS = join(FIXTURES, 'local');
-const RESULTS = join(HERE, 'results');
 const PORT = Number(process.argv[2] || 8790);
-const SERVED = ['spike/pose-bench/', 'src/', 'tests/fixtures/'];
+const PAGES = ['pose-bench', 'capture-check'];
+const SERVED = [...PAGES.map(p => `spike/${p}/`), 'src/', 'tests/fixtures/'];
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.mjs': 'text/javascript', '.js': 'text/javascript',
@@ -74,15 +77,16 @@ createServer((req, res) => {
   res.setHeader('Cache-Control', 'no-store');   // every run is a cold load
   const path = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '');
 
-  if (req.method === 'POST' && path.startsWith('spike/pose-bench/results/')) {
-    const name = path.slice('spike/pose-bench/results/'.length);
+  const post = path.match(/^spike\/([\w-]+)\/results\/(.*)$/);
+  if (req.method === 'POST' && post && PAGES.includes(post[1])) {
+    const name = post[2], dir = join(REPO, 'spike', post[1], 'results');
     if (!/^[\w.@+-]+\.json$/.test(name)) return send(res, 400, 'bad name');
     const chunks = [];
     req.on('data', c => chunks.push(c));
     req.on('end', () => {
-      mkdirSync(RESULTS, { recursive: true });
-      writeFileSync(join(RESULTS, name), Buffer.concat(chunks));
-      console.log('wrote results/' + name);
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, name), Buffer.concat(chunks));
+      console.log(`wrote ${post[1]}/results/${name}`);
       send(res, 200, 'ok');
     });
     return;

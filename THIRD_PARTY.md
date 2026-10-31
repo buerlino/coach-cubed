@@ -77,13 +77,14 @@ on nordmu's laptop on 2026-10-31; the licences are what each package declares.
 
 ## Fetched by the Phase 3 spike (not shipped)
 
-Downloaded by `spike/pose-bench/` (`npm ci`, `fetch-models.sh`), never committed; candidates for the app's pose engine ([restructure-plan.md](docs/restructure-plan.md), step 3.1). Checked 2026-10-31; versions are the newest at least two weeks old.
+Downloaded by `spike/pose-bench/` (`npm ci`, `fetch-models.sh`) and `spike/capture-check/` (`npm ci`), never committed; candidates for the app's pose engine ([restructure-plan.md](docs/restructure-plan.md), step 3.1). Checked 2026-10-31; versions are the newest at least two weeks old.
 
 | Component | Version | Licence | Source |
 | --- | --- | --- | --- |
 | ONNX Runtime Web (`onnxruntime-web`) | 1.30.0 | MIT | npm. WebGPU: `ort.webgpu.min.mjs` + `ort-wasm-simd-threaded.asyncify.wasm` (26.8 MB); WebAssembly only: `ort.wasm.min.mjs` + `ort-wasm-simd-threaded.wasm` (14.2 MB) |
 | mp4box.js (`mp4box`) | 2.4.1 | BSD-3-Clause | npm, `dist/mp4box.all.mjs` |
 | MediaPipe Tasks Vision (`@mediapipe/tasks-vision`) | 1.1.1 | Apache-2.0 | npm; `wasm/vision_wasm_module_internal.wasm` (13.5 MB) |
+| mediabunny | 1.61.6 | MPL-2.0 (file-level copyleft, GPL-3.0-compatible) | npm, `dist/bundles/mediabunny.mjs`; `spike/capture-check/` only: reads MediaRecorder's WebM and fragmented MP4, writes MP4/WebM from WebCodecs. Chosen over jswebm (MIT, small, unmaintained, untested on MediaRecorder's unknown-size clusters) and web-demuxer (an LGPL FFmpeg build in wasm) |
 
 **Candidate weights:**
 

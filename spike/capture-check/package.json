@@ -1,0 +1,9 @@
+{
+  "name": "coach-capture-check",
+  "private": true,
+  "description": "Phase 3 spike, step 3.4: camera, MediaRecorder and WebCodecs capture checks. Not shipped.",
+  "license": "GPL-3.0-or-later",
+  "dependencies": {
+    "mediabunny": "1.61.6"
+  }
+}

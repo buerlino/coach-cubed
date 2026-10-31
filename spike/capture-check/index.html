@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Capture check</title>
+<style>
+  body { font: 14px/1.4 system-ui, sans-serif; margin: 16px; background: #fff; color: #111; }
+  button { margin: 0 8px 8px 0; }
+  pre { background: #f3f3f3; padding: 8px; white-space: pre-wrap; font-size: 12px; }
+  @media (prefers-color-scheme: dark) { body { background: #111; color: #eee; } pre { background: #222; } }
+</style>
+</head>
+<body>
+<h1>Capture check</h1>
+<p>Phase 3 spike, step 3.4: the back camera, MediaRecorder and WebCodecs. Recordings stay in memory on the
+phone; only timings and counts go to <code>spike/capture-check/results/</code>.</p>
+<button data-run="camera">camera</button><button data-run="recorder">recorder</button>
+<button data-run="rolling">rolling</button><button data-run="encoderSupport">encoder support</button>
+<button data-run="encoder">encoder</button>
+<pre id="log"></pre>
+<script type="module">
+import * as capture from './capture.mjs';
+const log = s => { document.getElementById('log').textContent += s + '\n'; };
+for (const b of document.querySelectorAll('[data-run]')) {
+  b.onclick = async () => {
+    try { log(JSON.stringify(await capture[b.dataset.run](), null, 1)); } catch (e) { log('error: ' + (e.stack || e)); }
+  };
+}
+// For the CDP driver (drive.mjs): window.capture.camera({ fps: 60 }), ...
+window.capture = capture;
+const wake = async () => { try { await navigator.wakeLock?.request('screen'); } catch {} };
+wake();
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') wake(); });
+log(`cross-origin isolated: ${self.crossOriginIsolated}; MediaStreamTrackProcessor: ${typeof MediaStreamTrackProcessor}; ` +
+  `VideoEncoder: ${typeof VideoEncoder}; ${navigator.userAgent}`);
+</script>
+</body>
+</html>

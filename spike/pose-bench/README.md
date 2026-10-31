@@ -44,7 +44,7 @@ load, heat).
 | `lib/decode.mjs` | mp4box.js demux and WebCodecs decode, in order, with backpressure. |
 | `lib/heatmap.mjs` | ViTPose heatmaps → keypoints, ported from easy_ViTPose (DARK + UDP); `check-heatmap.mjs` compares it with the Python original. |
 | `lib/image.mjs` | Crop and resize through a canvas, normalise to planar floats. |
-| `serve.mjs` | Static server for the repo's `spike/pose-bench/`, `src/` and `tests/fixtures/` (read-only), with COOP/COEP; takes results. |
+| `serve.mjs` | Static server for the repo's `spike/pose-bench/`, `spike/capture-check/`, `src/` and `tests/fixtures/` (read-only), with COOP/COEP; takes each page's results. |
 | `run-cdp.mjs`, `plans/` | Runs a plan over the DevTools protocol, one cold page per run. |
 | `phone-sample.sh` | Battery, temperatures, RSS and GPU memory of the browser, every few seconds. |
 | `compare.mjs` | Step 3.6: verdicts, phase windows and values against the references, and the thresholds. |
