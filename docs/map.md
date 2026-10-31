@@ -195,7 +195,7 @@ takes about 1 s per 1080p frame once warm.
 - **Files:**
   - [src/vitpose_backend.py](../src/vitpose_backend.py);
   - `vendor/easy_ViTPose` (submodule, Apache-2.0, pinned `bb98603`);
-  - `report/extract_track.py`, which uses it directly.
+  - `parked/report/extract_track.py`, which uses it directly.
 - **Models:**
   - ViTPose-L (1.2 GB) and ViTPose-H (2.5 GB), COCO-17;
   - YOLOv8s person detector via `ultralytics`, which is **AGPL-3.0**;
@@ -228,7 +228,7 @@ takes about 1 s per 1080p frame once warm.
   - [src/local_depth.py](../src/local_depth.py)
   - app.py: lines 249–334 and ~830–969
   - [TODO.md](../TODO.md)
-  - `report/depth-math.md`
+  - `parked/report/depth-math.md`
 - **What a user gets:** the 3D turntable with click-to-flip, limb and
   direction profiles, the limb optimiser, and the depth feed for the anatomy
   model.
@@ -308,7 +308,12 @@ takes about 1 s per 1080p frame once warm.
 
 ## 9. Research report
 
-- **Files:** [report/](../report/): `report.tex`, a 568 KB notebook, 5
+- **Parked** in step 2.3 (2026-10-31): moved to `parked/report/`.
+  `report.tex` only reads `figures/` beside it, and `extract_track.py` now
+  finds `src/` one level further up. Not checked: the PDF build (nordmu's
+  laptop lacks the TeX fonts the preamble needs) and the notebook's own
+  paths.
+- **Files:** [parked/report/](../parked/report/): `report.tex`, a 568 KB notebook, 5
   figures (2 unused), and the athlete-a example (the same video as the
   fixture).
 - **Coverage:** documents the snatch pulls, smoothing and the depth appendix.
@@ -346,7 +351,7 @@ takes about 1 s per 1080p frame once warm.
 | --- | --- |
 | `example/lateral-raise-cable-1.mp4` | YouTube `n77-W0nkuPw` (an identifiable, unnamed person) |
 | `example/lateral-raise-cable-2.mp4` | YouTube `f_OGBg2KxgY` (an identifiable, unnamed person) |
-| `example/athlete-a-trim.mp4` (also in `report/examples/`) | unrecorded; named athlete |
+| `example/athlete-a-trim.mp4` (also in `parked/report/examples/`) | unrecorded; named athlete |
 | `snatch/Session14_01_0h18m07s_made.mp4` | AWF broadcast; the lifter's name is on the board |
 
 - **Stale:**
@@ -408,7 +413,7 @@ These break silently, not as import errors:
     `dc30cc9` committed the file that same afternoon.
   - An unsalted hash of a weak password can be cracked. **Ask Noah whether the
     password is used anywhere else, tecna included, and change it if so.**
-- **Two `.DS_Store` files are tracked:** `report/` and `tests/`.
+- **Two `.DS_Store` files are tracked:** `parked/report/` and `tests/`.
 - **Stale branches**, both fully merged: `test-fixtures-pipeline` and
   `origin/feature/keypoint-plotting`.
 - **History:** 46 MB `.git`. The biggest blobs are `body.bin` 24.6 MB and the

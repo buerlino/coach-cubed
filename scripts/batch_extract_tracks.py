@@ -10,7 +10,7 @@ YOLO weights: the app already exposes everything batch extraction needs
 (/api/pose/video/start, /progress, /result), and driving that instead of
 importing vitpose_backend directly means only one process ever touches the
 GPU, and this script exercises the same code path the browser does rather
-than a bypass of it. See report/extract_track.py for the other case (caching
+than a bypass of it. See parked/report/extract_track.py for the other case (caching
 one known clip without a server running at all — what analysis.ipynb uses).
 
 The server's video job is a single global slot (see app.py's _video_job) —

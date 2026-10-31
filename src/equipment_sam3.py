@@ -8,7 +8,7 @@ comes back as its own (box, per-pixel mask, score) triple. That mask is exactly
 the thing the frontend's drawEquipment renders from `polygon` and the box was
 only ever approximating -- so here we DO ship the mask, traced as a polygon.
 
-Object recognition, measured on report/examples/athlete-a-trim.mp4 (frames 50/70):
+Object recognition, measured on parked/report/examples/athlete-a-trim.mp4 (frames 50/70):
   * "barbell"     -> one 0.96 instance masking the whole LOADED implement (both
                     stacks + the shaft) and correctly ignoring the floor rack in
                     the background -- the semantic win DINO's plate prompt missed.

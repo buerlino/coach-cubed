@@ -37,4 +37,4 @@ removed.
 | [dataset-stats.md](dataset-stats.md) | How many clips, how many survived pose extraction, why the rest didn't, and the command that regenerates each number. |
 | [clipper-pipeline.md](clipper-pipeline.md) | Step by step: how `scripts/sync_clipper_fixtures.py` turns a clip cut by clipper (its own repo, `weightlifting-clipper`, since step 2.3) into a coach test case. |
 | [train-data-todo.md](train-data-todo.md) | Open work on the clipper dataset: deployment map, stance/gender labelling gaps, 3D calibration per session, and what has already been ruled out. Moves with the train tab. |
-| [../report/README.md](../report/README.md) | What's in the LaTeX report, how to build the PDF, how to regenerate its figures. To be parked as research. |
+| [../parked/README.md](../parked/README.md) | What is parked, since when, and what parked means. The research report's own guide: [../parked/report/README.md](../parked/report/README.md). |

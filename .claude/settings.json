@@ -6,7 +6,7 @@
       "Read(/src/pose/vendor/**)",
       "Read(/src/anatomy/models/body.*)",
       "Read(/scripts/anatomy-selection.json)",
-      "Read(/report/analysis.ipynb)",
+      "Read(/parked/report/analysis.ipynb)",
       "Read(**/*.track.json)",
       "Read(/tests/golden/**)",
       "Read(**/*.mp4)",

@@ -86,7 +86,7 @@ back.
 setup. Grep first so nothing goes stale:
 
 ```bash
-grep -rIln -i "<oldmodelname>" . | grep -vE "\.git/|__pycache__|/report/"
+grep -rIln -i "<oldmodelname>" . | grep -vE "\.git/|__pycache__|/parked/report/"
 ```
 
 Checklist (what the CLIPSeg → Grounding DINO swap touched):
@@ -160,7 +160,7 @@ box-only and record *why* in the backend docstring so it isn't blindly retried.
 1. **Import smoke test** — `available()`, `model_source()`, `prompts()`,
    `DEVICE` print without loading weights.
 2. **Real frame** — run `detect()` on a fixture frame that has the equipment
-   (`report/examples/athlete-a-trim.mp4` frame 50/70) and confirm `plates`
+   (`parked/report/examples/athlete-a-trim.mp4` frame 50/70) and confirm `plates`
    populate with `diameter_px` and `bar` has a `box`+`score`. The first call
    pays a one-time MPS compile (several seconds); steady-state should be ~1s/
    frame ("roughly halves throughput" is expected and documented).

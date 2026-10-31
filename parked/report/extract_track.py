@@ -12,7 +12,8 @@ import json
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+# parked/report/extract_track.py: the repo root is three levels up.
+ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT / "src"))    # vitpose_backend lives in src/
 
 import vitpose_backend  # noqa: E402

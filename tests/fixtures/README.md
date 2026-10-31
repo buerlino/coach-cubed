@@ -115,8 +115,8 @@ diagnostic's output hasn't silently changed, not that the output is correct.
 
 ## `global/example/athlete-a-trim`
 
-Seeded from `report/examples/athlete-a-trim.{mp4,track.json}` — the report's
+Seeded from `parked/report/examples/athlete-a-trim.{mp4,track.json}` — the report's
 one worked example — rather than freshly generated, so there's a fixture to
 test against from the start. Its lift type (snatch vs. clean) isn't recorded
-in `report/`, so it's filed under the generic `example` stance rather than a
+in the report, so it's filed under the generic `example` stance rather than a
 guessed one; re-label it once confirmed.

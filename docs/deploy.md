@@ -77,7 +77,7 @@ is everything you run (`setup_conda_linux.sh`, `download_models.sh`,
 `coach_launch.sh`, `restart.sh`, `free_ports.sh`). Scripts resolve `ROOT` as
 their own dir's parent and `cd` there, so they still work from anywhere and
 every path in `Caddyfile`, `log/` and `pki-public/` is unchanged. Anything
-importing a backend outside `src/` (`report/extract_track.py`) puts `src/` on
+importing a backend outside `src/` (`parked/report/extract_track.py`) puts `src/` on
 `sys.path` first.
 
 ## Caddy / port 443

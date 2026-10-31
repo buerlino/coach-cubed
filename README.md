@@ -31,7 +31,7 @@ conda env, auth).
 | [`scripts/`](scripts/) | Everything you run for the production deploy: setup, model download, launch/stop, port cleanup, fixture batch-extraction (incl. syncing fixtures straight from clipper's output; clipper is its own repo, `weightlifting-clipper`, since 2026-10-31 — see [`tests/README.md`](tests/README.md)). |
 | [`launchers/`](launchers/) | The zero-install local preview: `run_local.py`/`run_original.py`/`run_anatomy.py`/`run_squat.py` and their double-click `.command`/`.bat` twins. All `cd` to the repo root before touching `.venv` or `src/`, so they only work run from (or launched from within) this folder — don't move them further apart. |
 | [`tests/`](tests/) | Fixture-driven golden tests for `diagnostics.js`. Start at [`tests/README.md`](tests/README.md). |
-| [`report/`](report/) | LaTeX writeup of the pose model, smoothing math, and diagnostic geometry, plus the notebook that generates its figures. Start at [`report/README.md`](report/README.md). |
+| [`parked/`](parked/) | Areas outside 0.1.0's core, moved here unchanged and unwired from the app: today the LaTeX research report ([`parked/report/`](parked/report/)). See [`parked/README.md`](parked/README.md). |
 | [`docs/`](docs/) | Everything below. |
 | [`reference/`](reference/) | Static images (`barbell.png`, `plates.png`) used as detection prompts/overlay references. |
 | `vendor/` | `easy_ViTPose`, as a git submodule. |

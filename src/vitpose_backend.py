@@ -489,7 +489,7 @@ def infer_video(video_bytes, size=None, frame_stride=1, suffix=".mp4",
         "skeleton": joints_dict()[DATASET]["skeleton"],
         "tracks": tracks,
         # Rides in meta rather than as a third return value so the existing
-        # two-tuple callers (app.py, report/extract_track.py) keep working, and
+        # two-tuple callers (app.py, parked/report/extract_track.py) keep working, and
         # so a run with detection off is simply a run with these set to None.
         "equipment": equipment_by_frame,
         "equipment_prompts": equipment_backend.prompts() if detect_equipment else None,

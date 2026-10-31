@@ -9,7 +9,7 @@ it gets wrong through the sign and the length.
    descends the four limb ratios against five anatomical penalties
    (`HUMANNESS_TERMS`) with numerical gradients, and it is measurably a biased
    estimator — on the one athlete whose lengths are known it converges ~0.07
-   torso away from them. Both the method and that bias belong in `report/`.
+   torso away from them. Both the method and that bias belong in `parked/report/`.
 
    It also does not find the minimum of its own objective. On the clean & jerk
    it stalls at 0.320 where 0.109 exists 0.224 torso away; walking the straight
@@ -56,7 +56,7 @@ it gets wrong through the sign and the length.
    on the snatch and 0.034 on the clean & jerk.
    The same pass should extend `report.tex` §"Choosing by balance", which now
    describes only half of how a sign gets picked — the start-position gate from
-   item 2 is written up in `report/depth-math.md` §4b but not in the report.
+   item 2 is written up in `parked/report/depth-math.md` §4b but not in the report.
 
 2. **Deterministic sign chooser before optimization.** *(done — see
    `start_pose_gate`)* Pick the toward/away configuration from joint angles at

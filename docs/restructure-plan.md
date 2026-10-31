@@ -9,9 +9,8 @@ finish (git keeps the history). Decisions and open questions are in
 
 ## Next session starts here
 
-- **Current step:** Phase 2, step 2.3, the second area: `report/` to
-  `parked/report/`. Phases 0 and 1, steps 2.0–2.2 and the clipper move are
-  done.
+- **Current step:** Phase 2, step 2.3, the third area: bar detection. Phases
+  0 and 1, steps 2.0–2.2, and the clipper and report moves are done.
 - **In flight:** nothing. The Phase 3 spike can start in parallel; its baseline
   scripts are in `spike/phone-baseline/` (now pointing at `src/pose/`).
 - **Waiting on Noah:** answers to questions 1, 2 and 5 in
@@ -180,7 +179,13 @@ are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
         The sync script stays in coach and now needs `$CLIPPER_OUT` or
         `--clipper-dir`. The README's copy of clipper's `clip-nvidia` section
         went too;
-      - [ ] `report/` to `parked/report/`;
+      - [x] `report/` to `parked/report/` (2026-10-31), with
+        `parked/README.md` as the folder's index. `report.tex` reads only
+        `figures/` beside it; `extract_track.py` finds `src/` one level
+        further up. Not checked: the PDF build (this laptop's TeX lacks the
+        `lmodern`/`ecrm` fonts, so `make` fails in the preamble, before any
+        moved path) and the notebook's own paths (its reads are denied by
+        `.claude/settings.json`);
       - [ ] bar detection;
       - [ ] Movement Lab and anatomy;
       - [ ] 3D;
@@ -196,7 +201,7 @@ are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
       - pseudonymize named people. The athlete's name is in 19 tracked files,
         6 of them in file paths, and in code: `src/squat/app.mjs:328`
         branches on `id.includes('athlete-a')`.
-- [ ] 2.5 Stop tracking `.auth_password`, `report/.DS_Store` and
+- [ ] 2.5 Stop tracking `.auth_password`, `parked/report/.DS_Store` and
       `tests/.DS_Store`.
 - [ ] 2.6 Rewrite the docs only for what stays (README, `docs/*`), and only
       after 2.2.

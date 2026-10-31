@@ -3,8 +3,8 @@ __pycache__/
 .tmp/
 log/*.log
 .caddy/
-# LaTeX build byproducts. The report itself only ever builds inside report/
-# (see report/Makefile) — these patterns exist for the root so a `pdflatex`
+# LaTeX build byproducts. The report itself only ever builds inside
+# parked/report/ (see parked/report/Makefile) — these patterns exist for the root so a `pdflatex`
 # run from the wrong directory can't accidentally get committed again.
 /*.aux
 /*.log

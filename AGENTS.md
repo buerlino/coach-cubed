@@ -57,8 +57,8 @@ instead live in a folder named for what it is. Concretely:
 - Runnable Python entry points and their double-click `.command`/`.bat`
   twins live in [`launchers/`](launchers/) — not loose in root.
 - Anything that renders/compiles into the LaTeX report (`.aux`/`.log`/`.out`
-  build byproducts included) lives under [`report/`](report/), never at
-  root — `report/Makefile` already builds and cleans there; a stray
+  build byproducts included) lives under [`parked/report/`](parked/report/),
+  never at root — `parked/report/Makefile` already builds and cleans there; a stray
   `report.aux` at root is always a mistake (see the root `.gitignore`
   entries added to catch this again).
 - New categories of file get a new folder named for their purpose, not

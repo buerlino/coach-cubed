@@ -182,5 +182,5 @@ command to fix it, rather than being silently skipped.
 
 Commit the fixture's `.mp4` + `.track.json`, its `manifest.json` entry, and
 its golden snapshot together. Keep clips short/trimmed (a few seconds) —
-they're committed directly, no git-lfs, matching `report/examples/`'s
+they're committed directly, no git-lfs, matching `parked/report/examples/`'s
 existing convention.
