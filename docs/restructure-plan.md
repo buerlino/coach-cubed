@@ -49,7 +49,9 @@ finish (git keeps the history). Decisions and open questions are in
 Release **0.1.0**: an Android app (iOS possibly as a PWA) that works entirely
 offline. Pose inference runs on the phone, with no server compute for
 analysing videos. 0.1.0 covers a narrow core, and everything else waits for
-later releases.
+later releases. It comes in two milestones: A (import a clip, get the cues)
+for testers, then B (the gym recording session); the public 0.1.0 needs
+both ([decisions.md](decisions.md#what-010-is)).
 
 ## Rules for the window
 
@@ -314,12 +316,20 @@ and 5.5–5.7, and goes to testers. **B**, the gym recording session, adds
 
 ### Phase 6: 0.1.0 scope and timeline
 
-- [ ] 6.1 0.1.0 is the core, plus a written "not in 0.1.0" list.
-- [ ] 6.2 Release criteria:
-      - works in airplane mode on the target phones;
-      - a working install path;
+- [ ] 6.1 0.1.0 is the core, plus a written "not in 0.1.0" list. Milestone A
+      goes to testers (nordmu, Noah, friends) first.
+- [ ] 6.2 Release criteria for the public 0.1.0:
+      - works in airplane mode on the target phones, a stock Android phone
+        with Chrome and Google's WebView included (question 3);
+      - a working install path: where the PWA is hosted (a public HTTPS
+        origin), and how its service worker updates the app and the models;
+      - the APK signing key: who holds it and where it is backed up
+        (Obtainium needs the same key for every update, forever);
+      - every threshold not validated on the set from 3.0 shows as
+        "provisional" in the UI ([rules-core.md](rules-core.md), "Honest
+        verdicts");
       - LICENSE and the third-party list;
-      - a privacy text.
+      - a privacy text and a credits screen ([backlog.md](backlog.md)).
 - [ ] 6.3 Packages with estimates. The timeline is their sum plus a buffer,
       not a date picked first.
 
