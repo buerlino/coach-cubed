@@ -11,7 +11,7 @@ self.onmessage = async ({ data }) => {
       const t0 = performance.now();
       engine = await createEngine(data.opts);
       self.postMessage({ type: 'ready', info: { ...engine.info, initMs: performance.now() - t0,
-        isolated: self.crossOriginIsolated, gpu: !!self.navigator.gpu } });
+        isolated: self.crossOriginIsolated, sab: typeof SharedArrayBuffer !== 'undefined', gpu: !!self.navigator.gpu } });
     } catch (e) {
       self.postMessage({ type: 'error', error: String(e && e.stack || e) });
     }

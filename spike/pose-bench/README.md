@@ -31,11 +31,14 @@ forward tcp:9333 localabstract:chrome_devtools_remote`, then
 pose-bench 15` (15 s to cool down between runs) with `./phone-sample.sh
 results/samples.csv` alongside for memory and heat. Remove every forward and
 reverse afterwards. `node compare.mjs` scores everything in `results/`
-against the ViTPose-L references (step 3.6).
+against the ViTPose-L references (step 3.6); `node summarize.mjs
+results/brave-matrix.json results/samples.csv --md` gives the numbers table
+(ms/frame, decoder wait, a 10 s clip, peak memory above idle, download, first
+load, heat).
 
 | File | What it does |
 | --- | --- |
-| `index.html`, `bench.mjs` | The page and one run: fetch, demux, decode, sample frames at 20 fps or all of them, the engine, scoring, timings. `window.bench.run(opts)` for CDP. |
+| `index.html`, `bench.mjs` | The page and one run: fetch, demux, decode (hardware or software, `decode`), sample frames at 20 fps or all of them, the engine, scoring, timings. `window.bench.run(opts)` for CDP. |
 | `pose-worker.mjs`, `lib/pose-client.mjs` | The worker and its one async interface. |
 | `lib/engines.mjs` | The candidates: MediaPipe Pose Landmarker; ViTPose and RTMPose behind a person detector (`lib/detector.mjs`), cropped and decoded as their reference code does. |
 | `lib/decode.mjs` | mp4box.js demux and WebCodecs decode, in order, with backpressure. |
@@ -45,6 +48,7 @@ against the ViTPose-L references (step 3.6).
 | `run-cdp.mjs`, `plans/` | Runs a plan over the DevTools protocol, one cold page per run. |
 | `phone-sample.sh` | Battery, temperatures, RSS and GPU memory of the browser, every few seconds. |
 | `compare.mjs` | Step 3.6: verdicts, phase windows and values against the references, and the thresholds. |
+| `summarize.mjs` | A plan's runs joined with `phone-sample.sh`'s samples inside each run's window: the numbers table. |
 | `fetch-models.sh` | Pinned weight downloads with SHA-256 checks. |
 
 ## Dependencies and candidates

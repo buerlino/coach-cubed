@@ -11,7 +11,8 @@ export async function listClips() {
 }
 
 // opts: { clip (an entry of clips.json), model, ep: 'webgpu'|'wasm',
-//         fps: number|'full', detector, detEvery, set?, post: true,
+//         fps: number|'full', detector, detEvery, threads?, set?, post: true,
+//         decode?: WebCodecs' hardwareAcceleration ('prefer-software', ...),
 //         maxFrames?: a smoke test's cap on processed frames }
 export async function run(opts, log = () => {}) {
   const clip = opts.clip;
@@ -55,7 +56,7 @@ export async function run(opts, log = () => {}) {
     if (r.keypoints) boxes++;
     indices.push(i); times.push(ts * 1000);
     lastDone = performance.now();
-  });
+  }, { hardware: opts.decode || 'no-preference' });
   t.loopMs = performance.now() - loopStart;
   t.decodeWaitMs = decodeWait;   // time the loop spent waiting on the decoder
   t.modelMs = modelMs;
