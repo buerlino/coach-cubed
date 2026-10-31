@@ -28,8 +28,7 @@ conda env, auth).
 | Path | What's there |
 | --- | --- |
 | [`src/`](src/) | The app: `app.py` (routes), `vitpose_backend.py` / `equipment_backend.py` / `depth_backend.py` (ML, kept out of `app.py`), `diagnostics.js` (the diagnostic registry, runs client-side), `pose/` (MediaPipe pose in the browser, mapped to COCO-17). |
-| [`clipper/`](clipper/) | The clip-cutting tool (downloads a session video, trims one file per lift attempt) — its own project, merged in with history intact; see [`clipper/README.md`](clipper/README.md). |
-| [`scripts/`](scripts/) | Everything you run for the production deploy: setup, model download, launch/stop, port cleanup, fixture batch-extraction (incl. syncing fixtures straight from `clipper/`'s output — see [`tests/README.md`](tests/README.md)). |
+| [`scripts/`](scripts/) | Everything you run for the production deploy: setup, model download, launch/stop, port cleanup, fixture batch-extraction (incl. syncing fixtures straight from clipper's output; clipper is its own repo, `weightlifting-clipper`, since 2026-10-31 — see [`tests/README.md`](tests/README.md)). |
 | [`launchers/`](launchers/) | The zero-install local preview: `run_local.py`/`run_original.py`/`run_anatomy.py`/`run_squat.py` and their double-click `.command`/`.bat` twins. All `cd` to the repo root before touching `.venv` or `src/`, so they only work run from (or launched from within) this folder — don't move them further apart. |
 | [`tests/`](tests/) | Fixture-driven golden tests for `diagnostics.js`. Start at [`tests/README.md`](tests/README.md). |
 | [`report/`](report/) | LaTeX writeup of the pose model, smoothing math, and diagnostic geometry, plus the notebook that generates its figures. Start at [`report/README.md`](report/README.md). |
@@ -53,27 +52,3 @@ Start with [`docs/rules-core.md`](docs/rules-core.md) (binding) and
 - The Layout table above and [`docs/README.md`](docs/README.md) are the maps —
   update them in the same commit whenever a folder or doc moves or a new one
   is added.
-
-## Running it on the NVIDIA card, overnight — `clip-nvidia.sh`
-
-Nothing in `src/` uses a GPU: the analysis is OpenCV on the CPU. What *can*
-leave the CPU is ffmpeg's share — decoding every frame of the source (the
-heaviest step) and x264-encoding the cut clips (the burstiest). On a box with
-an NVIDIA card, `./clip-nvidia.sh` runs `clip.sh` unmodified with both of those
-routed to that card's NVDEC/NVENC engines, inside a low-priority cgroup, so a
-whole work list can run overnight without the desktop noticing:
-
-```
-./clip-nvidia.sh check                  # preflight: card, ffmpeg, NVENC/NVDEC smoke test
-./clip-nvidia.sh                        # same arguments as clip.sh, foreground
-./clip-nvidia.sh --detach               # background unit that survives logout
-./clip-nvidia.sh status | log | stop    # the detached run
-```
-
-It works by placing an `ffmpeg` shim ahead on `PATH` for the duration of the
-run; `clip.sh` and `src/` never know. The shim probes each input's codec and
-only uses the NVIDIA decoder for h264/hevc/vp9/vp8 — **AV1 stays on the CPU on
-purpose** (older NVIDIA cards have no AV1 engine and the CUDA path does not fall
-back; it grinds). See the header of `clip-nvidia.sh` for the environment knobs
-(`CLIPPER_NV_DECODE=0`, `CLIPPER_NV_ENCODE=0`, `CLIPPER_FFMPEG_DIR`, …) and
-measured CPU savings.

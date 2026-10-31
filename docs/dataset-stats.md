@@ -32,13 +32,13 @@ drop-in, not in the shell).
 | **total** | **72** | **121.6** | **3226** | **2002** | **1117** | **107** |
 
 Arafura is all `unknown` by design: that production shows no referee lights at
-all, so the pipeline cannot read a verdict (see `clipper/README.md`,
+all, so the pipeline cannot read a verdict (see clipper's `README.md`,
 "Limitations"). 3,119 clips carry a `lights_t`; anchoring was 1,925 via lights
 and 1,301 via the attempt clock.
 
 Clip length is the dominant quality variable downstream: min 3.5, p25 3.9,
 median 5.6, p75 8.5, p90 15.3, max 16.2 s. **712 clips (22%) sit exactly on the
-`MIN_LEN = 3.5 s` floor** in `clipper/src/final.py`.
+`MIN_LEN = 3.5 s` floor** in clipper's `src/final.py`.
 
 ```sh
 python3 - <<'PY'
@@ -109,7 +109,7 @@ a pose problem** — the window opens after the lift has already started.
 | 6–10 s | 665 | 252 | 73% |
 | 10 s+ | 425 | 180 | 70% |
 
-Widening `_tighten()` in `clipper/src/final.py` for short-burst attempts and
+Widening `_tighten()` in clipper's `src/final.py` for short-burst attempts and
 re-cutting the 860 clips under 4 s is the single highest-yield fix available.
 Held clips are deliberately **not** recorded in `.clipper_sync_state.json`, so
 they re-extract with no bookkeeping once the windows are better.
@@ -153,6 +153,6 @@ coverage table in [`docs/train-data-todo.md`](train-data-todo.md) item 4.
 - Every count above is a snapshot. Re-running the pose pass, widening clipper
   windows or re-cutting invalidates stage 2 and 3 wholesale.
 - `made` / `miss` come from reading referee lights, not from results sheets.
-  `clipper/README.md` lists the failure modes.
+  clipper's `README.md` lists the failure modes.
 - Stance is inferred from the pose trace and **has never been validated against
   a hand-label**. Treat the 85:15 split as evidence it is wrong.

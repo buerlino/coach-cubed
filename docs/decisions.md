@@ -32,7 +32,10 @@ Newest first within each group.
 - **2026-10-31, nordmu: 0.1.0 analyses the lateral raise, plus the snatch if
   the Phase 3 spike passes** (otherwise the snatch moves to 0.2).
 - **2026-10-31, nordmu: `clipper/` goes back to its own repo; `report/` stays
-  here as a parked research folder.**
+  here as a parked research folder.** The repo is `weightlifting-clipper`
+  (its original name), a local sibling of coach, not pushed anywhere yet.
+  coach keeps its side of the link: `scripts/sync_clipper_fixtures.py`, which
+  now needs `$CLIPPER_OUT` or `--clipper-dir`.
 - **2026-10-31, nordmu: offline is a hard requirement, so no server compute.**
 
 ### Rules and docs

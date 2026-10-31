@@ -6,8 +6,8 @@ into coach test fixtures, end to end — no manual clips_inbox/ copying.
     python scripts/sync_clipper_fixtures.py --clipper-dir /path/to/clipper/downloads
     python scripts/sync_clipper_fixtures.py --dry-run     # classify, don't persist fixtures
 
-clipper/ (formerly the standalone weightlifting-clipper repo, merged in with
-its history intact) writes one folder per source video, named after the video
+clipper (its own repo, weightlifting-clipper; it lived in coach as clipper/
+from 2026-09-23 to 2026-10-31) writes one folder per source video, named after the video
 and sitting beside it, and puts that video's cut attempts in <that
 folder>/clips/, named
 "<session>_NN_HhMMmSSs_<made|miss>.mp4" (see its README/src/cut.py). It knows
@@ -72,13 +72,12 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # Where clipper put its output. $CLIPPER_OUT is the same variable clip.sh reads
 # for its own -o default, so moving the downloads off this box's 288G SSD onto
 # bulk storage needs setting it once, not passing a path to two tools that must
-# agree. Unset falls back to the in-repo path, which keeps a fresh clone working
-# with no environment at all.
-DEFAULT_CLIPPER_DIR = Path(os.environ.get("CLIPPER_OUT")
-                           or REPO_ROOT / "clipper" / "downloads")
+# agree. clipper is its own repo again since 2026-10-31, so there is no in-repo
+# fallback any more: set CLIPPER_OUT or pass --clipper-dir.
+DEFAULT_CLIPPER_DIR = Path(os.environ["CLIPPER_OUT"]) if os.environ.get("CLIPPER_OUT") else None
 STATE_FILE = REPO_ROOT / "tests" / "fixtures" / "local" / ".clipper_sync_state.json"
 
-# session_NN_HhMMmSSs_result.mp4 — see clipper/src/cut.py. "unknown" is a real
+# session_NN_HhMMmSSs_result.mp4 — see src/cut.py in the clipper repo. "unknown" is a real
 # verdict here, not a parse failure: some productions show no referee lights at
 # all, and clipper labels those attempts honestly rather than guessing.
 CLIP_NAME_RE = re.compile(r"^(?P<session>.+)_(?P<idx>\d{2})_(?P<hh>\d+)h(?P<mm>\d{2})m(?P<ss>\d{2})s_(?P<result>made|miss|unknown)\.mp4$")
@@ -147,7 +146,7 @@ def write_fixture(out_dir, manifest, clip, stance, result, attempt_result, args,
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--clipper-dir", type=Path, default=DEFAULT_CLIPPER_DIR,
-                     help=f"clipper's downloads/ dir (default: {DEFAULT_CLIPPER_DIR})")
+                     help=f"clipper's downloads/ dir (default: $CLIPPER_OUT, now {DEFAULT_CLIPPER_DIR or 'unset'})")
     ap.add_argument("--host", default="127.0.0.1:8080", help="host:port the coach app is listening on")
     ap.add_argument("--scope", default="local", choices=("local", "global"),
                      help="local (default): gitignored, this machine only; "
@@ -176,9 +175,11 @@ def main():
         substr, stance = spec.split("=", 1)
         overrides.append((substr, stance))
 
+    if args.clipper_dir is None:
+        ap.error("set CLIPPER_OUT or pass --clipper-dir: clipper's output lives outside this repo")
     if not args.clipper_dir.is_dir():
         sys.exit(f"no such directory: {args.clipper_dir}\n"
-                 f"(pass --clipper-dir, or set it up at the default location)")
+                 f"(pass --clipper-dir, or set CLIPPER_OUT)")
 
     clips = discover_clips(args.clipper_dir)
     if args.shuffle is not None:

@@ -278,9 +278,12 @@ takes about 1 s per 1080p frame once warm.
 ## 8. Dataset tooling
 
 - **Files:**
-  - [clipper/](../clipper/): downloads Australian Weightlifting Federation
-    YouTube streams with yt-dlp and cuts one clip per attempt. Its own project,
-    merged in on 2026-09-23.
+  - clipper: downloads Australian Weightlifting Federation YouTube streams
+    with yt-dlp and cuts one clip per attempt. Its own project, merged in as
+    `clipper/` on 2026-09-23; **moved out again in step 2.3** (2026-10-31) to
+    its own local repo, `weightlifting-clipper`, next to coach (not pushed
+    anywhere), with its history: nordmu's two original commits, then Noah's
+    commit of 2026-10-15.
   - `scripts/sync_clipper_fixtures.py`, `scripts/pose_stance.py`,
     `scripts/batch_extract_tracks.py`
   - the train-data tab and `/api/train/*` (app.py:500–829)
@@ -299,7 +302,7 @@ takes about 1 s per 1080p frame once warm.
   - The sync script accepts only 2-digit attempt numbers
     (`sync_clipper_fixtures.py:84`, `\d{2}`) where app.py accepts any
     (`\d+`, app.py:522). This is the likely cause of the 30 skipped clips.
-  - `clipper/trace.npz` is referenced nowhere.
+  - `clipper/trace.npz` is referenced nowhere (it left with clipper).
   - **`docs/train-data-todo.md:27–29` lists Noah's LAN and tailnet addresses
     and hostname.**
 
@@ -358,8 +361,8 @@ takes about 1 s per 1080p frame once warm.
 - **Skills:** `lifting-diagnostic`, `model-add` and `panel-add` are partly
   stale (wrong registry names, missing lifts); their per-diagnostic notes match
   the code.
-- **README.md:** ends with clipper's `clip-nvidia` section, copied in by
-  mistake.
+- **README.md:** ~~ends with clipper's `clip-nvidia` section, copied in by
+  mistake~~: removed in step 2.3 (it is in clipper's own README).
 - **[docs/fixture-data-contract.md:53](fixture-data-contract.md) gives
   keypoints as `[x, y, confidence]`; the code and data use `[y, x, conf]`.**
   Fix this before Phase 3 writes tracks from a new model.

@@ -9,8 +9,9 @@ finish (git keeps the history). Decisions and open questions are in
 
 ## Next session starts here
 
-- **Current step:** Phase 2, step 2.3, the first area: `clipper/` back to its
-  own repo. Phases 0 and 1 and steps 2.0–2.2 are done.
+- **Current step:** Phase 2, step 2.3, the second area: `report/` to
+  `parked/report/`. Phases 0 and 1, steps 2.0–2.2 and the clipper move are
+  done.
 - **In flight:** nothing. The Phase 3 spike can start in parallel; its baseline
   scripts are in `spike/phone-baseline/` (now pointing at `src/pose/`).
 - **Waiting on Noah:** answers to questions 1, 2 and 5 in
@@ -172,14 +173,21 @@ are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
         and train-tab steps. Tests and docs follow what they cover.
 - [ ] 2.3 Carry out the moves one area per commit, each with the grep and the
       tests, in this order:
-      - [ ] `clipper/` to its own repo;
+      - [x] `clipper/` to its own repo (2026-10-31): `weightlifting-clipper`,
+        a local sibling of coach, not pushed. Its history is nordmu's two
+        original commits (same hashes) plus Noah's `e178d97`, replayed with
+        his author and date; the tree is identical to coach's `clipper/`.
+        The sync script stays in coach and now needs `$CLIPPER_OUT` or
+        `--clipper-dir`. The README's copy of clipper's `clip-nvidia` section
+        went too;
       - [ ] `report/` to `parked/report/`;
       - [ ] bar detection;
       - [ ] Movement Lab and anatomy;
       - [ ] 3D;
       - [ ] the tabs: train, squat, image, clean & jerk (added 2026-10-31,
         after nordmu parked the last three; not an area of its own in the
-        map).
+        map). The train tab's `TRAIN_DIR` still falls back to the in-repo
+        `clipper/downloads`, which left in the clipper step.
 - [ ] 2.4 The videos:
       - record the provenance of each committed clip;
       - move scraped or unclear clips to `tests/fixtures/local/` (gitignored,

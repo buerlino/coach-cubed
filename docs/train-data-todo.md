@@ -130,7 +130,7 @@ Review reasons and the length correlation, over the full run — the rest is in
 
 The dominant reason is not a tracking failure — it is the clipper's window
 opening after the lift has started. 36% of those clips sit exactly at
-`MIN_LEN = 3.5 s`, the floor in `clipper/src/final.py` for attempts whose
+`MIN_LEN = 3.5 s`, the floor in clipper's `src/final.py` for attempts whose
 motion burst was too short to measure.
 
 Two jobs, in order:

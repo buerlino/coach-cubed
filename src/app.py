@@ -516,7 +516,7 @@ TRAIN_LABELS_FILE = FIXTURES_DIR / "local" / "train_labels.json"
 # meantime; _load_manifest puts those entries back from this file.
 TRAIN_LINKS_FILE = FIXTURES_DIR / "local" / "train_links.json"
 TRAIN_SYNC_STATE = FIXTURES_DIR / "local" / ".clipper_sync_state.json"
-# <session>_NN_HhMMmSSs_<made|miss|unknown>.mp4 — clipper/src/cut.py. NN is
+# <session>_NN_HhMMmSSs_<made|miss|unknown>.mp4 — src/cut.py in the clipper repo. NN is
 # two digits in the docs but long sessions run past 99, so any width.
 TRAIN_CLIP_RE = re.compile(
     r"^(?P<session>.+)_(?P<idx>\d+)_(?P<hh>\d+)h(?P<mm>\d{2})m(?P<ss>\d{2})s_"

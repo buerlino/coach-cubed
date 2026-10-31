@@ -18,6 +18,9 @@ During the restructuring window, the order of work and its status are in
 - [fixture-data-contract.md:53](fixture-data-contract.md) gives keypoints as
   `[x, y, confidence]`; the code and data use `[y, x, conf]`. Fix before
   Phase 3 writes tracks from a new model (map area 12).
+- `scripts/sync_clipper_fixtures.py` accepts only 2-digit attempt numbers
+  (`\d{2}`) where app.py accepts any (`\d+`); the likely cause of the 30
+  skipped clips (map area 8).
 
 ## Unverified
 

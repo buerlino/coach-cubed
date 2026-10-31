@@ -22,8 +22,9 @@ Run everything with `npm test`.
 
 ## Syncing from clipper
 
-If your clips come from `clipper/` (it cuts one clip per attempt from
-competition footage — see [`clipper/README.md`](../clipper/README.md)), use
+If your clips come from clipper (it cuts one clip per attempt from
+competition footage; its own repo, `weightlifting-clipper`, since 2026-10-31 —
+see its README), use
 `scripts/sync_clipper_fixtures.py` instead of the manual `clips_inbox/` flow
 below:
 
@@ -35,9 +36,9 @@ python scripts/sync_clipper_fixtures.py
 
 It reads straight from `$CLIPPER_OUT/**/clips/*.mp4` — clipper puts each
 source video's cut attempts in a `clips/` folder inside a folder named after
-that video — falling back to `clipper/downloads/` when that variable isn't set
-(override either with `--clipper-dir`) — nothing gets copied into this repo except the fixtures
-it decides to keep. `$CLIPPER_OUT` is the same variable `clipper/clip.sh` uses
+that video; pass `--clipper-dir` instead when that variable isn't set (there is
+no in-repo fallback since clipper left) — nothing gets copied into this repo except the fixtures
+it decides to keep. `$CLIPPER_OUT` is the same variable clipper's `clip.sh` uses
 for its own output directory, so pointing the downloads at bulk storage is one
 export, not a flag you have to remember in two places. Per clip it: skips anything it's already
 extracted (by content hash, not filename, so a re-cut that renumbers an

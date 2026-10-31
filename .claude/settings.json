@@ -10,7 +10,6 @@
       "Read(**/*.track.json)",
       "Read(/tests/golden/**)",
       "Read(**/*.mp4)",
-      "Read(/clipper/trace.npz)",
       "Read(/log/**)",
       "Read(**/__pycache__/**)",
       "Read(/.venv/**)",

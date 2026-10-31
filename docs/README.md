@@ -35,6 +35,6 @@ removed.
 | [../tests/fixtures/README.md](../tests/fixtures/README.md) | The fixture directory layout, `manifest.json` schema, global vs. local scope. |
 | [deploy.md](deploy.md) | Deploy shape, checkpoints (incl. the gated SAM 3 download), Caddy/ports, conda env, auth. Stale in places: read [server.md](server.md) first. |
 | [dataset-stats.md](dataset-stats.md) | How many clips, how many survived pose extraction, why the rest didn't, and the command that regenerates each number. |
-| [clipper-pipeline.md](clipper-pipeline.md) | Step by step: how `scripts/sync_clipper_fixtures.py` turns a `clipper/` clip into a coach test case. Leaves with clipper. |
+| [clipper-pipeline.md](clipper-pipeline.md) | Step by step: how `scripts/sync_clipper_fixtures.py` turns a clip cut by clipper (its own repo, `weightlifting-clipper`, since step 2.3) into a coach test case. |
 | [train-data-todo.md](train-data-todo.md) | Open work on the clipper dataset: deployment map, stance/gender labelling gaps, 3D calibration per session, and what has already been ruled out. Moves with the train tab. |
 | [../report/README.md](../report/README.md) | What's in the LaTeX report, how to build the PDF, how to regenerate its figures. To be parked as research. |
