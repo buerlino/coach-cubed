@@ -309,9 +309,17 @@ are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
       is pushed or backed up somewhere other than this laptop. After the
       rewrite it is the only copy of clipper. It removes the videos, the password and the
       removed bloat, and the athletes' real names: they are in old file
-      paths **and** in old file contents (`athlete-a`/`athlete-b` since step
-      2.4), so path filtering alone isn't enough; it needs a text
-      replacement too. Rewritten history doesn't descend from `62b2cee`, so:
+      paths, in old file contents (`athlete-a`/`athlete-b` since step 2.4)
+      **and** in commit messages (`212f502` and `6904224`; find others with
+      `git log --all -i --grep=<name>`). So path filtering alone isn't
+      enough: `git filter-repo` also needs `--replace-text` for the contents
+      and `--replace-message` for the messages, both fed from the
+      gitignored note, never from a tracked file. **Check after the
+      rewrite**, with the names in a pattern file outside the repo (one per
+      line): `git log --all --format=%B | grep -iwf <file>`,
+      `git rev-list --all | xargs git grep -iwl -f <file>` and
+      `git log --all --name-only --format= | grep -iwf <file>` all print
+      nothing. Rewritten history doesn't descend from `62b2cee`, so:
       - `main` is reset and force-pushed to `noahsta/coach`, with Noah's OK;
       - the `pre-cleanup` tag and the merged branches `test-fixtures-pipeline`
         and `origin/feature/keypoint-plotting` are deleted or moved to a
