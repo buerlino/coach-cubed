@@ -386,9 +386,8 @@ are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
 - [ ] 4.2 One worker and one auditor. Night shifts, lanes, the coordinator and
       overseer agents, locks and Opus passes come later, if the volume of work
       needs them.
-- [ ] 4.3 The checks: `npm test`, the Python tests, and a new check that
-      fails on absolute asset paths (turning rules-core's "Paths stay
-      relative" into a test).
+- [ ] 4.3 The checks: `npm test` (it includes the docs checks and the
+      absolute-path check) and the Python tests.
 
 ### Phase 5: the new app (mobile-first UI and the gym recording session)
 

@@ -61,6 +61,8 @@ These rules stop a third time. The server's own rules are in
 - Every asset reference the app emits (`<script src=...>`, import maps, a
   launcher finding its own tools) is relative to the document or to the
   script's own location: never absolute (`/foo`), never a machine path.
+  `tests/paths.test.js` fails on a new one; the known ones in frozen code
+  are allowlisted there.
 - Why: the deploy mounts coach at `/coach/*` and strips the prefix before
   Flask sees the request, so `/vendor/three.module.js` hits the site root and
   404s. On 2026-09-17 that broke the 3D viewer and the slider markers, after

@@ -26,7 +26,8 @@ During the restructuring window, the order of work and its status are in
   credits links (`src/anatomy/integration.mjs:7,30`), the `/squat/` links
   (`src/anatomy/ui.mjs:5`, `review.mjs:7`), and in the Movement Lab
   `/diagnostics.js` (`src/squat/index.html:56`) and every `/api/...` call
-  (`src/squat/app.mjs`, `original-tools.mjs`).
+  (`src/squat/app.mjs`, `original-tools.mjs`). `tests/paths.test.js`
+  allowlists exactly these.
 
 ## Unverified
 
