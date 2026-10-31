@@ -46,7 +46,5 @@ covers is in [decisions.md](decisions.md); how the repo gets there is in
   [decisions.md](decisions.md)), pick permissive or GPL-3.0-compatible ones,
   and nothing AGPL: YOLOv8 (`ultralytics`) is AGPL-3.0 and stays on the dev
   server.
-- Record each one with its name, version, licence and source: today in the
-  `THIRD_PARTY.md` next to it (for example
-  [src/pose/THIRD_PARTY.md](../src/pose/THIRD_PARTY.md)), from step 2.7 in
-  one root `THIRD_PARTY.md`.
+- Record each one with its name, version, licence and source in the root
+  [THIRD_PARTY.md](../THIRD_PARTY.md).

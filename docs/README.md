@@ -24,6 +24,8 @@ removed.
 | --- | --- |
 | [decisions.md](decisions.md) | Every decision with who and when; the open questions and who answers them. |
 | [backlog.md](backlog.md) | Open bugs, unverified assumptions and stale text in code that stays. |
+| [../THIRD_PARTY.md](../THIRD_PARTY.md) | Every third-party component, in the app and around it: name, version, licence, source. |
+| [authors.md](authors.md) | Who wrote how much of the code, for the licence consent (question 1). |
 | [server.md](server.md) | The Flask server as dev tooling: what runs, the checkpoints, the setup and launch scripts, testing under the `/coach/` prefix, its landmines, the sibling notes on the deploy machine. |
 
 ## Reference

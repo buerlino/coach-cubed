@@ -77,6 +77,7 @@ becomes a test case: [`tests/README.md`](tests/README.md).
 | `clips_inbox/` | A gitignored landing spot for raw clips waiting to become fixtures. |
 | `Caddyfile`, `pki-public/`, `log/` | A reference copy of the reverse-proxy config (not the live one), the published root cert, and the dev server's logs. |
 | `.claude/skills/` | Playbooks for recurring changes (add a lift page, add a diagnostic), written for an AI pair-programmer but just as usable by hand. |
+| `THIRD_PARTY.md` | Every third-party component: version, licence and source. |
 | `TODO.md` | Open research notes on the 3D reconstruction. |
 
 ## Conventions

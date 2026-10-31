@@ -183,7 +183,7 @@ takes about 1 s per 1080p frame once warm.
   lab imports `../pose/pose.mjs`.
 - **Offline:** yes; measured above.
 - **Weak points:**
-  - The deprecated legacy package (its own `THIRD_PARTY.md` lists the move to
+  - The deprecated legacy package (the root `THIRD_PARTY.md` mentions the move to
     the Tasks API as future work).
   - `<video>` seeking.
   - 20 fps sampling.

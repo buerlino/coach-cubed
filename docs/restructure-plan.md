@@ -9,8 +9,9 @@ finish (git keeps the history). Decisions and open questions are in
 
 ## Next session starts here
 
-- **Current step:** finish Phase 2: step 2.7 (licence prep; the licence
-  itself waits on Noah). Steps 2.4–2.6 are done. Step 2.3 is
+- **Current step:** Phase 2 is done apart from 2.7's licence and 2.8. Step
+  2.7's prep is done; LICENSE and the SPDX headers wait on Noah's licence
+  choice and the authors' consent. Step 2.3 is
   done: the rest of its parking was cancelled on 2026-10-31, because the new
   UI is built fresh and the old page is frozen. Step 2.8 (the history rewrite)
   comes at the very end of the window and needs nordmu's explicit OK.
@@ -145,7 +146,8 @@ are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
       - **moved the core's own files out of the folders being parked**, into
         `src/pose/`:
         - `pose.mjs`, and MediaPipe as `vendor/mediapipe-pose/` with its
-          licence and manifest (its credits in `src/pose/THIRD_PARTY.md`);
+          licence and manifest (its credits in `src/pose/THIRD_PARTY.md`, merged into the root
+          `THIRD_PARTY.md` in step 2.7);
         - `local-mode.mjs`;
         - one 33→17 mapping, `coco17.mjs`, used by `local-mode.mjs`,
           `track-session.mjs` and the spike's `mp-run.js` (there were three
@@ -277,8 +279,18 @@ are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
         written; both servers render the page in headless Brave with no
         exceptions. Not tested: anything on Noah's machine, which most of
         server.md and the dataset docs describe.
-- [ ] 2.7 Add LICENSE, SPDX headers and `THIRD_PARTY.md` once question 1 is
-      answered and the authors have agreed.
+- [~] 2.7 Licence prep (2026-10-31). Done:
+      - the root [THIRD_PARTY.md](../THIRD_PARTY.md): every component in
+        the app, the dev server's packages and model weights, the data, with
+        version, licence and source. `src/pose/THIRD_PARTY.md` merged into it;
+        `src/squat/THIRD_PARTY.md` stays as the Movement Lab's "Credits"
+        page, which its footer links to, trimmed to that page's
+        attributions;
+      - [authors.md](authors.md): who wrote how much (git blame), for the
+        consent request.
+
+      Waiting: the licence (Noah, question 1) and every author's consent;
+      then LICENSE and the SPDX headers.
 - [ ] 2.8 One history rewrite at the end of the window, before Noah resumes,
       with nordmu's explicit OK. **Precondition:** `../weightlifting-clipper`
       is pushed or backed up somewhere other than this laptop. After the

@@ -38,6 +38,18 @@ During the restructuring window, the order of work and its status are in
   local on Noah's machine), the second pull's stride test (no committed test)
   and the setup jitter of "0.02–0.05" (the code comment says 0.02–0.04).
 
+## Before 0.1.0 ships
+
+- The app needs a credits screen: CC BY 4.0 needs BodyParts3D's
+  attribution where users see it (if anatomy ships at all), and Apache-2.0
+  and MIT need their notices shipped with the code. The old page has none;
+  the Movement Lab links `src/squat/THIRD_PARTY.md`.
+- The three.js copy in `src/vendor/` has only its licence header; the full
+  MIT text is beside the other copy, in `src/squat/vendor/`.
+- The pose model and runtime that Phase 3 picks go into
+  [THIRD_PARTY.md](../THIRD_PARTY.md) with their weights' licence; the
+  current MediaPipe entry covers only the prototype.
+
 ## Before anything is published (step 2.8)
 
 - `../weightlifting-clipper` has no remote. It needs a home (for example a
