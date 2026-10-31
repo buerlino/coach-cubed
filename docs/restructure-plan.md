@@ -174,7 +174,10 @@ are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
         HTTP, and both pages in headless Brave, directly and behind a
         `/coach/` prefix-stripping proxy (a stand-in for Caddy). MediaPipe ran
         6 frames from its new folder. Not tested: the phone, and the real
-        Caddy/tailnet URL.
+        Caddy/tailnet URL. Behind the prefix, absolute paths in the frozen
+        code still 404, and the record left them out: `/anatomy/shared.css`
+        (`src/anatomy/integration.mjs:7`), the `/squat/` link (`ui.mjs:5`)
+        and the Movement Lab's `/api/...` calls ([backlog.md](backlog.md)).
 - [x] 2.1 The docs skeleton in pascaline's shape, one place per fact
       (2026-10-31):
       - [rules-core.md](rules-core.md): the goal, the four principles (both

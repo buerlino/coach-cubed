@@ -21,6 +21,12 @@ During the restructuring window, the order of work and its status are in
 - With neither `$COACH_TRAIN_DIR` nor `$CLIPPER_OUT` set, the train tab's
   `TRAIN_DIR` (`src/app.py`) falls back to the in-repo `clipper/downloads`,
   which left with clipper in step 2.3. Python, outside `INDEX_HTML`.
+- Known absolute paths in frozen code, which 404 under the `/coach/`
+  prefix and stay until the code is parked: `/anatomy/shared.css` and the
+  credits links (`src/anatomy/integration.mjs:7,30`), the `/squat/` links
+  (`src/anatomy/ui.mjs:5`, `review.mjs:7`), and in the Movement Lab
+  `/diagnostics.js` (`src/squat/index.html:56`) and every `/api/...` call
+  (`src/squat/app.mjs`, `original-tools.mjs`).
 
 ## Unverified
 
