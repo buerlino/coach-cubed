@@ -2,8 +2,8 @@
 
 Everything in this repo, or fetched by its scripts, that someone outside the
 project made: name, version, licence and source. A licence text that has to
-travel with a component sits next to it. coach's own licence is not chosen
-yet ([docs/decisions.md](docs/decisions.md), question 1); every component
+travel with a component sits next to it. coach itself is GPL-3.0-or-later
+([docs/decisions.md](docs/decisions.md#licence)); every component
 that ships in the app has to be compatible with it
 ([docs/rules-core.md](docs/rules-core.md)).
 

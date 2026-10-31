@@ -10,8 +10,8 @@ finish (git keeps the history). Decisions and open questions are in
 ## Next session starts here
 
 - **Current step:** Phase 2 is done apart from two steps that wait:
-  - 2.7's licence: LICENSE and the SPDX headers come once Noah picks the
-    licence and all four authors agree ([authors.md](authors.md));
+  - 2.7's LICENSE and SPDX headers (GPL-3.0-or-later): they wait for the
+    authors' written OKs ([decisions.md](decisions.md#licence));
     `THIRD_PARTY.md` is ready;
   - 2.8, the history rewrite, at the very end of the window, with nordmu's
     explicit OK.
@@ -26,10 +26,8 @@ finish (git keeps the history). Decisions and open questions are in
   - question 8, the review of the tab parking (the goal and the principles
     are confirmed);
   - question 7, how the gym recording session works (needed by Phase 5).
-- **Waiting on Noah:** questions 1 (the licence, then every author's
-  consent), 5 and 6 in [decisions.md](decisions.md) (the message went out on
-  2026-10-31), and whether his tailnet hostname and IP addresses may stay
-  public ([backlog.md](backlog.md)).
+- **Waiting on Noah:** what he was asked, and what goes in the next message,
+  is in [decisions.md](decisions.md#needs-an-answer).
 - **The example clips are not in git** (since step 2.4): they sit under the
   gitignored `tests/fixtures/local/` on machines that have them, this laptop
   included. A fresh clone runs every test but has no example gallery.
@@ -302,8 +300,9 @@ are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
       - [authors.md](authors.md): who wrote how much (git blame), for the
         consent request.
 
-      Waiting: the licence (Noah, question 1) and every author's consent;
-      then LICENSE and the SPDX headers.
+      Waiting: the authors' written OKs to GPL-3.0-or-later
+      ([decisions.md](decisions.md#licence)); then LICENSE and the SPDX
+      headers.
 - [ ] 2.8 One history rewrite at the end of the window, before Noah resumes,
       with nordmu's explicit OK. **Precondition:** `../weightlifting-clipper`
       is pushed or backed up somewhere other than this laptop. After the

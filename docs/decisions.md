@@ -9,14 +9,19 @@ from these are in [rules-core.md](rules-core.md).
 
 | # | Question | Who | Recommendation |
 | --- | --- | --- | --- |
+| 2 | Where 0.1.0 is published | Noah | nordmu decided it (PWA and GitHub APK, F-Droid after a check; "What 0.1.0 is"). Noah was asked too and may revise it; until he does, nordmu's answer binds. |
 | 3 | Test phones | nordmu, Noah | Answered in part (nordmu, 2026-10-31): nordmu's Fairphone 6 (`4d42e62f`; LineageOS, no Google Chrome). A stock Android phone with Chrome and Google's WebView is tested after the spike, before the public release, so step 3.5 decides without it; whose phone is open. An iPhone too, if iOS matters. |
 | 5 | `.auth_password` is an unsalted SHA-256 hash of the old login password, with a scheme "identical to tecna". Is that password used anywhere else? | Noah | Change it wherever it's used. The file leaves the history in step 2.8 either way. |
 | 7 | **How the gym recording session works** (see "What 0.1.0 is"). To cover: how long the rolling buffer is; how start and end are marked (buttons, tap on a timeline, voice?); whether several lifts per session are kept; which lift is set before or after; front or back camera, resolution and frame rate (60 fps matters for the snatch); what happens to the raw video afterwards; where the phone stands. | nordmu | Ask nordmu when Phase 5 starts; nothing gets built before nordmu's input. |
 | 8 | Review the parking of the squat, image and clean & jerk tabs. It was written up as nordmu's; nordmu has not confirmed it (asked again 2026-10-31: still open). | nordmu | Until confirmed it is a proposal: follow it, but don't build anything that depends on its exact wording. |
 | 6 | How long the restructuring window lasts | Noah | Step 2.8 (the history rewrite) has to finish before Noah resumes. |
-| 9 | Branch protection on `main` of `noahsta/coach`, so one push from an old clone can't undo step 2.8 | Noah (repo owner) | Turn it on. nordmu asks in the next message, with question 6 (nordmu, 2026-10-31). |
+| 9 | Branch protection on `main` of `noahsta/coach`, so one push from an old clone can't undo step 2.8 | Noah (repo owner) | Turn it on. |
 
-Questions 1, 2 and 5 went to Noah on 2026-10-31.
+**What went to Noah, and when:** nordmu's message of 2026-10-31 asked
+questions 1 (the licence, now decided), 2 and 5 (as "is it a real
+password?"), and said "no pushes to `main`" and that a history rewrite is
+coming. nordmu's next message asks questions 6 and 9, and whether Noah's
+tailnet hostname and IP addresses may stay public ([backlog.md](backlog.md)).
 
 ## Decided
 

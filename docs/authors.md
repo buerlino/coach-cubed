@@ -1,8 +1,8 @@
 # Who wrote the code
 
-For the licence (question 1 in [decisions.md](decisions.md)): every author
-whose code stays has to agree to the licence Noah picks. Counted on
-2026-10-31 at the end of step 2.6 (`e5d3d60`). Not asked yet.
+For the licence: Noah chose GPL-3.0-or-later and all four authors agreed;
+their written OKs are still to collect ([decisions.md](decisions.md#licence)).
+Counted on 2026-10-31 at the end of step 2.6 (`e5d3d60`).
 
 ## How it was counted
 
@@ -48,5 +48,5 @@ and the in-browser pose.
 | **All code** | **17,320** | **11,795 (68%)** | **2,304 (13%)** | **762 (4%)** | **2,459 (14%)** |
 | Docs (`*.md`) | 5,000 | 2,125 (43%) | 2,214 (44%) | 319 (6%) | 342 (7%) |
 
-So all four authors have code in the core, and the licence needs the consent
-of all four: Noah Stauble, nordmu, Nicola Walker and JMLuner.
+So all four authors have code in the core, and the licence needed the
+consent of all four: Noah Stauble, nordmu, Nicola Walker and JMLuner.
