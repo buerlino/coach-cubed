@@ -75,6 +75,30 @@ on nordmu's laptop on 2026-10-31; the licences are what each package declares.
   of them names `yolov8s.pt` itself, so treat the weights as AGPL-3.0
   (checked 2026-10-31). This is why YOLOv8 stays on the dev server.
 
+## Fetched by the Phase 3 spike (not shipped)
+
+Downloaded by `spike/pose-bench/` (`npm ci`, `fetch-models.sh`), never committed; candidates for the app's pose engine ([restructure-plan.md](docs/restructure-plan.md), step 3.1). Checked 2026-10-31; versions are the newest at least two weeks old.
+
+| Component | Version | Licence | Source |
+| --- | --- | --- | --- |
+| ONNX Runtime Web (`onnxruntime-web`) | 1.30.0 | MIT | npm. WebGPU: `ort.webgpu.min.mjs` + `ort-wasm-simd-threaded.asyncify.wasm` (26.8 MB); WebAssembly only: `ort.wasm.min.mjs` + `ort-wasm-simd-threaded.wasm` (14.2 MB) |
+| mp4box.js (`mp4box`) | 2.4.1 | BSD-3-Clause | npm, `dist/mp4box.all.mjs` |
+| MediaPipe Tasks Vision (`@mediapipe/tasks-vision`) | 1.1.1 | Apache-2.0 | npm; `wasm/vision_wasm_module_internal.wasm` (13.5 MB) |
+
+**Candidate weights:**
+
+| Model | File, size | Licence of the weights | Source |
+| --- | --- | --- | --- |
+| MediaPipe Pose Landmarker lite / full / heavy | `pose_landmarker_{lite,full,heavy}.task`, 5.8 / 9.4 / 30.7 MB; the person detector is inside | Apache-2.0, stated on the model card ("LICENSED UNDER Apache License, Version 2.0", [card](https://storage.googleapis.com/mediapipe-assets/Model%20Card%20BlazePose%20GHUM%203D.pdf)) | `storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_<v>/float16/1/` |
+| ViTPose-S / -B (COCO), easy_ViTPose's ONNX export | `vitpose-{s,b}-coco.onnx`, 97 / 360 MB (fp32) | **Unclear.** The mirror says to see ViTPose's licence (Apache-2.0, code). ViTPose's README lists every size as MAE-pretrained, and MAE's weights are CC BY-NC 4.0 (<https://github.com/facebookresearch/mae/blob/main/LICENSE>). | `huggingface.co/JunkyByte/easy_ViTPose` at `e838052`, `onnx/coco/` |
+| RTMPose-s / -m (body7, COCO-17) | `rtmpose-{s,m}.onnx`, 22 / 54 MB, from OpenMMLab's SDK zips | **Not stated.** Code Apache-2.0 (MMPose, rtmlib). Trained on 7 datasets (AI Challenger, COCO, CrowdPose, MPII, sub-JHMDB, Halpe, PoseTrack18) whose terms are unverified. | `download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/` |
+| YOLOX-nano / -tiny (COCO), the person detector for ViTPose and RTMPose | `yolox_{nano,tiny}.onnx`, 3.7 / 20.2 MB | Apache-2.0 (Megvii's repo and release) | `github.com/Megvii-BaseDetection/YOLOX/releases/tag/0.1.1rc0` |
+
+Left out: YOLOv8 and every Ultralytics model (AGPL-3.0); OpenMMLab's
+RTMDet-nano person detector (trained on Objects365, whose terms are reported
+as non-commercial, unverified) and its YOLOX HumanArt detectors (Human-Art is
+licensed for non-commercial use only).
+
 ## Data
 
 Not code, and not shipped in the app; listed so a release check sees it.

@@ -220,17 +220,13 @@ condition are decided ([decisions.md](decisions.md#what-010-is)).
       pascaline night shift runs (`ps -eo args | grep [n]ight.sh`): at about
       1 s per frame on this CPU, a 3 s clip takes minutes. Not run on
       2026-10-31: a night shift had the CPU.
-- [ ] 3.1 Pick 2–3 candidates that fit the core:
-      - ViTPose-S/B via easy_ViTPose's `export.py` (COCO-17, so the
-        diagnostics work unchanged);
-      - RTMPose-s/m (COCO-17, Apache-2.0);
-      - MediaPipe Pose Landmarker (33 points, needs a COCO-17 mapping).
-
-      ViTPose and RTMPose are top-down: they need a person detector, and
-      YOLOv8 is out (AGPL-3.0, [rules-core.md](rules-core.md)). Check RTMDet
-      (Apache-2.0) or MediaPipe's own detector, with their weights' licences.
+- [x] 3.1 Candidates: MediaPipe Pose Landmarker (lite, full, heavy),
+      ViTPose-S/B and RTMPose-s/m, the last two behind Megvii's YOLOX
+      (Apache-2.0); versions, sources and licence flags (ViTPose's MAE
+      pretraining is CC BY-NC) in [THIRD_PARTY.md](../THIRD_PARTY.md).
 - [x] 3.2 Smoothing and the lift window in `src/track/`, pinned to the old
-      page by `tests/track.test.js`; the spike scores smoothed tracks with it.
+      page by `tests/track.test.js`; the spike scores smoothed tracks with it
+      (`bb5dfbb`).
 - [ ] 3.3 One standalone page that:
       - decodes a fixture video with WebCodecs (not by seeking a `<video>`
         element), through a demuxer (mp4box.js or a WebM demuxer; its

@@ -35,7 +35,11 @@ tests/golden/local/*
 !tests/golden/local/.gitkeep
 
 # Spike results: tracks of third-party videos and device probes stay local.
+# Model weights and the runtimes npm installs are downloads, not source
+# (their pinned versions and checksums are in each spike's README).
 spike/**/results/
+spike/**/models/
+spike/**/node_modules/
 
 # Third-party clips are never committed (tests/fixtures/README.md, "Videos"):
 # a global fixture's clip lives under local/, and the report's copy stays beside

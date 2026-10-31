@@ -1,0 +1,15 @@
+{
+  "name": "coach-pose-bench",
+  "private": true,
+  "description": "Phase 3 spike: on-device pose on a decoded clip (docs/restructure-plan.md). Not shipped.",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "serve": "node serve.mjs"
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "1.1.1",
+    "mp4box": "2.4.1",
+    "onnxruntime-web": "1.30.0"
+  }
+}
