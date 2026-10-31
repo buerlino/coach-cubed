@@ -41,29 +41,18 @@ conda env, auth).
 
 ## Documentation
 
-| Doc | Covers |
-| --- | --- |
-| [`docs/restructure-plan.md`](docs/restructure-plan.md) | The restructuring toward an offline 0.1.0 (from 2026-10-31): goal, decisions, open questions, phases and their status. Read first. |
-| [`docs/map.md`](docs/map.md) | Every tracked file in 12 areas (snapshot of 2026-10-31): what each does, offline feasibility, couplings, provenance, and the phone test on the Fairphone 6. |
-| [`docs/deploy.md`](docs/deploy.md) | Deploy shape, checkpoints (incl. the gated SAM 3 download), Caddy/ports, conda env, auth, what's not done yet. |
-| [`report/README.md`](report/README.md) | What's in the LaTeX report, how to build the PDF, how to regenerate its figures. |
-| [`tests/README.md`](tests/README.md) | End to end: turning lift videos into fixtures, labels, golden snapshots, running `npm test`. |
-| [`tests/fixtures/README.md`](tests/fixtures/README.md) | The fixture directory layout, `manifest.json` schema, global vs. local scope. |
-| [`docs/clipper-pipeline.md`](docs/clipper-pipeline.md) | Step by step: how `scripts/sync_clipper_fixtures.py` turns a `clipper/` clip into a coach test case. |
-| [`docs/fixture-data-contract.md`](docs/fixture-data-contract.md) | The consuming side: `track.json`/`manifest.json` schemas, where profiles live, the endpoints a page reads them through, and what the extracted data is actually like. |
-| [`docs/train-data-todo.md`](docs/train-data-todo.md) | Open work on the clipper dataset: deployment map, stance/gender labelling gaps, 3D calibration per session, and what has already been ruled out. |
-| [`docs/dataset-stats.md`](docs/dataset-stats.md) | How many clips, how many survived pose extraction, why the rest didn't, and the command that regenerates each number. |
-
-Each doc is the source of truth for its own area — if you change something a
-doc describes, update that doc in the same commit rather than this index.
+Every doc, and which one holds which fact: [`docs/README.md`](docs/README.md).
+Start with [`docs/rules-core.md`](docs/rules-core.md) (binding) and
+[`docs/restructure-plan.md`](docs/restructure-plan.md).
 
 ## Conventions
 
 - Root-level special files stay `README.md`/`LICENSE`-style uppercase;
   everything under `docs/` uses lowercase-kebab-case.
 - Every subfolder with its own docs gets a `README.md`.
-- This README's tables are the map — update them in the same commit whenever
-  a doc moves or a new one is added.
+- The Layout table above and [`docs/README.md`](docs/README.md) are the maps —
+  update them in the same commit whenever a folder or doc moves or a new one
+  is added.
 
 ## Running it on the NVIDIA card, overnight — `clip-nvidia.sh`
 

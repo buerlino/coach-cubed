@@ -12,6 +12,11 @@ exist to stop that from happening a third time.
 > in [`docs/restructure-plan.md`](docs/restructure-plan.md). Read it before
 > changing structure.
 
+**Binding first:** [`docs/rules-core.md`](docs/rules-core.md) holds the goal,
+the principles and the hard rules (offline, nothing leaves the phone,
+licence-compatible dependencies); where this file and it differ, it wins.
+Where every other fact lives: [`docs/README.md`](docs/README.md).
+
 ## 1. Paths must be relative, always
 
 Every asset reference this app emits — `<script src=...>`, `import` maps,
@@ -20,9 +25,9 @@ document or to the script's own location**, never absolute (`/foo`) and
 never a hardcoded machine path.
 
 Why this is load-bearing here specifically: coach is not served at the site
-root. The real deploy (`~/Caddyfile`, *not* the `Caddyfile` copy in this repo
-— see §3) mounts it at `/coach/*` via `handle_path`, which **strips the
-prefix before Flask ever sees the request**. An absolute path like
+root. The server deploy mounts it at `/coach/*` and **strips the prefix
+before Flask ever sees the request** ([`docs/server.md`](docs/server.md)
+has the details). An absolute path like
 `/vendor/three.module.js` in the HTML bypasses that prefix entirely and hits
 Caddy's site root instead of the app, where it 404s. This is exactly what
 broke the 3D viewer and the diagnostics-driven slider markers on 2026-09-17:
@@ -34,8 +39,8 @@ right up until someone loaded it through the tailnet URL.
 locates another file:** grep for the change and confirm it still resolves
 under a path prefix, not just at the root. Testing against
 `http://127.0.0.1:8080/` is not sufficient — it will pass even when the
-production URL is broken. Test through the actual proxied path
-(`https://coach-host.example-tailnet.ts.net/coach/...`) before calling it done.
+production URL is broken. How to test under the prefix:
+[`docs/server.md`](docs/server.md).
 
 The same rule applies to Python: `launchers/*.py` resolve `ROOT` from
 `Path(__file__).resolve().parent(.parent...)`, never from `os.getcwd()` or a
@@ -76,27 +81,20 @@ that the move alone was sufficient.
 
 ## 3. Landmines specific to this repo
 
-- **Two Caddyfiles exist.** The repo's own `Caddyfile` is a single-site
-  config kept for reference; the *live* one is `~/Caddyfile` (outside this
-  repo), which mounts coach, tecna and llm-server together under path
-  prefixes on the same box. `docs/deploy.md` describes the older single-site
-  shape and is stale on this point — when in doubt about how a request
-  actually reaches this app, read `~/Caddyfile`, not `docs/deploy.md`.
-- **`.caddy/` holds the live CA.** Never delete or regenerate it — every
-  device that already trusts it (phones, laptops on the tailnet) would need
-  to re-install a new root cert. Treat it like a production secret.
 - **Vendored assets are there on purpose, not generated cruft.**
   `src/vendor/three.module.js`, `src/squat/vendor/three.module.js`, and the
   MediaPipe pose files under `src/pose/vendor/mediapipe-pose/` are vendored
-  specifically so coach works with no outbound internet on the tailnet (see
-  the comment above `THREE_JS` in `src/app.py`). Don't swap one for a CDN
+  so coach works with no network at all (a hard rule in
+  [`docs/rules-core.md`](docs/rules-core.md); see also the comment above
+  `THREE_JS` in `src/app.py`). Don't swap one for a CDN
   import, and don't dedupe the two `three.module.js` copies without
   confirming both the main app and the squat lab still resolve theirs — they
   are intentionally separate because they're served from different routes.
-- **`diagnostics.js` is read per request; `app.py` is not.** A JS-only edit
-  needs only a browser reload. A Python edit needs the backend restarted
-  (`./scripts/restart.sh`) before it takes effect — don't mistake a stale
-  process for a bug in your change.
+- **The server has landmines of its own:** two Caddyfiles, the live CA in
+  `.caddy/`, `app.py` needing a restart where `diagnostics.js` needs only a
+  reload, and the sibling notes on the machine it is deployed to. They are in
+  [`docs/server.md`](docs/server.md); read it before changing how the app is
+  served or launched, how it loads models, or what it holds.
 - **`launchers/*.command` and `*.bat` files `cd` up to the repo root before
   doing anything relative** (`.venv`, `requirements-preview.txt`, `src/`).
   Moving one of them without the others, or moving them without updating the
@@ -120,36 +118,3 @@ Then wait for confirmation instead of proceeding. This is not about being
 overly cautious in general — it's specifically for the narrow set of changes
 above that look fine locally and only fail once deployed, where the person
 approving the change may not know to check for that.
-
-## 5. You are not alone on this box — keep your sibling notes current
-
-This project is one of several web services on the same machine, behind one
-shared HTTPS gateway, sharing one GPU and 22 GiB of RAM. You would not know that
-from reading this repo, and **that is deliberate**: nothing here names another
-service, because every cross-reference that got written turned stale within weeks
-and actively misled whoever read it next. Keeping the coupling out means this app
-still runs correctly alone, at the root, unmodified.
-
-The knowledge has to live somewhere, though, and that somewhere is
-**[`../new-service.md`](../new-service.md)** — the tutorial for adding a service
-here, plus a *sibling notes* registry with one entry per service.
-
-**Your obligation.** If you change anything a sibling could trip over, update
-this project's entry in that file **in the same change**:
-
-- the port it binds, or any port it pins for a subprocess
-- its measured peak VRAM or peak host RAM (measure with `~/gpu.sh` and
-  `~/ram.sh` under real load — write down what you saw, not an estimate)
-- how it can be made to release GPU memory, and how to verify that worked
-- anything it registers in the shared layer (`~/Caddyfile`, `~/gpu.sh`,
-  `~/ram.sh`, `~/serve_all.sh`)
-- a URL that external clients bake in and that therefore cannot move
-- long GPU submissions, or a host-side buffer as large as its model
-
-Do **not** write any of that into this repo's own docs. A sibling-aware note here
-is the bug this split exists to prevent.
-
-Read that file before changing how this app is served, how it loads models, or
-what it holds. The GPU and RAM rules there are not general advice — they are
-measured properties of this box, including several that contradict what the
-tooling reports.

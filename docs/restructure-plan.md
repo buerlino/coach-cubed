@@ -1,24 +1,27 @@
 # Restructuring plan
 
 How coach goes from two months of growth without a clear goal to a first
-release. This file holds the plan, its status, the decisions taken so far and
-the open questions. Rewrite it in place as steps finish (git keeps the
-history). Once `docs/decisions.md` exists (step 2.1), the decisions move there.
+release. This file holds the plan and its status. Rewrite it in place as steps
+finish (git keeps the history). Decisions and open questions are in
+[decisions.md](decisions.md) (since step 2.1), the binding rules in
+[rules-core.md](rules-core.md), open items outside the plan in
+[backlog.md](backlog.md).
 
 ## Next session starts here
 
-- **Current step:** Phase 2, step 2.1 (the docs skeleton). Phases 0 and 1 and
-  step 2.0 are done.
+- **Current step:** Phase 2, step 2.3, the first area: `clipper/` back to its
+  own repo. Phases 0 and 1 and steps 2.0–2.2 are done.
 - **In flight:** nothing. The Phase 3 spike can start in parallel; its baseline
   scripts are in `spike/phone-baseline/` (now pointing at `src/pose/`).
-- **Waiting on Noah:** answers to questions 1, 2 and 5 (the message went out
-  on 2026-10-31).
+- **Waiting on Noah:** answers to questions 1, 2 and 5 in
+  [decisions.md](decisions.md) (the message went out on 2026-10-31).
 - **Test baseline:** 68 JS and 5 Python tests since step 2.0.
 - **Don't touch:** `main`, the `pre-cleanup` tag, `.caddy/`, and the tablet
   `HA24BZ2Y` (it belongs to other projects' night shifts; the Fairphone 6
   `4d42e62f` is coach's test phone, always via `adb -s`).
 - **Read first:** this file, then [map.md](map.md) (especially "Hidden
-  couplings"), then AGENTS.md.
+  couplings"), then AGENTS.md. [rules-core.md](rules-core.md) binds;
+  [docs/README.md](README.md) says where every other fact lives.
 
 ## Goal
 
@@ -27,54 +30,12 @@ offline. Pose inference runs on the phone, with no server compute for
 analysing videos. 0.1.0 covers a narrow core, and everything else waits for
 later releases.
 
-## Decisions so far
-
-- 2026-10-31, Noah: nordmu may restructure the repo for a while; Noah resumes
-  work afterwards.
-- 2026-10-31, nordmu: offline is a hard requirement, so no server compute.
-- 2026-10-31, nordmu: nordmu names the core, from the map (step 1.3).
-  Everything outside it is parked, not deleted.
-- 2026-10-31, nordmu: cleanup first, then a small pipeline ported from
-  pascaline (not APODroid). The pipeline waits for fixes to pascaline's own
-  pipeline and for the skill nordmu is extracting from it.
-- 2026-10-31, nordmu: restructuring happens on branch `phase-0` (worktree
-  `.claude/worktrees/phase-0`). `main` stays at tag `pre-cleanup` until the end of
-  the window (step 2.8).
-- 2026-10-31, nordmu: until the pipeline exists, the Claude Code session
-  coordinates. Read-only work fans out to parallel agents. Writing work goes
-  to one agent per area (Opus 5.5, high effort), each in its own worktree, and
-  the session reviews the diff and runs the tests before merging into
-  `phase-0`.
-
-- 2026-10-31, nordmu: **the core of 0.1.0 is the lift analysis pipeline**:
-  video, on-device pose, `diagnostics.js`, plots and verdicts (map areas 1–3).
-  3D, bar detection, anatomy, the Movement Lab and the train tab are parked.
-- 2026-10-31, nordmu: 0.1.0 analyses the **lateral raise**, plus the **snatch
-  if the Phase 3 spike passes** (otherwise the snatch moves to 0.2).
-- 2026-10-31, nordmu: `clipper/` goes back to its own repo; `report/` stays
-  here as a parked research folder.
-- 2026-10-31, nordmu: the core's in-browser pose lives in `src/pose/`. Parked
-  areas go to `parked/<area>/` at the root, moved with `git mv` and unwired
-  from the app. Their tests move with them and leave `npm test`, which then
-  guards only the core; each parking commit records the new count.
-
-## Open questions
-
-| # | Question | Who | Recommendation |
-| --- | --- | --- | --- |
-| 1 | License | Noah | GPL-3.0-or-later. AGPL-3.0 only if Noah wants to stop others from hosting coach as a web service: for an offline app its network clause (§13) rarely applies. Every author whose code stays must agree (noah, nordmu, Nicola Walker, JMLuner); the map shows whose code is in the core. |
-| 2 | Where the Android 0.1.0 is published | Noah | Play Store, F-Droid, an APK on GitHub, or a PWA link. Needed before step 3.5, because the shell depends on it. |
-| 3 | Test phones | nordmu, Noah | Answered in part (nordmu, 2026-10-31): nordmu's Fairphone 6 (`4d42e62f`; LineageOS, no Google Chrome). A stock Android phone with Chrome and Google's WebView is still missing; an iPhone too, if iOS matters. |
-| 4 | The squat, image and clean & jerk tabs: park them, or keep them hidden in the core? | nordmu | Park squat and image (no core diagnostics). Keep clean & jerk's code but hide its tab until it has more than one cue. |
-| 5 | `.auth_password` is an unsalted SHA-256 hash of the old login password, with a scheme "identical to tecna". Is that password used anywhere else? | Noah | Change it wherever it's used. The file leaves the history in step 2.8 either way. |
-| 6 | How long the window lasts | Noah | Step 2.8 (history rewrite) has to finish before Noah resumes. |
-
 ## Rules for the window
 
 - All work happens in the `phase-0` worktree. `main` is not touched.
-- [AGENTS.md](../AGENTS.md) still binds. Its §4 says to stop and ask before a
-  change that can break the deploy: during the window nordmu is the one to ask
-  (Noah gave the go).
+- [rules-core.md](rules-core.md) and [AGENTS.md](../AGENTS.md) bind. AGENTS.md
+  §4 says to stop and ask before a change that can break the deploy: during
+  the window nordmu is the one to ask (Noah gave the go).
 - Every move follows AGENTS.md §2: grep the whole repo for the old name, then
   run `npm test` and `python3 -m unittest discover -s tests -p 'test_*.py'`.
 - Park, don't delete, until step 2.8.
@@ -160,12 +121,12 @@ The spike's WebView numbers (Phase 3) decide.
       existing in-browser pose on the Fairphone 6 and compared its diagnostics
       with ViTPose-L (map.md, Phone test). The server tabs needing Noah's
       dataset (train data) and bar detection were not run.
-- [x] 1.3 **nordmu named the core** (2026-10-31; see Decisions so far).
+- [x] 1.3 **nordmu named the core** (2026-10-31; see [decisions.md](decisions.md)).
 
 ### Phase 2: cleanup (interactive, in `phase-0`)
 
-The former question 4 was answered on 2026-10-31: clipper goes to its own
-repo, report stays here (see Decisions so far).
+Where clipper and report go, and that the squat, image and clean & jerk tabs
+are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
 
 - [x] 2.0 Before any move (2026-10-31):
       - the message to Noah has been sent, including "no pushes to `main`";
@@ -189,19 +150,36 @@ repo, report stays here (see Decisions so far).
         `/coach/` prefix-stripping proxy (a stand-in for Caddy). MediaPipe ran
         6 frames from its new folder. Not tested: the phone, and the real
         Caddy/tailnet URL.
-- [ ] 2.1 The docs skeleton in pascaline's shape, one place per fact:
-      - `docs/rules-core.md`: the goal in one sentence, the principles, and
-        the hard rules (offline, nothing leaves the phone, licence-compatible
-        dependencies);
-      - `docs/README.md` (the index), `docs/backlog.md`, `docs/decisions.md`
-        (the decisions above move there);
-      - CLAUDE.md stays a pointer, and AGENTS.md shrinks to what is still
-        true. Its deploy and tailnet rules go with the dev tooling if that is
-        kept.
-- [ ] 2.2 Per area, nordmu decides: keep, park, move out, or delete. "Parked"
-      means a clearly named folder, or its own repo again.
+- [x] 2.1 The docs skeleton in pascaline's shape, one place per fact
+      (2026-10-31):
+      - [rules-core.md](rules-core.md): the goal, the four principles (both
+        nordmu's) and the hard rules;
+      - [README.md](README.md) (the index; it replaces the root README's docs
+        table), [backlog.md](backlog.md) (seeded with the map's open items in
+        code that stays), [decisions.md](decisions.md) (the decisions and open
+        questions from this file);
+      - CLAUDE.md stays a pointer. AGENTS.md lost nothing that is still true:
+        its server-only rules (Caddy, the live CA, restarts, §5's sibling
+        notes) moved to [server.md](server.md), with a pointer, since the
+        server stays as dev tooling.
+- [x] 2.2 Per area, nordmu decided (2026-10-31; [decisions.md](decisions.md)):
+      - park: bar detection, Movement Lab and anatomy, 3D, the train tab, and
+        the squat, image and clean & jerk tabs; `report/` as research;
+      - move out: `clipper/`, to its own repo;
+      - keep: the core (areas 1–3). The server pose and ops stay as dev
+        tooling: the map's suggestion, implied by the `server.md` decision but
+        not asked on its own. The dataset scripts are sorted in the clipper
+        and train-tab steps. Tests and docs follow what they cover.
 - [ ] 2.3 Carry out the moves one area per commit, each with the grep and the
-      tests.
+      tests, in this order:
+      - [ ] `clipper/` to its own repo;
+      - [ ] `report/` to `parked/report/`;
+      - [ ] bar detection;
+      - [ ] Movement Lab and anatomy;
+      - [ ] 3D;
+      - [ ] the tabs: train, squat, image, clean & jerk (added 2026-10-31,
+        after nordmu parked the last three; not an area of its own in the
+        map).
 - [ ] 2.4 The videos:
       - record the provenance of each committed clip;
       - move scraped or unclear clips to `tests/fixtures/local/` (gitignored,
