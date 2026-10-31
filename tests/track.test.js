@@ -125,6 +125,7 @@ test('track: scoreTrack gives the old page\'s lift window and scores on every fi
     assert.deepStrictEqual(got.keypoints, smoothed, slug);
     assert.deepStrictEqual(JSON.parse(JSON.stringify(got.lift)), JSON.parse(JSON.stringify(want.lift)), slug);
     assert.deepStrictEqual(JSON.parse(JSON.stringify(got.results)), JSON.parse(JSON.stringify(want.results)), slug);
+    assert.deepStrictEqual(got.samples.map(s => s.t), want.samples.map(s => s.t), slug);
   }
 });
 

@@ -35,8 +35,9 @@ export function pickPerson(keypoints, previous) {
 // classic script, not a module.
 //
 // Returns the smoothed keypoints, the lifter, the lift window
-// ({ t0, t1, startIdx, endIdx, error?, notes, triggers? }, times in seconds)
-// and each cue's result, as computeResults returns them.
+// ({ t0, t1, startIdx, endIdx, error?, notes, triggers? }, times in seconds),
+// each cue's result and the samples (each with its time `t`) that the
+// indices in a result's phase point into, as computeResults returns them.
 export function scoreTrack(Diagnostics, track, set, opts = {}) {
   const sigmaMs = opts.sigmaMs ?? DEFAULT_SIGMA_MS;
   const keepVelocity = opts.keepVelocity ?? DEFAULT_KEEP_VELOCITY;
@@ -49,10 +50,10 @@ export function scoreTrack(Diagnostics, track, set, opts = {}) {
     const err = { error: 'No person was detected in any sampled frame.' };
     const ids = Object.keys(Diagnostics.computeResults({}, track.meta, '0').results);
     const results = Object.fromEntries(ids.map(id => [id, err]));
-    return { keypoints, personId: null, sigmaMs, keepVelocity, lift: null, results };
+    return { keypoints, personId: null, sigmaMs, keepVelocity, lift: null, results, samples: [] };
   }
   const out = Diagnostics.computeResults(keypoints, track.meta, personId);
-  return { keypoints, personId, sigmaMs, keepVelocity, lift: out.lift, results: out.results };
+  return { keypoints, personId, sigmaMs, keepVelocity, lift: out.lift, results: out.results, samples: out.samples };
 }
 
 // Where the window sits on a time bar of `duration` seconds, as fractions of
