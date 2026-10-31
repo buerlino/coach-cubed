@@ -43,11 +43,10 @@ covers is in [decisions.md](decisions.md); how the repo gets there is in
 - No analytics, crash reporters or trackers.
 
 ### Licence-compatible dependencies
-- Every dependency that ships in the app has a licence compatible with
-  coach's. Until that licence is chosen (question 1 in
-  [decisions.md](decisions.md)), pick permissive or GPL-3.0-compatible ones,
-  and nothing AGPL: YOLOv8 (`ultralytics`) is AGPL-3.0 and stays on the dev
-  server.
+- coach is GPL-3.0-or-later ([decisions.md](decisions.md#licence)). Every
+  dependency that ships in the app is permissive or GPL-3.0-compatible, and
+  nothing AGPL ships: YOLOv8 (`ultralytics`) is AGPL-3.0 and stays on the
+  dev server.
 - Record each one with its name, version, licence and source in the root
   [THIRD_PARTY.md](../THIRD_PARTY.md).
 
