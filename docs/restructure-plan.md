@@ -20,10 +20,11 @@ finish (git keeps the history). Decisions and open questions are in
   `.claude/worktrees/p3-spike`), merged into `phase-0` only with nordmu's
   OK. Done: 3.1–3.3 and 3.6's comparison script. Open:
   - 3.0: the re-extraction once no night shift runs; the validation set is
-    being filmed by a friend of nordmu (from 2026-11-01), then its
-    ViTPose-L references;
+    filmed by a friend of nordmu on 2026-11-01 (the clips from YouTube
+    can't stand in: no lateral raises, mostly front views, and they are on
+    Noah's machine), then its ViTPose-L references;
   - 3.4 capture, 3.5's matrix (running in Brave on the Fairphone since
-    2026-11-01 00:20) and the WebView runs, 3.6 on the validation set, 3.7
+    2026-10-31 23:26) and the WebView runs, 3.6 on the validation set, 3.7
     (its numbers go in a new `docs/pose-spike.md`), 3.8 on paper.
 
   First phone findings (Brave, 20 frames, 1080p):
@@ -41,7 +42,8 @@ finish (git keeps the history). Decisions and open questions are in
     Walker and JMLuner (a chat message each is enough);
   - nordmu: a private GitHub repo for `../weightlifting-clipper`, pushed
     (2.8's precondition);
-  - nordmu: film the validation set (3.0);
+  - nordmu: the validation set (3.0), filmed by a friend, with the
+    friend's written OK to use the footage;
   - nordmu, then Noah: the next message, with branch protection on `main`
     and the other open questions ([decisions.md](decisions.md#needs-an-answer));
   - nordmu, later: a stock Android phone with Chrome and Google's WebView,
@@ -222,7 +224,8 @@ Finished steps keep one line each; the details are in their commits.
 3.0 starts first; 3.1–3.4 can run alongside it. The thresholds and the stop
 condition are decided ([decisions.md](decisions.md#what-010-is)).
 
-- [ ] 3.0 **The validation set**, before any measurement (3.5): nordmu films
+- [ ] 3.0 **The validation set**, before any measurement (3.5): a friend of
+      nordmu films, after a written OK to use the footage,
       about 10 lateral-raise sets of several reps and about 5 side-view
       snatches (kept out of git, under `tests/fixtures/local/`). Each gets a
       ViTPose-L reference track from the dev server and a few verdicts judged

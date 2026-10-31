@@ -33,7 +33,8 @@ Newest first within each group.
   and get the cues, offline, for testers (nordmu, Noah, friends). B: the gym
   recording session. The public 0.1.0 needs both.
 - **2026-10-31, nordmu: a validation set comes before the spike's
-  measurements** (step 3.0), filmed by nordmu: about 10 lateral-raise sets of
+  measurements** (step 3.0), filmed by a friend of nordmu, who gives a
+  written OK to use the footage first: about 10 lateral-raise sets of
   several reps and about 5 side-view snatches, each with a ViTPose-L
   reference track and a few verdicts judged by a person. A pose model
   passes when, on smoothed tracks and counting only verdicts both score, it
