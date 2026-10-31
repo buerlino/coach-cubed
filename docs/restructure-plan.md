@@ -127,185 +127,35 @@ Android phone with Google's WebView is still untested.
 
 ### Phase 0: setup (2026-10-31)
 
-- [x] Tag `pre-cleanup` on `main` (`62b2cee`).
-- [x] Branch `phase-0` and its worktree `.claude/worktrees/phase-0`.
-- [x] This plan.
-- [x] `.claude/settings.json` keeps the Read tool away from the huge files (it doesn't stop scripts): the two
-      three.js copies, the MediaPipe bundles, the anatomy model, the notebook,
-      tracks, goldens and videos.
-- [x] The message to Noah is sent: license, where 0.1.0 is published, the
-      password, no pushes to `main`, the history rewrite (nordmu,
-      2026-10-31).
+Finished steps keep one line each; the details are in their commits.
+
+- [x] Tag `pre-cleanup` on `main` at `62b2cee`, branch `phase-0` and its
+      worktree, this plan, Read limits on the huge files (`881d9e7`).
+- [x] The first message to Noah ([decisions.md](decisions.md#needs-an-answer)).
 
 ### Phase 1: the map, then the core
 
-- [x] 1.1 The map: [map.md](map.md), with every tracked file in 12 areas and
-      a suggestion per area.
-- [x] 1.2 Ran the full app (on the CPU) and the local preview. Also ran the
-      existing in-browser pose on the Fairphone 6 and compared its diagnostics
-      with ViTPose-L (map.md, Phone test). The server tabs needing Noah's
-      dataset (train data) and bar detection were not run.
-- [x] 1.3 **nordmu named the core** (2026-10-31; see [decisions.md](decisions.md)).
+- [x] 1.1 The map, [map.md](map.md) (`fde52f1`; verified in `916958f`).
+- [x] 1.2 Ran the full app on the CPU, the preview, and the in-browser pose on
+      the Fairphone 6 against ViTPose-L (map.md, Phone test; `fde52f1`).
+- [x] 1.3 nordmu named the core (`0640216`; [decisions.md](decisions.md)).
 
 ### Phase 2: cleanup (interactive, in `phase-0`)
 
-Where clipper and report go, and that the squat, image and clean & jerk tabs
-are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
-
-- [x] 2.0 Before any move (2026-10-31):
-      - the message to Noah has been sent, including "no pushes to `main`";
-      - **moved the core's own files out of the folders being parked**, into
-        `src/pose/`:
-        - `pose.mjs`, and MediaPipe as `vendor/mediapipe-pose/` with its
-          licence and manifest (its credits in `src/pose/THIRD_PARTY.md`, merged into the root
-          `THIRD_PARTY.md` in step 2.7);
-        - `local-mode.mjs`;
-        - one 33→17 mapping, `coco17.mjs`, used by `local-mode.mjs`,
-          `track-session.mjs` and the spike's `mp-run.js` (there were three
-          copies, not two);
-        - both servers serve `/pose/`; the squat lab imports `../pose/`;
-      - removed the `ui-config.mjs` read from app.py **and** from
-        `launchers/run_local.py` (the plan named only app.py; the map named
-        both): `/` is always the lift page;
-      - fixed `/original/`: both servers redirect it to `../` (relative, so it
-        works under `/coach/`), the preview opens `/`, and it now serves
-        `logo.png`;
-      - tested: the grep, 68 + 5 tests, the preview and the full app over
-        HTTP, and both pages in headless Brave, directly and behind a
-        `/coach/` prefix-stripping proxy (a stand-in for Caddy). MediaPipe ran
-        6 frames from its new folder. Not tested: the phone, and the real
-        Caddy/tailnet URL. Behind the prefix, absolute paths in the frozen
-        code still 404, and the record left them out: `/anatomy/shared.css`
-        (`src/anatomy/integration.mjs:7`), the `/squat/` link (`ui.mjs:5`)
-        and the Movement Lab's `/api/...` calls ([backlog.md](backlog.md)).
-- [x] 2.1 The docs skeleton in pascaline's shape, one place per fact
-      (2026-10-31):
-      - [rules-core.md](rules-core.md): the goal, the four principles (both
-        nordmu's) and the hard rules;
-      - [README.md](README.md) (the index; it replaces the root README's docs
-        table), [backlog.md](backlog.md) (seeded with the map's open items in
-        code that stays), [decisions.md](decisions.md) (the decisions and open
-        questions from this file);
-      - CLAUDE.md stays a pointer. AGENTS.md lost nothing that is still true:
-        its server-only rules (Caddy, the live CA, restarts, the sibling
-        notes) moved to [server.md](server.md), with a pointer, since the
-        server stays as dev tooling.
-- [x] 2.2 Per area, nordmu decided (2026-10-31; [decisions.md](decisions.md)):
-      - park: bar detection, Movement Lab and anatomy, 3D, the train tab, and
-        the squat, image and clean & jerk tabs; `report/` as research;
-      - move out: `clipper/`, to its own repo;
-      - keep: the core (areas 1–3). The server pose and ops stay as dev
-        tooling: the map's suggestion, implied by the `server.md` decision but
-        not asked on its own. The dataset scripts are sorted in the clipper
-        and train-tab steps. Tests and docs follow what they cover.
-- [x] 2.3 Carry out the moves one area per commit, each with the grep and the
-      tests, in this order:
-      - [x] `clipper/` to its own repo (2026-10-31): `weightlifting-clipper`,
-        a local sibling of coach, not pushed. Its history is nordmu's two
-        original commits (same hashes) plus Noah's `e178d97`, replayed with
-        Noah's author and date; the tree is identical to coach's `clipper/`.
-        The sync script stays in coach and now needs `$CLIPPER_OUT` or
-        `--clipper-dir`. The README's copy of clipper's `clip-nvidia` section
-        went too;
-      - [x] `report/` to `parked/report/` (2026-10-31), with
-        `parked/README.md` as the folder's index. `report.tex` reads only
-        `figures/` beside it; `extract_track.py` finds `src/` one level
-        further up. Not checked: the PDF build (this laptop's TeX lacks the
-        `lmodern`/`ecrm` fonts, so `make` fails in the preamble, before any
-        moved path) and the notebook's own paths (its reads are denied by
-        `.claude/settings.json`);
-      - [x] bar detection (2026-10-31), backend and UI (nordmu's choice):
-        `parked/bar-detection/` holds the detectors, a full copy of the old
-        download script, the `transformers` requirement, `reference/` and the
-        `model-add` skill; its README lists every unwired call site.
-        `vitpose_backend` lost the equipment thread and the shared GPU lock
-        (its own `_infer_lock` still serializes ViTPose); `/api/capabilities`
-        answers `{}`; a start with `detect_equipment=1` answers 400. Tested:
-        tests, a syntax check of every inline script, and the full app in
-        headless Brave with the athlete-a example (no exceptions; 3D still
-        scores plate-anchor from the cached boxes). Not tested: a real pose
-        run (the night shift had the CPU), the setup scripts, the conda path,
-        anything on the GPU box. `depth_backend.py`'s comments about the
-        detectors move with 3D;
-      - **Cancelled (nordmu, 2026-10-31):** Movement Lab and anatomy, 3D, and
-        the train, squat, image and clean & jerk tabs. The new UI is built
-        fresh and the old page is frozen as the dev server's reference viewer
-        ([decisions.md](decisions.md), "What 0.1.0 is"). These areas stay
-        wired into the old page and are parked together with it in step 5.8.
-        Known loose end in the frozen page: the train tab's `TRAIN_DIR` still
-        falls back to the in-repo `clipper/downloads`, which left in the
-        clipper step.
-- [x] 2.4 The videos (2026-10-31; nordmu's choices in
-      [decisions.md](decisions.md), "Data and privacy"):
-      - the provenance of each clip is in
-        [tests/fixtures/README.md](../tests/fixtures/README.md#videos);
-      - all four example clips left git for the same path under the
-        gitignored `tests/fixtures/local/`; the report's byte-identical copy
-        stays on disk, gitignored. Their tracks, manifest entries and goldens
-        stay public. `.gitignore` now also refuses videos under
-        `tests/fixtures/global/`;
-      - both servers (`_example_video` in app.py, `examples()` in
-        `run_local.py`) look for a global example's clip under `local/` when
-        it isn't beside its track; a new Python test covers the preview's
-        side (68 JS + 6 Python tests);
-      - the named athlete is `athlete-a` everywhere (clip, golden, limb
-        profile, the report, code, docs), and the second one, named only in
-        notes, `athlete-b`. Frozen code touched, by name only:
-        `src/squat/app.mjs` (the `athlete-a` → snatch branch) and two
-        comments in `src/depth_backend.py`. The real names are only in the
-        gitignored `tests/fixtures/local/PROVENANCE.md` on nordmu's laptop;
-      - tested: the grep; the tests; the preview and the full app over HTTP
-        and in headless Brave (all four examples load from `local/`, the
-        Movement Lab still switches to snatch for `athlete-a`); and the
-        staged tree exported without videos, as a fresh clone sees it: all
-        tests pass, the gallery is empty and its picker hidden, no
-        exceptions. Not tested: the phone, Caddy, the report's notebook and
-        PDF.
-- [x] 2.5 Stopped tracking `.auth_password`, `parked/report/.DS_Store` and
-      `tests/.DS_Store` (2026-10-31). All three stay on disk; `.gitignore`
-      already covered `.DS_Store` and now covers `.auth_password`. Nothing
-      in the repo reads the password file. They stay in the history until
-      step 2.8.
-- [x] 2.6 The docs of what stays (2026-10-31; nordmu's choices in
-      [decisions.md](decisions.md), "Rules and docs"). Two read-only audits
-      checked the skills and the dataset docs against the code first.
-      - a new root README: what coach is now, the local preview and the dev
-        server, the layout;
-      - [server.md](server.md) took in what was still true of `deploy.md`
-        (what runs, the checkpoints, every script), and `deploy.md` is gone;
-        its detector notes went to `parked/bar-detection/README.md`;
-      - `START_HERE.md` is gone: its launch commands are in the README, its
-        anatomy guide in `src/anatomy/README.md`;
-      - `tests/README.md` lists every test file and both commands, and its
-        golden path and commit step are right; the clipper sync is described
-        once, in [clipper-pipeline.md](clipper-pipeline.md);
-      - the dataset docs lost their stale and duplicated facts (one owner
-        each: numbers in [dataset-stats.md](dataset-stats.md), the layout and
-        profiles' meaning in `tests/fixtures/README.md`, shapes and endpoints
-        in [fixture-data-contract.md](fixture-data-contract.md)). The deploy
-        map left `train-data-todo.md`, and its OCR samples name no athletes;
-      - both skills match the code (`panel-add` rewritten; `lifting-diagnostic`
-        and its notes corrected), as do the repo `Caddyfile`'s comments, the
-        `app.py` docstring, and a comment in `diagnostics.js`;
-      - frozen code touched, comments only: the HTML comment above the import
-        map in `INDEX_HTML`;
-      - tested: the grep; 68 JS + 6 Python tests; the `panel-add` checks as
-        written; both servers render the page in headless Brave with no
-        exceptions. Not tested: anything on Noah's machine, which most of
-        server.md and the dataset docs describe.
-- [~] 2.7 Licence prep (2026-10-31). Done:
-      - the root [THIRD_PARTY.md](../THIRD_PARTY.md): every component in
-        the app, the dev server's packages and model weights, the data, with
-        version, licence and source. `src/pose/THIRD_PARTY.md` merged into it;
-        `src/squat/THIRD_PARTY.md` stays as the Movement Lab's "Credits"
-        page, which its footer links to, trimmed to that page's
-        attributions;
-      - [authors.md](authors.md): who wrote how much (git blame), for the
-        consent request.
-
-      Waiting: the authors' written OKs to GPL-3.0-or-later
-      ([decisions.md](decisions.md#licence)); then LICENSE and the SPDX
-      headers.
+- [x] 2.0 The core's pose into `src/pose/` with one 33→17 mapping, `/original/`
+      fixed (`423ab8d`). Behind `/coach/`, the frozen code's absolute paths
+      still 404 ([backlog.md](backlog.md)).
+- [x] 2.1–2.2 The docs skeleton and nordmu's per-area decisions (`b8c4b96`).
+- [x] 2.3 `clipper/` back to `../weightlifting-clipper` (`ea1bd5e`), `report/`
+      to `parked/report/` (`229d350`), bar detection to
+      `parked/bar-detection/` (`212f502`); the other parkings were cancelled,
+      those areas freeze with the old page until step 5.8 (`3c15f62`).
+- [x] 2.4 The example videos out of git, the athletes pseudonymized (`0c7825a`).
+- [x] 2.5 `.auth_password` and two `.DS_Store` files untracked (`d0d98cc`).
+- [x] 2.6 The docs describe the repo as it is now (`e5d3d60`).
+- [~] 2.7 [THIRD_PARTY.md](../THIRD_PARTY.md) and [authors.md](authors.md)
+      (`cc72cc8`); LICENSE and the SPDX headers wait for the authors' written
+      OKs ([decisions.md](decisions.md#licence)).
 - [ ] 2.8 One history rewrite at the end of the window, before Noah resumes,
       with nordmu's explicit OK. **Precondition:** `../weightlifting-clipper`
       is pushed or backed up somewhere other than this laptop. After the
@@ -329,20 +179,8 @@ are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
       - every old clone is re-cloned (Noah, Nicola, JMLuner);
       - branch protection on `main` stops one push from an old clone
         bringing everything back.
-- [x] 2.9 A lean AGENTS.md, and a test that keeps the docs lean (2026-10-31,
-      done before 2.8, which stays last; nordmu's choices in
-      [decisions.md](decisions.md), "Rules and docs"):
-      - AGENTS.md is down from 120 lines to 38: what coach is, the commands,
-        the workflow, the layout, the conventions. CLAUDE.md stays a pointer;
-      - its rules (relative paths, the minimal root, moving a file, the
-        landmines, stop and ask) moved to [rules-core.md](rules-core.md),
-        "Changing this repo", each war story cut to a line; every
-        "AGENTS.md §N" now points there;
-      - `tests/docs.test.js`, in `npm test`, checks the budgets, every
-        relative link and anchor in tracked Markdown, and the paths named in
-        [README.md](README.md). Its first run found no broken link;
-      - tested: the grep, 71 JS + 6 Python tests, and the check failing on a
-        broken link, a broken anchor and a missing README path.
+- [x] 2.9 A lean AGENTS.md, its rules moved to rules-core, and
+      `tests/docs.test.js` (`0aaf936`).
 
 ### Phase 3: on-device pose spike (2–3 days in `spike/`; can start once the core is named)
 
