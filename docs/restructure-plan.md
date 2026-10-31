@@ -9,24 +9,28 @@ finish (git keeps the history). Decisions and open questions are in
 
 ## Next session starts here
 
-- **Current step:** Phase 2, step 2.3, the fourth area: Movement Lab and
-  anatomy. Phases 0 and 1, steps 2.0–2.2, and the clipper, report and bar
-  detection moves are done (commits `423ab8d` to the bar detection one).
-- **Start the next session by reviewing** what the 2026-10-31 evening session
-  did: `git log 916958f..phase-0` and `docs/decisions.md`. nordmu asked for
-  that review before continuing.
-- **In flight:** nothing. The Phase 3 spike can start in parallel; its baseline
-  scripts are in `spike/phone-baseline/` (now pointing at `src/pose/`).
-- **Waiting on Noah:** answers to questions 1, 2 and 5 in
-  [decisions.md](decisions.md) (the message went out on 2026-10-31).
-- **Test baseline:** 68 JS and 5 Python tests since step 2.0 (unchanged by
-  the parking so far: no parked area had tests yet).
+- **Current step:** finish Phase 2: steps 2.4 (videos), 2.5 (hygiene), 2.6
+  (docs of what stays) and 2.7 (licence prep; it waits on Noah). Step 2.3 is
+  done: the rest of its parking was cancelled on 2026-10-31, because the new
+  UI is built fresh and the old page is frozen. Step 2.8 (the history rewrite)
+  comes at the very end of the window and needs nordmu's explicit OK.
+- **The old page is frozen:** don't edit `INDEX_HTML` in `src/app.py`, or the
+  Movement Lab, anatomy and 3D code, except to fix something that blocks the
+  dev server.
+- **In parallel:** the Phase 3 spike may run as a second session in `spike/`;
+  its baseline scripts are in `spike/phone-baseline/`.
+- **Waiting on nordmu:**
+  - question 8, the review of the goal, the principles and the tab parking;
+  - question 7, how the gym recording session works (needed by Phase 5).
+- **Waiting on Noah:** questions 1, 5 and 6 in [decisions.md](decisions.md)
+  (the message went out on 2026-10-31).
+- **Test baseline:** 68 JS and 5 Python tests.
 - **Don't touch:** `main`, the `pre-cleanup` tag, `.caddy/`, and the tablet
   `HA24BZ2Y` (it belongs to other projects' night shifts; the Fairphone 6
   `4d42e62f` is coach's test phone, always via `adb -s`).
-- **Read first:** this file, then [map.md](map.md) (especially "Hidden
-  couplings"), then AGENTS.md. [rules-core.md](rules-core.md) binds;
-  [docs/README.md](README.md) says where every other fact lives.
+- **Read first:** this file, then [decisions.md](decisions.md),
+  [rules-core.md](rules-core.md), [map.md](map.md) ("Hidden couplings") and
+  AGENTS.md. [docs/README.md](README.md) says where every other fact lives.
 
 ## Goal
 
@@ -68,7 +72,7 @@ later releases.
   - There is no LICENSE.
   - `.auth_password` was committed on 2026-09-01; nothing in the repo reads it.
   - Test and report videos include YouTube broadcast footage, and a named
-    athlete with her measured limb lengths.
+    athlete with the athlete's measured limb lengths.
 - **Unreviewed pushes.** Contributors pushed straight to `main`; one cleanup
   commit deleted TODO.md, which had to be restored.
 - **On the Fairphone 6**
@@ -99,8 +103,10 @@ pascaline's `MathEngine`). The options:
 - **TWA:** the PWA in the Play Store, running in real Chrome.
 - **A native rewrite:** no. It would mean rewriting the diagnostics and the UI.
 
-Lean: PWA plus Capacitor, so pascaline's build and release work carries over.
-The spike's WebView numbers (Phase 3) decide.
+**Decided (nordmu, 2026-10-31): a PWA plus a signed Capacitor APK on GitHub;
+F-Droid after a feasibility check (step 3.6).** On the Fairphone 6, WebGPU
+works in a Capacitor WebView ([map.md](map.md#phone-test-2026-10-31)). A stock
+Android phone with Google's WebView is still untested.
 
 ## Phases
 
@@ -175,12 +181,12 @@ are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
         tooling: the map's suggestion, implied by the `server.md` decision but
         not asked on its own. The dataset scripts are sorted in the clipper
         and train-tab steps. Tests and docs follow what they cover.
-- [ ] 2.3 Carry out the moves one area per commit, each with the grep and the
+- [x] 2.3 Carry out the moves one area per commit, each with the grep and the
       tests, in this order:
       - [x] `clipper/` to its own repo (2026-10-31): `weightlifting-clipper`,
         a local sibling of coach, not pushed. Its history is nordmu's two
         original commits (same hashes) plus Noah's `e178d97`, replayed with
-        his author and date; the tree is identical to coach's `clipper/`.
+        Noah's author and date; the tree is identical to coach's `clipper/`.
         The sync script stays in coach and now needs `$CLIPPER_OUT` or
         `--clipper-dir`. The README's copy of clipper's `clip-nvidia` section
         went too;
@@ -204,12 +210,14 @@ are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
         run (the night shift had the CPU), the setup scripts, the conda path,
         anything on the GPU box. `depth_backend.py`'s comments about the
         detectors move with 3D;
-      - [ ] Movement Lab and anatomy;
-      - [ ] 3D;
-      - [ ] the tabs: train, squat, image, clean & jerk (added 2026-10-31,
-        after nordmu parked the last three; not an area of its own in the
-        map). The train tab's `TRAIN_DIR` still falls back to the in-repo
-        `clipper/downloads`, which left in the clipper step.
+      - **Cancelled (nordmu, 2026-10-31):** Movement Lab and anatomy, 3D, and
+        the train, squat, image and clean & jerk tabs. The new UI is built
+        fresh and the old page is frozen as the dev server's reference viewer
+        ([decisions.md](decisions.md), "What 0.1.0 is"). These areas stay
+        wired into the old page and are parked together with it in step 5.8.
+        Known loose end in the frozen page: the train tab's `TRAIN_DIR` still
+        falls back to the in-repo `clipper/downloads`, which left in the
+        clipper step.
 - [ ] 2.4 The videos:
       - record the provenance of each committed clip;
       - move scraped or unclear clips to `tests/fixtures/local/` (gitignored,
@@ -225,7 +233,9 @@ are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
 - [ ] 2.7 Add LICENSE, SPDX headers and `THIRD_PARTY.md` once question 1 is
       answered and the authors have agreed.
 - [ ] 2.8 One history rewrite at the end of the window, before Noah resumes,
-      with nordmu's explicit OK. It removes the videos, the password and the
+      with nordmu's explicit OK. **Precondition:** `../weightlifting-clipper`
+      is pushed or backed up somewhere other than this laptop. After the
+      rewrite it is the only copy of clipper. It removes the videos, the password and the
       removed bloat. Rewritten history doesn't descend from `62b2cee`, so:
       - `main` is reset and force-pushed to `noahsta/coach`, with Noah's OK;
       - the `pre-cleanup` tag and the merged branches `test-fixtures-pipeline`
@@ -260,6 +270,11 @@ are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
       TWA), with the numbers. The stop condition is agreed before 3.3: if no
       model keeps the diagnostics' results on a mid-range phone, nordmu and
       Noah discuss a server fallback or a narrower core.
+- [ ] 3.6 **F-Droid feasibility** (pascaline did the same): can the chosen
+      runtime (MediaPipe or ONNX Runtime Web WebAssembly) and the model
+      weights be built from source, or are they accepted as assets? This may
+      steer the runtime choice in 3.5, so run it alongside. Until it passes,
+      0.1.0 ships as a PWA and a GitHub APK.
 
 ### Phase 4: a small pipeline (after pascaline's fixes and nordmu's skill)
 
@@ -275,14 +290,55 @@ are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
 - [ ] 4.3 The checks: `npm test`, the Python tests, and a new check that
       fails on absolute asset paths (turning AGENTS.md §1 into a test).
 
-### Phase 5: the core in depth
+### Phase 5: the new app (mobile-first UI and the gym recording session)
 
-- [ ] 5.1 Analyse the core's code:
-      - moving the frontend out of app.py into static files;
-      - the pose engine interface;
-      - what the core still needs from the server.
-- [ ] 5.2 Tests for the core's UI path, before any unattended work touches it.
-- [ ] 5.3 Output: the refactor packages.
+Decided 2026-10-31 ([decisions.md](decisions.md), "What 0.1.0 is"). This
+phase replaces the old plan of first moving the old frontend out of app.py:
+the new UI is built fresh as static files, and the old page stays frozen.
+
+- [ ] 5.1 **nordmu's input on the gym recording session** (question 7). Ask
+      before anything is designed: rolling buffer length, how start and end
+      are marked, several lifts per session, choosing the lift, camera and
+      frame rate, what happens to the raw video, where the phone stands.
+- [ ] 5.2 **Design first, then build.** Clickable HTML mockups of the phone
+      layout and the widened desktop layout, tried on the Fairphone. nordmu
+      approves them before 5.3. Flows to cover:
+      - the recording session;
+      - marking a lift;
+      - the processing queue;
+      - the result view: video with overlay, cues, plots.
+- [ ] 5.3 **The app skeleton**, as static files with no Flask:
+      - a PWA (manifest, a service worker that caches the app and the models
+        for offline use);
+      - the Capacitor Android shell;
+      - the pose engine behind one async Worker interface, with the model
+        from Phase 3;
+      - `diagnostics.js` mounted unchanged;
+      - every asset path relative (AGENTS.md §1).
+- [ ] 5.4 **The gym recording session**, built to nordmu's spec from 5.1.
+      Technical questions to settle there:
+      - MediaRecorder chunks after the first can't be decoded on their own, so
+        a rolling buffer needs short restarted segments, or WebCodecs encoding
+        with regular keyframes;
+      - storage in OPFS, and its quota;
+      - a screen wake lock;
+      - battery and heat during a whole session;
+      - camera permissions in the Capacitor WebView;
+      - processing in a background queue while recording continues.
+- [ ] 5.5 **Port from the old page what the core needs:** video playback with
+      the skeleton overlay, smoothing, the lift window markers, the keypoint
+      plots and the diagnostics panel. Port by reading the old code, not by
+      copying the Python string.
+- [ ] 5.6 **Tests from day one:**
+      - unit tests for the new modules;
+      - a headless page test that loads the app offline, runs a lateral-raise
+        and a snatch example, and fails on any console error, 404 or empty
+        cue panel;
+      - runs on the Fairphone.
+- [ ] 5.7 Responsive check: phone portrait and landscape, tablet, laptop.
+- [ ] 5.8 **When the new UI covers the core,** park the old page together with
+      anatomy, 3D, the Movement Lab and the train tab in `parked/`. Or keep a
+      trimmed reference viewer on the dev server, if nordmu wants one.
 
 ### Phase 6: 0.1.0 scope and timeline
 
@@ -297,5 +353,5 @@ are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
 
 ### Phase 7: build 0.1.0
 
-The packages run through the pipeline. The design-heavy ones (moving the
-frontend out, the pose engine) are done interactively with nordmu.
+The packages run through the pipeline. The design-heavy ones (the new UI,
+the recording session, the pose engine) are done interactively with nordmu.

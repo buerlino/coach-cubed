@@ -4,14 +4,17 @@ These rules bind every session, agent and contributor. [AGENTS.md](../AGENTS.md)
 links here; where the two differ, this file wins. Rewrite in place, never
 amend (git keeps the history).
 
-**The goal** (nordmu, 2026-10-31): *film a lift on your phone and get
+**The goal** (proposed 2026-10-31, awaiting nordmu's review; question 8 in
+[decisions.md](decisions.md)): *film a lift on your phone and get
 cue-by-cue technique feedback, offline, with nothing leaving the phone.*
 
-The first release, 0.1.0, is an Android app (iOS possibly as a PWA). What it
+The first release, 0.1.0, ships as a PWA and as a signed Android APK, from
+one mobile-first, responsive web app. What it
 covers is in [decisions.md](decisions.md); how the repo gets there is in
 [restructure-plan.md](restructure-plan.md).
 
-**Four principles decide every default** (nordmu, 2026-10-31):
+**Four principles decide every default** (proposed 2026-10-31, awaiting
+nordmu's review):
 
 1. **Honest verdicts.** A cue is scored only when the keypoints support it;
    otherwise the app says it can't score it. Thresholds stay marked

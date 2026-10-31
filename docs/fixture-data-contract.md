@@ -50,7 +50,7 @@ stay on the SSD — small, and read on every request.
   "keypoints": {
     "<frameIndex>": {          // STRING key: "0", "1", ... "479"
       "<personId>": [          // tracker id, e.g. "2218" — only the kept person
-        [x, y, confidence],    // 17 rows, COCO order
+        [y, x, confidence],    // 17 rows, COCO order; y points down
         ...
       ]
     }

@@ -214,9 +214,9 @@ place that was unwired. 3D still reads the boxes cached in older tracks.
 What follows describes it as it was.
 
 - **Files:**
-  - [src/equipment_backend.py](../src/equipment_backend.py): Grounding DINO
+  - [src/equipment_backend.py](../parked/bar-detection/equipment_backend.py): Grounding DINO
     (about 700 MB, via `transformers`; not installed on the laptop).
-  - [src/equipment_sam3.py](../src/equipment_sam3.py): SAM 3 (3.4 GB, gated),
+  - [src/equipment_sam3.py](../parked/bar-detection/equipment_sam3.py): SAM 3 (3.4 GB, gated),
     used when `COACH_SAM3=1`.
 - **Used by:** the overlay and the 3D plate-anchor method.
 - **Tests:** none.
@@ -377,6 +377,7 @@ What follows describes it as it was.
   mistake~~: removed in step 2.3 (it is in clipper's own README).
 - **[docs/fixture-data-contract.md:53](fixture-data-contract.md) gives
   keypoints as `[x, y, confidence]`; the code and data use `[y, x, conf]`.**
+  (Fixed on 2026-10-31.)
   Fix this before Phase 3 writes tracks from a new model.
 
 ## Hidden couplings

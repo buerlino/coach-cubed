@@ -15,9 +15,6 @@ During the restructuring window, the order of work and its status are in
 
 - A fixture without a `diagnostics` field is silently scored as snatch
   ([map.md](map.md#11-tests-and-fixtures), area 11).
-- [fixture-data-contract.md:53](fixture-data-contract.md) gives keypoints as
-  `[x, y, confidence]`; the code and data use `[y, x, conf]`. Fix before
-  Phase 3 writes tracks from a new model (map area 12).
 - `scripts/sync_clipper_fixtures.py` accepts only 2-digit attempt numbers
   (`\d{2}`) where app.py accepts any (`\d+`); the likely cause of the 30
   skipped clips (map area 8).
@@ -44,6 +41,9 @@ During the restructuring window, the order of work and its status are in
   names, missing lifts (map area 12).
 
 ## Before anything is published (step 2.8)
+
+- `../weightlifting-clipper` has no remote. It needs a home (for example a
+  private GitHub repo) before step 2.8 removes clipper from coach's history.
 
 - [train-data-todo.md:27–29](train-data-todo.md) lists Noah's LAN and tailnet
   addresses and hostname (map area 8). The file moves to `parked/` with the
