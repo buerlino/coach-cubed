@@ -16,12 +16,26 @@ finish (git keeps the history). Decisions and open questions are in
   - 2.8, the history rewrite, last, with nordmu's explicit OK, once the
     clipper repo has its home.
 
-  Phase 3 runs on branch `p3/spike` (worktree
-  `.claude/worktrees/p3-spike`), merged into `phase-0` with nordmu's OK.
-  Next: Phase 3, which starts with 3.0 (its precondition, the
-  re-extraction, needs a CPU free of night shifts) and runs 3.1–3.4
-  alongside the filming. Then Phase 5; milestone B's steps also wait for
-  question 7.
+  **Phase 3 is under way** on branch `p3/spike` (worktree
+  `.claude/worktrees/p3-spike`), merged into `phase-0` only with nordmu's
+  OK. Done: 3.1–3.3 and 3.6's comparison script. Open:
+  - 3.0: the re-extraction once no night shift runs; the validation set is
+    being filmed by a friend of nordmu (from 2026-11-01), then its
+    ViTPose-L references;
+  - 3.4 capture, 3.5's matrix (running in Brave on the Fairphone since
+    2026-11-01 00:20) and the WebView runs, 3.6 on the validation set, 3.7
+    (its numbers go in a new `docs/pose-spike.md`), 3.8 on paper.
+
+  First phone findings (Brave, 20 frames, 1080p):
+  - ONNX Runtime's WebAssembly (4 threads, cross-origin isolated) beats
+    its WebGPU backend on every ONNX candidate (ViTPose-S pose 202 vs
+    416 ms/frame); more than 4 threads is slower;
+  - MediaPipe's GPU delegate is the fastest candidate (48 ms/frame);
+  - WebCodecs' hardware decoder deadlocks if frames are held during
+    `flush()` (fixed in `lib/decode.mjs`); software decode is twice as
+    fast.
+
+  Then Phase 5; milestone B's steps also wait for question 7.
 - **Start now, outside a session** (to-dos, not session work):
   - nordmu: a one-line written OK to GPL-3.0-or-later from Noah, Nicola
     Walker and JMLuner (a chat message each is enough);
@@ -223,14 +237,15 @@ condition are decided ([decisions.md](decisions.md#what-010-is)).
 - [x] 3.1 Candidates: MediaPipe Pose Landmarker (lite, full, heavy),
       ViTPose-S/B and RTMPose-s/m, the last two behind Megvii's YOLOX
       (Apache-2.0); versions, sources and licence flags (ViTPose's MAE
-      pretraining is CC BY-NC) in [THIRD_PARTY.md](../THIRD_PARTY.md).
+      pretraining is CC BY-NC) in [THIRD_PARTY.md](../THIRD_PARTY.md)
+      (`47f1ac2`).
 - [x] 3.2 Smoothing and the lift window in `src/track/`, pinned to the old
       page by `tests/track.test.js`; the spike scores smoothed tracks with it
       (`bb5dfbb`).
 - [x] 3.3 The page, [spike/pose-bench/](../spike/pose-bench/README.md):
       mp4box.js and WebCodecs, the model in a worker behind one async
       `estimate()`, `track.json` in the fixture format, scored with
-      `src/track/`.
+      `src/track/` (`c06ccc3`).
 - [ ] 3.4 **Capture checks** for the recording session (milestone B):
       `getUserMedia` at 60 fps and `MediaRecorder` inside the Capacitor
       WebView, and a 30–60 minute heat and battery run on the Fairphone,
@@ -238,9 +253,10 @@ condition are decided ([decisions.md](decisions.md#what-010-is)).
 - [ ] 3.5 Measure on the Fairphone, in Brave and inside a Capacitor WebView:
       ms per frame, decode time, total time per clip, peak memory, download
       size. The stock Android phone comes after the spike (question 3).
-- [ ] 3.6 Run `diagnostics.js` on each candidate's smoothed tracks of the
+- [~] 3.6 Run `diagnostics.js` on each candidate's smoothed tracks of the
       validation set and compare with the references, counting only scored
-      verdicts, against the thresholds from 3.0.
+      verdicts, against the thresholds from 3.0. The script:
+      `spike/pose-bench/compare.mjs` (`c7f30d5`).
 - [ ] 3.7 A decision record: model, runtime and shell (PWA / Capacitor /
       TWA), with the numbers, and whether the stop condition was hit.
 - [ ] 3.8 **F-Droid, a paper check** off the critical path (pascaline did the

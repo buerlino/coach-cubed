@@ -115,6 +115,10 @@ Newest first within each group.
 
 ### Rules and docs
 
+- **2026-10-31, nordmu: step 3.7's numbers go in a new
+  `docs/pose-spike.md`**, linked from a short entry here, so this file
+  stays in its budget.
+
 - **2026-10-31, nordmu: AGENTS.md is a lean entry point, and the docs'
   budgets are tested** (step 2.9), following pascaline. AGENTS.md holds only
   what every session needs (what coach is, the commands, the workflow, the
