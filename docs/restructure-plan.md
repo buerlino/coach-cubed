@@ -9,12 +9,14 @@ finish (git keeps the history). Decisions and open questions are in
 
 ## Next session starts here
 
-- **Current step:** Phase 2 is done apart from 2.7's licence and 2.8. Step
-  2.7's prep is done; LICENSE and the SPDX headers wait on Noah's licence
-  choice and the authors' consent. Step 2.3 is
-  done: the rest of its parking was cancelled on 2026-10-31, because the new
-  UI is built fresh and the old page is frozen. Step 2.8 (the history rewrite)
-  comes at the very end of the window and needs nordmu's explicit OK.
+- **Current step:** Phase 2 is done apart from two steps that wait:
+  - 2.7's licence: LICENSE and the SPDX headers come once Noah picks the
+    licence and all four authors agree ([authors.md](authors.md));
+    `THIRD_PARTY.md` is ready;
+  - 2.8, the history rewrite, at the very end of the window, with nordmu's
+    explicit OK.
+
+  Next: the Phase 3 spike, and Phase 5 once question 7 is answered.
 - **The old page is frozen:** don't edit `INDEX_HTML` in `src/app.py`, or the
   Movement Lab, anatomy and 3D code, except to fix something that blocks the
   dev server.
@@ -24,9 +26,14 @@ finish (git keeps the history). Decisions and open questions are in
   - question 8, the review of the tab parking (the goal and the principles
     are confirmed);
   - question 7, how the gym recording session works (needed by Phase 5).
-- **Waiting on Noah:** questions 1, 5 and 6 in [decisions.md](decisions.md)
-  (the message went out on 2026-10-31).
-- **Test baseline:** 68 JS and 6 Python tests (since step 2.4).
+- **Waiting on Noah:** questions 1 (the licence, then every author's
+  consent), 5 and 6 in [decisions.md](decisions.md) (the message went out on
+  2026-10-31), and whether his tailnet hostname and IP addresses may stay
+  public ([backlog.md](backlog.md)).
+- **The example clips are not in git** (since step 2.4): they sit under the
+  gitignored `tests/fixtures/local/` on machines that have them, this laptop
+  included. A fresh clone runs every test but has no example gallery.
+- **Test baseline:** 68 JS and 6 Python tests.
 - **Don't touch:** `main`, the `pre-cleanup` tag, `.caddy/`, and the tablet
   `HA24BZ2Y` (it belongs to other projects' night shifts; the Fairphone 6
   `4d42e62f` is coach's test phone, always via `adb -s`).
