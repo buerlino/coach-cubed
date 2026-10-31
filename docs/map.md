@@ -418,9 +418,12 @@ These break silently, not as import errors:
     the scheme "identical to tecna".
   - `c80c14d` (2026-09-01) removed the reader and the `.gitignore` entry;
     `dc30cc9` committed the file that same afternoon.
+  - Step 2.5 (2026-10-31) untracked it again and put it back in
+    `.gitignore`; it stays in the history until step 2.8.
   - An unsalted hash of a weak password can be cracked. **Ask Noah whether the
     password is used anywhere else, tecna included, and change it if so.**
-- **Two `.DS_Store` files are tracked:** `parked/report/` and `tests/`.
+- **Two `.DS_Store` files were tracked** (`parked/report/` and `tests/`),
+  though `.gitignore` already listed `.DS_Store`; step 2.5 untracked them.
 - **Stale branches**, both fully merged: `test-fixtures-pipeline` and
   `origin/feature/keypoint-plotting`.
 - **History:** 46 MB `.git`. The biggest blobs are `body.bin` 24.6 MB and the

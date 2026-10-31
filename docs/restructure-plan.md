@@ -9,8 +9,8 @@ finish (git keeps the history). Decisions and open questions are in
 
 ## Next session starts here
 
-- **Current step:** finish Phase 2: steps 2.5 (hygiene), 2.6 (docs of what
-  stays) and 2.7 (licence prep; it waits on Noah). Step 2.4 is done. Step 2.3 is
+- **Current step:** finish Phase 2: steps 2.6 (docs of what stays) and 2.7
+  (licence prep; it waits on Noah). Steps 2.4 and 2.5 are done. Step 2.3 is
   done: the rest of its parking was cancelled on 2026-10-31, because the new
   UI is built fresh and the old page is frozen. Step 2.8 (the history rewrite)
   comes at the very end of the window and needs nordmu's explicit OK.
@@ -244,8 +244,11 @@ are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
         tests pass, the gallery is empty and its picker hidden, no
         exceptions. Not tested: the phone, Caddy, the report's notebook and
         PDF.
-- [ ] 2.5 Stop tracking `.auth_password`, `parked/report/.DS_Store` and
-      `tests/.DS_Store`.
+- [x] 2.5 Stopped tracking `.auth_password`, `parked/report/.DS_Store` and
+      `tests/.DS_Store` (2026-10-31). All three stay on disk; `.gitignore`
+      already covered `.DS_Store` and now covers `.auth_password`. Nothing
+      in the repo reads the password file. They stay in the history until
+      step 2.8.
 - [ ] 2.6 Rewrite the docs only for what stays (README, `docs/*`), and only
       after 2.2.
 - [ ] 2.7 Add LICENSE, SPDX headers and `THIRD_PARTY.md` once question 1 is

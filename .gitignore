@@ -22,6 +22,9 @@ private/
 clips_inbox/*
 !clips_inbox/.gitkeep
 .DS_Store
+# The old login password's hash: nothing reads it, and it leaves the history
+# in step 2.8 (docs/decisions.md, question 5).
+.auth_password
 # Private fixtures/examples: clips you don't want in the repo. Same layout as
 # tests/fixtures/global/ (own manifest.json, <stance>/ subfolders); the app
 # merges both into one example gallery and the tests score both. Their golden
