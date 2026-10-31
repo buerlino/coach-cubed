@@ -30,7 +30,8 @@ instead of duplicating it.
 --scope picks where a batch lands: "local" (the default) is gitignored — your
 own clips, shown in the app's example picker on this machine only; "global"
 is committed and ships with the repo. Both have the same layout, so promoting
-a clip is a move of its two files plus its manifest entry.
+a clip is a move of its track plus its manifest entry; the clip itself moves
+only if it may be published (tests/fixtures/README.md, "Videos").
 
 A clip that errors (bad upload, no person detected, pose pass raised) is
 logged and skipped — one bad file shouldn't cost the rest of the batch.

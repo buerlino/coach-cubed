@@ -13,12 +13,13 @@ Measured on this box 2026-10-13, mid-run: 785 fixtures of an expected 3,226
 tests/fixtures/
   global/                                committed, ships with the repo
     manifest.json
-    <stance>/<stem>.mp4
+    <stance>/<stem>.mp4                  only a clip that may be published; none today
     <stance>/<stem>.track.json
     profiles/limbs/<name>.json
     profiles/signs/<name>.json
   local/                                 gitignored, this machine only
     manifest.json
+    <stance>/<stem>.mp4                  also the clips of global fixtures
     .clipper_sync_state.json             sha256 dedup state for the sync
     train_labels.json                    explorer labels per clipper clip (see below)
     train_links.json                     manifest entries the explorer linked (see below)
@@ -120,7 +121,10 @@ One entry per fixture, keyed `"<stance>/<stem>"` within its scope.
 cache. A fixture is therefore live the moment its three pieces exist — no
 restart, no reload:
 
-1. `tests/fixtures/<scope>/<stance>/<stem>.mp4`
+1. `tests/fixtures/<scope>/<stance>/<stem>.mp4`. A `global` fixture's clip
+   may sit at the same path under `local/` instead; today every global clip
+   does, because they are third-party
+   ([tests/fixtures/README.md](../tests/fixtures/README.md#videos))
 2. `tests/fixtures/<scope>/<stance>/<stem>.track.json`
 3. an entry in that scope's `manifest.json`
 

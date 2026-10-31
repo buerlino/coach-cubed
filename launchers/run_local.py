@@ -48,6 +48,9 @@ def examples():
         if not manifest.exists(): continue
         for key, entry in json.loads(manifest.read_text()).items():
             clip = root / pathlib.Path(key).parent / entry['source_file']
+            # Third-party clips aren't committed: a global example's clip sits
+            # at the same path under local/, as in the full app.
+            if not clip.is_file(): clip = ROOT / 'tests/fixtures/local' / pathlib.Path(key).parent / entry['source_file']
             track = root / (key + '.track.json')
             if clip.is_file() and track.is_file():
                 result[scope + '/' + key] = dict(entry, clip=clip, track=track, scope=scope, label=key)

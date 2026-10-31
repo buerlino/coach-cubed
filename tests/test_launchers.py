@@ -3,9 +3,11 @@ import contextlib
 import functools
 import http.client
 import io
+import json
 from pathlib import Path
 import runpy
 import sys
+import tempfile
 import threading
 import unittest
 from unittest.mock import patch
@@ -59,6 +61,21 @@ class PreviewRoutes(unittest.TestCase):
         for path, location in [('/original/', '../'), ('/original', './')]:
             response, _ = self.get(path)
             self.assertEqual((response.status, response.getheader('Location')), (302, location), path)
+
+    def test_a_global_example_finds_its_clip_under_local(self):
+        # Third-party clips aren't committed (tests/fixtures/README.md, "Videos").
+        with tempfile.TemporaryDirectory() as tmp:
+            fixtures = Path(tmp) / 'tests/fixtures'
+            (fixtures / 'global/example').mkdir(parents=True)
+            (fixtures / 'local/example').mkdir(parents=True)
+            (fixtures / 'global/manifest.json').write_text(json.dumps({'example/clip': {'source_file': 'clip.mp4', 'model_size': 'l'}}))
+            (fixtures / 'global/example/clip.track.json').write_text('{}')
+            (fixtures / 'local/example/clip.mp4').write_bytes(b'video')
+            with patch.object(run_local, 'ROOT', Path(tmp)):
+                response, body = self.get('/api/examples')
+                self.assertEqual([e['id'] for e in json.loads(body)], ['global/example/clip'])
+                response, body = self.get('/api/examples/global/example/clip/video')
+                self.assertEqual((response.status, body), (200, b'video'))
 
     def test_root_serves_the_page_and_its_relative_assets(self):
         response, body = self.get('/')

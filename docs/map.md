@@ -244,8 +244,9 @@ What follows describes it as it was.
   - Needs a JS port. The hard parts are the vectorised sign search over 256
     candidates, a batched eigh, and the gradient-descent optimiser.
   - Profiles would need on-device storage.
-- **Provenance:** `tests/fixtures/global/profiles/limbs/athlete-a.json` stores a
-  named athlete's limb ratios measured from a press photo.
+- **Provenance:** `tests/fixtures/global/profiles/limbs/athlete-a.json` stores
+  an athlete's limb ratios measured from a press photo (named until step 2.4,
+  which pseudonymized it).
 
 ## 7. Movement Lab and anatomy
 
@@ -321,7 +322,7 @@ What follows describes it as it was.
   paths.
 - **Files:** [parked/report/](../parked/report/): `report.tex`, a 568 KB notebook, 5
   figures (2 unused), and the athlete-a example (the same video as the
-  fixture).
+  fixture; since step 2.4 only its track is committed).
 - **Coverage:** documents the snatch pulls, smoothing and the depth appendix.
   It doesn't cover the lateral raise, MediaPipe, equipment detection or
   anatomy.
@@ -349,16 +350,14 @@ What follows describes it as it was.
 - **Results:** `npm test` passes 66 of 66 and the Python tests 3 of 3 (only
   the launcher ports are tested in Python). Step 2.0 added 2 JS tests (the
   33→17 mapping) and 2 Python tests (the preview's `/` and `/original/`
-  routes): 68 and 5.
+  routes): 68 and 5. Step 2.4 added 1 Python test (a global example finds
+  its clip under `local/`): 68 and 6.
 - **No test reads a video:** the tests use `track.json` and the goldens only.
-- **The committed videos are all third-party:**
-
-| Video | Source |
-| --- | --- |
-| `example/lateral-raise-cable-1.mp4` | YouTube `n77-W0nkuPw` (an identifiable, unnamed person) |
-| `example/lateral-raise-cable-2.mp4` | YouTube `f_OGBg2KxgY` (an identifiable, unnamed person) |
-| `example/athlete-a-trim.mp4` (also in `parked/report/examples/`) | unrecorded; named athlete |
-| `snatch/Session14_01_0h18m07s_made.mp4` | AWF broadcast; the lifter's name is on the board |
+- **The videos were all third-party.** Step 2.4 (2026-10-31) took them out of
+  git: each now sits at the same path under the gitignored
+  `tests/fixtures/local/`, and the named athlete became `athlete-a`. Their
+  provenance, and what works without them, is in
+  [tests/fixtures/README.md](../tests/fixtures/README.md#videos).
 
 - **Stale:**
   - `tests/README.md` lists only 2 of the 8 test files and gives the wrong

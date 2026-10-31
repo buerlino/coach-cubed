@@ -9,8 +9,8 @@ finish (git keeps the history). Decisions and open questions are in
 
 ## Next session starts here
 
-- **Current step:** finish Phase 2: steps 2.4 (videos), 2.5 (hygiene), 2.6
-  (docs of what stays) and 2.7 (licence prep; it waits on Noah). Step 2.3 is
+- **Current step:** finish Phase 2: steps 2.5 (hygiene), 2.6 (docs of what
+  stays) and 2.7 (licence prep; it waits on Noah). Step 2.4 is done. Step 2.3 is
   done: the rest of its parking was cancelled on 2026-10-31, because the new
   UI is built fresh and the old page is frozen. Step 2.8 (the history rewrite)
   comes at the very end of the window and needs nordmu's explicit OK.
@@ -24,7 +24,7 @@ finish (git keeps the history). Decisions and open questions are in
   - question 7, how the gym recording session works (needed by Phase 5).
 - **Waiting on Noah:** questions 1, 5 and 6 in [decisions.md](decisions.md)
   (the message went out on 2026-10-31).
-- **Test baseline:** 68 JS and 5 Python tests.
+- **Test baseline:** 68 JS and 6 Python tests (since step 2.4).
 - **Don't touch:** `main`, the `pre-cleanup` tag, `.caddy/`, and the tablet
   `HA24BZ2Y` (it belongs to other projects' night shifts; the Fairphone 6
   `4d42e62f` is coach's test phone, always via `adb -s`).
@@ -218,14 +218,32 @@ are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
         Known loose end in the frozen page: the train tab's `TRAIN_DIR` still
         falls back to the in-repo `clipper/downloads`, which left in the
         clipper step.
-- [ ] 2.4 The videos:
-      - record the provenance of each committed clip;
-      - move scraped or unclear clips to `tests/fixtures/local/` (gitignored,
-        already supported by the app and the tests);
-      - keep tracks and goldens public;
-      - pseudonymize named people. The athlete's name is in 19 tracked files,
-        6 of them in file paths, and in code: `src/squat/app.mjs:328`
-        branches on `id.includes('athlete-a')`.
+- [x] 2.4 The videos (2026-10-31; nordmu's choices in
+      [decisions.md](decisions.md), "Data and privacy"):
+      - the provenance of each clip is in
+        [tests/fixtures/README.md](../tests/fixtures/README.md#videos);
+      - all four example clips left git for the same path under the
+        gitignored `tests/fixtures/local/`; the report's byte-identical copy
+        stays on disk, gitignored. Their tracks, manifest entries and goldens
+        stay public. `.gitignore` now also refuses videos under
+        `tests/fixtures/global/`;
+      - both servers (`_example_video` in app.py, `examples()` in
+        `run_local.py`) look for a global example's clip under `local/` when
+        it isn't beside its track; a new Python test covers the preview's
+        side (68 JS + 6 Python tests);
+      - the named athlete is `athlete-a` everywhere (clip, golden, limb
+        profile, the report, code, docs), and the second one, named only in
+        notes, `athlete-b`. Frozen code touched, by name only:
+        `src/squat/app.mjs` (the `athlete-a` → snatch branch) and two
+        comments in `src/depth_backend.py`. The real names are only in the
+        gitignored `tests/fixtures/local/PROVENANCE.md` on nordmu's laptop;
+      - tested: the grep; the tests; the preview and the full app over HTTP
+        and in headless Brave (all four examples load from `local/`, the
+        Movement Lab still switches to snatch for `athlete-a`); and the
+        staged tree exported without videos, as a fresh clone sees it: all
+        tests pass, the gallery is empty and its picker hidden, no
+        exceptions. Not tested: the phone, Caddy, the report's notebook and
+        PDF.
 - [ ] 2.5 Stop tracking `.auth_password`, `parked/report/.DS_Store` and
       `tests/.DS_Store`.
 - [ ] 2.6 Rewrite the docs only for what stays (README, `docs/*`), and only
@@ -236,7 +254,10 @@ are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
       with nordmu's explicit OK. **Precondition:** `../weightlifting-clipper`
       is pushed or backed up somewhere other than this laptop. After the
       rewrite it is the only copy of clipper. It removes the videos, the password and the
-      removed bloat. Rewritten history doesn't descend from `62b2cee`, so:
+      removed bloat, and the athletes' real names: they are in old file
+      paths **and** in old file contents (`athlete-a`/`athlete-b` since step
+      2.4), so path filtering alone isn't enough; it needs a text
+      replacement too. Rewritten history doesn't descend from `62b2cee`, so:
       - `main` is reset and force-pushed to `noahsta/coach`, with Noah's OK;
       - the `pre-cleanup` tag and the merged branches `test-fixtures-pipeline`
         and `origin/feature/keypoint-plotting` are deleted or moved to a

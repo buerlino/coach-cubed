@@ -408,7 +408,12 @@ def _example_video(example_id, entry=None):
     src = entry.get("source_file")
     if not src:
         return None
-    video = FIXTURES_DIR / Path(example_id).parent / src
+    scope, _, slug = example_id.partition("/")
+    video = FIXTURES_DIR / scope / Path(slug).parent / src
+    if scope == "global" and not video.exists():
+        # Third-party clips aren't committed: a global example's clip sits at
+        # the same path under local/ (tests/fixtures/README.md, "Videos").
+        video = FIXTURES_DIR / "local" / Path(slug).parent / src
     return video if video.exists() else None
 
 

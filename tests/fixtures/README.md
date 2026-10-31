@@ -11,7 +11,8 @@ tests/fixtures/
   global/                     committed — ships with the repo
     manifest.json             one entry per fixture, keyed "<stance>/<clip-stem>"
     <stance>/
-      <clip-stem>.mp4         the source clip (kept short/trimmed)
+      <clip-stem>.mp4         the source clip, if it may be published; none may
+                               today (see "Videos" below)
       <clip-stem>.track.json  {"keypoints": ..., "meta": ...} — vitpose_backend's
                                own output, unmodified; same shape /api/pose/video
                                returns to the browser
@@ -20,7 +21,8 @@ tests/fixtures/
       signs/<name>.json       a camera position's depth directions (see below)
   local/                      gitignored — your own clips, this machine only
     manifest.json             same layout as global/
-    <stance>/...
+    <stance>/...              also the clips of global fixtures that can't be
+                               committed, at the same <stance>/<file> path
 ```
 
 The two scopes are identical in layout and differ only in whether git sees
@@ -31,6 +33,31 @@ paths — a fixture is named by its full slug `<scope>/<stance>/<clip-stem>`,
 e.g. `global/example/athlete-a-trim`. Goldens mirror the split:
 `tests/golden/<scope>/<stance>-<clip-stem>.json`, with `tests/golden/local/`
 gitignored too.
+
+## Videos
+
+No video is committed. Every clip behind a global fixture is third-party
+footage that grants no licence to redistribute it, so since step 2.4
+(2026-10-31) each one sits at the same `<stance>/<file>` path under the
+gitignored `local/`. Their tracks, manifest entries and goldens stay public:
+they hold keypoints, not footage. Where each clip came from:
+
+| Clip, under `local/` | Source | Who is in it |
+| --- | --- | --- |
+| `example/lateral-raise-cable-1.mp4` | YouTube `n77-W0nkuPw`, the first 3 s | one identifiable person, unnamed |
+| `example/lateral-raise-cable-2.mp4` | YouTube `f_OGBg2KxgY`, seconds 8–11 | one identifiable person, unnamed |
+| `example/athlete-a-trim.mp4` | Not recorded. The same file is the report's example (`parked/report/examples/`, gitignored there too). | a competition athlete, pseudonymized as `athlete-a` (the clip, the limb profile and the report all used the real name until step 2.4) |
+| `snatch/Session14_01_0h18m07s_made.mp4` | An Australian Weightlifting Federation competition stream, cut by clipper | the lifter, whose name shows on the broadcast's scoreboard |
+
+What still works without the clips, on a fresh clone:
+
+- **The tests:** all of them. No test reads a video; they read the tracks
+  and goldens only.
+- **The example gallery:** empty, and the page hides its picker. Both
+  servers (`_example_video` in `src/app.py`, `examples()` in
+  `launchers/run_local.py`) look for a global example's clip beside its
+  track first, then at the same path under `local/`; with a copy of the
+  clips there, the gallery comes back unchanged.
 
 ## Profiles: limb lengths and depth directions
 
@@ -98,10 +125,12 @@ overwrites rather than duplicates) and never guesses at a `labels`/`notes`
 field it already finds there — those are written by hand, not by the pose
 pass.
 
-To promote a local fixture to global, move its `.mp4` and `.track.json` under
+To promote a local fixture to global, move its `.track.json` under
 `global/<stance>/`, move its entry from `local/manifest.json` to
 `global/manifest.json`, and regenerate its golden
-(`node tests/update_golden.js global/<stance>/<clip-stem>`).
+(`node tests/update_golden.js global/<stance>/<clip-stem>`). Move its `.mp4`
+too only if the clip may be published (see "Videos"); otherwise it stays at
+the same path under `local/`, where the app still finds it.
 
 ## `labels`
 

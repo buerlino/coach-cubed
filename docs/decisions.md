@@ -68,6 +68,22 @@ Newest first within each group.
   the page loses its equipment controls and box drawing. 3D keeps reading the
   boxes cached in older tracks until 3D is parked.
 
+### Data and privacy
+
+- **2026-10-31, nordmu: no third-party video is committed** (step 2.4). The
+  four example clips moved to the same path under the gitignored
+  `tests/fixtures/local/`; their tracks, manifest entries and goldens stay
+  public. Both servers look for a global example's clip under `local/` when
+  it isn't beside its track, so a machine with the clips keeps its gallery
+  and a fresh clone has none (the page hides the picker). The report's copy
+  of the athlete-a clip stays on disk beside the notebook, gitignored.
+  Provenance: [tests/fixtures/README.md](../tests/fixtures/README.md#videos).
+- **2026-10-31, nordmu: named athletes are pseudonymized** (step 2.4):
+  `athlete-a` for the athlete in the example clip, its limb profile and the
+  report; `athlete-b` for the one named only in notes about a local fixture.
+  The real names stay out of the repo, in a gitignored note on nordmu's
+  laptop; step 2.8 has to remove them from the history too.
+
 ### Rules and docs
 
 - **Proposed, awaiting nordmu's review (question 8): the goal and the four

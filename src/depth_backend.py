@@ -812,8 +812,8 @@ _FOCAL_MUL = float(os.environ.get("COACH_FOCAL_MUL", "1.0"))
 #   clip                  sym 0 -> 12 passes   max|z| 0 -> 12    feet 0 -> 12
 #   lateral-raise-1          0.47 -> 0.68       1.01 -> 1.21     0.48 -> 0.37
 #   lateral-raise-2           n/a -> 0.76       0.96 -> 0.82     0.47 -> 0.35
-#   athlete-a                 0.67 -> 0.67       0.46 -> 0.48     0.28 -> 0.26
-#   athlete-b c&j                0.61 -> 0.74       0.95 -> 1.14     0.28 -> 0.28
+#   athlete-a                0.67 -> 0.67       0.46 -> 0.48     0.28 -> 0.26
+#   athlete-b c&j            0.61 -> 0.74       0.95 -> 1.14     0.28 -> 0.28
 #
 # Mirror symmetry degrades on three of four and max depth inflates ~20%, which
 # is the feedback direction above: the correction is a GAIN on the current depth

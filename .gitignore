@@ -33,3 +33,10 @@ tests/golden/local/*
 
 # Spike results: tracks of third-party videos and device probes stay local.
 spike/**/results/
+
+# Third-party clips are never committed (tests/fixtures/README.md, "Videos"):
+# a global fixture's clip lives under local/, and the report's copy stays beside
+# the notebook on machines that have it. A clip that may be published needs
+# `git add -f`.
+tests/fixtures/global/**/*.mp4
+parked/report/examples/*.mp4
