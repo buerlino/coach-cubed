@@ -9,12 +9,12 @@ from these are in [rules-core.md](rules-core.md).
 
 | # | Question | Who | Recommendation |
 | --- | --- | --- | --- |
-| 1 | License | Noah | GPL-3.0-or-later. AGPL-3.0 only if Noah wants to stop others from hosting coach as a web service: for an offline app its network clause (§13) rarely applies. Every author whose code stays must agree (Noah Stauble, nordmu, Nicola Walker, JMLuner; all four have code in the core). Who wrote how much: [authors.md](authors.md). Not asked yet. |
-| 3 | Test phones | nordmu, Noah | Answered in part (nordmu, 2026-10-31): nordmu's Fairphone 6 (`4d42e62f`; LineageOS, no Google Chrome). A stock Android phone with Chrome and Google's WebView is still missing; an iPhone too, if iOS matters. |
+| 3 | Test phones | nordmu, Noah | Answered in part (nordmu, 2026-10-31): nordmu's Fairphone 6 (`4d42e62f`; LineageOS, no Google Chrome). A stock Android phone with Chrome and Google's WebView is tested after the spike, before the public release, so step 3.5 decides without it; whose phone is open. An iPhone too, if iOS matters. |
 | 5 | `.auth_password` is an unsalted SHA-256 hash of the old login password, with a scheme "identical to tecna". Is that password used anywhere else? | Noah | Change it wherever it's used. The file leaves the history in step 2.8 either way. |
 | 7 | **How the gym recording session works** (see "What 0.1.0 is"). To cover: how long the rolling buffer is; how start and end are marked (buttons, tap on a timeline, voice?); whether several lifts per session are kept; which lift is set before or after; front or back camera, resolution and frame rate (60 fps matters for the snatch); what happens to the raw video afterwards; where the phone stands. | nordmu | Ask nordmu when Phase 5 starts; nothing gets built before nordmu's input. |
-| 8 | Review the parking of the squat, image and clean & jerk tabs. It was written up as nordmu's, but nordmu has not confirmed it (2026-10-31). The goal and the four principles are confirmed. | nordmu | Until confirmed it is a proposal: follow it, but don't build anything that depends on its exact wording. |
+| 8 | Review the parking of the squat, image and clean & jerk tabs. It was written up as nordmu's; nordmu has not confirmed it (asked again 2026-10-31: still open). | nordmu | Until confirmed it is a proposal: follow it, but don't build anything that depends on its exact wording. |
 | 6 | How long the restructuring window lasts | Noah | Step 2.8 (the history rewrite) has to finish before Noah resumes. |
+| 9 | Branch protection on `main` of `noahsta/coach`, so one push from an old clone can't undo step 2.8 | Noah (repo owner) | Turn it on. nordmu asks in the next message, with question 6 (nordmu, 2026-10-31). |
 
 Questions 1, 2 and 5 went to Noah on 2026-10-31.
 
@@ -24,6 +24,22 @@ Newest first within each group.
 
 ### What 0.1.0 is
 
+- **2026-10-31, nordmu: 0.1.0 comes in two milestones.** A: import a clip
+  and get the cues, offline, for testers (nordmu, Noah, friends). B: the gym
+  recording session. The public 0.1.0 needs both.
+- **2026-10-31, nordmu: a validation set comes before the spike's
+  measurements** (step 3.0), filmed by nordmu: about 10 lateral-raise sets of
+  several reps and about 5 side-view snatches, each with a ViTPose-L
+  reference track and a few verdicts judged by a person. A pose model
+  passes when, on smoothed tracks and counting only verdicts both score, it
+  agrees with the reference on ≥ 85% of lateral-raise and ≥ 80% of snatch
+  verdicts, scores ≥ 90% of the cues the reference scores, and finishes a
+  10 s clip in ≤ 90 s on the Fairphone. If every candidate stays under 70%
+  on the lateral raise, the spike stops and nordmu and Noah rethink the
+  core; a snatch under 80% moves to 0.2.
+- **2026-10-31, nordmu: the Flask server is dev tooling only:** reference
+  tracks, goldens and the validation set's references, never a dependency
+  of the app ([rules-core.md](rules-core.md)).
 - **2026-10-31, nordmu: 0.1.0 includes a gym recording session.** The camera
   records continuously (a rolling recording). Right after a lift, the user
   marks its start and end, and the lift is processed on the phone while the
@@ -58,8 +74,9 @@ Newest first within each group.
   the Phase 3 spike passes** (otherwise the snatch moves to 0.2).
 - **2026-10-31, nordmu: `clipper/` goes back to its own repo; `report/` stays
   here as a parked research folder.** The repo is `weightlifting-clipper`
-  (its original name), a local sibling of coach, not pushed anywhere yet.
-  coach keeps its side of the link: `scripts/sync_clipper_fixtures.py`, which
+  (its original name), a local sibling of coach with no remote; nordmu puts
+  it in a private GitHub repo before step 2.8 (nordmu, 2026-10-31). coach
+  keeps its side of the link: `scripts/sync_clipper_fixtures.py`, which
   now needs `$CLIPPER_OUT` or `--clipper-dir`.
 - **2026-10-31, nordmu: offline is a hard requirement, so no server compute.**
 
@@ -67,6 +84,13 @@ Newest first within each group.
   The detectors, their download path and skill go to `parked/bar-detection/`;
   the page loses its equipment controls and box drawing. 3D keeps reading the
   boxes cached in older tracks until 3D is parked.
+
+### Licence
+
+- **2026-10-31, Noah: coach is GPL-3.0-or-later** (question 1; reported by
+  nordmu, who picked "-or-later"). All four authors agreed ([authors.md](authors.md));
+  nordmu collects a one-line written OK from each before the LICENSE commit
+  (step 2.7).
 
 ### Data and privacy
 
@@ -92,11 +116,10 @@ Newest first within each group.
   layout, the conventions) and links to [rules-core.md](rules-core.md), which
   now holds the rules for changing the repo; CLAUDE.md stays a pointer to it,
   since AGENTS.md serves every agent. `tests/docs.test.js`, in `npm test`,
-  fails when AGENTS.md passes 40 lines or 6 kB, CLAUDE.md 10 lines,
-  decisions.md, backlog.md or rules-core.md about 1.25× their size of that
-  day, or this window's plan 1.5×; when a relative link or its anchor doesn't
-  resolve; or when a path named in [README.md](README.md) is gone. Raising a
-  budget is a decision recorded here.
+  fails when a doc passes its budget (listed at the top of that file), a
+  relative link or its anchor doesn't resolve, or a path named in
+  [README.md](README.md) is gone. Raising a budget is a decision recorded
+  here.
 - **2026-10-31, nordmu: one doc per fact, so two docs went** (step 2.6).
   `docs/deploy.md` is deleted after its true facts moved to
   [server.md](server.md). `START_HERE.md` is split: the launch commands into
@@ -111,7 +134,8 @@ Newest first within each group.
   2.6), following the pseudonymization decision under "Data and privacy".
 
 - **2026-10-31, nordmu: the goal and the four principles** in
-  [rules-core.md](rules-core.md) are confirmed: "film a lift on your phone and get
+  [rules-core.md](rules-core.md) are confirmed (again when asked about
+  question 8): "film a lift on your phone and get
   cue-by-cue technique feedback, offline, with nothing leaving the phone";
   honest verdicts, narrow core, reuse first, one keypoint format.
 - **2026-10-31, nordmu: the rules for every change live in
