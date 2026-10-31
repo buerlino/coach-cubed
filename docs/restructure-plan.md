@@ -31,6 +31,14 @@ later releases.
   the session reviews the diff and runs the tests before merging into
   `phase-0`.
 
+- 2026-10-31, nordmu: **the core of 0.1.0 is the lift analysis pipeline**:
+  video, on-device pose, `diagnostics.js`, plots and verdicts (map areas 1–3).
+  3D, bar detection, anatomy, the Movement Lab and the train tab are parked.
+- 2026-10-31, nordmu: 0.1.0 analyses the **lateral raise**, plus the **snatch
+  if the Phase 3 spike passes** (otherwise the snatch moves to 0.2).
+- 2026-10-31, nordmu: `clipper/` goes back to its own repo; `report/` stays
+  here as a parked research folder.
+
 ## Open questions
 
 | # | Question | Who | Recommendation |
@@ -38,7 +46,6 @@ later releases.
 | 1 | License | Noah | GPL-3.0-or-later. AGPL-3.0 only if Noah wants to stop others from hosting coach as a web service: for an offline app its network clause (§13) rarely applies. Every author whose code stays must agree (noah, nordmu, Nicola Walker, JMLuner); the map shows whose code is in the core. |
 | 2 | Where the Android 0.1.0 is published | Noah | Play Store, F-Droid, an APK on GitHub, or a PWA link. Needed before step 3.5, because the shell depends on it. |
 | 3 | Test phones | nordmu, Noah | Answered in part (nordmu, 2026-10-31): nordmu's Fairphone 6 (`4d42e62f`; LineageOS, no Google Chrome). A stock Android phone with Chrome and Google's WebView is still missing; an iPhone too, if iOS matters. |
-| 4 | `clipper/` and `report/`: a parked folder here, or their own repos again | nordmu | Decide with the map. |
 | 5 | `.auth_password`: a real password? | Noah | If yes, change it. It leaves the history in step 2.8 either way. |
 | 6 | How long the window lasts | Noah | Step 2.8 (history rewrite) has to finish before Noah resumes. |
 
@@ -129,7 +136,7 @@ The spike's WebView numbers (Phase 3) decide.
       existing in-browser pose on the Fairphone 6 and compared its diagnostics
       with ViTPose-L (map.md, Phone test). The server tabs needing Noah's
       dataset (train data) and bar detection were not run.
-- [ ] 1.3 **nordmu names the core.** This is the gate for everything below.
+- [x] 1.3 **nordmu named the core** (2026-10-31; see Decisions so far).
 
 ### Phase 2: cleanup (interactive, in `phase-0`)
 
