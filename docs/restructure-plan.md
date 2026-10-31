@@ -257,6 +257,11 @@ Decided 2026-10-31 ([decisions.md](decisions.md), "What 0.1.0 is"). This
 phase replaces the old plan of first moving the old frontend out of app.py:
 the new UI is built fresh as static files, and the old page stays frozen.
 
+Two milestones ([decisions.md](decisions.md#what-010-is)): **A**, import a
+clip and get the cues offline, needs 5.2's import and result flows, 5.3
+and 5.5–5.7, and goes to testers. **B**, the gym recording session, adds
+5.1 and 5.4. The public 0.1.0 needs both.
+
 - [ ] 5.1 **nordmu's input on the gym recording session** (question 7). Ask
       before anything is designed: rolling buffer length, how start and end
       are marked, several lifts per session, choosing the lift, camera and
@@ -274,7 +279,10 @@ the new UI is built fresh as static files, and the old page stays frozen.
       - the Capacitor Android shell;
       - the pose engine behind one async Worker interface, with the model
         from Phase 3;
-      - `diagnostics.js` mounted unchanged;
+      - scoring separate from rendering: the new UI calls `diagnostics.js`'s
+        `computeResults()` unchanged and draws the results its own,
+        mobile-first way. `mount()` builds the old page's desktop panel
+        (toggles, plot canvases, tiles) and isn't reused;
       - every asset path relative
         ([rules-core.md](rules-core.md#paths-stay-relative)).
 - [ ] 5.4 **The gym recording session**, built to nordmu's spec from 5.1.
@@ -288,9 +296,11 @@ the new UI is built fresh as static files, and the old page stays frozen.
       - camera permissions in the Capacitor WebView;
       - processing in a background queue while recording continues.
 - [ ] 5.5 **Port from the old page what the core needs:** video playback with
-      the skeleton overlay, smoothing, the lift window markers, the keypoint
-      plots and the diagnostics panel. Port by reading the old code, not by
-      copying the Python string.
+      the skeleton overlay, the lift window markers and the keypoint plots;
+      smoothing and the lift window come from 3.2's module. Pin each
+      behaviour with tests against the old code before porting it (as 3.2
+      does), the overlay included, then port by reading the old code, not
+      by copying the Python string.
 - [ ] 5.6 **Tests from day one:**
       - unit tests for the new modules;
       - a headless page test that loads the app offline, runs a lateral-raise
