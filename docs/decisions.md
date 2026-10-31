@@ -13,7 +13,7 @@ from these are in [rules-core.md](rules-core.md).
 | 3 | Test phones | nordmu, Noah | Answered in part (nordmu, 2026-10-31): nordmu's Fairphone 6 (`4d42e62f`; LineageOS, no Google Chrome). A stock Android phone with Chrome and Google's WebView is still missing; an iPhone too, if iOS matters. |
 | 5 | `.auth_password` is an unsalted SHA-256 hash of the old login password, with a scheme "identical to tecna". Is that password used anywhere else? | Noah | Change it wherever it's used. The file leaves the history in step 2.8 either way. |
 | 7 | **How the gym recording session works** (see "What 0.1.0 is"). To cover: how long the rolling buffer is; how start and end are marked (buttons, tap on a timeline, voice?); whether several lifts per session are kept; which lift is set before or after; front or back camera, resolution and frame rate (60 fps matters for the snatch); what happens to the raw video afterwards; where the phone stands. | nordmu | Ask nordmu when Phase 5 starts; nothing gets built before nordmu's input. |
-| 8 | Review the goal sentence and the four principles in [rules-core.md](rules-core.md), and the parking of the squat, image and clean & jerk tabs. They were written up as nordmu's, but nordmu has not confirmed all of them (2026-10-31). | nordmu | Until confirmed they are proposals: follow them, but don't build anything that depends on their exact wording. |
+| 8 | Review the parking of the squat, image and clean & jerk tabs. It was written up as nordmu's, but nordmu has not confirmed it (2026-10-31). The goal and the four principles are confirmed. | nordmu | Until confirmed it is a proposal: follow it, but don't build anything that depends on its exact wording. |
 | 6 | How long the restructuring window lasts | Noah | Step 2.8 (the history rewrite) has to finish before Noah resumes. |
 
 Questions 1, 2 and 5 went to Noah on 2026-10-31.
@@ -86,9 +86,21 @@ Newest first within each group.
 
 ### Rules and docs
 
-- **Proposed, awaiting nordmu's review (question 8): the goal and the four
-  principles** in
-  [rules-core.md](rules-core.md): "film a lift on your phone and get
+- **2026-10-31, nordmu: one doc per fact, so two docs went** (step 2.6).
+  `docs/deploy.md` is deleted after its true facts moved to
+  [server.md](server.md). `START_HERE.md` is split: the launch commands into
+  the root README, the anatomy guide into `src/anatomy/README.md`. The repo
+  `Caddyfile` stays, with its stale comments fixed (comments only, so the
+  deploy can't break).
+- **2026-10-31, nordmu: no notes about Noah's deploy box in the repo** (step
+  2.6). The deploy map in `train-data-todo.md` (sibling services, units,
+  addresses) is removed, as [server.md](server.md) already required; the
+  sibling notes live on that machine.
+- **2026-10-31, nordmu: athlete names in OCR samples become `<name>`** (step
+  2.6), following the pseudonymization decision under "Data and privacy".
+
+- **2026-10-31, nordmu: the goal and the four principles** in
+  [rules-core.md](rules-core.md) are confirmed: "film a lift on your phone and get
   cue-by-cue technique feedback, offline, with nothing leaving the phone";
   honest verdicts, narrow core, reuse first, one keypoint format.
 - **2026-10-31, nordmu: AGENTS.md keeps the rules for every change;** the

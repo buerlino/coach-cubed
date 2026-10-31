@@ -17,7 +17,10 @@ During the restructuring window, the order of work and its status are in
   ([map.md](map.md#11-tests-and-fixtures), area 11).
 - `scripts/sync_clipper_fixtures.py` accepts only 2-digit attempt numbers
   (`\d{2}`) where app.py accepts any (`\d+`); the likely cause of the 30
-  skipped clips (map area 8).
+  skipped clips ([dataset-stats.md](dataset-stats.md)).
+- With neither `$COACH_TRAIN_DIR` nor `$CLIPPER_OUT` set, the train tab's
+  `TRAIN_DIR` (`src/app.py`) falls back to the in-repo `clipper/downloads`,
+  which left with clipper in step 2.3. Python, outside `INDEX_HTML`.
 
 ## Unverified
 
@@ -25,29 +28,23 @@ During the restructuring window, the order of work and its status are in
   "visibility" values (map areas 2 and 3). Phase 3 should settle it.
 - The goldens score raw tracks; the UI scores smoothed ones, so the tests
   don't cover what the user sees (map area 2).
-
-## Stale text (for step 2.6, unless a step touches the file first)
-
-- The `src/app.py` docstring names one backend; it imports three (map area 1).
-- The comment above the import map in `src/app.py` says three.js loads from a
-  CDN; it's vendored (map area 1).
-- [deploy.md](deploy.md) contradicts the scripts (systemd unit, number of
-  backends, where the CA lives), and the repo `Caddyfile` cites files that
-  don't exist (map area 10). Fold what is still true into
-  [server.md](server.md).
-- `tests/README.md` lists 2 of the 8 test files and gives the wrong golden
-  path (map area 11).
-- The two skills left in `.claude/skills/` are partly stale: wrong registry
-  names, missing lifts (map area 12).
+- Where the deploy's live CA lives: [server.md](server.md) says `.caddy/` in
+  the repo folder on Noah's machine; the old `deploy.md` said the gateway's
+  own storage. Only that machine can tell.
+- In [dataset-stats.md](dataset-stats.md) the `exercise` counts sum to 3,228
+  against 3,226 clips. The numbers come from Noah's machine.
+- Notes in the `lifting-diagnostic` skill quote measurements that nothing in
+  the repo reproduces: the athlete-b clean fixture's rise and phase (it is
+  local on Noah's machine), the second pull's stride test (no committed test)
+  and the setup jitter of "0.02–0.05" (the code comment says 0.02–0.04).
 
 ## Before anything is published (step 2.8)
 
 - `../weightlifting-clipper` has no remote. It needs a home (for example a
   private GitHub repo) before step 2.8 removes clipper from coach's history.
-
-- [train-data-todo.md:27–29](train-data-todo.md) lists Noah's LAN and tailnet
-  addresses and hostname (map area 8). The file moves to `parked/` with the
-  train tab, but stays in the history unless 2.8 removes it.
-- Noah's tailnet hostname is also in [server.md](server.md) (taken over from
-  AGENTS.md) and in `scripts/coach_launch.sh`. Noah decides whether it may be
-  public.
+- Noah's tailnet hostname is in [server.md](server.md),
+  `scripts/coach_launch.sh` and the repo `Caddyfile`; the `Caddyfile` also
+  lists his LAN and tailnet IP addresses. Noah decides whether they may be
+  public. Step 2.6 removed the deploy map with the same addresses from
+  [train-data-todo.md](train-data-todo.md); it stays in the history unless
+  step 2.8 removes it.

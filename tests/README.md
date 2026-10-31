@@ -1,67 +1,37 @@
 # tests
 
-How to turn a pile of lift videos into test cases for coach's diagnostics,
-end to end. Two things live here:
-
-- **`tests/fixtures/`** — cached ViTPose tracks, split into `global/`
-  (committed) and `local/` (gitignored, your own clips); see
-  `tests/fixtures/README.md` for the directory layout and `manifest.json`
-  schema. These double as the app's example gallery.
-- **`tests/diagnostics.test.js`** — a Node test (`node:test`, no dependencies)
-  that scores every fixture's diagnostics and checks the result against a
-  checked-in golden snapshot.
-- **`tests/viewer.test.js`** — the 3D view's click-to-flip-a-depth-sign
-  interaction, run against the viewer module extracted straight out of
-  `src/app.py` (see `loadViewer.js`) with three.js's renderer stubbed. Needs no
-  GPU and no browser. It is here because this interaction broke twice in ways
-  nothing else could see: the module parsed, the API round-tripped and the page
-  loaded, while `load()` threw on a stale reference and the pick was taken on
-  mouseup after the video draw loop had already moved the skeleton.
-
-Run everything with `npm test`.
-
-## Syncing from clipper
-
-If your clips come from clipper (it cuts one clip per attempt from
-competition footage; its own repo, `weightlifting-clipper`, since 2026-10-31 —
-see its README), use
-`scripts/sync_clipper_fixtures.py` instead of the manual `clips_inbox/` flow
-below:
+Run them from the repo root:
 
 ```sh
-./scripts/coach_launch.sh local
-python scripts/sync_clipper_fixtures.py --dry-run   # see what it would do first
-python scripts/sync_clipper_fixtures.py
+npm test                                              # every *.test.js (node:test, no dependencies)
+python3 -m unittest discover -s tests -p 'test_*.py'  # the Python tests
 ```
 
-It reads straight from `$CLIPPER_OUT/**/clips/*.mp4` — clipper puts each
-source video's cut attempts in a `clips/` folder inside a folder named after
-that video; pass `--clipper-dir` instead when that variable isn't set (there is
-no in-repo fallback since clipper left) — nothing gets copied into this repo except the fixtures
-it decides to keep. `$CLIPPER_OUT` is the same variable clipper's `clip.sh` uses
-for its own output directory, so pointing the downloads at bulk storage is one
-export, not a flag you have to remember in two places. Per clip it: skips anything it's already
-extracted (by content hash, not filename, so a re-cut that renumbers an
-already-seen attempt isn't treated as new); pose-extracts it (there's no
-avoiding this — see below); guesses snatch vs clean-and-jerk from the
-resulting wrist/bar-height trajectory (`scripts/pose_stance.py` — a snatch is
-one continuous rise to an overhead catch, a clean & jerk is two, separated by
-a rack pause); and, for anything it kept, writes the fixture + manifest entry
-the same shape `batch_extract_tracks.py` does and regenerates its golden. A
-clip it can't confidently classify — including one whose track looks
-physically broken, not just lift-ambiguous — is left alone and reported,
-never guessed: fix it with `--stance-override SUBSTRING=STANCE` or
-investigate, then re-run (already-classified clips are skipped via the dedup
-cache, so re-running is cheap). Lands in `tests/fixtures/local/` like any
-other local fixture; promoting one to `global/` is still the manual step in
-`tests/fixtures/README.md`.
+| File | Tests |
+| --- | --- |
+| `diagnostics.test.js` | `src/diagnostics.js`: every fixture's results against its golden snapshot, plus synthetic tracks for the phase triggers and rep counting. |
+| `pose.test.js` | `src/pose/coco17.mjs`: the BlazePose-33 → COCO-17 mapping and its `[y, x, conf]` output. |
+| `viewer.test.js` | The 3D view's click-to-flip-a-depth-sign, run on the viewer module taken straight out of `src/app.py` (`loadViewer.js`) with three.js's renderer stubbed: no GPU, no browser. This interaction broke twice in ways nothing else could see. |
+| `anatomy.test.js`, `anatomy-grip.test.js`, `anatomy-sequence.test.js`, `anatomy-stability.test.js` | The anatomy view's modules in `src/anatomy/`: the rig, the hand contacts on the bar, the display sequence, stabilization. |
+| `squat.test.js` | The Movement Lab's squat engine, `src/squat/analysis.mjs`. |
+| `test_launchers.py` | The local preview (`launchers/run_local.py`): its entry points, the `/` and `/original/` routes, and the example gallery. |
 
-Unlike the manual flow below, there's no free preview step: stance can only
-be read off the pose track, so even `--dry-run` extracts every new clip (it
-just skips writing fixtures/manifest/golden/dedup-state afterwards). See
-`scripts/pose_stance.py`'s docstring for what the classifier has and hasn't
-been validated against — worth a skim before trusting a large batch of
-clean-and-jerk verdicts specifically.
+The helpers: `fixtures.js` (where fixtures and goldens live), `loadDiagnostics.js`
+(loads `diagnostics.js` headless, with a stub `window`), `loadViewer.js`, and
+`update_golden.js` (step 6 below).
+
+**`fixtures/`** holds cached ViTPose tracks, in `global/` (committed) and
+`local/` (gitignored); they double as the app's example gallery. Its layout,
+the manifest and where the clips are: [fixtures/README.md](fixtures/README.md).
+The rest of this file is how a lift video becomes a test case.
+
+## Clips cut by clipper
+
+For clips from clipper (its own repo, `weightlifting-clipper`), use
+`scripts/sync_clipper_fixtures.py` instead of the manual flow below: it
+extracts, classifies the stance from the track and writes the fixture and its
+golden in one pass. How, step by step:
+[docs/clipper-pipeline.md](../docs/clipper-pipeline.md).
 
 ## Step by step: turning clips into test cases
 
@@ -109,7 +79,8 @@ and appends an entry to `tests/fixtures/local/manifest.json` keyed
 `<stance>/<clip-stem>` (re-running on the same clip overwrites its entry
 rather than duplicating it). `local/` is gitignored: the clips show up in the
 app's example picker and in the tests on this machine, but never in a commit.
-Pass `--scope global` for clips meant to ship with the repo.
+Pass `--scope global` to write into the committed scope instead (step 8 says
+what of it gets committed).
 
 ### 4. Sanity-check what landed
 
@@ -161,7 +132,7 @@ node tests/update_golden.js                             # every fixture, both sc
 node tests/update_golden.js local/snatch/lifter1-rep1    # just one (full slug, with scope)
 ```
 
-Writes `tests/golden/<stance>-<clip-stem>.json` — `Diagnostics.computeResults()`'s
+Writes `tests/golden/<scope>/<stance>-<clip-stem>.json` — `Diagnostics.computeResults()`'s
 output for that fixture, run headlessly (no browser, no canvas — see
 `tests/loadDiagnostics.js`). This is the only step that needs re-running when
 you deliberately change diagnostic logic in `src/diagnostics.js`; never run it
@@ -178,9 +149,11 @@ edit when a new stance shows up, only steps 3 and 6 above. A fixture with a
 `.track.json` but no golden snapshot fails loudly with the `update_golden.js`
 command to fix it, rather than being silently skipped.
 
-### 8. Commit
+### 8. Commit (global fixtures only)
 
-Commit the fixture's `.mp4` + `.track.json`, its `manifest.json` entry, and
-its golden snapshot together. Keep clips short/trimmed (a few seconds) —
-they're committed directly, no git-lfs, matching `parked/report/examples/`'s
-existing convention.
+A local fixture never reaches git. For a global one, commit its
+`.track.json`, its `manifest.json` entry and its golden snapshot together.
+Its `.mp4` stays out of git unless the clip may be published
+([fixtures/README.md](fixtures/README.md#videos)); `.gitignore` refuses
+videos under `global/`, so committing one takes `git add -f`. Keep clips
+short (a few seconds).

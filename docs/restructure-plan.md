@@ -9,8 +9,8 @@ finish (git keeps the history). Decisions and open questions are in
 
 ## Next session starts here
 
-- **Current step:** finish Phase 2: steps 2.6 (docs of what stays) and 2.7
-  (licence prep; it waits on Noah). Steps 2.4 and 2.5 are done. Step 2.3 is
+- **Current step:** finish Phase 2: step 2.7 (licence prep; the licence
+  itself waits on Noah). Steps 2.4–2.6 are done. Step 2.3 is
   done: the rest of its parking was cancelled on 2026-10-31, because the new
   UI is built fresh and the old page is frozen. Step 2.8 (the history rewrite)
   comes at the very end of the window and needs nordmu's explicit OK.
@@ -20,7 +20,8 @@ finish (git keeps the history). Decisions and open questions are in
 - **In parallel:** the Phase 3 spike may run as a second session in `spike/`;
   its baseline scripts are in `spike/phone-baseline/`.
 - **Waiting on nordmu:**
-  - question 8, the review of the goal, the principles and the tab parking;
+  - question 8, the review of the tab parking (the goal and the principles
+    are confirmed);
   - question 7, how the gym recording session works (needed by Phase 5).
 - **Waiting on Noah:** questions 1, 5 and 6 in [decisions.md](decisions.md)
   (the message went out on 2026-10-31).
@@ -249,8 +250,33 @@ are parked, was decided on 2026-10-31 ([decisions.md](decisions.md)).
       already covered `.DS_Store` and now covers `.auth_password`. Nothing
       in the repo reads the password file. They stay in the history until
       step 2.8.
-- [ ] 2.6 Rewrite the docs only for what stays (README, `docs/*`), and only
-      after 2.2.
+- [x] 2.6 The docs of what stays (2026-10-31; nordmu's choices in
+      [decisions.md](decisions.md), "Rules and docs"). Two read-only audits
+      checked the skills and the dataset docs against the code first.
+      - a new root README: what coach is now, the local preview and the dev
+        server, the layout;
+      - [server.md](server.md) took in what was still true of `deploy.md`
+        (what runs, the checkpoints, every script), and `deploy.md` is gone;
+        its detector notes went to `parked/bar-detection/README.md`;
+      - `START_HERE.md` is gone: its launch commands are in the README, its
+        anatomy guide in `src/anatomy/README.md`;
+      - `tests/README.md` lists every test file and both commands, and its
+        golden path and commit step are right; the clipper sync is described
+        once, in [clipper-pipeline.md](clipper-pipeline.md);
+      - the dataset docs lost their stale and duplicated facts (one owner
+        each: numbers in [dataset-stats.md](dataset-stats.md), the layout and
+        profiles' meaning in `tests/fixtures/README.md`, shapes and endpoints
+        in [fixture-data-contract.md](fixture-data-contract.md)). The deploy
+        map left `train-data-todo.md`, and its OCR samples name no athletes;
+      - both skills match the code (`panel-add` rewritten; `lifting-diagnostic`
+        and its notes corrected), as do the repo `Caddyfile`'s comments, the
+        `app.py` docstring, and a comment in `diagnostics.js`;
+      - frozen code touched, comments only: the HTML comment above the import
+        map in `INDEX_HTML`;
+      - tested: the grep; 68 JS + 6 Python tests; the `panel-add` checks as
+        written; both servers render the page in headless Brave with no
+        exceptions. Not tested: anything on Noah's machine, which most of
+        server.md and the dataset docs describe.
 - [ ] 2.7 Add LICENSE, SPDX headers and `THIRD_PARTY.md` once question 1 is
       answered and the authors have agreed.
 - [ ] 2.8 One history rewrite at the end of the window, before Noah resumes,

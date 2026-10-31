@@ -76,10 +76,11 @@ lifter as moving and the phase start collapses on every real video. On the
 wider baseline the signed vertical component of that jitter sits around
 0.02–0.05 while an actual pull runs 1–2. Verified on synthetic tracks
 (`tests/diagnostics.test.js`): a busy setup with a re-grip and a continuous
-roll-in right up to lift-off, at ±0, ±3 and ±5px of jitter, and a still lifter
-at up to ±8px over 60 seeded runs, none of which started the phase before the
-scripted lift-off. On the athlete-b clean fixture the rise reads 0.01–0.07 through
-the set position and crosses 0.1 two frames into the pull.
+roll-in right up to lift-off, at ±0, ±3 and ±5px of jitter, and a lifter
+standing still for 60 frames under ±5px, none of which started the phase before
+the scripted lift-off. On the athlete-b clean fixture (local, on Noah's
+machine) the rise reads 0.01–0.07 through the set position and crosses 0.1 two
+frames into the pull.
 
 The cost is that the smoothing spreads the pull's motion backwards, so onset is
 detected ~3 samples early — the phase picks up the last ~0.1s of the setup.
@@ -132,7 +133,7 @@ the bar never passed knee height rather than scoring a partial phase.
   context so the phase's position in the lift is legible.
 
 **Stat tiles**: constancy (SD) with its verdict, drift (in the ramp colour, the
-only legend the ramp gets), and mean angle.
+only legend the ramp gets), mean angle, and the mean left–right disagreement.
 
 **Overlay**, on the video, only while the playhead is inside the phase, drawn
 at the playhead's own time rather than at the nearest sampled frame so it
@@ -159,7 +160,8 @@ first pull too, see [08-clean-first-pull-back-angle.md](08-clean-first-pull-back
 **Transparency block** reports: the phase's frame range and duration; the wrist
 rise at onset (and just before it) and the bar–knee gap at the crossing; samples measured; the
 fraction interpolated across dropped detections; the fraction with both sides
-visible; the mean left–right disagreement; and the bar axis — its tilt, which
+visible; a note on the left–right disagreement when it passes 8°; and the bar
+axis — its tilt, which
 joint pairs and which frame set it, how well they agreed, and which were dropped
 as outliers.
 

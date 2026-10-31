@@ -66,7 +66,7 @@ instead live in a folder named for what it is. Concretely:
   `README.md`'s Layout section — it's the map, and it should stay accurate.
 
 **Whenever you move a file, grep the whole repo before you consider it
-done** — docs (`README.md`, `START_HERE.md`, `docs/`), tests, scripts, and
+done** — docs (`README.md`, `docs/`, the READMEs in subfolders), tests, scripts, and
 other launchers may reference its old path by string, and none of that shows
 up as an import error until someone actually runs it:
 

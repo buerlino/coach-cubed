@@ -52,7 +52,7 @@ for the full derivation, fallbacks and the synthetic checks; the
 `tests/diagnostics.test.js` trigger tests run against both sets and assert
 they agree on the same track.
 
-On the one clean fixture (athlete-b, 246kg, `tests/fixtures/local`), the rise
+On the one clean fixture (athlete-b, 246 kg; local, on Noah's machine), the rise
 reads 0.01–0.07 through the set position and crosses the threshold two frames
 into the pull; the phase resolves to 17 frames with a mean trunk angle of
 52° — more upright than the snatch start, as expected.
@@ -67,9 +67,10 @@ snatch rather than set on clean footage.
 
 **≤ 2.5° SD good, ≤ 5° warning** — copied from the snatch, not fitted to any
 clean footage. Provisional, and labelled as such in the transparency block.
-Re-fit once there are labelled cleans; if the clean's more upright start turns
-out to hold a different amount of wobble, the factory takes per-lift
-thresholds without touching the snatch's.
+Re-fit once there are labelled cleans. The bands are module constants
+(`SD_GOOD`, `SD_WARN`) that `makeFirstPullBackAngle` shares between both
+lifts; if the clean turns out to hold a different amount of wobble, the
+factory needs a per-lift threshold parameter first.
 
 ## Known limitations
 

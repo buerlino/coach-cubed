@@ -23,7 +23,14 @@ tests/fixtures/
     manifest.json             same layout as global/
     <stance>/...              also the clips of global fixtures that can't be
                                committed, at the same <stance>/<file> path
+    profiles/                 same layout as global/profiles/
+    .clipper_sync_state.json  the clipper sync's dedup state, by content hash
+    train_labels.json         the training data explorer's hand labels
+    train_links.json          the manifest entries the explorer linked
 ```
+
+The file shapes and the endpoints that serve them are in
+[docs/fixture-data-contract.md](../../docs/fixture-data-contract.md).
 
 The two scopes are identical in layout and differ only in whether git sees
 them. The app merges both manifests into one picker (grouped `global` /
@@ -73,11 +80,6 @@ reloads. Neither is attached to a clip, because neither is a property of one:
   clip they often never do, so every segment reads short and the lift turns the
   difference into fabricated depth.
 
-  ```json
-  { "notes": "where these came from",
-    "ratios": { "thigh": 0.730, "shank": 0.707, "uarm": 0.461, "farm": 0.442 } }
-  ```
-
   Filled from a frame where the athlete faces the camera with the limb
   extended, since then the projection *is* the length. The left/right spread is
   the check that the pose really was frontal: on `athlete-a` the two sides agree
@@ -88,7 +90,7 @@ reloads. Neither is attached to a clip, because neither is a property of one:
   nobody has been measured).
 
 - **`profiles/signs/<name>.json`** — which way each limb bends out of the
-  screen, `{joint index: +1 toward the camera | -1 away}`. Belongs to the
+  screen, toward the camera or away. Belongs to the
   *shot*: a single view can't tell toward from away, and the answer depends on
   where the camera stood, so one table serves every clip filmed from that spot.
   Choosing a profile puts the directions in manual mode with exactly that
@@ -105,11 +107,6 @@ thing to keep there). Move the file to `global/profiles/` to commit it. A local
 file with the same name as a global one shadows it. A missing, malformed or
 partial file is skipped (limbs: filled per segment from `default`) rather than
 breaking the picker.
-
-Served by `/api/profiles/<kind>` (`GET`, the full list with built-ins first)
-and `/api/profiles/<kind>/<name>` (`PUT`); the segment list, the joint list and
-the default ratios come from `/api/depth/methods`, so neither the UI nor a
-profile file has to hardcode which segments or joints exist.
 
 ## Adding a fixture
 

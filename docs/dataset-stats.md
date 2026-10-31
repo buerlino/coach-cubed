@@ -71,11 +71,13 @@ earlier hand-run sessions.
 The one failure is `division by zero` on
 `06-2023-pacific-games-oceania-championships-session-6-…_57_1h59m27s_made.mp4`.
 All 30 skips are one session,
-`18-2025-australian-senior-junior-championships-session-8-and-9-…` — the
-filename pattern in `scripts/sync_clipper_fixtures.py` does not cope with
-`session-8-and-9`.
+`18-2025-australian-senior-junior-championships-session-8-and-9-…`. The
+session name parses. The likely cause is the attempt number: the filename
+pattern in `scripts/sync_clipper_fixtures.py` takes exactly two digits
+(`\d{2}`; `src/app.py` takes `\d+`), so a session that runs past attempt 99
+loses every attempt after it.
 
-### What the accepted 1,720 are labelled
+### What the 1,722 in the manifest are labelled
 
 ```
 stance    snatch 1470   clean-and-jerk 252          85:15, against a true ~50:50
@@ -102,7 +104,7 @@ a pose problem** — the window opens after the lift has already started.
 
 ### Accept rate by clip length (all 3,224 clips with a readable duration)
 
-| length | accepted | held | usable |
+| length | accepted | not accepted | usable |
 | --- | ---: | ---: | ---: |
 | 3.5–4 s | 202 | 658 | **23%** |
 | 4–6 s | 428 | 414 | 51% |

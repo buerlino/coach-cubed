@@ -141,9 +141,10 @@ takes about 1 s per 1080p frame once warm.
   - Remove the train tab.
 - **Couplings:** see [Hidden couplings](#hidden-couplings).
 - **Stale:**
-  - The app.py docstring (lines 1–11) names one backend; it imports three
-    (26–28).
-  - 4245–4248 says three.js loads from a CDN; it's vendored.
+  - ~~The app.py docstring (lines 1–11) names one backend; it imports three
+    (26–28).~~ Rewritten in step 2.6.
+  - ~~4245–4248 says three.js loads from a CDN; it's vendored.~~ Fixed in
+    step 2.6 (an HTML comment inside `INDEX_HTML`).
   - ~~"Grounding DINO" is hard-coded even when SAM 3 is active~~: that line
     left with bar detection (step 2.3).
 
@@ -221,7 +222,8 @@ What follows describes it as it was.
 - **Used by:** the overlay and the 3D plate-anchor method.
 - **Tests:** none.
 - **Stale:**
-  - `docs/deploy.md` and `download_models.sh` say SAM 3 isn't wired; it is
+  - `docs/deploy.md` (removed in step 2.6) and `download_models.sh` say SAM 3
+    isn't wired; it is
     (`equipment_backend.py:363`).
   - The script downloads SAM 3 to `~/models/sam3`, but the loader reads the
     Hugging Face cache.
@@ -255,8 +257,9 @@ What follows describes it as it was.
     `analysis.mjs`, and MediaPipe.
   - [src/anatomy/](../src/anatomy/): the BodyParts3D mesh (`body.bin` 25.8 MB,
     1.3 M triangles), rig, grip, stability, review and viewer.
-  - 14 [launchers/](../launchers/) files and
-    [START_HERE.md](../START_HERE.md).
+  - 14 [launchers/](../launchers/) files and `START_HERE.md` (split in step
+    2.6: the launch commands went to the root README, the user guide to
+    [src/anatomy/README.md](../src/anatomy/README.md)).
   - `scripts/build_anatomy.py`.
 - **Wired into the main page:** "Show anatomy", and the squat tab's rep
   review (app.py:4602–4604).
@@ -273,7 +276,8 @@ What follows describes it as it was.
     said CC BY-SA 2.1 JP, `ATTRIBUTION.md:36`).
   - three.js MIT; MediaPipe Apache-2.0.
 - **Stale:**
-  - `START_HERE.md` describes two ZIP packages that nothing builds.
+  - ~~`START_HERE.md` describes two ZIP packages that nothing builds.~~ Gone
+    in step 2.6.
   - `src/anatomy/workspace.css` is loaded nowhere.
   - ~~The local preview's default page `/original/` is broken.~~ Fixed in step
     2.0: both servers redirect `/original/` to `../`, the preview opens `/`,
@@ -337,13 +341,17 @@ What follows describes it as it was.
   - `pki-public/`
   - `scripts/coach_launch*.sh`, `restart.sh`, `free_ports.sh`, `setup_*.sh`,
     `download_models.sh`
-  - `requirements*.txt`, `docs/deploy.md`
+  - `requirements*.txt`, `docs/deploy.md` (folded into
+    [server.md](server.md) in step 2.6)
 - **Needed for:** the server deploy; the setup and launch scripts also serve
   local development (nordmu uses `setup_no_conda_linux.sh` +
   `coach_launch_venv.sh`).
-- **Stale:** `docs/deploy.md` contradicts the scripts in several places
+- **Stale:** ~~`docs/deploy.md` contradicts the scripts in several places
   (systemd unit, number of backends, where the CA lives). The repo
-  `Caddyfile` cites files that don't exist.
+  `Caddyfile` cites files that don't exist.~~ Step 2.6 folded what was true
+  into [server.md](server.md), removed `deploy.md` and fixed the
+  `Caddyfile`'s comments. Where the CA lives is still open
+  ([backlog.md](backlog.md)).
 
 ## 11. Tests and fixtures
 
@@ -360,8 +368,8 @@ What follows describes it as it was.
   [tests/fixtures/README.md](../tests/fixtures/README.md#videos).
 
 - **Stale:**
-  - `tests/README.md` lists only 2 of the 8 test files and gives the wrong
-    golden path.
+  - ~~`tests/README.md` lists only 2 of the 8 test files and gives the wrong
+    golden path.~~ Fixed in step 2.6.
   - A fixture without a `diagnostics` field is silently scored as snatch.
 
 ## 12. Docs and agent skills
@@ -369,9 +377,9 @@ What follows describes it as it was.
 - **AGENTS.md:** mostly accurate. Its deploy parts describe Noah's machine,
   not this laptop.
 - **Skills:** `lifting-diagnostic`, `model-add` (parked with bar detection in
-  step 2.3) and `panel-add` are partly
-  stale (wrong registry names, missing lifts); their per-diagnostic notes match
-  the code.
+  step 2.3) and `panel-add` were partly stale (wrong registry names, missing
+  lifts). Step 2.6 checked the two that stay against the code and fixed them,
+  their per-diagnostic notes included.
 - **README.md:** ~~ends with clipper's `clip-nvidia` section, copied in by
   mistake~~: removed in step 2.3 (it is in clipper's own README).
 - **[docs/fixture-data-contract.md:53](fixture-data-contract.md) gives

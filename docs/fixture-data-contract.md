@@ -4,42 +4,23 @@ What the pose pass writes, where it writes it, and how the page reads it. For
 anyone building against the extracted ViTPose data rather than producing it —
 see [`clipper-pipeline.md`](clipper-pipeline.md) for the producing side.
 
-Measured on this box 2026-10-13, mid-run: 785 fixtures of an expected 3,226
-(811 by the evening, with the training data explorer added — see its section).
-
 ## Layout
 
-```
-tests/fixtures/
-  global/                                committed, ships with the repo
-    manifest.json
-    <stance>/<stem>.mp4                  only a clip that may be published; none today
-    <stance>/<stem>.track.json
-    profiles/limbs/<name>.json
-    profiles/signs/<name>.json
-  local/                                 gitignored, this machine only
-    manifest.json
-    <stance>/<stem>.mp4                  also the clips of global fixtures
-    .clipper_sync_state.json             sha256 dedup state for the sync
-    train_labels.json                    explorer labels per clipper clip (see below)
-    train_links.json                     manifest entries the explorer linked (see below)
-    snatch           -> /mnt/datasets/coach/fixtures-local/snatch
-    clean-and-jerk   -> /mnt/datasets/coach/fixtures-local/clean-and-jerk
-    profiles/limbs/<name>.json
-    profiles/signs/<name>.json
-```
+The directory tree, the two scopes and the full slug
+`<scope>/<stance>/<stem>` are in
+[tests/fixtures/README.md](../tests/fixtures/README.md). `FIXTURES_DIR` in
+`src/app.py` is `tests/fixtures`. A fixture's id carries its scope, so a
+local and a global fixture with the same slug both show; only profiles
+shadow by name.
 
-`FIXTURES_DIR` is `src/app.py`; scopes are `("global", "local")` and a `local`
-name shadows a `global` one. Outside the manifest files a fixture is named by
-its full slug, `<scope>/<stance>/<stem>`.
-
-**The two stance directories under `local/` are symlinks to bulk storage.** A
-full sync copies every clip into the fixture tree, which is ~7.3 GB of video
-the clips already hold elsewhere, and root had 32 G free at 89%. Only those two
-dirs are redirected: they are covered by `.gitignore`'s `tests/fixtures/local/*`
-so git never sees the symlink, whereas `local/.gitkeep` is tracked, which is why
-`local/` itself has to stay a real directory. The manifest and the dedup state
-stay on the SSD — small, and read on every request.
+**On the deploy box, the two stance directories under `local/` are symlinks to
+bulk storage.** A full sync copies every clip into the fixture tree, which is
+~7.3 GB of video the clips already hold elsewhere, and root had 32 G free at
+89%. Only those two dirs are redirected: they are covered by `.gitignore`'s
+`tests/fixtures/local/*` so git never sees the symlink, whereas
+`local/.gitkeep` is tracked, which is why `local/` itself has to stay a real
+directory. The manifest and the dedup state stay on the SSD — small, and read
+on every request.
 
 ## `<stem>.track.json`
 
@@ -153,10 +134,12 @@ over its own listing instead.
 ## The training data explorer (`train data` tab, `/api/train/*`)
 
 The in-app browser over clipper's output — every cut clip, not only the
-fixtures. It reads `$CLIPPER_OUT` (`COACH_TRAIN_DIR` overrides it; the
-systemd unit gets it from a drop-in under
-`~/.config/systemd/user/coach-app.service.d/`, since a user unit does not
-read `~/.bashrc`).
+fixtures. It reads `$CLIPPER_OUT` (`COACH_TRAIN_DIR` overrides it). On the
+deploy, the systemd unit gets it from a drop-in under
+`~/.config/systemd/user/coach-app.service.d/`, since a user unit does not read
+`~/.bashrc`: a clip path that 404s after a shell export is this. With neither
+set, the app still falls back to the in-repo `clipper/downloads`, which left
+with clipper ([backlog.md](backlog.md)).
 
 ```
 GET /api/train/clips                 {dir, lifts, clips: [...]} — one row per **/clips/*.mp4
@@ -181,10 +164,14 @@ classifier's.
 Double-clicking a clip with a track loads it as the example it is. One without
 is run through `/api/pose/video/*` at the panel's model size and the result is
 `POST`ed to `/api/train/link`, which writes the same three pieces the sync
-does — clip copy, `<stem>.track.json` (or `<stem>.<size>.track.json` when the
-slug already holds another size), manifest entry — plus the sha256 entry in
-`.clipper_sync_state.json` so a later sync skips it, and regenerates the
-golden. The entry also goes into `train_links.json`: a sync run that started
+does: the clip copy, `<stem>.track.json` (or `<stem>.<size>.track.json` when
+the slug already holds another size) and the manifest entry, which also gets
+`train_clip`. It regenerates the golden when it writes a bare
+`<stem>.track.json`. It writes into `local/`, unless the clip already has a
+global fixture, in which case into `global/` (where the clip copy is
+gitignored). For a local fixture it also adds the sha256 entry in
+`.clipper_sync_state.json`, so a later sync skips the clip, and the entry in
+`train_links.json`: a sync run that started
 with an older copy of `sync_clipper_fixtures.py` rewrites `local/manifest.json`
 from its own in-memory dict, dropping entries linked in the meantime, and
 `_load_manifest()` restores any entry from that file whose track still exists.
@@ -215,8 +202,9 @@ POST /api/pose/video/start     multipart: video=<file>, size=l|h,
                                frame_stride=<int >= 1>
                                (detect_equipment=1 answers 400 since bar
                                detection was parked on 2026-10-31)
-GET  /api/pose/video/progress  {status: idle|counting|running|done|error,
-                                processed, total, rateFps, etaSeconds}
+GET  /api/pose/video/progress  {status: idle|counting|running|done|error|cancelled,
+                                processed, total, rateFps, etaSeconds,
+                                error (when status is error)}
 GET  /api/pose/video/result    the {keypoints, meta} object — one-shot, clears the slot
 POST /api/pose/video/cancel
 POST /api/pose                 single image, synchronous
@@ -224,8 +212,8 @@ GET  /api/capabilities         {} — nothing optional since bar detection was p
                                the fixture scripts use it as a liveness probe
 ```
 
-The slot is per instance. On this box :8080 runs on the W7800 and :8081 on the
-1080 Ti with independent slots, which is how a batch run and the UI coexist.
+The slot is per instance: two instances on different ports have independent
+slots, which is how a batch run and the UI can coexist.
 
 ## Profiles: limb lengths and depth directions
 
@@ -257,7 +245,7 @@ so one table serves every clip from that camera position:
 
 ```json
 { "notes": "camera front-right of the athlete",
-  "signs": { "5": 1, "7": 1, "8": 1, "9": 1, "10": 1,
+  "signs": { "5": 1, "7": -1, "8": 1, "9": -1, "10": 1,
              "13": 1, "14": 1, "15": -1, "16": -1 } }
 ```
 
@@ -276,29 +264,11 @@ PUT /api/profiles/limbs|signs/<name>   body is the profile object
 ```
 
 Built-ins (`default`, `all-toward`, `all-away`) are never on disk and `PUT`
-refuses those names. A `PUT` overwrites in whichever scope already holds the
-name; a new name lands in `local`. Malformed or partial files are skipped, not
-fatal.
-
-Present on this box: limbs `default` (built-in), `athlete-a` (global, measured),
-`athlete-a-all-perspective` (local); signs `all-toward` / `all-away` (built-in),
-`camera-front-right` (global), `frontal` (local).
+refuses those names. Which scope a `PUT` writes to, shadowing, and what
+happens to a malformed file: [tests/fixtures/README.md](../tests/fixtures/README.md).
 
 ## Caveats on the data itself
 
-From the extraction run in progress, first 1,432 clips:
-
-- **47% are held for review**, not written as fixtures. The dominant reason
-  (529 of 667) is `clip doesn't start with the bar near the bottom of its
-  range`. That is the clipper's window opening late, not a tracking failure:
-  usable rate is 26% for clips at the 3.5 s `MIN_LEN` floor and 72% for 6–10 s
-  clips. Held clips are deliberately **not** cached in
-  `.clipper_sync_state.json`, so they re-extract for free once the windows are
-  widened.
-- **The stance split is 85:15 snatch to clean-and-jerk**, against a true ~50:50
-  — every lifter takes three of each. So `pose_stance.py` is either misreading
-  cleans as snatches or losing them to review. Validate it against a
-  hand-labelled sample before this data trains anything: a wrong stance scores
-  a clip against the wrong lift's cues and nothing downstream notices.
-- made/miss is well mixed within each stance (361/269 snatch, 49/61
-  clean-and-jerk), so the referee verdicts are not skewed.
+What the extracted data is like (how many clips were held for review and why,
+the 85:15 stance split, what that means before the data trains anything) is in
+[dataset-stats.md](dataset-stats.md) and [train-data-todo.md](train-data-todo.md).

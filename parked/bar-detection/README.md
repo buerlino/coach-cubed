@@ -41,3 +41,25 @@ shows each diff: `git log -- parked/bar-detection/equipment_backend.py`):
 
 Tracks made before the parking still carry `meta.equipment`; the 3D
 plate-anchor method reads it until 3D is parked too.
+
+## The checkpoints, as they were
+
+Kept from `docs/deploy.md`, which step 2.6 folded into `docs/server.md`:
+
+- **Grounding DINO** (`~/models/grounding-dino-base`, about 700 MB) was the
+  one optional checkpoint. The download script offered it: `COACH_DINO=1`
+  took it without asking and `COACH_DINO=0` declined, for unattended
+  installs. `COACH_DINO_DIR` moved it, and the download script,
+  `equipment_backend.py` and the launch check had to agree on that path. It
+  was fetched to disk rather than left to `transformers`, so the first
+  analysis didn't stall on a hub download and the detector ran offline.
+  Without it the app still started: `/api/capabilities` reported it missing,
+  the page greyed out the tickboxes and the start endpoint answered 503.
+- **SAM 3** (`~/models/sam3`, about 3.4 GB; `COACH_SAM3=1` or `0`,
+  `COACH_SAM3_DIR`) is **gated**. `facebook/sam3` needs a Hugging Face token
+  (`$HF_TOKEN`, or `hf auth login`) **and** that account approved by hand at
+  <https://huggingface.co/facebook/sam3>. The script sent the token for this
+  block only, and probed access with a 1-byte ranged GET before the 3.4 GB
+  download. It took only `model.safetensors`; the repo's `sam3.pt` is the
+  same weights in Meta's own format. Where the script put it and where the
+  loader looked differed (map area 5).

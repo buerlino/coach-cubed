@@ -2131,9 +2131,9 @@ const lateralRaiseSymmetry = {
   },
 
   // Same measurement lateralRaiseTopHeight makes at each rep's peak — left and
-  // right shoulder->wrist deviation from shoulder height — reused here because
-  // it's the same reading, not re-derived, so the two diagnostics can't drift
-  // apart on what "this rep's height" means.
+  // right shoulder->wrist deviation from shoulder height. The formula is
+  // written out again here, not shared: change one, change both, or the two
+  // diagnostics drift apart on what "this rep's height" means.
   measure(samples, phase, ax) {
     const notes = [];
     const series = [];

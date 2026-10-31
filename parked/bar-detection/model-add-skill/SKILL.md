@@ -105,7 +105,7 @@ Checklist (what the CLIPSeg → Grounding DINO swap touched):
   blocks launch.
 - `scripts/setup_conda_mac.sh` + `setup_conda_linux.sh` — the verify-print label.
 - `scripts/batch_extract_tracks.py` — the `--detect-equipment` help text.
-- `docs/deploy.md` — the optional-checkpoint paragraph, size, and env vars.
+- `parked/bar-detection/README.md` ("The checkpoints, as they were") — the optional-checkpoint paragraph, size, and env vars.
 - `src/vitpose_backend.py` — the `_EquipmentWorker` docstring + the per-frame
   `gpu_submit()` comment that name the old model.
 

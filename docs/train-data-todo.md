@@ -5,51 +5,8 @@ pose pass got wrong, getting a 3D calibration, weeding out the bad ones.
 Observations first, each with what has actually been verified and what the next
 step is — so nobody re-diagnoses from scratch.
 
-Status when this was written (2026-10-13 23:45): extraction 1,548 of 3,226
-clips, 825 accepted, 723 held for review, 0 failed.
-
-## How it is deployed — and what can fail there
-
-```
-browser ──HTTPS/443──▶ Caddy (~/Caddyfile, tecna-caddy.service, pid 2339)
-                         └── handle_path /coach/* ──HTTP──▶ 127.0.0.1:8080
-                                                             coach-app.service
-                                                             envs/coach (ROCm) → W7800
-                           (batch only, not proxied) ──────▶ 127.0.0.1:8081
-                                                             coach-app-cu.service
-                                                             envs/coach-cu (CUDA) → 1080 Ti
-```
-
-- `handle_path` **strips** the `/coach` prefix, so the app sees `/` and
-  `/api/...` exactly as if it owned the host. The browser is the only side that
-  knows, via `const BASE = location.pathname...` in `src/app.py`. A fetch that
-  forgets `BASE` hits Caddy's root signpost and gets HTML back, not JSON.
-- Site blocks are **hostname-gated**: `tecna.local`, `coach.local`,
-  `192.0.2.10/.248`, `100.64.0.1`, the IPv6 tailnet address, and
-  `coach-host.example-tailnet.ts.net`. `localhost` and `127.0.0.1` over TLS are **not
-  served** — verified, they fail the handshake outright. Reach the app directly
-  on `http://127.0.0.1:8080` instead when testing.
-- `CLIPPER_OUT=/mnt/datasets/coach/clipper` reaches the app through the
-  systemd drop-in `~/.config/systemd/user/coach-app.service.d/clipper-out.conf`,
-  not through the shell. A clip path that 404s after a shell export is this.
-- `reverse_proxy` is bare — no compression, no header rewriting, no timeouts.
-  It is not transforming responses, so a malformed body is the app's or the
-  file's, never the proxy's.
-- **There is no access log.** Caddy logs errors to stderr (journald, via
-  `tecna-caddy.service`) and nothing else, so a request that succeeds with the
-  wrong body leaves no trace at all. Worth adding a `log` block to the `(apps)`
-  snippet before chasing any more client-side symptoms:
-
-  ```
-  journalctl --user -u tecna-caddy.service --since today | grep '"status":5'
-  ```
-
-  Today that shows exactly one coach failure: `502 dial tcp 127.0.0.1:8080:
-  connect: connection refused` on `/coach/api/train/clips` at 23:29:24, from
-  Firefox 150 on a tailnet client. Cause is visible in the app's own journal —
-  `coach-app.service` was restarted four times between 23:26 and 23:31 while
-  the train pane was being iterated on. Expect transient failures in that
-  window; they are not a bug in either app.
+The numbers from the full pose pass (2026-10-14) are in
+[dataset-stats.md](dataset-stats.md); this file says what to do about them.
 
 ## 1. "Video can't be played because the file is corrupt" on every example
 
@@ -58,7 +15,7 @@ browser ──HTTPS/443──▶ Caddy (~/Caddyfile, tecna-caddy.service, pid 23
 | check | result |
 | --- | --- |
 | `/api/examples/<id>/video` direct on :8080 | 200, 9,492,208 B, `video/mp4` |
-| same through Caddy on `coach.local` | 200, full bytes |
+| same through Caddy | 200, full bytes |
 | `/api/train/clip/<path>` direct | 200, 5,411,333 B, `video/mp4` |
 | `Range: bytes=0-1023` | 206 + correct `Content-Range` |
 | 12-clip codec sample | `h264 High, yuv420p, 1920x1080, L4.0/L4.2, 30 or 60 fps` |
@@ -69,8 +26,8 @@ browser ──HTTPS/443──▶ Caddy (~/Caddyfile, tecna-caddy.service, pid 23
 Firefox 150 on `X11; Linux x86_64`, on another machine over the tailnet. A
 Linux Firefox without system ffmpeg — or sandboxed as a snap/flatpak without
 codec access — fails *every* H.264 file with exactly this wording, and every
-fixture in the repo is H.264. That matches "on every example" better than
-anything file-specific, since the pre-existing global examples fail too.
+example clip is H.264. That matches "on every example" better than
+anything file-specific, since the global examples failed too.
 
 Check on the client, in this order:
 
@@ -81,24 +38,18 @@ Check on the client, in this order:
 3. If it is the codec: install `ffmpeg`/`libavcodec` (or `openh264`) on that
    machine. Transcoding 3,226 clips to VP9 is the fallback, not the fix.
 
-Second hypothesis, much weaker: the request landed in the 23:26–23:31 restart
-window. But `loadExample` checks `vr.ok` and would have shown "error loading
-example", not a corrupt video — so a 502 does not produce this message.
+Second hypothesis, much weaker: the request landed while the app was being
+restarted (four times between 23:26 and 23:31 on 2026-10-13). But the example
+picker's handler checks `vr.ok` and would have shown "error loading example",
+not a corrupt video — so a 502 does not produce this message.
 
 ## 2. Most clips show exercise `unknown`
 
-Updated 2026-10-15, after the full pose pass finished. From
-`/api/train/clips`, all 3,226 rows:
-
-```
-exercise         unknown 1506   snatch 1470   clean-and-jerk 252
-```
-
-`unknown` is exactly the set with no cached track. The transient half of this
-label is gone — the run is done — so what remains is permanent: **1,506 clips
-were held for review, extracted but never written as a fixture, and will read
-`unknown` forever** until the clipper windows are widened and they are re-cut.
-Full breakdown in [`dataset-stats.md`](dataset-stats.md).
+Updated 2026-10-15, after the full pose pass finished. Of the 3,226 clips,
+1,506 read `unknown` in `/api/train/clips`: the clips with no fixture that has
+both a track and a clip. They are the 1,475 held for review, the 30 the sync
+skipped and the 1 that failed ([dataset-stats.md](dataset-stats.md)). They stay
+`unknown` until the clipper windows are widened and they are re-cut.
 
 Worth separating in the UI: `not analysed yet` and `analysed, stance
 unreadable` are different problems and only the second needs a human.
@@ -110,28 +61,9 @@ lifter takes three of each. So `scripts/pose_stance.py` is either reading
 cleans as snatches or losing them to review. The ratio did not move between
 48% through the run and the end of it, so it is not a sampling artefact.
 
-Review reasons and the length correlation, over the full run — the rest is in
-[`dataset-stats.md`](dataset-stats.md):
-
-```
-1176  clip doesn't start with the bar near the bottom of its range
- 154  clip appears to end before the lift settles (possible early cut)
-  50  barely any vertical bar motion detected
-  46  wrist/hip keypoints never met the confidence gate
-  34  implausible motion range — likely a tracking glitch, not a real lift
-  15  no person was tracked in this clip
-
-           accepted  review  usable
-3.5–4 s         202     658     23%
-4–6 s           428     414     51%
-6–10 s          665     252     73%
-10 s+           425     180     70%
-```
-
-The dominant reason is not a tracking failure — it is the clipper's window
-opening after the lift has started. 36% of those clips sit exactly at
-`MIN_LEN = 3.5 s`, the floor in clipper's `src/final.py` for attempts whose
-motion burst was too short to measure.
+The dominant review reason is not a tracking failure: the clipper's window
+opens after the lift has started, and the shortest clips fare worst (the
+reasons and the accept rate by length are in [dataset-stats.md](dataset-stats.md)).
 
 Two jobs, in order:
 
@@ -146,20 +78,15 @@ Two jobs, in order:
 
 The free signal nobody is using yet, now confirmed on a real frame: the AWF
 lower third reads `SNATCH | <name> | SA 47KG | 47 | 0:37`. It **states
-the lift type**, in the fixed box `awf-overlay` already locates, for the 22
-Australian-Championship sessions. Pacific's start-list card does the same at
+the lift type**, in the fixed box `awf-overlay` already locates, for the 23
+Australian-Championship sessions (14 in 2023, 9 in 2024). Pacific's start-list card does the same at
 group level (`SNATCH - 1ST ATTEMPT`). That is ground truth to score
 `pose_stance.py` against rather than a second guess — and it is the same OCR
 work as item 4, so do them together.
 
 ## 4. No gender, no category, on any clip
 
-```
-gender    "" × 3226
-category  "" × 3226
-```
-
-The field and the API exist — `PUT /api/train/labels/<path>` accepts
+None of the 3,226 clips has either ([dataset-stats.md](dataset-stats.md)). The field and the API exist — `PUT /api/train/labels/<path>` accepts
 `gender` against `TRAIN_GENDERS` and a free-text `category` — but nothing
 populates them, and there is no source in the pipeline: clipper never captured
 it, and `clips.json` has no such field.
@@ -202,7 +129,7 @@ rectangle" isolates candidates almost for free.
 Two things fall out of the same work:
 
 - **Per-attempt athlete identity.** The AWF lower third carries the athlete
-  name (`<name>`), their state, and the attempt weight (`SA 47KG`,
+  name, their state, and the attempt weight (`SA 47KG`,
   `47`), in the fixed box `awf-overlay` already locates. Join to the session
   roster and every clip gets an athlete, not just a gender.
 - **Attempt weight, i.e. load.** Visible in every production's overlay
@@ -266,27 +193,11 @@ Open question worth settling early: whether a signs profile can be *solved*
 once per session from the accepted clips rather than set by eye, given that the
 athletes differ but the camera does not.
 
-## 6. `/api/examples` is quadratic
+## 6. Two small losses from the first pose pass
 
-Measured 5.4 s for 788 entries; the n² term puts the full 3,226 near 90 s.
-`api_examples` calls `_load_manifest()` once per entry through
-`_example_tracks` and `_example_video`. Details and the fix in
-[`fixture-data-contract.md`](fixture-data-contract.md#known-problem-apiexamples-is-quadratic).
-
-Note `/api/train/clips` does **not** have this problem — 0.5–0.75 s for all
-3,226 rows, because it builds its manifest index once. Same fix shape.
-
-## 7. Two small losses from the first pose pass
-
-Found when the run finished (2026-10-14 07:38) — both cheap, both leave clips
-on the floor:
-
-- **30 clips never looked at.** All of session
-  `18-2025-australian-senior-junior-championships-session-8-and-9-spfvbxuyphq`.
-  The filename pattern in `scripts/sync_clipper_fixtures.py` does not parse
-  `session-8-and-9`, so they log `SKIP (unrecognized filename)` and are
-  silently dropped. Any future multi-session video hits this too.
-- **1 clip crashed.** `division by zero` on
-  `06-2023-pacific-games-oceania-championships-session-6-…_57_1h59m27s_made.mp4`.
-  One clip is not worth chasing for its own sake, but an unguarded divide in
-  the stance/metric path will hit again on a re-cut.
+Found when the run finished (2026-10-14): 30 clips the sync skipped and one
+that crashed with `division by zero`. Which ones, and the likely cause of the
+skips: [dataset-stats.md](dataset-stats.md). The skips are a bug in the sync
+script ([backlog.md](backlog.md)); the crash is one clip, not worth chasing
+for its own sake, but an unguarded divide in the stance or metric path will
+hit again on a re-cut.

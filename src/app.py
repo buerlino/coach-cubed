@@ -1,13 +1,16 @@
-"""coach: a minimal website around the ViTPose model — Flask + waitress behind
-Caddy on the tailnet, with a single in-process backend; see vitpose_backend.py
-for why there's no separate model server.
+"""coach's dev server: Flask + waitress, behind Caddy on Noah's tailnet.
 
-app.py's job is deliberately small: an upload endpoint per media type, one
-page. Add routes here as the app grows; keep any ML code out of this file
-(it imports only vitpose_backend, never torch/cv2/etc. directly).
+It serves the old analysis page (INDEX_HTML, frozen as the reference viewer)
+and its APIs: server-side ViTPose for reference tracks (vitpose_backend, in
+process; see its docstring for why there's no separate model server), the 3D
+reconstruction (depth_backend), the example gallery and profiles from
+tests/fixtures/, and the training data explorer. The offline app must not
+depend on any of it (docs/server.md).
 
-Unauthenticated by design — Caddy/tailnet is the access boundary, same as
-the rest of the deploy.
+Keep ML code out of this file: it imports vitpose_backend and depth_backend,
+and scripts/pose_stance.py lazily, never torch/cv2/etc. directly.
+
+Unauthenticated by design: Caddy/tailnet is the access boundary.
 """
 import base64
 import hashlib
@@ -4115,8 +4118,9 @@ window.addEventListener('coach:anatomy-ready', () => {
 <!-- The 3D viewer is the one place coach reaches for a third-party lib: a
      skeleton in perspective with a turntable is exactly what three.js is for,
      and reimplementing a projector by hand would be worse. Loaded as a module
-     from a CDN (the box is on the tailnet with internet); if the import fails
-     the panel just says so and the text note above still reports the result. -->
+     from the vendored copy (THREE_JS in app.py), so it works offline; if the
+     import fails the panel just says so and the text note above still reports
+     the result. -->
 <script type="importmap">
 { "imports": { "three": "./vendor/three.module.js" } }
 </script>
