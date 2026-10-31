@@ -1,8 +1,10 @@
 # Repo map (2026-10-31)
 
 Every tracked file sorted into areas, so the core of 0.1.0 can be chosen
-([restructure-plan.md](restructure-plan.md), steps 1.1–1.3). This is a
-snapshot of `62b2cee` (tag `pre-cleanup`).
+([restructure-plan.md](restructure-plan.md), steps 1.1–1.3). It started as a
+snapshot of `62b2cee` (tag `pre-cleanup`). Phase 2 updates it where a step
+moves files or resolves a coupling, and says which step; line numbers are
+still those of `62b2cee` unless a step says otherwise.
 
 **Sources:**
 - four read-only mapping passes over the code, with their main claims checked
@@ -55,7 +57,8 @@ one phone; Google's WebView on stock Android isn't tested.
 **The existing MediaPipe prototype runs, but the `<video>` seeking is the
 bottleneck.**
 
-The test ran `src/squat/pose.mjs` (the code `local-mode.mjs` uses) at 20 fps on
+The test ran `src/squat/pose.mjs` (now `src/pose/pose.mjs`; the code
+`local-mode.mjs` uses) at 20 fps on
 the four example clips. Of 341 frames, 340 had a person.
 
 | Clip | Length | Frames | Seeking alone | Total | Model alone (estimate) |
@@ -166,12 +169,16 @@ takes about 1 s per 1080p frame once warm.
 
 ## 3. In-browser pose
 
-- **Files:**
-  - [src/squat/pose.mjs](../src/squat/pose.mjs): legacy `@mediapipe/pose`
-    0.5.x, vendored at 23 MB under `src/squat/vendor/`.
-  - [src/anatomy/local-mode.mjs](../src/anatomy/local-mode.mjs): maps its 33
-    landmarks to COCO-17 and feeds the main page when it runs as the local
-    preview.
+- **Files** (all in [src/pose/](../src/pose/) since step 2.0; before that in
+  `src/squat/` and `src/anatomy/`):
+  - [pose.mjs](../src/pose/pose.mjs): legacy `@mediapipe/pose` 0.5.x,
+    vendored at 23 MB under `src/pose/vendor/mediapipe-pose/`.
+  - [local-mode.mjs](../src/pose/local-mode.mjs): feeds the main page when it
+    runs as the local preview.
+  - [coco17.mjs](../src/pose/coco17.mjs): the one 33→17 mapping, also used by
+    the parked `src/anatomy/track-session.mjs`.
+- **Served at** `/pose/` by both the full app and the local preview. The squat
+  lab imports `../pose/pose.mjs`.
 - **Offline:** yes; measured above.
 - **Weak points:**
   - The deprecated legacy package (its own `THIRD_PARTY.md` lists the move to
@@ -179,8 +186,8 @@ takes about 1 s per 1080p frame once warm.
   - `<video>` seeking.
   - 20 fps sampling.
   - Visibility used as confidence.
-  - The 33→17 mapping is written twice (`local-mode.mjs:2`,
-    `track-session.mjs:3`).
+  - ~~The 33→17 mapping is written twice~~: one copy since step 2.0.
+- **Tests:** `tests/pose.test.js` checks the mapping (since step 2.0).
 - **Licence:** Apache-2.0.
 
 ## 4. Server pose
@@ -261,11 +268,12 @@ takes about 1 s per 1080p frame once warm.
 - **Stale:**
   - `START_HERE.md` describes two ZIP packages that nothing builds.
   - `src/anatomy/workspace.css` is loaded nowhere.
-  - **The local preview's default page `/original/` is broken.** Its relative
-    paths resolve under `/original/`, so `diagnostics.js`, the three anatomy
-    modules, `logo.png` and three.js all return 404 (preview log, 2026-10-31).
-    The phone test bypassed the page: it called `pose.mjs` directly and scored
-    in Node.
+  - ~~The local preview's default page `/original/` is broken.~~ Fixed in step
+    2.0: both servers redirect `/original/` to `../`, the preview opens `/`,
+    and it now serves `logo.png` too. (Before: relative paths resolved under
+    `/original/`, so `diagnostics.js`, the three anatomy modules, `logo.png`
+    and three.js returned 404. The phone test bypassed the page: it called
+    `pose.mjs` directly and scored in Node.)
 
 ## 8. Dataset tooling
 
@@ -325,7 +333,9 @@ takes about 1 s per 1080p frame once warm.
 ## 11. Tests and fixtures
 
 - **Results:** `npm test` passes 66 of 66 and the Python tests 3 of 3 (only
-  the launcher ports are tested in Python).
+  the launcher ports are tested in Python). Step 2.0 added 2 JS tests (the
+  33→17 mapping) and 2 Python tests (the preview's `/` and `/original/`
+  routes): 68 and 5.
 - **No test reads a video:** the tests use `track.json` and the goldens only.
 - **The committed videos are all third-party:**
 
@@ -366,21 +376,20 @@ These break silently, not as import errors:
   functions by name.
 - **`tests/loadViewer.js`** extracts the last `<script type="module">` of
   app.py and needs the ids `v3dcanvas*`.
-- **The `ui-config.mjs` regex** in app.py:1028 and run_local.py:26: deleting
-  `src/anatomy/` makes `/` fail with a 500.
+- ~~**The `ui-config.mjs` regex** in app.py:1028 and run_local.py:26~~:
+  removed in step 2.0, so `/` no longer reads anything in `src/anatomy/`.
 - **Page ids** are tied to `DIAGNOSTIC_SETS`, `depth_backend.START_POSE_LIFTS`,
   `pose_stance.py`, `review.mjs` and CSS.
 - **Window globals and events:** `CoachBridge`, `CoachAnatomy`,
   `CoachReview`, `CoachV3D`, `Diagnostics`, and `coach:*` events.
-- **Absolute paths, against AGENTS.md §1:**
-  - app.py:1030, 4233
-  - `squat/index.html:12,56`
+- **Absolute paths, against AGENTS.md §1** (app.py:1030 and 4233,
+  `squat/index.html:12` and `local-mode.mjs:10` were fixed in step 2.0):
+  - `squat/index.html:56`
   - `squat/app.mjs:325–328`
   - `original-tools.mjs:17–27`
   - `integration.mjs:7,30`
   - `review.mjs:7`
   - `ui.mjs:5`
-  - `local-mode.mjs:10`
   - `batch_extract_tracks.py:183`
 
 ## Legal and hygiene

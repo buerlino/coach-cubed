@@ -21,10 +21,8 @@ SRC = ROOT / 'src'
 sys.path.insert(0, str(SRC))
 from local_depth import dispatch as depth_dispatch
 
-
-def default_workspace():
-    config = (SRC / 'anatomy/ui-config.mjs').read_text()
-    return 'anatomy' if re.search(r"DEFAULT_UI\s*=\s*['\"]anatomy['\"]", config) else 'original'
+# The header logo lives outside src/, like the full app's /logo.png route.
+LOGO = ROOT / 'logo' / 'coach_logo_v1_cropped.png'
 
 
 def render_index():
@@ -78,9 +76,12 @@ class LocalHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = urllib.parse.urlparse(self.path).path
-        if path == '/' and default_workspace() == 'anatomy':
-            self.send_response(302); self.send_header('Location', '/squat/'); self.send_header('Content-Length', '0'); self.end_headers(); return
-        if path in ('/', '/original/', '/original'): return self.respond(render_index(), 'text/html; charset=utf-8')
+        if path in ('/original/', '/original'):
+            # The page's relative asset paths only resolve at '/', so old links
+            # land there. Relative Location, as in the full app's route.
+            self.send_response(302); self.send_header('Location', '../' if path.endswith('/') else './')
+            self.send_header('Content-Length', '0'); self.end_headers(); return
+        if path == '/': return self.respond(render_index(), 'text/html; charset=utf-8')
         if path == '/api/examples':
             return self.respond([dict(id=k, label=v['label'], scope=v['scope'], stance=v.get('stance'),
                                       notes=v.get('notes', ''), sizes=[v.get('model_size', 'l')]) for k,v in examples().items()])
@@ -175,6 +176,7 @@ class LocalHandler(http.server.SimpleHTTPRequestHandler):
 
     def translate_path(self, path):
         path = urllib.parse.unquote(urllib.parse.urlparse(path).path)
+        if path == '/logo.png': return str(LOGO)
         root = ROOT / 'tests/fixtures' if path.startswith('/fixtures/') else SRC
         relative = path[len('/fixtures/'):] if path.startswith('/fixtures/') else path.lstrip('/')
         target = (root / relative).resolve()
@@ -193,13 +195,13 @@ class LocalHandler(http.server.SimpleHTTPRequestHandler):
 
 def main(default_path=None, workspace=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--workspace', choices=['anatomy','original'], default=workspace or default_workspace())
+    parser.add_argument('--workspace', choices=['anatomy','original'], default=workspace or 'original')
     parser.add_argument('--port', type=int)
     parser.add_argument('--no-browser', action='store_true')
     args = parser.parse_args()
     if args.port is None: args.port = 8784 if args.workspace == 'anatomy' else 8785
-    if default_path is None: default_path = '/squat/' if args.workspace == 'anatomy' else '/original/'
-    for path in ['anatomy/models/body.bin', 'squat/vendor/pose/pose.js', 'squat/vendor/pose/pose_landmark_full.tflite']:
+    if default_path is None: default_path = '/squat/' if args.workspace == 'anatomy' else '/'
+    for path in ['anatomy/models/body.bin', 'pose/vendor/mediapipe-pose/pose.js', 'pose/vendor/mediapipe-pose/pose_landmark_full.tflite']:
         if not (SRC / path).is_file(): parser.exit(1, 'Extract the entire ZIP first. Missing: ' + path + '\n')
     try: server = http.server.ThreadingHTTPServer(('127.0.0.1', args.port), functools.partial(LocalHandler, directory=str(SRC)))
     except OSError as exc: parser.exit(1, f'Cannot open port {args.port}: {exc}\nTry --port 8786\n')

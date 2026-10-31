@@ -1,6 +1,6 @@
 # coach
 
-Local anatomy preview, version 5: see [START_HERE.md](START_HERE.md). Use `python launchers/run_original.py` for the original UI or `python launchers/run_anatomy.py` for the teal UI. Generic `python launchers/run_local.py` respects the package default. The anatomy workspace at `/squat/` and the original workspace at `/original/` both support the integrated exercise tools.
+Local anatomy preview, version 5: see [START_HERE.md](START_HERE.md). Use `python launchers/run_original.py` for the original UI or `python launchers/run_anatomy.py` for the teal UI. Generic `python launchers/run_local.py` opens the original UI. The anatomy workspace at `/squat/` and the original workspace at `/` both support the integrated exercise tools.
 
 A minimal website around the ViTPose model: upload or record a lift, get a
 pose track, and see per-rep technique diagnostics scored from the keypoints
@@ -27,7 +27,7 @@ conda env, auth).
 
 | Path | What's there |
 | --- | --- |
-| [`src/`](src/) | The app: `app.py` (routes), `vitpose_backend.py` / `equipment_backend.py` / `depth_backend.py` (ML, kept out of `app.py`), `diagnostics.js` (the diagnostic registry, runs client-side). |
+| [`src/`](src/) | The app: `app.py` (routes), `vitpose_backend.py` / `equipment_backend.py` / `depth_backend.py` (ML, kept out of `app.py`), `diagnostics.js` (the diagnostic registry, runs client-side), `pose/` (MediaPipe pose in the browser, mapped to COCO-17). |
 | [`clipper/`](clipper/) | The clip-cutting tool (downloads a session video, trims one file per lift attempt) — its own project, merged in with history intact; see [`clipper/README.md`](clipper/README.md). |
 | [`scripts/`](scripts/) | Everything you run for the production deploy: setup, model download, launch/stop, port cleanup, fixture batch-extraction (incl. syncing fixtures straight from `clipper/`'s output — see [`tests/README.md`](tests/README.md)). |
 | [`launchers/`](launchers/) | The zero-install local preview: `run_local.py`/`run_original.py`/`run_anatomy.py`/`run_squat.py` and their double-click `.command`/`.bat` twins. All `cd` to the repo root before touching `.venv` or `src/`, so they only work run from (or launched from within) this folder — don't move them further apart. |

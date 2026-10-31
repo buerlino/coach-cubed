@@ -1,9 +1,11 @@
 # Shared optional anatomy, version 5
 
-`integration.mjs` adds anatomy to the original workspace at `/original/`.
+`integration.mjs` adds anatomy to the original workspace at `/`.
 `src/squat/app.mjs` is the teal all-exercise workspace at `/squat/`, with the
 original diagnostic engine and geometric 3D controls mounted by
-`original-tools.mjs`. `ui-config.mjs` chooses the package's default page/port.
+`original-tools.mjs`. `ui-config.mjs` used to choose the package's default page;
+since step 2.0 of the restructuring nothing reads it, and `/` is always the
+original workspace.
 
 Both pages start with anatomy off and the on-video layout selected. Three visible buttons select overlay, model-only or side-by-side. Hiding the
 video preserves its clock and transport controls. They share `sequence.mjs`, `stability.mjs`, `viewer.mjs` and
@@ -42,8 +44,8 @@ does not estimate mass or forces. MediaPipe-only videos need manual placement.
 interface. Non-squat tabs use their original diagnostics and neutral muscle
 colour. The new display smoothing and contact constraints never affect findings.
 
-`local-mode.mjs` provides bundled browser inference for the original lightweight
-preview. `src/local_depth.py` reuses geometric depth/profile route bodies from
+`src/pose/local-mode.mjs` (moved out of this folder in step 2.0) provides bundled
+browser inference for the original lightweight preview. `src/local_depth.py` reuses geometric depth/profile route bodies from
 `app.py` without requiring ViTPose. The full Flask entry point remains present.
 
 See `ROM.md` and `models/ATTRIBUTION.md`.

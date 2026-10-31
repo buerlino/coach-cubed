@@ -1,6 +1,6 @@
 import {GROUPS,clamp,analyseSession,explainRep,demoSession,validateSession} from './analysis.mjs';
 import {AnatomyViewer,activationColour} from './anatomy.mjs';
-import {analyseVideo} from './pose.mjs';
+import {analyseVideo} from '../pose/pose.mjs';
 import {fromMediaPipe,withAnchors,calibrateLengths,fitPose,DEFAULT_ROM,ANCHORS,nearestManual,cleanAnchorTrack} from '../anatomy/pose-rig.mjs';
 import {buildSequence,mediaPipeEntries} from '../anatomy/sequence.mjs';
 import {trackSession,sessionTrack} from '../anatomy/track-session.mjs';

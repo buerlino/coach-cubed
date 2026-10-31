@@ -1018,6 +1018,13 @@ def anatomy_asset(filename):
     return send_from_directory(Path(__file__).parent / "anatomy", filename)
 
 
+# In-browser pose (MediaPipe, vendored): the core's on-device path. The squat
+# lab imports it as ../pose/pose.mjs.
+@app.route("/pose/<path:filename>")
+def pose_asset(filename):
+    return send_from_directory(Path(__file__).parent / "pose", filename)
+
+
 @app.route("/diagnostics.js")
 def diagnostics_js():
     return Response(DIAGNOSTICS_JS.read_text(), mimetype="application/javascript")
@@ -1025,15 +1032,16 @@ def diagnostics_js():
 
 @app.route("/")
 def index():
-    config = (Path(__file__).parent / 'anatomy/ui-config.mjs').read_text()
-    if re.search(r"DEFAULT_UI\s*=\s*['\"]anatomy['\"]", config):
-        return redirect('/squat/')
     return Response(render_index(), mimetype="text/html")
 
 
+# The lift page used to be served here too, but its relative asset paths
+# resolve one level too deep under /original/ (diagnostics.js, the anatomy
+# modules, the logo and three.js all 404). Old links land on the page instead.
+# The Location stays relative so it also works behind the /coach/ prefix.
 @app.route('/original/')
 def original_workspace():
-    return Response(render_index(), mimetype='text/html')
+    return redirect('../')
 
 
 INDEX_HTML = """<!doctype html>
@@ -1510,10 +1518,12 @@ INDEX_HTML = """<!doctype html>
 // INDEX_HTML is a plain (not raw) Python string, where a backslash before a
 // slash is an invalid escape sequence — harmless at runtime, but it warns on
 // every start.
-/* Where this page is mounted. This one page is served at two paths — '/' and
-   '/original/' (see index() and original_workspace()) — and a reverse proxy may
-   mount the whole app under a further prefix and strip it before forwarding, so
-   the server sees '/api/...' either way and only the browser has to know.
+/* Where this page is mounted. This one page used to be served at two paths —
+   '/' and '/original/' (now a redirect to '/', see original_workspace()) — and
+   a reverse proxy may mount the whole app under a further prefix and strip it
+   before forwarding, so the server sees '/api/...' either way and only the
+   browser has to know. Since the redirect, the '/original' strip below never
+   matches; it is harmless and goes when the frontend leaves app.py.
 
    Strip the trailing slash, then strip a trailing '/original': that leaves the
    app's own mount point in every combination, which a startsWith('/original')
@@ -4230,7 +4240,7 @@ for (const btn of document.querySelectorAll('.tab')) {
 window.CoachBridge = {applyTrack, setPage, seek(time){vvideo.pause();vvideo.currentTime=time;drawOverlay(time);}, getTrack:()=>vTrackFull};
 setPage('{{DEFAULT_PAGE}}');
 window.addEventListener('coach:displaychange',()=>{vClock=null;if(!vvideo.paused&&!vvideo.ended)startOverlayLoop();else drawOverlay();});
-if (window.COACH_LOCAL_PREVIEW) import('/anatomy/local-mode.mjs').then(m => m.setup({applyTrack, video:vvideo}));
+if (window.COACH_LOCAL_PREVIEW) import('./pose/local-mode.mjs').then(m => m.setup({applyTrack, video:vvideo}));
 window.addEventListener('coach:anatomy-ready', () => {
   if (vTrackFull) {
     window.CoachAnatomy?.loadTrack(vTrackFull);

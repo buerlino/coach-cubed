@@ -87,7 +87,7 @@ that the move alone was sufficient.
   to re-install a new root cert. Treat it like a production secret.
 - **Vendored assets are there on purpose, not generated cruft.**
   `src/vendor/three.module.js`, `src/squat/vendor/three.module.js`, and the
-  MediaPipe pose files under `src/squat/vendor/pose/` are vendored
+  MediaPipe pose files under `src/pose/vendor/mediapipe-pose/` are vendored
   specifically so coach works with no outbound internet on the tailnet (see
   the comment above `THREE_JS` in `src/app.py`). Don't swap one for a CDN
   import, and don't dedupe the two `three.module.js` copies without

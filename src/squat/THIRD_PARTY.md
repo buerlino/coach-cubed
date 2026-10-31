@@ -8,22 +8,8 @@ is retained. Full terms: `vendor/THREE-LICENSE.txt`.
 
 ## MediaPipe Pose
 
-Google's `@mediapipe/pose` package, version **0.5.1675469404**, downloaded from
-the npm registry. Apache-2.0 as declared by the package. JavaScript, WebAssembly,
-graph data, packed detector assets and the full landmark model are bundled in
-`vendor/pose/`. Heavy/lite model variants and source maps are omitted because
-this view uses modelComplexity 1. The original package manifest is retained.
-Full licence: `vendor/APACHE-2.0.txt`.
-
-Package source:
-https://registry.npmjs.org/@mediapipe/pose/-/pose-0.5.1675469404.tgz
-
-Documentation:
-https://chuoling.github.io/mediapipe/solutions/pose.html
-
-The older complete Pose package is pinned deliberately for a self-contained
-local prototype. Migration to the newer Tasks Vision API is a future maintenance
-task, not required to start this bundled version.
+Moved to `src/pose/` with the in-browser pose code; its provenance and licence
+are in [`../pose/THIRD_PARTY.md`](../pose/THIRD_PARTY.md).
 
 ## Anatomy, interface and movement rules
 

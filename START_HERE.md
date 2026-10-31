@@ -5,7 +5,7 @@ separate. Both packages contain both real pages and the same features.
 
 | Package | Intended interface | Windows launcher | Default address |
 | --- | --- | --- | --- |
-| coach-original-ui-v5.zip | Your friends' original layout, with added anatomy / squat tools | launchers/OPEN_ORIGINAL_UI_WINDOWS.bat | http://127.0.0.1:8785/original/ |
+| coach-original-ui-v5.zip | Your friends' original layout, with added anatomy / squat tools | launchers/OPEN_ORIGINAL_UI_WINDOWS.bat | http://127.0.0.1:8785/ |
 | coach-anatomy-ui-v5.zip | Our teal Movement Lab, with original exercise diagnostics / 3D tools | launchers/OPEN_ANATOMY_UI_WINDOWS.bat | http://127.0.0.1:8784/squat/ |
 
 On macOS use the matching `launchers/OPEN_ORIGINAL_UI_MACOS.command` or

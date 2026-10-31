@@ -3,7 +3,7 @@ let scriptPromise;
 function loadRuntime(){
   if(window.Pose)return Promise.resolve();
   if(!scriptPromise)scriptPromise=new Promise((resolve,reject)=>{
-    const s=document.createElement('script');s.src=new URL('./vendor/pose/pose.js',import.meta.url).href;
+    const s=document.createElement('script');s.src=new URL('./vendor/mediapipe-pose/pose.js',import.meta.url).href;
     s.onload=()=>window.Pose?resolve():reject(new Error('The local pose runtime did not initialise.'));
     s.onerror=()=>{scriptPromise=null;s.remove();reject(new Error('Pose files are missing. Extract the entire ZIP, then launch run_squat.py.'));};
     document.head.appendChild(s);
@@ -30,7 +30,7 @@ export async function analyseVideo(video,{fps=20,signal,onProgress=()=>{}}={}){
   if(!Number.isFinite(video.duration)||video.duration<1||video.duration>90)
     throw new Error('Choose a clip between 1 and 90 seconds. Trim it around the movement first.');
   await loadRuntime();aborted(signal);
-  const pose=new window.Pose({locateFile:file=>new URL(`./vendor/pose/${file}`,import.meta.url).href});
+  const pose=new window.Pose({locateFile:file=>new URL(`./vendor/mediapipe-pose/${file}`,import.meta.url).href});
   const canvas=document.createElement('canvas'),scale=Math.min(1,960/Math.max(video.videoWidth,video.videoHeight));
   canvas.width=Math.round(video.videoWidth*scale);canvas.height=Math.round(video.videoHeight*scale);
   const ctx=canvas.getContext('2d',{alpha:false});let result=null;

@@ -1,10 +1,10 @@
-// Runs the existing MediaPipe prototype (src/squat/pose.mjs, the code
+// Runs the existing MediaPipe prototype (src/pose/pose.mjs, the code
 // local-mode.mjs uses) on every example clip, the way local-mode does
 // (fps 20), and returns timings plus COCO-17 tracks in the fixture format.
 (async () => {
-  const M = [0, 2, 5, 7, 8, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];  // local-mode.mjs:2
+  const {toCoco17} = await import('/pose/coco17.mjs');
   const FPS = 20;
-  const pose = await import('/squat/pose.mjs');
+  const pose = await import('/pose/pose.mjs');
   const ids = (await (await fetch('/api/examples')).json()).map(e => e.id);
   const out = [];
   for (const id of ids) {
@@ -24,7 +24,7 @@
     const keypoints = {};
     session.frames.forEach((f, i) => {
       keypoints[String(i)] = f.landmarks.length
-        ? { '0': M.map(k => { const p = f.landmarks[k]; return [p.y * session.height, p.x * session.width, p.visibility ?? 0]; }) }
+        ? { '0': toCoco17(f.landmarks, session.width, session.height) }
         : {};
     });
     out.push({

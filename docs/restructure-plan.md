@@ -7,12 +7,13 @@ history). Once `docs/decisions.md` exists (step 2.1), the decisions move there.
 
 ## Next session starts here
 
-- **Current step:** Phase 2, starting with step 2.0. Phases 0 and 1 are done,
-  and the verification pass of 2026-10-31 has been applied.
+- **Current step:** Phase 2, step 2.1 (the docs skeleton). Phases 0 and 1 and
+  step 2.0 are done.
 - **In flight:** nothing. The Phase 3 spike can start in parallel; its baseline
-  scripts are in `spike/phone-baseline/`.
-- **Waiting on Noah:** questions 1, 2 and 5, and the "no pushes to `main`"
-  message (step 2.0).
+  scripts are in `spike/phone-baseline/` (now pointing at `src/pose/`).
+- **Waiting on Noah:** answers to questions 1, 2 and 5 (the message went out
+  on 2026-10-31).
+- **Test baseline:** 68 JS and 5 Python tests since step 2.0.
 - **Don't touch:** `main`, the `pre-cleanup` tag, `.caddy/`, and the tablet
   `HA24BZ2Y` (it belongs to other projects' night shifts; the Fairphone 6
   `4d42e62f` is coach's test phone, always via `adb -s`).
@@ -52,6 +53,10 @@ later releases.
   if the Phase 3 spike passes** (otherwise the snatch moves to 0.2).
 - 2026-10-31, nordmu: `clipper/` goes back to its own repo; `report/` stays
   here as a parked research folder.
+- 2026-10-31, nordmu: the core's in-browser pose lives in `src/pose/`. Parked
+  areas go to `parked/<area>/` at the root, moved with `git mv` and unwired
+  from the app. Their tests move with them and leave `npm test`, which then
+  guards only the core; each parking commit records the new count.
 
 ## Open questions
 
@@ -75,7 +80,8 @@ later releases.
 - Park, don't delete, until step 2.8.
 - Nothing is pushed, and no history is rewritten, without nordmu's explicit OK.
 - Baseline on 2026-10-31 at `62b2cee`: 66 of 66 JS tests and 3 of 3 Python
-  tests pass.
+  tests pass. After step 2.0: 68 and 5 (new tests for the 33→17 mapping and
+  the preview's routes).
 
 ## Findings that shape the plan (2026-10-31)
 
@@ -142,8 +148,9 @@ The spike's WebView numbers (Phase 3) decide.
 - [x] `.claude/settings.json` keeps the Read tool away from the huge files (it doesn't stop scripts): the two
       three.js copies, the MediaPipe bundles, the anatomy model, the notebook,
       tracks, goldens and videos.
-- [ ] The message to Noah is sent: license, where 0.1.0 is published, the
-      password, no pushes to `main`, the history rewrite.
+- [x] The message to Noah is sent: license, where 0.1.0 is published, the
+      password, no pushes to `main`, the history rewrite (nordmu,
+      2026-10-31).
 
 ### Phase 1: the map, then the core
 
@@ -160,16 +167,28 @@ The spike's WebView numbers (Phase 3) decide.
 The former question 4 was answered on 2026-10-31: clipper goes to its own
 repo, report stays here (see Decisions so far).
 
-- [ ] 2.0 Before any move:
+- [x] 2.0 Before any move (2026-10-31):
       - the message to Noah has been sent, including "no pushes to `main`";
-      - **move the core's own files out of the folders being parked:**
-        - `src/squat/pose.mjs` and `src/squat/vendor/pose/` (MediaPipe);
-        - `src/anatomy/local-mode.mjs`;
-        - the 33→17 mapping in `local-mode.mjs:2` and `track-session.mjs:3`
-          (two copies, one to keep);
-      - remove app.py's read of `src/anatomy/ui-config.mjs` (app.py:1028;
-        deleting `src/anatomy/` would otherwise make `/` fail with a 500);
-      - fix the local preview's `/original/` path resolution.
+      - **moved the core's own files out of the folders being parked**, into
+        `src/pose/`:
+        - `pose.mjs`, and MediaPipe as `vendor/mediapipe-pose/` with its
+          licence and manifest (its credits in `src/pose/THIRD_PARTY.md`);
+        - `local-mode.mjs`;
+        - one 33→17 mapping, `coco17.mjs`, used by `local-mode.mjs`,
+          `track-session.mjs` and the spike's `mp-run.js` (there were three
+          copies, not two);
+        - both servers serve `/pose/`; the squat lab imports `../pose/`;
+      - removed the `ui-config.mjs` read from app.py **and** from
+        `launchers/run_local.py` (the plan named only app.py; the map named
+        both): `/` is always the lift page;
+      - fixed `/original/`: both servers redirect it to `../` (relative, so it
+        works under `/coach/`), the preview opens `/`, and it now serves
+        `logo.png`;
+      - tested: the grep, 68 + 5 tests, the preview and the full app over
+        HTTP, and both pages in headless Brave, directly and behind a
+        `/coach/` prefix-stripping proxy (a stand-in for Caddy). MediaPipe ran
+        6 frames from its new folder. Not tested: the phone, and the real
+        Caddy/tailnet URL.
 - [ ] 2.1 The docs skeleton in pascaline's shape, one place per fact:
       - `docs/rules-core.md`: the goal in one sentence, the principles, and
         the hard rules (offline, nothing leaves the phone, licence-compatible

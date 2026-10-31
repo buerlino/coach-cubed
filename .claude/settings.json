@@ -3,6 +3,7 @@
     "deny": [
       "Read(/src/vendor/**)",
       "Read(/src/squat/vendor/**)",
+      "Read(/src/pose/vendor/**)",
       "Read(/src/anatomy/models/body.*)",
       "Read(/scripts/anatomy-selection.json)",
       "Read(/report/analysis.ipynb)",
