@@ -355,11 +355,9 @@ What follows describes it as it was.
 
 ## 11. Tests and fixtures
 
-- **Results:** `npm test` passes 66 of 66 and the Python tests 3 of 3 (only
-  the launcher ports are tested in Python). Step 2.0 added 2 JS tests (the
-  33→17 mapping) and 2 Python tests (the preview's `/` and `/original/`
-  routes): 68 and 5. Step 2.4 added 1 Python test (a global example finds
-  its clip under `local/`): 68 and 6.
+- **Results** at `62b2cee`: `npm test` passed 66 of 66 and the Python tests
+  3 of 3 (only the launcher ports were tested in Python). Today's count is
+  in [restructure-plan.md](restructure-plan.md#next-session-starts-here).
 - **No test reads a video:** the tests use `track.json` and the goldens only.
 - **The videos were all third-party.** Step 2.4 (2026-10-31) took them out of
   git: each now sits at the same path under the gitignored

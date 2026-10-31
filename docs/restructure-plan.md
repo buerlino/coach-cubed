@@ -31,8 +31,9 @@ finish (git keeps the history). Decisions and open questions are in
 - **The example clips are not in git** (since step 2.4): they sit under the
   gitignored `tests/fixtures/local/` on machines that have them, this laptop
   included. A fresh clone runs every test but has no example gallery.
-- **Test baseline:** 71 JS (3 of them the docs checks, since step 2.9) and
-  6 Python tests.
+- **Test counts** (the only place they're kept): 73 JS (5 of them the docs
+  and absolute-path checks) and 6 Python tests. Update them here when a
+  commit changes them.
 - **AGENTS.md stays lean** (step 2.9): status, history and reasoning go in
   this file, [backlog.md](backlog.md) or [decisions.md](decisions.md), never
   there. `npm test` fails when AGENTS.md or a big doc passes its budget.
@@ -62,9 +63,6 @@ later releases.
   `python3 -m unittest discover -s tests -p 'test_*.py'`.
 - Park, don't delete, until step 2.8.
 - Nothing is pushed, and no history is rewritten, without nordmu's explicit OK.
-- Baseline on 2026-10-31 at `62b2cee`: 66 of 66 JS tests and 3 of 3 Python
-  tests pass. After step 2.0: 68 and 5 (new tests for the 33→17 mapping and
-  the preview's routes).
 
 ## Findings that shape the plan (2026-10-31)
 
