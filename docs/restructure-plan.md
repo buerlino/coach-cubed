@@ -9,25 +9,42 @@ finish (git keeps the history). Decisions and open questions are in
 
 ## Next session starts here
 
-- **Current step:** Phase 2 is done apart from two steps that wait:
-  - 2.7's LICENSE and SPDX headers (GPL-3.0-or-later): they wait for the
-    authors' written OKs ([decisions.md](decisions.md#licence));
-    `THIRD_PARTY.md` is ready;
-  - 2.8, the history rewrite, at the very end of the window, with nordmu's
-    explicit OK.
+- **Current step:** Phases 0–2 are done, and the review's fixes are in
+  (commits since `a0a9499`), apart from two steps that wait:
+  - 2.7's LICENSE and SPDX headers (GPL-3.0-or-later), for the authors'
+    written OKs ([decisions.md](decisions.md#licence));
+  - 2.8, the history rewrite, last, with nordmu's explicit OK, once the
+    clipper repo has its home.
 
-  Next: the Phase 3 spike, and Phase 5 once question 7 is answered.
-- **The old page is frozen:** don't edit `INDEX_HTML` in `src/app.py`, or the
-  Movement Lab, anatomy and 3D code, except to fix something that blocks the
-  dev server.
-- **In parallel:** the Phase 3 spike may run as a second session in `spike/`;
-  its baseline scripts are in `spike/phone-baseline/`.
-- **Waiting on nordmu:**
-  - question 8, the review of the tab parking (the goal and the principles
-    are confirmed);
-  - question 7, how the gym recording session works (needed by Phase 5).
+  Next: Phase 3, which starts with 3.0 (its precondition, the
+  re-extraction, needs a CPU free of night shifts) and runs 3.1–3.4
+  alongside the filming. Then Phase 5; milestone B's steps also wait for
+  question 7.
+- **Start now, outside a session** (to-dos, not session work):
+  - nordmu: a one-line written OK to GPL-3.0-or-later from Noah, Nicola
+    Walker and JMLuner (a chat message each is enough);
+  - nordmu: a private GitHub repo for `../weightlifting-clipper`, pushed
+    (2.8's precondition);
+  - nordmu: film the validation set (3.0);
+  - nordmu, then Noah: the next message, with branch protection on `main`
+    and the other open questions ([decisions.md](decisions.md#needs-an-answer));
+  - nordmu, later: a stock Android phone with Chrome and Google's WebView,
+    after the spike and before the public release (question 3).
+- **Waiting on nordmu:** question 8, the review of the tab parking (the goal
+  and the principles are confirmed); question 7, how the gym recording
+  session works (milestone B).
 - **Waiting on Noah:** what he was asked, and what goes in the next message,
   is in [decisions.md](decisions.md#needs-an-answer).
+- **The old page is frozen:** don't edit `INDEX_HTML` in `src/app.py`, or the
+  Movement Lab, anatomy and 3D code, except to fix something that blocks the
+  dev server. Its known absolute paths are allowlisted in
+  `tests/paths.test.js`; don't add to that list.
+- **In parallel:** the Phase 3 spike may run as a second session in `spike/`;
+  its baseline scripts are in `spike/phone-baseline/`.
+- **This laptop runs pascaline night shifts:** heavy CPU work (ViTPose) waits
+  until `ps -eo args | grep [n]ight.sh` is empty. Stop processes by PID, never
+  with `pkill -f`, so start `src/app.py` directly rather than through
+  `coach_launch.sh`.
 - **The example clips are not in git** (since step 2.4): they sit under the
   gitignored `tests/fixtures/local/` on machines that have them, this laptop
   included. A fresh clone runs every test but has no example gallery.
@@ -41,8 +58,9 @@ finish (git keeps the history). Decisions and open questions are in
   `HA24BZ2Y` (it belongs to other projects' night shifts; the Fairphone 6
   `4d42e62f` is coach's test phone, always via `adb -s`).
 - **Read first:** this file, then [decisions.md](decisions.md),
-  [rules-core.md](rules-core.md), [map.md](map.md) ("Hidden couplings") and
-  AGENTS.md. [docs/README.md](README.md) says where every other fact lives.
+  [rules-core.md](rules-core.md) and AGENTS.md; [map.md](map.md) is a frozen
+  snapshot, still worth its "Hidden couplings" before a move.
+  [docs/README.md](README.md) says where every other fact lives.
 
 ## Goal
 
@@ -158,11 +176,12 @@ Finished steps keep one line each; the details are in their commits.
       OKs ([decisions.md](decisions.md#licence)).
 - [ ] 2.8 One history rewrite at the end of the window, before Noah resumes,
       with nordmu's explicit OK. **Precondition:** `../weightlifting-clipper`
-      is pushed or backed up somewhere other than this laptop. After the
-      rewrite it is the only copy of clipper. It removes the videos, the password and the
-      removed bloat, and the athletes' real names: they are in old file
-      paths, in old file contents (`athlete-a`/`athlete-b` since step 2.4)
-      **and** in commit messages (`212f502` and `6904224`; find others with
+      is in nordmu's private GitHub repo ([decisions.md](decisions.md));
+      after the rewrite it is the only copy of clipper. It removes the
+      videos, the password and the removed bloat, and the athletes' real
+      names: they are in old file paths, in old file contents
+      (`athlete-a`/`athlete-b` since step 2.4) **and** in commit messages
+      (`212f502` and `6904224`; find others with
       `git log --all -i --grep=<name>`). So path filtering alone isn't
       enough: `git filter-repo` also needs `--replace-text` for the contents
       and `--replace-message` for the messages, both fed from the
@@ -177,8 +196,8 @@ Finished steps keep one line each; the details are in their commits.
         and `origin/feature/keypoint-plotting` are deleted or moved to a
         private backup, or they keep the old files reachable;
       - every old clone is re-cloned (Noah, Nicola, JMLuner);
-      - branch protection on `main` stops one push from an old clone
-        bringing everything back.
+      - branch protection on `main` (question 9) stops one push from an old
+        clone bringing everything back.
 - [x] 2.9 A lean AGENTS.md, its rules moved to rules-core, and
       `tests/docs.test.js` (`0aaf936`).
 

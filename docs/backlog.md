@@ -59,8 +59,6 @@ During the restructuring window, the order of work and its status are in
 
 ## Before anything is published (step 2.8)
 
-- `../weightlifting-clipper` has no remote. It needs a home (for example a
-  private GitHub repo) before step 2.8 removes clipper from coach's history.
 - Noah's tailnet hostname is in [server.md](server.md),
   `scripts/coach_launch.sh` and the repo `Caddyfile`; the `Caddyfile` also
   lists his LAN and tailnet IP addresses. Noah decides whether they may be
