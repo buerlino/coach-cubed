@@ -65,7 +65,7 @@ becomes a test case: [`tests/README.md`](tests/README.md).
 
 | Path | What's there |
 | --- | --- |
-| [`src/`](src/) | `diagnostics.js` (the cues; runs in the browser and in Node), `pose/` (MediaPipe pose in the browser, mapped to COCO-17), `app.py` (the dev server, and the old page, frozen), `vitpose_backend.py` (server pose), `depth_backend.py` and `local_depth.py` (the 3D reconstruction), `anatomy/` and `squat/` (the anatomy view and the Movement Lab, frozen with the old page), `vendor/` (three.js). |
+| [`src/`](src/) | `diagnostics.js` (the cues; runs in the browser and in Node), `pose/` (MediaPipe pose in the browser, mapped to COCO-17), `track/` (what happens to a pose track before scoring: time smoothing and the lift window, ported from the old page and tested against it), `app.py` (the dev server, and the old page, frozen), `vitpose_backend.py` (server pose), `depth_backend.py` and `local_depth.py` (the 3D reconstruction), `anatomy/` and `squat/` (the anatomy view and the Movement Lab, frozen with the old page), `vendor/` (three.js). |
 | [`launchers/`](launchers/) | The local preview: `run_local.py`, its entry points, and their double-click `.command`/`.bat` twins. They all `cd` to the repo root before touching `.venv` or `src/`, so they only work from inside this folder: don't move them apart. |
 | [`scripts/`](scripts/) | The dev server's setup, model download, launch and restart; turning clips into fixtures (`batch_extract_tracks.py`, and `sync_clipper_fixtures.py` for clips cut by clipper, its own repo `weightlifting-clipper`); `build_anatomy.py`. |
 | [`tests/`](tests/) | The JS and Python tests, the fixtures (cached pose tracks, which double as the example gallery) and their golden snapshots. |

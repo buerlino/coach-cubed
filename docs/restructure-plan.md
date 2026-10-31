@@ -16,6 +16,8 @@ finish (git keeps the history). Decisions and open questions are in
   - 2.8, the history rewrite, last, with nordmu's explicit OK, once the
     clipper repo has its home.
 
+  Phase 3 runs on branch `p3/spike` (worktree
+  `.claude/worktrees/p3-spike`), merged into `phase-0` with nordmu's OK.
   Next: Phase 3, which starts with 3.0 (its precondition, the
   re-extraction, needs a CPU free of night shifts) and runs 3.1–3.4
   alongside the filming. Then Phase 5; milestone B's steps also wait for
@@ -48,7 +50,7 @@ finish (git keeps the history). Decisions and open questions are in
 - **The example clips are not in git** (since step 2.4): they sit under the
   gitignored `tests/fixtures/local/` on machines that have them, this laptop
   included. A fresh clone runs every test but has no example gallery.
-- **Test counts** (the only place they're kept): 73 JS (5 of them the docs
+- **Test counts** (the only place they're kept): 82 JS (5 of them the docs
   and absolute-path checks) and 6 Python tests. Update them here when a
   commit changes them.
 - **AGENTS.md stays lean** (step 2.9): status, history and reasoning go in
@@ -227,13 +229,8 @@ condition are decided ([decisions.md](decisions.md#what-010-is)).
       ViTPose and RTMPose are top-down: they need a person detector, and
       YOLOv8 is out (AGPL-3.0, [rules-core.md](rules-core.md)). Check RTMDet
       (Apache-2.0) or MediaPipe's own detector, with their weights' licences.
-- [ ] 3.2 **Smoothing and the lift window as a tested module.** Extract
-      `smoothKeypoints` and the lift-window logic from the frozen page into a
-      new module, pinned by tests that compare it with the old page's
-      behaviour: load the old code out of `INDEX_HTML` the way
-      `tests/loadViewer.js` does, without editing it. The spike then scores
-      **smoothed** tracks, as the user sees them (today's goldens score raw
-      ones; [backlog.md](backlog.md)).
+- [x] 3.2 Smoothing and the lift window in `src/track/`, pinned to the old
+      page by `tests/track.test.js`; the spike scores smoothed tracks with it.
 - [ ] 3.3 One standalone page that:
       - decodes a fixture video with WebCodecs (not by seeking a `<video>`
         element), through a demuxer (mp4box.js or a WebM demuxer; its

@@ -13,13 +13,15 @@ python3 -m unittest discover -s tests -p 'test_*.py'  # the Python tests
 | `pose.test.js` | `src/pose/coco17.mjs`: the BlazePose-33 → COCO-17 mapping and its `[y, x, conf]` output. |
 | `viewer.test.js` | The 3D view's click-to-flip-a-depth-sign, run on the viewer module taken straight out of `src/app.py` (`loadViewer.js`) with three.js's renderer stubbed: no GPU, no browser. This interaction broke twice in ways nothing else could see. |
 | `anatomy.test.js`, `anatomy-grip.test.js`, `anatomy-sequence.test.js`, `anatomy-stability.test.js` | The anatomy view's modules in `src/anatomy/`: the rig, the hand contacts on the bar, the display sequence, stabilization. |
+| `track.test.js` | `src/track/`: time smoothing, the lifter choice, scoring as the old page scores and the lift window's marks, each compared with the old code taken out of `src/app.py`'s `INDEX_HTML` and `src/diagnostics.js` (`loadOldCode.js`). |
 | `squat.test.js` | The Movement Lab's squat engine, `src/squat/analysis.mjs`. |
 | `paths.test.js` | rules-core's "Paths stay relative": no new absolute path (`'/...'`) in an import, import map, `src`, `href`, `fetch`, redirect or `/api/` call in `src/`, `launchers/` and `parked/`. Today's paths in frozen code are allowlisted at its top, each with a reason. |
 | `docs.test.js` | The docs: AGENTS.md, CLAUDE.md and the big docs within their budgets, every relative link and anchor in a tracked `.md` file, every path `docs/README.md` names. The budgets are at its top. |
 | `test_launchers.py` | The local preview (`launchers/run_local.py`): its entry points, the `/` and `/original/` routes, and the example gallery. |
 
 The helpers: `fixtures.js` (where fixtures and goldens live), `loadDiagnostics.js`
-(loads `diagnostics.js` headless, with a stub `window`), `loadViewer.js`, and
+(loads `diagnostics.js` headless, with a stub `window`), `loadViewer.js`,
+`loadOldCode.js` (named declarations out of the frozen old page or `diagnostics.js`), and
 `update_golden.js` (step 6 below).
 
 **`fixtures/`** holds cached ViTPose tracks, in `global/` (committed) and
