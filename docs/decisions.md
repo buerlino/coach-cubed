@@ -10,7 +10,7 @@ from these are in [rules-core.md](rules-core.md).
 | # | Question | Who | Recommendation |
 | --- | --- | --- | --- |
 | 2 | Where 0.1.0 is published | Noah | nordmu decided it (PWA and GitHub APK, F-Droid after a check; "What 0.1.0 is"). Noah was asked too and may revise it; until he does, nordmu's answer binds. |
-| 3 | Test phones | nordmu, Noah | Answered in part (nordmu, 2026-10-31): nordmu's Fairphone 6 (`4d42e62f`; LineageOS, no Google Chrome). A stock Android phone with Chrome and Google's WebView is tested after the spike, before the public release, so step 3.5 decides without it; whose phone is open. An iPhone too, if iOS matters. |
+| 3 | Test phones | nordmu, Noah | Answered in part (nordmu, 2026-10-31): nordmu's Fairphone 6 (`4d42e62f`; LineageOS, no Google Chrome). A stock Android phone with Chrome and Google's WebView is tested after the spike, before the public release, so step 3.7 decides without it; whose phone is open. An iPhone too, if iOS matters. |
 | 5 | `.auth_password` is an unsalted SHA-256 hash of the old login password, with a scheme "identical to tecna". Is that password used anywhere else? | Noah | Change it wherever it's used. The file leaves the history in step 2.8 either way. |
 | 7 | **How the gym recording session works** (see "What 0.1.0 is"). To cover: how long the rolling buffer is; how start and end are marked (buttons, tap on a timeline, voice?); whether several lifts per session are kept; which lift is set before or after; front or back camera, resolution and frame rate (60 fps matters for the snatch); what happens to the raw video afterwards; where the phone stands. | nordmu | Ask nordmu when Phase 5 starts; nothing gets built before nordmu's input. |
 | 8 | Review the parking of the squat, image and clean & jerk tabs. It was written up as nordmu's; nordmu has not confirmed it (asked again 2026-10-31: still open). | nordmu | Until confirmed it is a proposal: follow it, but don't build anything that depends on its exact wording. |
@@ -63,7 +63,7 @@ Newest first within each group.
   cancels the remaining parking steps of 2.3.
 - **2026-10-31, nordmu: 0.1.0 ships as a PWA and as a signed APK on GitHub**
   (Capacitor; installable with Obtainium). **F-Droid comes after a
-  feasibility check** (step 3.6): F-Droid builds everything from source, and
+  feasibility check** (step 3.8): F-Droid builds everything from source, and
   the pose runtimes (WebAssembly) and model weights are prebuilt binaries.
   Noah was asked the same question; if Noah answers differently, this entry is
   revisited.

@@ -115,7 +115,7 @@ pascaline's `MathEngine`). The options:
 - **A native rewrite:** no. It would mean rewriting the diagnostics and the UI.
 
 **Decided (nordmu, 2026-10-31): a PWA plus a signed Capacitor APK on GitHub;
-F-Droid after a feasibility check (step 3.6).** On the Fairphone 6, WebGPU
+F-Droid after a feasibility check (step 3.8).** On the Fairphone 6, WebGPU
 works in a Capacitor WebView ([map.md](map.md#phone-test-2026-10-31)). A stock
 Android phone with Google's WebView is still untested.
 
@@ -180,36 +180,62 @@ Finished steps keep one line each; the details are in their commits.
 - [x] 2.9 A lean AGENTS.md, its rules moved to rules-core, and
       `tests/docs.test.js` (`0aaf936`).
 
-### Phase 3: on-device pose spike (2–3 days in `spike/`; can start once the core is named)
+### Phase 3: on-device pose spike (in `spike/`)
 
+3.0 starts first; 3.1–3.4 can run alongside it. The thresholds and the stop
+condition are decided ([decisions.md](decisions.md#what-010-is)).
+
+- [ ] 3.0 **The validation set**, before any measurement (3.5): nordmu films
+      about 10 lateral-raise sets of several reps and about 5 side-view
+      snatches (kept out of git, under `tests/fixtures/local/`). Each gets a
+      ViTPose-L reference track from the dev server and a few verdicts judged
+      by a person. **Precondition**, before the first new reference track or
+      golden: re-extract one committed clip's track with the edited
+      `vitpose_backend.infer_video` (`212f502` changed it; no pose pass has
+      run since) and diff it against the committed track. Start `src/app.py`
+      directly (`coach_launch.sh` runs `pkill -f`), and only while no
+      pascaline night shift runs (`ps -eo args | grep [n]ight.sh`): at about
+      1 s per frame on this CPU, a 3 s clip takes minutes. Not run on
+      2026-10-31: a night shift had the CPU.
 - [ ] 3.1 Pick 2–3 candidates that fit the core:
       - ViTPose-S/B via easy_ViTPose's `export.py` (COCO-17, so the
         diagnostics work unchanged);
       - RTMPose-s/m (COCO-17, Apache-2.0);
       - MediaPipe Pose Landmarker (33 points, needs a COCO-17 mapping).
 
-      The person detector is not YOLOv8 unless the whole app accepts AGPL.
-- [ ] 3.2 One standalone page that:
+      ViTPose and RTMPose are top-down: they need a person detector, and
+      YOLOv8 is out (AGPL-3.0, [rules-core.md](rules-core.md)). Check RTMDet
+      (Apache-2.0) or MediaPipe's own detector, with their weights' licences.
+- [ ] 3.2 **Smoothing and the lift window as a tested module.** Extract
+      `smoothKeypoints` and the lift-window logic from the frozen page into a
+      new module, pinned by tests that compare it with the old page's
+      behaviour: load the old code out of `INDEX_HTML` the way
+      `tests/loadViewer.js` does, without editing it. The spike then scores
+      **smoothed** tracks, as the user sees them (today's goldens score raw
+      ones; [backlog.md](backlog.md)).
+- [ ] 3.3 One standalone page that:
       - decodes a fixture video with WebCodecs (not by seeking a `<video>`
-        element);
+        element), through a demuxer (mp4box.js or a WebM demuxer; its
+        licence goes into [THIRD_PARTY.md](../THIRD_PARTY.md));
       - runs the model in a Worker (ONNX Runtime Web, WebGPU with a WASM
         fallback);
       - writes a `track.json` in the fixture format.
-- [ ] 3.3 Measure on real phones, in Chrome and inside a Capacitor WebView:
+- [ ] 3.4 **Capture checks** for the recording session (milestone B):
+      `getUserMedia` at 60 fps and `MediaRecorder` inside the Capacitor
+      WebView, and a 30–60 minute heat and battery run on the Fairphone,
+      recording and processing.
+- [ ] 3.5 Measure on the Fairphone, in Brave and inside a Capacitor WebView:
       ms per frame, decode time, total time per clip, peak memory, download
-      size.
-- [ ] 3.4 Run `diagnostics.js` on each track and compare with the ViTPose-L
-      goldens. Add a **side-view snatch clip**, because the current two are
-      front or oblique views, and count only scored verdicts.
-- [ ] 3.5 A decision record: model, runtime and shell (PWA / Capacitor /
-      TWA), with the numbers. The stop condition is agreed before 3.3: if no
-      model keeps the diagnostics' results on a mid-range phone, nordmu and
-      Noah discuss a server fallback or a narrower core.
-- [ ] 3.6 **F-Droid feasibility** (pascaline did the same): can the chosen
-      runtime (MediaPipe or ONNX Runtime Web WebAssembly) and the model
-      weights be built from source, or are they accepted as assets? This may
-      steer the runtime choice in 3.5, so run it alongside. Until it passes,
-      0.1.0 ships as a PWA and a GitHub APK.
+      size. The stock Android phone comes after the spike (question 3).
+- [ ] 3.6 Run `diagnostics.js` on each candidate's smoothed tracks of the
+      validation set and compare with the references, counting only scored
+      verdicts, against the thresholds from 3.0.
+- [ ] 3.7 A decision record: model, runtime and shell (PWA / Capacitor /
+      TWA), with the numbers, and whether the stop condition was hit.
+- [ ] 3.8 **F-Droid, a paper check** off the critical path (pascaline did the
+      same): can the chosen runtime and the model weights be built from
+      source, or are they accepted as assets? It doesn't steer the runtime
+      choice in 3.7. Until it passes, 0.1.0 ships as a PWA and a GitHub APK.
 
 ### Phase 4: a small pipeline (after pascaline's fixes and nordmu's skill)
 
