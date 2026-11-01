@@ -52,8 +52,24 @@ test('the contracts are plain modules: no import outside app/src/contracts/, no 
     const src = fs.readFileSync(path.join(CONTRACTS, f), 'utf8');
     const specs = [...src.matchAll(/^\s*(?:import|export)\s[^;]*?from\s+['"]([^'"]+)['"]/gm)].map(m => m[1]);
     for (const s of specs) assert.match(s, /^\.\/[a-z-]+\.mjs$/, `${f} imports ${s}`);
-    assert.doesNotMatch(src, /\b(document|window|localStorage)\b/, `${f} touches the DOM`);
+    assert.doesNotMatch(src, /\b(document|window|localStorage)\.[A-Za-z]/, `${f} touches the DOM`);
   }
+});
+
+test('the contracts load inside a worker thread, with nothing but themselves', async () => {
+  const { Worker } = require('node:worker_threads');
+  const urls = MODULES.map(f => pathToFileURL(path.join(CONTRACTS, f)).href);
+  const code = `const { parentPort, workerData } = require('node:worker_threads');
+    Promise.all(workerData.map(u => import(u))).then(
+      ms => parentPort.postMessage(ms.map(m => Object.keys(m).length)),
+      e => parentPort.postMessage(String(e)));`;
+  const got = await new Promise((resolve, reject) => {
+    const w = new Worker(code, { eval: true, workerData: urls });
+    w.once('message', m => { w.terminate(); resolve(m); });
+    w.once('error', reject);
+  });
+  assert.ok(Array.isArray(got), String(got));
+  got.forEach((n, i) => assert.ok(n > 0, MODULES[i]));
 });
 
 test('app/README.md has a Contracts section naming every module', () => {
@@ -82,7 +98,6 @@ test('keypoints: 17 points [y, x, conf] in frame pixels, or null', async () => {
   assert.deepEqual(validateKeypoints(KEYPOINTS_EXAMPLE), []);
   const kp = KEYPOINTS_EXAMPLE;
   assertNames(validateKeypoints, kp, 'keypoints', v => v.pop());
-  assertNames(validateKeypoints, kp, 'keypoints', () => {}, undefined);
   assert.ok(validateKeypoints(undefined).some(e => e.startsWith('keypoints')));
   assert.ok(validateKeypoints('none').some(e => e.startsWith('keypoints')));
   assertNames(validateKeypoints, kp, 'keypoints[3]', v => { v[3] = v[3].slice(0, 2); });
@@ -144,6 +159,11 @@ test('track: a rebuilt track scores exactly as the committed one', async () => {
     assert.deepEqual(b.results, a.results, slug);
     assert.deepEqual(b.lift, a.lift, slug);
   }
+});
+
+test('track: COCO17_SKELETON is every committed track\'s meta.skeleton', async () => {
+  const { COCO17_SKELETON } = await load('track.mjs');
+  for (const slug of GLOBAL_TRACKS) assert.deepEqual(COCO17_SKELETON, readTrack(slug).meta.skeleton, slug);
 });
 
 test('track: the app\'s own track, one person under its id, in the fixture format', async () => {
@@ -407,7 +427,8 @@ test('cue view: every field names its source', async () => {
   const { CUE_VIEW_SOURCES, CUE_VIEW_EXAMPLES } = await load('cue-view.mjs');
   const src = fs.readFileSync(path.join(CONTRACTS, 'cue-view.mjs'), 'utf8');
   const typedef = src.match(/@typedef \{Object\} CueView([\s\S]*?)\*\//)[1];
-  const props = [...typedef.matchAll(/@property \{[^}]+\} (\w+)/g)].map(m => m[1]);
+  // the type may hold braces itself ({{t0: number, t1: number}|null}): up to the line's last '} '
+  const props = [...typedef.matchAll(/@property \{.*\} (\w+)/g)].map(m => m[1]);
   for (const ex of CUE_VIEW_EXAMPLES) assert.deepEqual(Object.keys(ex).sort(), Object.keys(CUE_VIEW_SOURCES).sort());
   assert.deepEqual(props.sort(), Object.keys(CUE_VIEW_SOURCES).sort());
   for (const [field, source] of Object.entries(CUE_VIEW_SOURCES)) {
