@@ -29,6 +29,9 @@ Newest first within each group.
 
 ### What 0.1.0 is
 
+- **Proposed, awaiting nordmu (step 3.7):** MediaPipe Pose Landmarker
+  full on its GPU delegate, every frame, as a PWA and in Capacitor; numbers
+  provisional until 3.0 ([pose-spike.md](pose-spike.md)).
 - **2026-10-31, nordmu: 0.1.0 comes in two milestones.** A: import a clip
   and get the cues, offline, for testers (nordmu, Noah, friends). B: the gym
   recording session. The public 0.1.0 needs both.
