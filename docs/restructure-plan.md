@@ -19,19 +19,31 @@ finish (git keeps the history). Decisions and open questions are in
   **Phase 3 is under way** on branch `p3/spike` (worktree
   `.claude/worktrees/p3-spike`), merged into `phase-0` only with nordmu's
   OK. Done: 3.1–3.5 and 3.6's comparison script, measured on the
-  Fairphone in Brave and the Capacitor WebView on 2026-10-31/11-01; 3.7 and
-  3.8 are a draft, **proposed, awaiting nordmu**:
-  [pose-spike.md](pose-spike.md) (MediaPipe Pose Landmarker full, GPU
-  delegate, every frame, as a PWA and in Capacitor). Open:
-  - nordmu: confirm or change the draft; whether Noah is asked about the
-    ViTPose/RTMPose weights (not needed unless the validation set fails
-    MediaPipe);
-  - 3.0: the re-extraction once no night shift runs; the validation set is
-    filmed by a friend of nordmu on 2026-11-01 (the clips from YouTube
-    can't stand in: no lateral raises, mostly front views, and they are on
-    Noah's machine), then its ViTPose-L references;
-  - 3.6 on the validation set, which replaces the draft's provisional
-    agreement numbers (four example clips) and decides the snatch.
+  Fairphone in Brave and the Capacitor WebView on 2026-10-31/11-01. On
+  2026-11-01 nordmu ruled that the shipped runtime must be open source and
+  buildable from source, which drops MediaPipe Tasks; the open runtimes were
+  measured the same evening. 3.7 and 3.8 are re-drafted, **proposed,
+  awaiting nordmu**: [pose-spike.md](pose-spike.md) (MoveNet SinglePose
+  Thunder on TensorFlow.js, WebGL, every frame, as a PWA and in Capacitor;
+  BlazePose on TF.js or ONNX Runtime second). Open:
+  - nordmu: confirm or change the draft;
+  - 3.0, not run: the re-extraction of `lateral-raise-cable-1` with
+    ViTPose-L and its diff against the committed track (max and mean
+    keypoint distance in pixels, the verdicts raw and smoothed). The night
+    session's queued job died with no output on 2026-11-01, and the
+    re-queued one was stopped at the session's end because a pascaline
+    shift still ran. Start `src/app.py` directly (`COACH_PORT=8091`), POST
+    the clip to `/api/pose/video/start` with `size=l`, `frame_stride=1`,
+    only while no night shift runs;
+  - 3.0, the validation set: not in by this session's end (2026-11-01,
+    20:00; neither the clips nor the friend's written OK), so 3.6 stays
+    open. The clips from
+    YouTube can't stand in (no lateral raises, mostly front views, on
+    Noah's machine). Then its ViTPose-L references, after a clean 3.0 diff;
+  - 3.6 on the validation set, which replaces the provisional agreement
+    numbers (four example clips, where every candidate but MoveNet
+    Lightning sits at 100%) and decides between MoveNet Thunder and
+    BlazePose, and the snatch.
 
   Then Phase 5; milestone B's steps also wait for question 7.
 - **Start now, outside a session** (to-dos, not session work):
@@ -233,7 +245,7 @@ condition are decided ([decisions.md](decisions.md#what-010-is)).
       directly (`coach_launch.sh` runs `pkill -f`), and only while no
       pascaline night shift runs (`ps -eo args | grep [n]ight.sh`): at about
       1 s per frame on this CPU, a 3 s clip takes minutes. Not run on
-      2026-10-31: a night shift had the CPU.
+      2026-10-31 or 11-01: a night shift had the CPU each time.
 - [x] 3.1 Candidates: MediaPipe Pose Landmarker (lite, full, heavy),
       ViTPose-S/B and RTMPose-s/m, the last two behind Megvii's YOLOX
       (Apache-2.0); versions, sources and licence flags (ViTPose's MAE
@@ -265,11 +277,16 @@ condition are decided ([decisions.md](decisions.md#what-010-is)).
 - [~] 3.7 A decision record: model, runtime and shell (PWA / Capacitor /
       TWA), with the numbers, and whether the stop condition was hit.
       Drafted, proposed, awaiting nordmu: [pose-spike.md](pose-spike.md)
-      (`1277d38`).
+      (`1277d38`); re-drafted on 2026-11-01 after the open-runtime rule
+      (`d5e41e2`): MoveNet Thunder and Lightning and BlazePose on
+      TensorFlow.js (`8aec0a4`), BlazePose's Tasks models converted to ONNX
+      on ONNX Runtime (`160a10c`), measured on the Fairphone in Brave and
+      the WebView (plans `7eb0142`).
 - [~] 3.8 **F-Droid, a paper check** (drafted in [pose-spike.md](pose-spike.md#f-droid-step-38-on-paper)) off the critical path (pascaline did the
       same): can the chosen runtime and the model weights be built from
-      source, or are they accepted as assets? It doesn't steer the runtime
-      choice in 3.7. Until it passes, 0.1.0 ships as a PWA and a GitHub APK.
+      source, or are they accepted as assets? The runtime rule of
+      2026-11-01 now steers 3.7; F-Droid itself still doesn't. Until it
+      passes, 0.1.0 ships as a PWA and a GitHub APK.
 
 ### Phase 4: a small pipeline (after pascaline's fixes and nordmu's skill)
 
