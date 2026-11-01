@@ -10,12 +10,13 @@ from these are in [rules-core.md](rules-core.md).
 | # | Question | Who | Recommendation |
 | --- | --- | --- | --- |
 | 2 | Where 0.1.0 is published | Noah | nordmu decided it (PWA and GitHub APK, F-Droid after a check; "What 0.1.0 is"). Noah was asked too and may revise it; until he does, nordmu's answer binds. |
-| 3 | Test phones | nordmu, Noah | Answered in part (nordmu, 2026-10-31): nordmu's Fairphone 6 (`4d42e62f`; LineageOS, no Google Chrome). A stock Android phone with Chrome and Google's WebView is tested after the spike, before the public release, so step 3.7 decides without it; whose phone is open. An iPhone too, if iOS matters. |
+| 3 | Test phones | nordmu, Noah | Answered in part (nordmu, 2026-10-31): nordmu's Fairphone 6 (`4d42e62f`; LineageOS, no Google Chrome). A stock Android phone with Chrome and Google's WebView before the public release; whose phone is open. An iPhone too, if iOS matters. |
 | 5 | `.auth_password` is an unsalted SHA-256 hash of the old login password, with a scheme "identical to tecna". Is that password used anywhere else? | Noah | Change it wherever it's used. The file leaves the history in step 2.8 either way. |
 | 7 | **The rest of the gym session** (answered in part, see "What 0.1.0 is"): the replay (a button, a delayed view, or both), the replay and buffer lengths, whether an analysed lift keeps its video, who writes a fix tip per cue. Listed in [ui-design.md](ui-design.md#open-questions). | nordmu | Ask with the next round of mockups. |
 | 8 | Review the parking of the squat, image and clean & jerk tabs. It was written up as nordmu's; nordmu has not confirmed it (asked again 2026-10-31: still open). | nordmu | Until confirmed it is a proposal: follow it, but don't build anything that depends on its exact wording. |
 | 6 | How long the restructuring window lasts | Noah | Step 2.8 (the history rewrite) has to finish before Noah resumes. |
 | 9 | Branch protection on `main` of `noahsta/coach`, so one push from an old clone can't undo step 2.8 | Noah (repo owner) | Turn it on. |
+| 10 | **The app's name.** nordmu likes coach³, "Coach Cubed" (2026-11-01). | nordmu, Noah | Clean where checked ([branding.md](branding.md)); then Noah, a trademark search, the package ID, before testers get an APK. |
 
 **What went to Noah, and when:** nordmu's message of 2026-10-31 asked
 questions 1 (the licence, now decided), 2 and 5 (as "is it a real
@@ -86,8 +87,8 @@ Newest first within each group.
   the Phase 3 spike passes** (otherwise the snatch moves to 0.2).
 - **2026-10-31, nordmu: `clipper/` goes back to its own repo; `report/` stays
   here as a parked research folder.** The repo is `weightlifting-clipper`
-  (its original name), a local sibling of coach with no remote; nordmu puts
-  it in a private GitHub repo before step 2.8 (nordmu, 2026-10-31). coach
+  a local sibling of coach with no remote; nordmu puts
+  it in a private GitHub repo before step 2.8. coach
   keeps its side of the link: `scripts/sync_clipper_fixtures.py`, which
   now needs `$CLIPPER_OUT` or `--clipper-dir`.
 - **2026-10-31, nordmu: offline is a hard requirement, so no server compute.**
@@ -146,7 +147,7 @@ Newest first within each group.
   addresses) is removed, as [server.md](server.md) already required; the
   sibling notes live on that machine.
 - **2026-10-31, nordmu: athlete names in OCR samples become `<name>`** (step
-  2.6), following the pseudonymization decision under "Data and privacy".
+  2.6), as under "Data and privacy".
 
 - **2026-10-31, nordmu: the goal and the four principles** in
   [rules-core.md](rules-core.md) are confirmed (again when asked about

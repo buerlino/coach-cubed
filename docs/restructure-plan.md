@@ -56,6 +56,9 @@ finish (git keeps the history). Decisions and open questions are in
     friend's written OK to use the footage;
   - nordmu, then Noah: the next message, with branch protection on `main`
     and the other open questions ([decisions.md](decisions.md#needs-an-answer));
+  - nordmu, then Noah: the app's name (question 10; nordmu likes coach³,
+    "Coach Cubed"), a manual trademark search and the domain; then a
+    designer for the logo ([branding.md](branding.md));
   - nordmu, later: a stock Android phone with Chrome and Google's WebView,
     after the spike and before the public release (question 3).
 - **Waiting on nordmu:** question 8, the review of the tab parking (the goal
@@ -383,7 +386,8 @@ and 5.5–5.7, and goes to testers. **B**, the gym recording session, adds
 ### Phase 6: 0.1.0 scope and timeline
 
 - [ ] 6.1 0.1.0 is the core, plus a written "not in 0.1.0" list. Milestone A
-      goes to testers (nordmu, Noah, friends) first.
+      goes to testers (nordmu, Noah, friends) first, and before its first
+      APK the name and the package ID are fixed (question 10).
 - [ ] 6.2 Release criteria for the public 0.1.0:
       - works in airplane mode on the target phones, a stock Android phone
         with Chrome and Google's WebView included (question 3);

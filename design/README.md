@@ -11,3 +11,5 @@ open: [docs/ui-design.md](../docs/ui-design.md).
   here) to render, and `canvas.json` holds the layout and the notes. Open the
   canvas to see them; this copy is the record. Whenever the canvas changes,
   re-read its files and refresh this copy in the same commit as the doc.
+- Later, the logo's source files, once the name is fixed
+  ([docs/branding.md](../docs/branding.md#the-logo)).
