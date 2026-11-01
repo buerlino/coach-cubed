@@ -507,7 +507,7 @@ test('result view: each broken field is named', async () => {
 // committed tracks: a sketch of s11's adapter, only to show that each named
 // source gives the shape the contract asks for.
 function viewFrom(D, set, out) {
-  const { VERDICT_STATUS } = this;
+  const { VERDICT_STATUS, verdictValue } = this;
   const cues = D.describe(set).map(d => {
     const r = out.results[d.id];
     const base = { id: d.id, title: d.title, cue: d.cue, unit: d.unit, phaseLabel: d.phaseLabel, provisional: d.provisional };
@@ -517,7 +517,7 @@ function viewFrom(D, set, out) {
     }
     const worst = D.worstMoment(d.id, r);
     return { ...base, status: VERDICT_STATUS[r.verdict.status], verdict: r.verdict.label,
-      value: worst ? worst.value : null,
+      value: worst ? verdictValue(worst.rule, r.summary) : null,
       tiles: D.tiles(d.id, r), referenceLine: D.referenceLine(d.id, r),
       series: r.series.map(s => ({ t: s.t, value: s.value, lo: s.lo, hi: s.hi })),
       phase: { t0: out.samples[r.phase.startIdx].t, t1: out.samples[r.phase.endIdx].t },
@@ -546,6 +546,61 @@ test('cue view: the sources it names give its shapes, on the committed tracks', 
   // give all three, and "can't score" (lateral raise: one rep, no symmetry).
   assert.deepEqual([...seen].filter(s => !(s in mod.VERDICT_STATUS) && !mod.STATUS_WORDS.includes(s)), []);
   for (const w of ['good', 'watch', 'work on', "can't score"]) assert.ok(seen.has(w), w);
+});
+
+// A card's value is the number its verdict is scored on, not the worst
+// moment's sample. The snatch's first-pull back angle is a 'farthest-from-mean'
+// cue: diagnostics.js scores it on the SD around the pull's mean
+// (src/diagnostics.js, the cue's verdict(summary) reads summary.sd), so its
+// value is results[id].summary.sd, which on this track differs from the
+// sample worstMoment() returns (a raw angle to the floor).
+test('cue view: value is the summary field the verdict is scored on (snatch, farthest-from-mean)', async () => {
+  const mod = await load('cue-view.mjs');
+  const D = loadDiagnostics();
+  D.setPage('snatch');
+  const t = readTrack(SNATCH);
+  const out = D.computeResults(t.keypoints, t.meta, t.meta.tracks.kept);
+  const id = 'first-pull-back-angle';
+  const r = out.results[id];
+  assert.ok(!r.error, r.error);
+  const worst = D.worstMoment(id, r);
+  assert.equal(worst.rule, 'farthest-from-mean');
+  assert.equal(mod.VERDICT_VALUE[worst.rule], 'summary.sd');
+  assert.match(mod.CUE_VIEW_SOURCES.value, /VERDICT_VALUE/);
+  const card = viewFrom.call(mod, D, 'snatch', out).cues.find(c => c.id === id);
+  assert.equal(card.value, r.summary.sd);
+  assert.notEqual(card.value, worst.value);
+  assert.deepEqual(mod.validateCueView(card), []);
+});
+
+// Every rule a cue in diagnostics.js names has its value in VERDICT_VALUE, and
+// each scored cue on the committed tracks gets a number from the field named.
+test('cue view: every worstRule in diagnostics.js names its value, and each scored cue gets it', async () => {
+  const mod = await load('cue-view.mjs');
+  const src = fs.readFileSync(path.join(ROOT, 'src', 'diagnostics.js'), 'utf8');
+  const rules = new Set([...src.matchAll(/worstRule: '([a-z-]+)'/g)].map(m => m[1]));
+  assert.ok(rules.size >= 4);
+  assert.deepEqual([...rules].filter(rule => !(rule in mod.VERDICT_VALUE)), []);
+  assert.deepEqual(Object.keys(mod.VERDICT_VALUE).filter(rule => !rules.has(rule)), []);
+  const D = loadDiagnostics();
+  for (const slug of [LATERAL, SNATCH]) {
+    const set = manifest[slug].diagnostics;
+    D.setPage(set);
+    const t = readTrack(slug);
+    const out = D.computeResults(t.keypoints, t.meta, t.meta.tracks.kept);
+    for (const c of viewFrom.call(mod, D, set, out).cues) {
+      if (c.status === "can't score") continue;
+      const s = out.results[c.id].summary;
+      const expected = {
+        'summary-worst': s.worst, 'summary-last': s.decline, 'farthest-from-mean': s.sd,
+        'phase-end': Math.max(s.hipDeficit, s.kneeDeficit == null ? -Infinity : s.kneeDeficit),
+      }[c.worst.rule];
+      assert.equal(c.value, expected, `${slug} ${c.id}`);
+    }
+  }
+  assert.equal(mod.verdictValue('no-such-rule', { worst: 1 }), null);
+  assert.equal(mod.verdictValue('phase-end', { hipDeficit: 4, kneeDeficit: null }), 4);
+  assert.equal(mod.verdictValue('phase-end', { hipDeficit: 4, kneeDeficit: 9 }), 9);
 });
 
 test('cue view: the examples are the lateral raise\'s real output, not made up', async () => {

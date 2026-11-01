@@ -23,6 +23,47 @@ export const STATUS_WORDS = Object.freeze(['good', 'watch', 'work on', "can't sc
 export const VERDICT_STATUS = Object.freeze({ good: 'good', warning: 'watch', critical: 'work on' });
 
 /**
+ * The number a verdict is scored on, by the cue's rule (worstMoment(id,
+ * result).rule, diagnostics.js's WORST_RULES): the summary field its
+ * verdict(summary) reads, in the cue's unit. It is the verdict's own number,
+ * not the worst moment's sample: a 'farthest-from-mean' cue (the snatch's
+ * first-pull back angle, the lateral raise's torso lean) is scored on the SD
+ * around the mean, and its worst moment is only the sample farthest from
+ * that mean, a raw angle.
+ *   'summary-worst'       summary.worst: the worst rep or frame, signed (the
+ *                         top height's verdict reads its size, worstAbs)
+ *   'summary-last'        summary.decline: the first rep minus the last
+ *   'farthest-from-mean'  summary.sd: the spread around summary.mean
+ *   'phase-end'           the larger of summary.hipDeficit and
+ *                         summary.kneeDeficit (null when the knee isn't seen)
+ */
+export const VERDICT_VALUE = Object.freeze({
+  'summary-worst': 'summary.worst',
+  'summary-last': 'summary.decline',
+  'farthest-from-mean': 'summary.sd',
+  'phase-end': 'max(summary.hipDeficit, summary.kneeDeficit)',
+});
+
+/**
+ * The value VERDICT_VALUE names, read off a scored result's summary.
+ * @param {string} rule the cue's worstRule, as worstMoment(id, result).rule gives it
+ * @param {Object} summary computeResults() results[id].summary
+ * @returns {number|null} null for a rule it doesn't know or a number that isn't finite
+ */
+export function verdictValue(rule, summary) {
+  if (!isObject(summary)) return null;
+  let v = null;
+  if (rule === 'summary-worst') v = summary.worst;
+  else if (rule === 'summary-last') v = summary.decline;
+  else if (rule === 'farthest-from-mean') v = summary.sd;
+  else if (rule === 'phase-end') {
+    v = summary.hipDeficit;
+    if (isNumber(summary.kneeDeficit) && !(summary.kneeDeficit <= v)) v = summary.kneeDeficit;
+  }
+  return isNumber(v) ? v : null;
+}
+
+/**
  * Each field's source. `results[id]` is computeResults().results[id] for
  * the lift's track (keypoints, meta, personId), after setPage(lift); the
  * headless calls are s4's, on the Diagnostics object in src/diagnostics.js.
@@ -36,7 +77,7 @@ export const CUE_VIEW_SOURCES = Object.freeze({
   provisional: 'describe(set): provisional',
   status: "the adapter: VERDICT_STATUS[computeResults() results[id].verdict.status], or \"can't score\" for results[id].error",
   verdict: 'computeResults(): results[id].verdict.label',
-  value: 'the adapter: the number the verdict rests on, from computeResults() results[id].summary, in unit',
+  value: 'the adapter: verdictValue(worstMoment(id, result).rule, computeResults() results[id].summary), the summary field VERDICT_VALUE names for the rule, in unit',
   tiles: 'tiles(id, result)',
   referenceLine: 'referenceLine(id, result)',
   series: 'computeResults(): results[id].series, each sample\'s t, value, lo, hi',
@@ -58,7 +99,8 @@ export const CUE_VIEW_SOURCES = Object.freeze({
  * @property {boolean} provisional its thresholds aren't checked on real lifts yet
  * @property {'good'|'watch'|'work on'|"can't score"} status
  * @property {string|null} verdict the verdict in words; null when it can't be scored
- * @property {number|null} value the number the verdict rests on, in unit
+ * @property {number|null} value the number the verdict is scored on, in unit (VERDICT_VALUE:
+ *   the SD for a cue scored on its spread, not a sample's value); null if the rule is unknown
  * @property {Array<{label: string, value: string, sub?: string, status?: string}>} tiles
  *   the old panel's tiles; status is a verdict status or a CSS colour, as diagnostics.js gives it
  * @property {{value: number, label: string}|null} referenceLine the plot's dashed line
