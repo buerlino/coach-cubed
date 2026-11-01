@@ -1,0 +1,86 @@
+[
+ {
+  "clip": "example/lateral-raise-cable-1.mp4",
+  "model": "mediapipe-full",
+  "ep": "webgpu",
+  "fps": "full",
+  "tag": "wv-all"
+ },
+ {
+  "clip": "example/lateral-raise-cable-2.mp4",
+  "model": "mediapipe-full",
+  "ep": "webgpu",
+  "fps": "full",
+  "tag": "wv-all"
+ },
+ {
+  "clip": "example/athlete-a-trim.mp4",
+  "model": "mediapipe-full",
+  "ep": "webgpu",
+  "fps": "full",
+  "tag": "wv-all"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "mediapipe-full",
+  "ep": "webgpu",
+  "fps": "full",
+  "tag": "wv-all"
+ },
+ {
+  "clip": "example/lateral-raise-cable-1.mp4",
+  "model": "mediapipe-full",
+  "ep": "webgpu",
+  "fps": 20,
+  "tag": "wv-all"
+ },
+ {
+  "clip": "example/lateral-raise-cable-2.mp4",
+  "model": "mediapipe-full",
+  "ep": "webgpu",
+  "fps": 20,
+  "tag": "wv-all"
+ },
+ {
+  "clip": "example/athlete-a-trim.mp4",
+  "model": "mediapipe-full",
+  "ep": "webgpu",
+  "fps": 20,
+  "tag": "wv-all"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "mediapipe-full",
+  "ep": "webgpu",
+  "fps": 20,
+  "tag": "wv-all"
+ },
+ {
+  "clip": "example/lateral-raise-cable-1.mp4",
+  "model": "mediapipe-heavy",
+  "ep": "webgpu",
+  "fps": 20,
+  "tag": "wv-all"
+ },
+ {
+  "clip": "example/lateral-raise-cable-2.mp4",
+  "model": "mediapipe-heavy",
+  "ep": "webgpu",
+  "fps": 20,
+  "tag": "wv-all"
+ },
+ {
+  "clip": "example/athlete-a-trim.mp4",
+  "model": "mediapipe-heavy",
+  "ep": "webgpu",
+  "fps": 20,
+  "tag": "wv-all"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "mediapipe-heavy",
+  "ep": "webgpu",
+  "fps": 20,
+  "tag": "wv-all"
+ }
+]

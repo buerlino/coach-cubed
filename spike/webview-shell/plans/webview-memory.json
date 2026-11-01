@@ -1,0 +1,51 @@
+[
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "mediapipe-full",
+  "ep": "webgpu",
+  "fps": 20,
+  "tag": "wv-mem"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "mediapipe-full",
+  "ep": "webgpu",
+  "fps": "full",
+  "tag": "wv-mem"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "mediapipe-heavy",
+  "ep": "webgpu",
+  "fps": "full",
+  "tag": "wv-mem"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "mediapipe-lite",
+  "ep": "webgpu",
+  "fps": "full",
+  "tag": "wv-mem"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "rtmpose-s",
+  "ep": "wasm",
+  "fps": 20,
+  "tag": "wv-mem"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "rtmpose-s",
+  "ep": "webgpu",
+  "fps": 20,
+  "tag": "wv-mem"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "vitpose-s",
+  "ep": "wasm",
+  "fps": 20,
+  "tag": "wv-mem"
+ }
+]

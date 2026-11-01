@@ -1,0 +1,16 @@
+[
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "mediapipe-full",
+  "ep": "wasm",
+  "fps": 20,
+  "tag": "wv-cpu"
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "mediapipe-full",
+  "ep": "wasm",
+  "fps": "full",
+  "tag": "wv-cpu"
+ }
+]
