@@ -13,9 +13,6 @@ During the restructuring window, the order of work and its status are in
 
 ## Bugs
 
-- `scripts/sync_clipper_fixtures.py` accepts only 2-digit attempt numbers
-  (`\d{2}`) where app.py accepts any (`\d+`); the likely cause of the 30
-  skipped clips ([dataset-stats.md](dataset-stats.md)).
 - With neither `$COACH_TRAIN_DIR` nor `$CLIPPER_OUT` set, the train tab's
   `TRAIN_DIR` (`src/app.py`) falls back to the in-repo `clipper/downloads`,
   which left with clipper in step 2.3. Python, outside `INDEX_HTML`.

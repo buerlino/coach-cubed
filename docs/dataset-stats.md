@@ -77,6 +77,12 @@ pattern in `scripts/sync_clipper_fixtures.py` takes exactly two digits
 (`\d{2}`; `src/app.py` takes `\d+`), so a session that runs past attempt 99
 loses every attempt after it.
 
+**Fixed 2026-11-02, not yet re-run on the full dataset:** the pattern takes
+`\d+` now, and the sync sorts clips by attempt number
+(`tests/test_sync_clipper_fixtures.py`). How many of the 30 come back is
+unknown until the sync runs again over this session's clips; the skip lines in
+`log/pose-sync.log` hold their names.
+
 ### What the 1,722 in the manifest are labelled
 
 ```
