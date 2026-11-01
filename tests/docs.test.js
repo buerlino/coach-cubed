@@ -21,7 +21,7 @@ const ROOT = path.resolve(__dirname, '..');
 const BUDGETS = [
   { file: 'AGENTS.md', maxLines: 40, maxBytes: 6000 },
   { file: 'CLAUDE.md', maxLines: 10 },
-  { file: 'docs/decisions.md', maxBytes: 12000 }, // [9685]
+  { file: 'docs/decisions.md', maxBytes: 15000 }, // [9685]; 12000 → 15000 (nordmu, 2026-11-01)
   { file: 'docs/backlog.md', maxBytes: 4000 }, // [3140]
   { file: 'docs/rules-core.md', maxBytes: 8500 }, // [6946]
   { file: 'docs/restructure-plan.md', maxBytes: 38000 }, // [25369]

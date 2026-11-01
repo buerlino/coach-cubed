@@ -7,8 +7,9 @@ read-only audit of the diff, and a `--no-ff` merge into `phase-0`. Ported from p
 Workers read "Hard rules" and "Worker setup"; the bundle quotes "Your report" and "Definition of done" to them.
 
 nordmu, 2026-11-01: the pipeline is built now, from pascaline's scripts directly (not from the general skill), so that
-Phase 5 can run as packages, one fresh session each; the packages are written by another session. The agents' names are
-nordmu's; which name got which role is a proposal, not yet confirmed.
+Phase 5 runs as packages, one fresh session each. A coordinating session writes the packages and their queue; packages
+run autonomously, UI included, and merge on the audit; a review with nordmu follows once a prototype runs. The agents'
+names and roles are nordmu's ([decisions.md](decisions.md#rules-and-docs)).
 
 ## The agents
 
@@ -16,9 +17,9 @@ Agent files in `.claude/agents/`. Every package names its worker in its first li
 
 | Agent | Role | Owns |
 | --- | --- | --- |
-| dirac | worker | the new app's UI: the screens of [ui-design.md](ui-design.md), the result view (video, overlay, cues, plots), import, the responsive layout, the PWA's manifest and offline shell |
+| dirac | worker | the new app's UI: the screens of [ui-design.md](ui-design.md), the result view (video, overlay, cues, plots), import, the responsive layout, the PWA's manifest and the app shell the service worker caches |
 | schrödinger | worker | the analysis core: the on-device pose engine (TF.js from source, behind one Worker interface), smoothing and the lift window, `src/diagnostics.js`, its tests, goldens and reference tracks |
-| curie | worker | the phone and the platform: the Capacitor shell and its build, the service worker and storage, the gym recording session, every measurement on the Fairphone; the only one with adb |
+| curie | worker | the phone and the platform: the Capacitor shell and its build, the service worker (offline caching, updates) and storage (OPFS), the gym recording session, every measurement on the Fairphone; the only one with adb |
 | einstein | advisor | research packages and design questions: evidence, probes, a recommendation; no feature code |
 | hillbert | auditor | the diff audit of every run (Read, Grep, Glob only); reviews over time on request |
 
@@ -30,9 +31,11 @@ object the UI draws) are agreed in a package of their own before both sides buil
 A package is one concern a fresh session finishes in one run: a few hours of agent work, one branch, one merge. It lives in
 `docs/packages/<id>.md` on `phase-0`, written before the run; [packages/README.md](packages/README.md) has the template.
 
-- **Id:** a letter and a number, lowercase (`w12`), with an optional suffix for a split (`w12b`). A FIX package for an
-  unmerged or merged branch adds `f<k>` (`w12f1`) and has no file: it runs as free text (below). An id is minted only
-  after `git grep` on all branches and a look at `.coord/log.md`.
+- **Id:** a lane letter and a global number, lowercase (`e1`, `d5`, `s11`, `c10`), with an optional suffix for a split
+  (`d5b`). A FIX package for an unmerged or merged branch adds `f<k>` (`e2f1`) and has no file: it runs as free text
+  (below). An id is minted only after `git grep` on all branches and a look at `.coord/log.md`.
+- **The queue** (the order, the gates, the status) is in [packages/README.md](packages/README.md). The coordinating
+  session keeps it; workers never edit it, so parallel branches don't conflict on it.
 - **First line, exactly:** `` # <id>: <title> (<agent>, <sonnet|opus>, branch `wp/<agent>-<slug>`) ``, with the agent's
   name as in the table (`schrödinger` keeps its umlaut; its branches spell it `schroedinger`). The pipeline reads the
   agent, the model and the branch from it.
@@ -56,7 +59,11 @@ A package is one concern a fresh session finishes in one run: a few hours of age
    without a commit, or says its package is missing or wrong, ends the run (NOT MERGED).
 3. **The queue:** the run takes the `integ` lock, merges `phase-0` into the branch (a conflict is a resolve round for
    the worker), and runs the **checks** in the worker's worktree: `npm test`, the Python tests, the pipeline's own shell
-   tests when `pipeline/` changed, and red-first when the package asks for it. A failing check whose log shows a
+   tests when `pipeline/` changed, red-first when the package asks for it, and the app's own tests when the diff touches
+   `app/` or `src/`: `npm --prefix app test` and `npm --prefix app run test:page` (the offline headless page test),
+   each only once `app/package.json` has that script. The run installs `app/node_modules` first when it is missing or
+   stale (a hard-link copy of the `phase-0` worktree's, else `npm ci`), and a merge that changes
+   `app/package-lock.json` refreshes the `phase-0` worktree's. A failing check whose log shows a
    missing command or module ends the run as a machine failure, never a fix round.
 4. **Audit:** hillbert, fresh, Read, Grep and Glob only, gets the package, `git diff -U5 phase-0...<branch>` and the
    report, never whole files, and replies `APPROVED` or `FIX` with findings. Model: Opus when the worker ran on Opus or
@@ -77,6 +84,9 @@ A package is one concern a fresh session finishes in one run: a few hours of age
 `host-cpu` and the phone's serial are the machine's, shared with pascaline's nights. Lock order: `integ` before
 `host-cpu`; a holder of `host-cpu` never waits for `integ`. An interactive session that wants to commit on `phase-0`
 while runs are queued may hold `integ` too (`pipeline/devlock.sh acquire integ <name> 7200`, released after its commit).
+
+**The history rewrite (step 2.8)** orphans every branch, so it runs only with an empty queue: no `wp/*` branch, no
+`.claude/worktrees/wp-*` worktree and no run alive (`pipeline/devlock.sh status` shows no `branch-*` lock).
 
 ## Hard rules
 
@@ -108,8 +118,9 @@ while runs are queued may hold `integ` too (`pipeline/devlock.sh acquire integ <
 - **Shared files:** on your branch, change the docs that describe what you changed (a module's README, `tests/README.md`,
   a row of [README.md](README.md) for a new doc, a [THIRD_PARTY.md](../THIRD_PARTY.md) line for a new dependency), and
   nothing else shared: `AGENTS.md`, `CLAUDE.md`, `docs/rules-core.md`, `docs/decisions.md`, `docs/restructure-plan.md`,
-  `docs/pipeline.md`, `docs/packages/`, `.claude/` and `pipeline/` (unless your package is about the pipeline) get
-  their text through your report, under "For shared files".
+  `docs/pipeline.md`, `docs/packages/` (the queue included), `.claude/` and `pipeline/` (unless your package is about the
+  pipeline) get their text through your report, under "For shared files". Questions for nordmu go into the report
+  under "Needs a decision", never into `docs/decisions.md`: the coordinating session files them.
 - **Read by section,** never whole big files: `grep -n '^#' <file>`, then the range. Every file you read is sent again on
   every later turn.
 - **When a task is done:** commit the report, then reply as the prompt asks. Nobody is waiting for messages.
@@ -142,7 +153,8 @@ Then reply as the pipeline's prompt asks (at most five lines).
 ## Definition of done
 
 - `npm test` and `python3 -m unittest discover -s tests -p 'test_*.py'` pass; the pipeline's shell tests too when
-  `pipeline/` changed.
+  `pipeline/` changed; `npm --prefix app test` and `npm --prefix app run test:page` when the diff touches `app/` or
+  `src/` and the script exists.
 - Every "Done when" line of the package is met, or listed under "Not done" in the report.
 - New behaviour has tests; a fixed bug has a regression test that fails on `phase-0`.
 - The docs that describe the change are updated in the same branch; every path stays relative; every new dependency that

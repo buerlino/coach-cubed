@@ -70,9 +70,13 @@ MACHINE_RE="command not found|node_modules (is )?missing|Cannot find module '[^.
 machine_failure() { grep -qE "$MACHINE_RE" "$1" 2>/dev/null; }
 # shell_selected: a changed file (one per line, on stdin) is one of the pipeline's scripts.
 shell_selected() { grep -qE '^pipeline/'; }
+# app_selected: a changed file is the app's or the shared code it scores with (src/diagnostics.js, src/track/).
+app_selected() { grep -qE '^(app|src)/'; }
+# has_script <package dir> <script>: its package.json defines the npm script.
+has_script() { node -e 'const p = require(require("path").resolve(process.argv[1], "package.json")); process.exit(p.scripts && p.scripts[process.argv[2]] ? 0 : 1)' "$1" "$2" 2>/dev/null; }
 # The paths whose diffs Opus audits even when the line names sonnet (pascaline A15): the scoring, the pose code, the pipeline itself
 # and the agents. Extend it when Phase 5 adds the app's pose and scoring modules.
-AUDIT_OPUS_RE='^(src/diagnostics\.js|src/pose/|app/src/(pose|scoring|analysis)/|pipeline/|\.claude/agents/)'
+AUDIT_OPUS_RE='^(src/diagnostics\.js|src/pose/|src/track/|app/src/(pose|media|scoring|analysis)/|app/tools/|pipeline/|\.claude/agents/)'
 # excerpt <check log>: the failing lines, capped
 excerpt() {
   grep -nE '^not ok|# fail [1-9]|AssertionError|Error:|expected|actual:|FAIL|Traceback|FAILED|ERROR:' -A4 "$1" | head -n 150
