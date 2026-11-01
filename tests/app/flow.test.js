@@ -58,11 +58,12 @@ test('milestone B: H, live, replay, mark, back to live with the lift queued', as
 test('an illegal transition throws, names both states and leaves the state alone', async () => {
   const { createFlow } = await load();
   const flow = createFlow();
-  assert.throws(() => flow.go('result'), (e) => e instanceof Error && /home/.test(e.message) && /result/.test(e.message) && /\bhome\b.*\bresult\b/.test(e.message));
+  assert.throws(() => flow.go('mark'), (e) => e instanceof Error && /\bhome\b.*\bmark\b/.test(e.message));
   assert.throws(() => flow.go('replay'), /home/);
   assert.equal(flow.state, 'home');
   flow.go('import');
   assert.throws(() => flow.go('queued'), /import/);
+  assert.throws(() => flow.go('result'), /import/);
   assert.throws(() => flow.go('import'), /import/, 'a state does not lead to itself');
   assert.equal(flow.state, 'import');
 });
@@ -77,7 +78,7 @@ test('can() says whether a transition is allowed, without making it', async () =
   const { createFlow } = await load();
   const flow = createFlow();
   assert.equal(flow.can('import'), true);
-  assert.equal(flow.can('result'), false);
+  assert.equal(flow.can('mark'), false);
   assert.equal(flow.can('nowhere'), false);
   assert.equal(flow.state, 'home');
 });
@@ -100,7 +101,7 @@ test('an illegal transition is not heard; an unsubscribed listener hears nothing
   const flow = createFlow();
   let count = 0;
   const off = flow.subscribe(() => { count++; });
-  assert.throws(() => flow.go('result'));
+  assert.throws(() => flow.go('mark'));
   assert.equal(count, 0);
   flow.go('import');
   assert.equal(count, 1);

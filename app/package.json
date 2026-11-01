@@ -1,0 +1,10 @@
+{
+  "name": "coach-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"../tests/app/*.test.js\"",
+    "assemble": "node tools/assemble.mjs",
+    "serve": "node tools/serve.mjs"
+  }
+}
