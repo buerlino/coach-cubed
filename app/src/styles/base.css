@@ -67,6 +67,7 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 /* An action card, as on H */
 .card { display: flex; flex-direction: column; gap: var(--space-1); width: 100%; min-height: 88px; padding: 18px; text-align: left; border-radius: var(--radius-xl); background: var(--surface); border: 1px solid var(--line); color: var(--text); }
 .card--primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.card .soft { font-weight: var(--weight-regular); }
 .card__title { font-size: var(--size-subtitle); font-weight: var(--weight-bold); line-height: 1.1; }
 
 /* A status: its colour and its word, from the tokens. An icon goes before the

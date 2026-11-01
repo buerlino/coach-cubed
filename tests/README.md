@@ -4,6 +4,7 @@ Run them from the repo root:
 
 ```sh
 npm test                                              # every *.test.js (node:test, no dependencies)
+npm --prefix app test                                 # just tests/app/, the new app's
 python3 -m unittest discover -s tests -p 'test_*.py'  # the Python tests
 ```
 
@@ -16,7 +17,10 @@ python3 -m unittest discover -s tests -p 'test_*.py'  # the Python tests
 | `anatomy.test.js`, `anatomy-grip.test.js`, `anatomy-sequence.test.js`, `anatomy-stability.test.js` | The anatomy view's modules in `src/anatomy/`: the rig, the hand contacts on the bar, the display sequence, stabilization. |
 | `track.test.js` | `src/track/`: time smoothing, the lifter choice, scoring as the old page scores and the lift window's marks, each compared with the old code taken out of `src/app.py`'s `INDEX_HTML` and `src/diagnostics.js` (`loadOldCode.js`). |
 | `squat.test.js` | The Movement Lab's squat engine, `src/squat/analysis.mjs`. |
-| `paths.test.js` | rules-core's "Paths stay relative": no new absolute path (`'/...'`) in an import, import map, `src`, `href`, `fetch`, redirect or `/api/` call in `src/`, `launchers/` and `parked/`. Today's paths in frozen code are allowlisted at its top, each with a reason. |
+| `paths.test.js` | rules-core's "Paths stay relative": no new absolute path (`'/...'`) in an import, import map, `src`, `href`, `fetch`, redirect, CSS `url()` or `/api/` call in `src/`, `launchers/`, `parked/` and `app/` (not its `vendor/`, `dist/`, `android/` or `node_modules/`). Today's paths in frozen code are allowlisted at its top, each with a reason. |
+| `app/flow.test.js` | The new app's flow, `app/src/flow/flow.mjs`: the states, the transitions milestone A needs (H, import, mark, queued, result, back to H), an illegal one throws, listeners hear each change, each state has a screen module. |
+| `app/assemble.test.js` | `app/tools/assemble.mjs` into a temporary folder: `index.html`, the manifest, the vendored files and their licences, `diagnostics.js` and `src/track/`, `files.json` with every file and a version hash, the run without `app/vendor/tfjs/` and `app/models/`, and a refusal to empty a folder that isn't assemble's. Needs neither gitignored folder. |
+| `app/serve.test.js` | `app/tools/serve.mjs`: the types for `.mjs`, `.webmanifest`, `.woff2` and `.wasm`, no COOP/COEP, `/` is `index.html`, nothing outside the folder. |
 | `docs.test.js` | The docs: AGENTS.md, CLAUDE.md and the big docs within their budgets, every relative link and anchor in a tracked `.md` file, every path `docs/README.md` names. The budgets are at its top. |
 | `test_launchers.py` | The local preview (`launchers/run_local.py`): its entry points, the `/` and `/original/` routes, and the example gallery. |
 | `test_sync_clipper_fixtures.py` | `scripts/sync_clipper_fixtures.py`: its clip-name pattern matches clipper's names (format string quoted from its `src/cut.py`) for attempts 1, 99, 100 and 123, keeps session, attempt and result, and rejects a name with no result; clips are found in attempt order (99 before 100). |
