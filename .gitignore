@@ -47,3 +47,10 @@ spike/**/node_modules/
 # `git add -f`.
 tests/fixtures/global/**/*.mp4
 parked/report/examples/*.mp4
+
+# The new app (app/): the assembled folder, MoveNet's weights and the TF.js
+# bundle are built or fetched (docs/app-plan.md), not source.
+app/dist/
+app/models/
+app/vendor/tfjs/
+app/node_modules/

@@ -1,0 +1,69 @@
+/* The look, as tokens (docs/ui-design.md, "The look"): every colour, size and
+   space the screens use comes from here, nowhere else. Dark only. */
+:root {
+  color-scheme: dark;
+
+  /* Ground, surfaces and lines */
+  --ground: #0E0F11;
+  --surface: #17191C;
+  --surface-raised: #21242A;
+  --line: #2E3238;
+
+  /* Text, strongest first */
+  --text: #F2F1EC;
+  --text-soft: #B4B8BF;
+  --text-quiet: #8E939B;
+
+  /* The accent: actions and marks. --on-accent is the text on it. */
+  --accent: #C8F04A;
+  --accent-hover: #DDF78A;
+  --on-accent: #0E0F11;
+
+  /* Recording */
+  --record: #FF4D4D;
+
+  /* Status: always with an icon and a word, never colour alone. The word is
+     in the token, so no screen types its own. */
+  --status-good: #6FB7FF;
+  --status-good-word: "Good";
+  --status-watch: #F2C14E;
+  --status-watch-word: "Watch";
+  --status-work-on: #FF8A4C;
+  --status-work-on-word: "Work on";
+  --status-cant-score: #8E939B;
+  --status-cant-score-word: "Can't score";
+
+  /* Type: Barlow for text, Barlow Condensed for the wordmark and headings */
+  --font-text: Barlow, system-ui, sans-serif;
+  --font-display: 'Barlow Condensed', Barlow, sans-serif;
+  --size-wordmark: 34px;
+  --size-title: 22px;
+  --size-subtitle: 20px;
+  --size-row: 17px;
+  --size-body: 16px;
+  --size-label: 15px;
+  --size-small: 14px;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --tracking-label: 1.2px;
+  --tracking-wordmark: 0.5px;
+
+  /* Spacing, on a 4 px step */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  /* Corners */
+  --radius-s: 12px;
+  --radius-m: 14px;
+  --radius-l: 16px;
+  --radius-xl: 20px;
+
+  /* Touch targets are 44 px or more */
+  --touch: 44px;
+}

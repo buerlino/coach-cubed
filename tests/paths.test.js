@@ -3,8 +3,10 @@
 // ('/...') where the app loads or links something. The deploy mounts coach
 // at /coach/ and strips the prefix, so an absolute path passes on localhost
 // and 404s behind the proxy. Scans our own HTML, JS, MJS and Python in src/,
-// launchers/ and parked/; vendored third-party code (any vendor/ folder) is
-// skipped. Built-ins only, like docs.test.js.
+// launchers/ and parked/, and the new app's (app/: HTML, JS, MJS, CSS, the
+// manifest and JSON, but not its dist/, android/ or node_modules/); vendored
+// third-party code (any vendor/ folder) is skipped. Built-ins only, like
+// docs.test.js.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -12,8 +14,9 @@ const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
 const ROOT = path.resolve(__dirname, '..');
-const SCANNED = /^(src|launchers|parked)\/.*\.(html|js|mjs|py)$/;
+const SCANNED = /^(?:(?:src|launchers|parked)\/.*\.(?:html|js|mjs|py)|app\/.*\.(?:html|js|mjs|css|webmanifest|json))$/;
 const VENDOR = /(^|\/)vendor\//;
+const NOT_SCANNED = /^app\/(?:dist|android|node_modules)\//;
 
 // Each pattern ends just before an absolute path's `/`: after a quote (or,
 // in an HTML attribute, none), and only if the next character isn't `/` or
@@ -61,7 +64,7 @@ const KNOWN = [
 function scannedFiles() {
   const out = execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], { cwd: ROOT });
   return out.toString('utf8').split('\0')
-    .filter((f) => SCANNED.test(f) && !VENDOR.test(f) && fs.existsSync(path.join(ROOT, f)));
+    .filter((f) => SCANNED.test(f) && !VENDOR.test(f) && !NOT_SCANNED.test(f) && fs.existsSync(path.join(ROOT, f)));
 }
 
 // Every absolute path in `text`, as { line, kind, path }. The path runs from
@@ -82,7 +85,7 @@ function absolutePaths(file, text) {
   return [...hits.values()];
 }
 
-test('no new absolute asset path or URL in src/, launchers/ or parked/', () => {
+test('no new absolute asset path or URL in src/, launchers/, parked/ or app/', () => {
   const known = new Map(KNOWN.map((k) => [`${k.file} ${k.path}`, k]));
   const used = new Set();
   const found = [];
@@ -112,4 +115,18 @@ test('the pattern catches each kind of absolute path, and leaves relative ones a
   for (const s of bad) assert.equal(absolutePaths('t.mjs', s).length, 1, `missed: ${s}`);
   for (const s of good) assert.deepEqual(absolutePaths('t.mjs', s), [], `flagged: ${s}`);
   assert.deepEqual(absolutePaths('t.py', `@app.route('/api/x')\nf('/api/x')`), [], 'a Flask route is not a path to load');
+});
+
+test('app/ is scanned (its HTML, modules, styles and manifest), but not its vendored, built or Android files', () => {
+  const files = scannedFiles();
+  for (const f of ['app/index.html', 'app/manifest.webmanifest', 'app/src/main.mjs', 'app/src/styles/base.css', 'app/tools/assemble.mjs']) {
+    assert.ok(files.includes(f), `${f} is not scanned`);
+  }
+  assert.ok(files.every((f) => !/^app\/(vendor|dist|android|node_modules)\//.test(f)));
+  assert.ok(SCANNED.test('app/dist/index.html') && NOT_SCANNED.test('app/dist/index.html'));
+  assert.ok(SCANNED.test('app/android/app/src/main/assets/index.html') && NOT_SCANNED.test('app/android/app/src/main/assets/index.html'));
+  assert.ok(!SCANNED.test('app/README.md') && !SCANNED.test('tests/app/flow.test.js'));
+  // An absolute path in app/ is found like one in src/.
+  assert.equal(absolutePaths('app/src/styles/base.css', `@font-face { src: url(/vendor/f.woff2); }`).length, 1);
+  assert.equal(absolutePaths('app/manifest.webmanifest', `{ "icons": [{ "src": "icons/a.png" }] }`).length, 0);
 });
