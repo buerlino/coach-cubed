@@ -34,7 +34,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | # | Id | Package | Worker | After | Status |
 | --- | --- | --- | --- | --- | --- |
 | 1 | `s1` | A fixture without a diagnostics set fails loudly | schrödinger, sonnet | — | merged `b77f9ce` |
-| 2 | `s2` | sync_clipper_fixtures takes any attempt number | schrödinger, sonnet | — | ready |
+| 2 | `s2` | sync_clipper_fixtures takes any attempt number | schrödinger, sonnet | — | merged `cce33c3` |
 | 3 | `d3` | The app's frame | dirac, sonnet | — | ready; watched too: the first run of the app checks |
 | 4 | `s4` | diagnostics.js's headless API | schrödinger, opus | `d3` | waits: shares tests/README.md with `d3`, needs app/package.json |
 | 5 | `s5` | The app's contracts | schrödinger, opus | `d3`, `s4` | waits |
