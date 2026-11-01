@@ -37,7 +37,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 2 | `s2` | sync_clipper_fixtures takes any attempt number | schrödinger, sonnet | — | merged `cce33c3` |
 | 3 | `d3` | The app's frame | dirac, sonnet | — | merged `60f1995` |
 | 4 | `s4` | diagnostics.js's headless API | schrödinger, opus | `d3` | merged `3b0e915` |
-| 5 | `s5` | The app's contracts | schrödinger, opus | `d3`, `s4` | waits |
+| 5 | `s5` | The app's contracts | schrödinger, opus | `d3`, `s4` | merged `4d5d093` |
 | 6 | `s6` | TF.js and pose-detection from source | schrödinger, opus | `d3` | waits; L at the limit: split point `s6b` |
 | 7 | `s7` | The from-source bundle gives npm's numbers | schrödinger, sonnet | `s6` | waits; a difference stops the queue before `s10` |
 | 8 | `c8` | The store | curie, sonnet | `s5` | waits |
