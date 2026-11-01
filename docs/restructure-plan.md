@@ -18,23 +18,20 @@ finish (git keeps the history). Decisions and open questions are in
 
   **Phase 3 is under way** on branch `p3/spike` (worktree
   `.claude/worktrees/p3-spike`), merged into `phase-0` only with nordmu's
-  OK. Done: 3.1–3.3 and 3.6's comparison script. Open:
+  OK. Done: 3.1–3.5 and 3.6's comparison script, measured on the
+  Fairphone in Brave and the Capacitor WebView on 2026-10-31/11-01; 3.7 and
+  3.8 are a draft, **proposed, awaiting nordmu**:
+  [pose-spike.md](pose-spike.md) (MediaPipe Pose Landmarker full, GPU
+  delegate, every frame, as a PWA and in Capacitor). Open:
+  - nordmu: confirm or change the draft; whether Noah is asked about the
+    ViTPose/RTMPose weights (not needed unless the validation set fails
+    MediaPipe);
   - 3.0: the re-extraction once no night shift runs; the validation set is
     filmed by a friend of nordmu on 2026-11-01 (the clips from YouTube
     can't stand in: no lateral raises, mostly front views, and they are on
     Noah's machine), then its ViTPose-L references;
-  - 3.4 capture, 3.5's matrix (running in Brave on the Fairphone since
-    2026-10-31 23:26) and the WebView runs, 3.6 on the validation set, 3.7
-    (its numbers go in a new `docs/pose-spike.md`), 3.8 on paper.
-
-  First phone findings (Brave, 20 frames, 1080p):
-  - ONNX Runtime's WebAssembly (4 threads, cross-origin isolated) beats
-    its WebGPU backend on every ONNX candidate (ViTPose-S pose 202 vs
-    416 ms/frame); more than 4 threads is slower;
-  - MediaPipe's GPU delegate is the fastest candidate (48 ms/frame);
-  - WebCodecs' hardware decoder deadlocks if frames are held during
-    `flush()` (fixed in `lib/decode.mjs`); software decode is twice as
-    fast.
+  - 3.6 on the validation set, which replaces the draft's provisional
+    agreement numbers (four example clips) and decides the snatch.
 
   Then Phase 5; milestone B's steps also wait for question 7.
 - **Start now, outside a session** (to-dos, not session work):
@@ -249,20 +246,27 @@ condition are decided ([decisions.md](decisions.md#what-010-is)).
       mp4box.js and WebCodecs, the model in a worker behind one async
       `estimate()`, `track.json` in the fixture format, scored with
       `src/track/` (`c06ccc3`).
-- [ ] 3.4 **Capture checks** for the recording session (milestone B):
+- [x] 3.4 **Capture checks** for the recording session (milestone B):
       `getUserMedia` at 60 fps and `MediaRecorder` inside the Capacitor
       WebView, and a 30–60 minute heat and battery run on the Fairphone,
-      recording and processing.
-- [ ] 3.5 Measure on the Fairphone, in Brave and inside a Capacitor WebView:
+      recording and processing. [spike/capture-check/](../spike/capture-check/README.md)
+      (`fa2e6a3`, `ca02d24`); the camera gives 30 fps at most
+      ([pose-spike.md](pose-spike.md#capture-step-34-brave)).
+- [x] 3.5 Measure on the Fairphone, in Brave and inside a Capacitor WebView:
       ms per frame, decode time, total time per clip, peak memory, download
       size. The stock Android phone comes after the spike (question 3).
+      `ffc8b8a`, the shell [spike/webview-shell/](../spike/webview-shell/README.md)
+      (`d20df09`), the samplers (`53bd301`, `5668d11`); numbers in
+      [pose-spike.md](pose-spike.md).
 - [~] 3.6 Run `diagnostics.js` on each candidate's smoothed tracks of the
       validation set and compare with the references, counting only scored
       verdicts, against the thresholds from 3.0. The script:
       `spike/pose-bench/compare.mjs` (`c7f30d5`).
-- [ ] 3.7 A decision record: model, runtime and shell (PWA / Capacitor /
+- [~] 3.7 A decision record: model, runtime and shell (PWA / Capacitor /
       TWA), with the numbers, and whether the stop condition was hit.
-- [ ] 3.8 **F-Droid, a paper check** off the critical path (pascaline did the
+      Drafted, proposed, awaiting nordmu: [pose-spike.md](pose-spike.md)
+      (`1277d38`).
+- [~] 3.8 **F-Droid, a paper check** (drafted in [pose-spike.md](pose-spike.md#f-droid-step-38-on-paper)) off the critical path (pascaline did the
       same): can the chosen runtime and the model weights be built from
       source, or are they accepted as assets? It doesn't steer the runtime
       choice in 3.7. Until it passes, 0.1.0 ships as a PWA and a GitHub APK.
