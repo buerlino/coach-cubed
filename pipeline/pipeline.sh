@@ -180,7 +180,7 @@ want_checks() {
     auto) local list="npm,py" ch=""
           [[ ! -d "$wt" ]] || ch="$(git -C "$wt" diff --name-only "$INTEG_BRANCH...HEAD")"
           if shell_selected <<<"$ch"; then list="$list,shell"; fi
-          # the app's own tests, each once app/package.json has its script (e4 adds test, e22 test:page)
+          # the app's own tests, each once app/package.json has its script (d3 adds test, c21 test:page)
           if app_selected <<<"$ch"; then
             has_script "$wt/app" test && list="$list,app"
             has_script "$wt/app" test:page && list="$list,page"

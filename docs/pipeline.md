@@ -42,8 +42,10 @@ A package is one concern a fresh session finishes in one run: a few hours of age
 - **Then:** `**Why:**` (the problem, with evidence), `**Read:**` (the files and sections the worker needs, by repo path:
   the bundle includes the first 400 lines of each named file), the numbered steps, and `**Done when:**` (checkable
   lines; the audit holds the diff to them). `**Red first:** yes` when the package's new tests must fail on `phase-0`
-  (every bug fix and every new behaviour with a test): the pipeline then runs the branch's new test files on
-  `phase-0`'s code and refuses a branch whose tests all pass there.
+  (every bug fix and every new behaviour with a test): the pipeline then runs the branch's new and changed test files
+  on `phase-0`'s code. It copies those test files and the files the branch adds under `tests/`; every other file,
+  helpers, fixtures and goldens included, stays `phase-0`'s version, so a fix made inside `tests/` shows red too. A
+  branch whose tests all pass there is refused.
 - **Scope:** only what the file names. A package that needs a decision nobody made yet is not ready to run.
 
 ## The pipeline

@@ -98,22 +98,28 @@ node_modules_stale() {
 }
 
 # ---- red first (pascaline A36): a package's new tests must fail on the old code ----
-# red_first <worktree> <python> <log>: lays the files the branch adds or changes under tests/ over a scratch checkout of the
-# integration branch and runs the test files among them there. Succeeds when at least one fails; otherwise prints why and fails.
-# A run that ran no test at all is a failure too ("compared nothing": pascaline A53's lesson). COACH_REDFIRST_NODE and
-# COACH_REDFIRST_PY override the runners (tests).
+# red_first <worktree> <python> <log>: runs the branch's new and changed test files (*.test.[cm]js anywhere under tests/,
+# tests/test_*.py) on a scratch checkout of the integration branch. Copied over from the branch: those test files and every
+# other file it adds under tests/ (a new helper, fixture or clip the tests need). A file under tests/ that the branch changes
+# but is no test (tests/fixtures.js, a manifest, a golden) keeps the integration branch's version: it is part of the change,
+# so a fix made there shows red too. Succeeds when at least one test fails; otherwise prints why and fails. A run that ran no
+# test at all is a failure too ("compared nothing": pascaline A53's lesson). COACH_REDFIRST_NODE and COACH_REDFIRST_PY
+# override the runners (tests).
 red_first() {
-  local wt="$1" py="$2" out="$3" scratch f js=() pys=() rc ran=0 failed=0
-  mapfile -t files < <(git -C "$wt" diff --name-only --diff-filter=AM "$INTEG_BRANCH...HEAD" -- tests/)
-  for f in "${files[@]}"; do
-    [[ "$f" =~ \.test\.[cm]?js$ ]] && js+=("$f")
-    [[ "$f" =~ ^tests/test_[^/]*\.py$ ]] && pys+=("$f")
-  done
+  local wt="$1" py="$2" out="$3" scratch st f js=() pys=() added=() kept=() rc ran=0 failed=0
+  while IFS=$'\t' read -r st f; do
+    if [[ "$f" =~ \.test\.[cm]?js$ ]]; then js+=("$f")
+    elif [[ "$f" =~ ^tests/test_[^/]*\.py$ ]]; then pys+=("$f")
+    elif [[ "$st" == A ]]; then added+=("$f")
+    else kept+=("$f"); fi
+  done < <(git -C "$wt" -c core.quotePath=false diff --no-renames --name-status --diff-filter=AM "$INTEG_BRANCH...HEAD" -- tests/)
   if [[ ${#js[@]} -eq 0 && ${#pys[@]} -eq 0 ]]; then echo "the package says its tests fail on $INTEG_BRANCH, but the branch adds or changes no test file"; return 1; fi
+  local what="the branch's ${#js[@]} JS and ${#pys[@]} Python test file(s) and the ${#added[@]} other file(s) it adds under tests/, $INTEG_BRANCH's version of everything else"
+  [[ ${#kept[@]} -eq 0 ]] || what="$what (kept: ${kept[*]})"
   scratch="$(mktemp -d)"; rmdir "$scratch"
   git -C "$wt" worktree add -q --detach "$scratch" "$INTEG_BRANCH" >/dev/null 2>&1 || { echo "could not check out $INTEG_BRANCH for red-first"; return 1; }
-  for f in "${files[@]}"; do mkdir -p "$scratch/$(dirname "$f")"; git -C "$wt" show "HEAD:$f" > "$scratch/$f"; done
-  : > "$out"
+  for f in "${js[@]}" "${pys[@]}" "${added[@]}"; do mkdir -p "$scratch/$(dirname "$f")"; git -C "$wt" show "HEAD:$f" > "$scratch/$f"; done
+  echo "red-first on $INTEG_BRANCH's code with $what" > "$out"
   if [[ ${#js[@]} -gt 0 ]]; then
     rc=0; (cd "$scratch" && FORCE_COLOR=0 timeout 600 ${COACH_REDFIRST_NODE:-node --test} "${js[@]}") >> "$out" 2>&1 || rc=$?
     local t k; t="$(grep -oE '^# tests [0-9]+' "$out" | tail -n1 | grep -oE '[0-9]+' || echo 0)"; k="$(grep -oE '^# fail [0-9]+' "$out" | tail -n1 | grep -oE '[0-9]+' || echo 0)"
@@ -125,8 +131,8 @@ red_first() {
     ran=$((ran + r)); [[ $rc -ne 0 ]] && failed=1
   fi
   git -C "$wt" worktree remove --force "$scratch" >/dev/null 2>&1 || true
-  if [[ $ran -eq 0 ]]; then echo "the new tests ran nothing on $INTEG_BRANCH (no test was counted)"; return 1; fi
-  if [[ $failed -eq 0 ]]; then echo "every new or changed test passes on $INTEG_BRANCH's code ($ran run), so none of them tests the change"; return 1; fi
+  if [[ $ran -eq 0 ]]; then echo "the new tests ran nothing on $INTEG_BRANCH (no test was counted; run with $what)"; return 1; fi
+  if [[ $failed -eq 0 ]]; then echo "every new or changed test passes on $INTEG_BRANCH's code ($ran run, with $what), so none of them tests the change"; return 1; fi
   return 0
 }
 

@@ -264,6 +264,22 @@ red_first "$r" python3 "$T/green.log" > "$T/green.why" && fail "red_first: a tes
 grep -q 'every new or changed test passes' "$T/green.why" || fail "red_first: no reason for green: $(cat "$T/green.why")"
 git -C "$r" checkout -qb wp/none phase-0; echo x > "$r/note.txt"; git -C "$r" add -A; git -C "$r" commit -qm none
 red_first "$r" python3 "$T/none.log" > "$T/none.why" && fail "red_first: a branch without tests passes"
+# a fix inside tests/: the branch changes an existing helper (no test file) and tests its new behaviour; phase-0's helper stays
+git -C "$r" checkout -qb wp/helper phase-0; mkdir -p "$r/tests"; echo 'module.exports = () => 1;' > "$r/tests/helper.js"; git -C "$r" add -A; git -C "$r" commit -qm helper
+git -C "$r" branch -qf phase-0 wp/helper; echo 'module.exports = () => 2;' > "$r/tests/helper.js"
+printf "const test = require('node:test'); const a = require('node:assert'); test('helper', () => a.equal(require('./helper.js')(), 2));\n" > "$r/tests/helper.test.js"
+git -C "$r" add -A; git -C "$r" commit -qm fix-in-tests
+red_first "$r" python3 "$T/helper.log" > "$T/helper.why" || fail "red_first: a changed helper under tests/ was copied over: $(cat "$T/helper.why")"
+grep -q 'kept: tests/helper.js' "$T/helper.log" || fail "red_first: the log doesn't name the kept helper: $(head -n1 "$T/helper.log")"
+# an added helper is copied: the test fails on phase-0 because of f.js's old code, not a missing module
+git -C "$r" checkout -qb wp/added phase-0; echo 'module.exports = () => 1;' > "$r/g.js"; git -C "$r" add -A; git -C "$r" commit -qm g
+git -C "$r" branch -qf phase-0 wp/added; echo 'module.exports = () => 2;' > "$r/g.js"
+echo "module.exports = () => require('../g.js')() * 10;" > "$r/tests/tens.js"
+printf "const test = require('node:test'); const a = require('node:assert'); test('tens', () => a.equal(require('./tens.js')(), 20));\n" > "$r/tests/tens.test.js"
+git -C "$r" add -A; git -C "$r" commit -qm added-helper
+red_first "$r" python3 "$T/added.log" > "$T/added.why" || fail "red_first: a test using an added helper is refused: $(cat "$T/added.why")"
+grep -q 'Cannot find module' "$T/added.log" && fail "red_first: the added helper was not copied"
+grep -q '10 !== 20\|AssertionError' "$T/added.log" || fail "red_first: the added helper's test didn't fail on g.js: $(tail -n 20 "$T/added.log")"
 [[ -z "$(git -C "$r" worktree list | sed -n 2p)" ]] || fail "red_first leaves its scratch worktree"
 
 if [[ $fails -gt 0 ]]; then echo "pipeline.test.sh: $fails failure(s)"; exit 1; fi
