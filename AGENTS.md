@@ -15,6 +15,7 @@ Setup for both (the `.venv`, the checkpoints): [README.md](README.md). The serve
 
 ## Workflow
 - During the restructuring window (from 2026-10-31) all work happens on branch `phase-0`, in the worktree `.claude/worktrees/phase-0`; `main` and the `pre-cleanup` tag stay untouched. What to do next: [docs/restructure-plan.md](docs/restructure-plan.md), "Next session starts here".
+- Work packages run through the agent pipeline, one package per run: `pipeline/pipeline.sh <id>` (worker, checks, audit, merge into `phase-0`). How it works and its rules: [docs/pipeline.md](docs/pipeline.md).
 - One step per commit, with both test commands passing (after a move, the grep too). Never push, and never rewrite history, without nordmu's explicit OK.
 - Decisions belong to nordmu, or to Noah where [docs/decisions.md](docs/decisions.md) says so: ask, don't guess, and record the answer there.
 

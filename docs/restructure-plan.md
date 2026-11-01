@@ -47,6 +47,10 @@ finish (git keeps the history). Decisions and open questions are in
   [ui-design.md](ui-design.md#how-the-design-work-continues). 5.3 builds on
   the working pick once nordmu approves the mockups. The rest of Phase 3
   runs as its own session once the clips and the OK are in.
+- **Phase 4 is done** (2026-11-01): Phase 5 runs as packages through
+  `pipeline/pipeline.sh <id>` ([pipeline.md](pipeline.md)); another
+  session writes the packages into `docs/packages/`. 4.4, the first real
+  run, is next.
 - **Start now, outside a session** (to-dos, not session work):
   - nordmu: a one-line written OK to GPL-3.0-or-later from Noah, Nicola
     Walker and JMLuner (a chat message each is enough);
@@ -301,19 +305,26 @@ condition are decided ([decisions.md](decisions.md#what-010-is)).
       builds TF.js from source (nordmu, 2026-11-01). Until F-Droid passes,
       0.1.0 ships as a PWA and a GitHub APK.
 
-### Phase 4: a small pipeline (after pascaline's fixes and nordmu's skill)
+### Phase 4: a small pipeline (done 2026-11-01)
 
-- [ ] 4.1 Port from pascaline only:
-      - the package files (Why / Read / Steps / Done when);
-      - the flow: a worker in its own worktree, the checks, a read-only diff
-        audit, a `--no-ff` merge;
-      - `.coord/log.md`, `.tasks/`, the RESULT line and the script's own
-        tests.
-- [ ] 4.2 One worker and one auditor. Night shifts, lanes, the coordinator and
-      overseer agents, locks and Opus passes come later, if the volume of work
-      needs them.
-- [ ] 4.3 The checks: `npm test` (it includes the docs checks and the
-      absolute-path check) and the Python tests.
+Built on nordmu's word of 2026-11-01, from pascaline's scripts directly, so
+Phase 5 runs as packages, one fresh session each. How it works:
+[pipeline.md](pipeline.md); the scripts: `pipeline/`.
+
+- [x] 4.1 Ported: the package files, the run (a worker in its own worktree,
+      the checks, a read-only audit of the diff, a `--no-ff` merge of the
+      audited commit), the merge queue, `.coord/log.md`, `.tasks/`, the
+      RESULT line, pascaline's guards (A17, A24, A38, A47a, A54, A55, A58)
+      and the scripts' own tests. One change: a commit on `phase-0` made
+      without the lock no longer stops a run; it is merged in, and the
+      approval carries over only when the change set is unchanged.
+- [x] 4.2 Five agents, named by nordmu: the workers dirac (UI), schrödinger
+      (pose and scoring) and curie (phone, Android, recording), the advisor
+      einstein, the auditor hillbert. Nights, lanes, a coordinator and
+      Opus passes stay in pascaline until the volume needs them.
+- [x] 4.3 The checks: `npm test`, the Python tests, the pipeline's shell
+      tests when `pipeline/` changes, and red-first when a package asks.
+- [ ] 4.4 The first real run, on a small package, watched by nordmu.
 
 ### Phase 5: the new app (mobile-first UI and the gym recording session)
 

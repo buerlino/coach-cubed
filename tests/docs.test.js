@@ -25,6 +25,7 @@ const BUDGETS = [
   { file: 'docs/backlog.md', maxBytes: 4000 }, // [3140]
   { file: 'docs/rules-core.md', maxBytes: 8500 }, // [6946]
   { file: 'docs/restructure-plan.md', maxBytes: 38000 }, // [25369]
+  { file: 'docs/pipeline.md', maxBytes: 18000 }, // [14500] (2026-11-01)
 ];
 
 // Links that point outside the repo on purpose, as { file, target, reason }.
