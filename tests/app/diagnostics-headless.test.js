@@ -166,3 +166,277 @@ test('the old page draws the same overlay as before s4 (digests from phase-0)', 
   }
   assert.deepStrictEqual(now, JSON.parse(fs.readFileSync(DIGESTS, 'utf8')));
 });
+
+// --- describe(set) ------------------------------------------------------------
+//
+// The text the old page shows, as written in src/diagnostics.js at phase-0
+// (8a4fcdf). Pinned here so a change to a title, cue, unit or phase label shows
+// up as a failing test, not only as a moved mockup.
+const CUES = {
+  'lateral-raise': [
+    { id: 'lateral-raise-top-height', title: 'Top of rep — raise to shoulder height',
+      cue: 'At the top of each rep the arms lift to about shoulder height — not swung above it, not stopped short.',
+      unit: '%', phaseLabel: null },
+    { id: 'lateral-raise-torso-lean', title: 'Torso lean — stay upright through the set',
+      cue: 'The trunk stays upright throughout the set: the weight is raised by the arms, not by leaning or swinging the torso.',
+      unit: '°', phaseLabel: null },
+    { id: 'lateral-raise-elbow-lead', title: 'Elbow lead — elbow tracks at or above the wrist',
+      cue: 'Through the raise the elbow stays at or slightly above the wrist — the wrist shouldn\'t flick up and lead the lift.',
+      unit: '%', phaseLabel: null },
+    { id: 'lateral-raise-tempo', title: 'Tempo — controlled lowering, not dropped',
+      cue: 'The weight is lowered under control — the descent isn\'t noticeably faster than the raise.',
+      unit: 'x', phaseLabel: null },
+    { id: 'lateral-raise-symmetry', title: 'Rep-to-rep symmetry — consistent height across the set',
+      cue: 'Every rep in the set reaches about the same height as the first — height dropping as the set goes on is fatigue, not a one-off.',
+      unit: '%', phaseLabel: null },
+  ],
+  'snatch': [
+    { id: 'first-pull-back-angle', title: 'First pull — constant back angle',
+      cue: 'Through the first pull the back angle to the floor stays constant: the knees open and the bar rises, but the trunk keeps its inclination.',
+      unit: '°', phaseLabel: 'first pull' },
+    { id: 'second-pull-triple-extension', title: 'Second pull — full triple extension',
+      cue: 'At the top of the second pull the hips and knees open fully — "triple extension" — before the arms bend into the turnover.',
+      unit: '°', phaseLabel: 'second pull' },
+  ],
+};
+
+// Every threshold constant in src/diagnostics.js is commented "provisional"
+// (SD_GOOD/SD_WARN, EXT_GOOD/EXT_WARN, TOP_*, LEAN_*, ELBOW_*, TEMPO_*, SYM_*),
+// and docs/rules-core.md keeps them so until they're checked on real lifts.
+test('describe(set) lists the set\'s cues in order, with their text and provisional thresholds', () => {
+  const D = loadDiagnostics();
+  for (const [set, cues] of Object.entries(CUES)) {
+    assert.deepStrictEqual(D.describe(set), cues.map(c => Object.assign({}, c, { provisional: true })), set);
+  }
+  // the clean's set too, which no fixture covers: every cue provisional
+  const clean = D.describe('clean-and-jerk');
+  assert.deepStrictEqual(clean.map(c => c.id), ['clean-first-pull-back-angle']);
+  assert.equal(clean[0].provisional, true);
+  assert.equal(clean[0].phaseLabel, 'first pull');
+});
+
+test('describe(set) is plain data, independent of the active page, and refuses an unknown set', () => {
+  const D = loadDiagnostics();
+  D.setPage('snatch');
+  const a = D.describe('lateral-raise');
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(a)), a);
+  a[0].title = 'changed';
+  assert.equal(D.describe('lateral-raise')[0].title, CUES['lateral-raise'][0].title);
+  assert.throws(() => D.describe('deadlift'), /deadlift/);
+});
+
+test('describe(set) matches the titles the old panel shows', () => {
+  for (const slug of [LATERAL, SNATCH]) {
+    const { D, el } = oldPage(slug, { sections: true });
+    const shown = el.sections.children.map(b => b.children[0].textContent);
+    assert.deepStrictEqual(shown, D.describe(diagnosticsSet(manifest, slug, D)).map(c => c.title), slug);
+  }
+});
+
+// --- tiles(id, result) and referenceLine(id, result) ---------------------------
+
+function contains(haystack, needles) {
+  let at = 0;
+  for (const n of needles) {
+    const i = haystack.indexOf(n, at);
+    if (i < 0) return `missing ${JSON.stringify(n)} after offset ${at}`;
+    at = i + n.length;
+  }
+  return null;
+}
+
+test('tiles(id, result) are the tiles the old panel shows for each cue', () => {
+  for (const slug of [LATERAL, SNATCH]) {
+    const { D, el } = oldPage(slug, { sections: true });
+    const { out } = computed(slug);
+    const cues = D.describe(diagnosticsSet(manifest, slug, D));
+    cues.forEach((c, k) => {
+      const html = el.sections.children[k].children[1].innerHTML;
+      const res = out.results[c.id];
+      const tiles = D.tiles(c.id, res);
+      if (res.error) {
+        assert.deepStrictEqual(tiles, [], `${c.id}: a cue that can't be scored has no tiles`);
+        assert.equal(html, '');
+        return;
+      }
+      assert.ok(tiles.length > 0, c.id);
+      assert.equal(html.split('class="diag-tile"').length - 1, tiles.length, c.id);
+      const miss = contains(html, tiles.flatMap(t => ['>' + t.label + '<', '>' + t.value + '<', '>' + (t.sub || '') + '<']));
+      assert.equal(miss, null, `${c.id}: ${miss}`);
+      // the headline tile carries the verdict
+      assert.equal(tiles[0].status, res.verdict.status, c.id);
+    });
+  }
+});
+
+test('referenceLine(id, result) is the line the old chart draws, null when the cue has no plot', () => {
+  for (const slug of [LATERAL, SNATCH]) {
+    const { D, el } = oldPage(slug, { sections: true });
+    const { out } = computed(slug);
+    D.describe(diagnosticsSet(manifest, slug, D)).forEach((c, k) => {
+      const res = out.results[c.id];
+      const chart = el.sections.children[k].children[2].children[0].getContext('2d');
+      const line = D.referenceLine(c.id, res);
+      if (res.error) { assert.equal(line, null, c.id); return; }
+      assert.ok(line && typeof line.value === 'number' && typeof line.label === 'string', c.id);
+      assert.ok(chart.calls.some(call => call[0] === 'fillText' && call[1] === line.label),
+        `${c.id}: the old chart never wrote ${JSON.stringify(line.label)}`);
+      assert.equal(D.referenceLine(c.id), null, `${c.id}: no result, no line`);
+    });
+  }
+});
+
+test('tiles and referenceLine refuse an unknown cue id', () => {
+  const D = loadDiagnostics();
+  assert.throws(() => D.tiles('no-such-cue', {}), /no-such-cue/);
+  assert.throws(() => D.referenceLine('no-such-cue', {}), /no-such-cue/);
+});
+
+// --- drawCue(ctx, id, t, computed) ----------------------------------------------
+
+test('drawCue draws inside each cue\'s phase and nothing outside it, with no panel, DOM or module state', () => {
+  for (const slug of [LATERAL, SNATCH]) {
+    const { D, out } = computed(slug);
+    const cues = D.describe(diagnosticsSet(manifest, slug, D));
+    // A second, never-mounted copy of the module on another lift's set: drawCue
+    // reads only what it is handed.
+    const fresh = loadDiagnostics();
+    fresh.setPage('clean-and-jerk');
+    assert.equal(global.document, undefined);
+    let drewSome = false;
+    for (const c of cues) {
+      const res = out.results[c.id];
+      const t0 = res.error ? null : out.samples[res.phase.startIdx].t;
+      const t1 = res.error ? null : out.samples[res.phase.endIdx].t;
+      for (const t of sweep(out.samples)) {
+        const ctx = recordingContext();
+        const drew = fresh.drawCue(ctx, c.id, t, out);
+        const inside = !res.error && t >= t0 && t <= t1;
+        assert.equal(drew, inside, `${slug} ${c.id} at ${t}`);
+        assert.equal(ctx.calls.length > 0, inside, `${slug} ${c.id} at ${t}: ${ctx.calls.length} calls`);
+        drewSome = drewSome || drew;
+      }
+    }
+    assert.ok(drewSome, slug);
+  }
+});
+
+test('drawCue draws exactly what the old page\'s overlay draws, in every motion mode', () => {
+  for (const slug of [LATERAL, SNATCH]) {
+    for (const [mode, motion] of Object.entries(MODES)) {
+      const { perTime, out } = oldOverlayRecord(slug, mode);
+      const D = loadDiagnostics();
+      const cues = D.describe(diagnosticsSet(manifest, slug, D));
+      sweep(out.samples).forEach((t, k) => {
+        const ctx = recordingContext();
+        let row = 0;
+        for (const c of cues) {
+          if (D.drawCue(ctx, c.id, t, out, Object.assign({ labelRow: row }, motion)) && c.phaseLabel) row++;
+        }
+        assert.equal(digest(ctx.calls), digest(perTime[k]), `${slug} ${mode} at t=${t}`);
+      });
+    }
+  }
+});
+
+test('drawCue can leave the phase label off, and refuses an unknown cue id', () => {
+  const { D, out } = computed(SNATCH);
+  const res = out.results['first-pull-back-angle'];
+  const t = out.samples[res.phase.startIdx].t;
+  const withLabel = recordingContext(), without = recordingContext();
+  assert.equal(D.drawCue(withLabel, 'first-pull-back-angle', t, out), true);
+  assert.equal(D.drawCue(without, 'first-pull-back-angle', t, out, { label: false }), true);
+  assert.ok(withLabel.calls.some(c => c[0] === 'fillText' && c[1] === 'first pull'));
+  assert.ok(!without.calls.some(c => c[0] === 'fillText'));
+  assert.throws(() => D.drawCue(recordingContext(), 'no-such-cue', t, out), /no-such-cue/);
+  assert.equal(D.drawCue(recordingContext(), 'first-pull-back-angle', NaN, out), false);
+});
+
+// --- worstMoment(id, result) ----------------------------------------------------
+//
+// The rule each cue uses (reported per cue in s4's report):
+//   summary-worst       the series sample whose value the summary names as worst
+//   summary-last        the last rep, which the summary's decline is measured to
+//   farthest-from-mean  the sample farthest from the mean the verdict's SD is taken around
+//   phase-end           the last sample, the top of the pull where the extension is read
+const RULES = {
+  'lateral-raise-top-height': 'summary-worst',
+  'lateral-raise-elbow-lead': 'summary-worst',
+  'lateral-raise-tempo': 'summary-worst',
+  'lateral-raise-symmetry': 'summary-last',
+  'lateral-raise-torso-lean': 'farthest-from-mean',
+  'first-pull-back-angle': 'farthest-from-mean',
+  'clean-first-pull-back-angle': 'farthest-from-mean',
+  'second-pull-triple-extension': 'phase-end',
+};
+
+function checkWorst(D, id, res, samples) {
+  const w = D.worstMoment(id, res);
+  assert.ok(w, id);
+  assert.equal(w.rule, RULES[id], id);
+  const s = res.series.find(x => x.idx === w.idx);
+  assert.ok(s, `${id}: the worst moment is a sample of the cue's series`);
+  assert.deepStrictEqual({ t: w.t, frame: w.frame, value: w.value }, { t: s.t, frame: s.frame, value: s.value }, id);
+  assert.ok(w.t >= samples[res.phase.startIdx].t && w.t <= samples[res.phase.endIdx].t, `${id}: inside the phase`);
+  const vals = res.series.map(x => x.value);
+  if (w.rule === 'summary-worst') assert.equal(w.value, res.summary.worst, id);
+  if (w.rule === 'summary-last') assert.equal(w.value, res.summary.last, id);
+  if (w.rule === 'phase-end') assert.equal(w.idx, res.series[res.series.length - 1].idx, id);
+  if (w.rule === 'farthest-from-mean') {
+    const far = Math.max(...vals.map(v => Math.abs(v - res.summary.mean)));
+    assert.equal(Math.abs(w.value - res.summary.mean), far, id);
+  }
+  return w;
+}
+
+test('worstMoment gives each scored cue the time its verdict rests on, and null when it can\'t score', () => {
+  let scored = 0;
+  for (const slug of [LATERAL, SNATCH]) {
+    const { D, out } = computed(slug);
+    for (const c of D.describe(diagnosticsSet(manifest, slug, D))) {
+      const res = out.results[c.id];
+      if (res.error) { assert.equal(D.worstMoment(c.id, res), null, c.id); continue; }
+      const w = checkWorst(D, c.id, res, out.samples);
+      assert.equal(D.drawCue(recordingContext(), c.id, w.t, out), true, `${c.id}: drawn at its worst moment`);
+      scored++;
+    }
+  }
+  // lateral-raise-cable-1 has one rep, so its symmetry can't be scored (its golden)
+  assert.equal(scored, 6);
+  assert.throws(() => loadDiagnostics().worstMoment('no-such-cue', {}), /no-such-cue/);
+});
+
+// Symmetry needs two reps or more, which neither fixture has: the synthetic
+// eight-rep fatigue set of tests/diagnostics.test.js, its height falling rep by rep.
+test('worstMoment of a scored symmetry is the last rep', () => {
+  const D = loadDiagnostics();
+  D.setPage('lateral-raise');
+  const signal = [];
+  for (const amplitude of [0.6, 0.54, 0.48, 0.42, 0.36, 0.30, 0.24, 0.18]) {
+    const peak = -0.8 + amplitude;
+    signal.push(...Array(8).fill(-0.8));
+    signal.push(...Array.from({ length: 18 }, (_, i) => -0.8 + amplitude * (i + 1) / 18));
+    signal.push(...Array(8).fill(peak));
+    signal.push(...Array.from({ length: 18 }, (_, i) => peak - amplitude * (i + 1) / 18));
+  }
+  signal.push(...Array(8).fill(-0.8));
+  const keypoints = {};
+  signal.forEach((height, frame) => {
+    const wristY = 100 - height * 100;
+    const points = Array.from({ length: 17 }, () => [0, 0, 0]);
+    points[5] = [100, 80, 1]; points[6] = [100, 120, 1];
+    points[7] = [(100 + wristY) / 2, 75, 1]; points[8] = [(100 + wristY) / 2, 125, 1];
+    points[9] = [wristY, 70, 1]; points[10] = [wristY, 130, 1];
+    points[11] = [200, 85, 1]; points[12] = [200, 115, 1];
+    points[13] = [280, 90, 1]; points[14] = [280, 110, 1];
+    points[15] = [360, 90, 1]; points[16] = [360, 110, 1];
+    keypoints[String(frame)] = { '1': points };
+  });
+  const idx = signal.map((_, i) => i);
+  const out = D.computeResults(keypoints, { fps: 30, frame_indices: idx, frame_times_ms: idx.map(i => i * 1000 / 30) }, '1');
+  const res = out.results['lateral-raise-symmetry'];
+  assert.ok(!res.error, res.error);
+  assert.equal(res.summary.reps, 8);
+  const w = checkWorst(D, 'lateral-raise-symmetry', res, out.samples);
+  assert.equal(w.idx, res.series[7].idx);
+});
