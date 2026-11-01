@@ -18,6 +18,7 @@ python3 -m unittest discover -s tests -p 'test_*.py'  # the Python tests
 | `paths.test.js` | rules-core's "Paths stay relative": no new absolute path (`'/...'`) in an import, import map, `src`, `href`, `fetch`, redirect or `/api/` call in `src/`, `launchers/` and `parked/`. Today's paths in frozen code are allowlisted at its top, each with a reason. |
 | `docs.test.js` | The docs: AGENTS.md, CLAUDE.md and the big docs within their budgets, every relative link and anchor in a tracked `.md` file, every path `docs/README.md` names. The budgets are at its top. |
 | `test_launchers.py` | The local preview (`launchers/run_local.py`): its entry points, the `/` and `/original/` routes, and the example gallery. |
+| `test_adb_guard.py` | The Bash hook `.claude/hooks/adb_guard.py`: a bare adb, another serial, the tablet's serial and the shared adb server are blocked, also behind wrappers, `bash -c` and `$( )`; `adb -s 4d42e62f`, `adb devices` and "adb" as a plain word pass. |
 
 The helpers: `fixtures.js` (where fixtures and goldens live), `loadDiagnostics.js`
 (loads `diagnostics.js` headless, with a stub `window`), `loadViewer.js`,

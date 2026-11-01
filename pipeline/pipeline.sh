@@ -170,7 +170,7 @@ section() { awk -v h="$1" 'index($0, h) == 1 {p=1; next} p && /^## / {p=0} p' "$
 
 no_wait="Never start a background loop that waits on a process (pgrep -f matches the loop's own command line, so it never ends); run every check in the foreground with a timeout."
 phone_rule="You may not run adb: the phone belongs to curie."
-[[ "$agent" != curie ]] || phone_rule="The phone is yours: adb is limited to $phone (ANDROID_SERIAL is set); take its lock first with pipeline/devlock.sh acquire $phone curie-$n 1800 and release it when you are done; never touch another device."
+[[ "$agent" != curie ]] || phone_rule="The phone is yours: name it in every adb command, adb -s $phone ... (a hook blocks a bare adb); take its lock first with pipeline/devlock.sh acquire $phone curie-$n 1800 and release it when you are done; never touch another device."
 worker_prompt="You are $agent in pipeline run $n for package $id. The task bundle is on stdin (also at $bundle). You work in your own worktree on branch $branch from $INTEG_BRANCH; never switch branches, never commit anywhere else, never push. Read docs/pipeline.md sections \"Hard rules\" and \"Worker setup\" and docs/rules-core.md first, then work only from the bundle: read further files by section when the task needs them, and keep your context small. Run npm test and the Python tests while you work; the pipeline runs every check afterwards. Heavy CPU work (builds, pose runs over videos) goes through pipeline/devlock.sh slice, ten minutes at most per piece. $phone_rule Commit small, each commit with the Co-Authored-By trailer of your model, and end with the report commit the bundle describes. $no_wait Reply in at most five lines: last commit, done or not done, open questions."
 
 wt="$main/.claude/worktrees/wp-$(printf '%03d' "$n")-$id"
@@ -193,7 +193,7 @@ want_checks() {
 if [[ $dry -eq 1 ]]; then
   echo "DRY RUN: pipeline run $n, package $id, agent $agent ($model, effort $effort), branch $branch"
   echo "integration branch: $INTEG_BRANCH, worktree $integ"; echo "worker worktree: $wt"
-  echo "COACH_PORT=$COACH_PORT COACH_PY=$py$([[ "$agent" == curie ]] && echo " ANDROID_SERIAL=$phone (adb limited to it)" || echo " (adb refused: the phone is curie's)")"
+  echo "COACH_PORT=$COACH_PORT COACH_PY=$py$([[ "$agent" == curie ]] && echo " ANDROID_SERIAL=$phone (adb limited to it)" || echo " ANDROID_SERIAL=coach-no-device (adb refused: the phone is curie's)")"
   echo "checks: $(want_checks)$([[ "$checks" == auto ]] && echo ' (+ shell when the diff touches pipeline/; + app, page when it touches app/ or src/ and app/package.json has test, test:page)')"
   echo "audit: $AUDITOR, model $audit_model (auto: opus when the worker runs on opus or the diff matches $AUDIT_OPUS_RE)"
   echo "locks: $branch_lock for the whole run; integ in the queue (waits up to ${COACH_INTEG_WAIT:-7200} s)"
@@ -251,7 +251,9 @@ EOF
   export ANDROID_SERIAL="$phone"
 else
   printf '#!/bin/sh\necho "adb: the phone belongs to curie; say what you need measured in your report" >&2\nexit 1\n' > "$run/bin/adb"
-  unset ANDROID_SERIAL
+  # A serial no device has, not an unset one: adb called by its full path, or by Gradle or Capacitor, then finds no
+  # device instead of the only one attached, which at night is pascaline's tablet.
+  export ANDROID_SERIAL=coach-no-device
 fi
 chmod +x "$run/bin/adb"; export PATH="$run/bin:$PATH"
 

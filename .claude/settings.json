@@ -18,5 +18,19 @@
       "Edit(/.caddy/**)",
       "Read(/spike/**/results/**)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 -I \"$CLAUDE_PROJECT_DIR/.claude/hooks/adb_guard.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
   }
 }
