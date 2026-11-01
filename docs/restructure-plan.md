@@ -16,36 +16,34 @@ finish (git keeps the history). Decisions and open questions are in
   - 2.8, the history rewrite, last, with nordmu's explicit OK, once the
     clipper repo has its home.
 
-  **Phase 3 is under way** on branch `p3/spike` (worktree
-  `.claude/worktrees/p3-spike`), merged into `phase-0` only with nordmu's
-  OK. Done: 3.1–3.5 and 3.6's comparison script, measured on the
-  Fairphone in Brave and the Capacitor WebView on 2026-10-31/11-01. On
-  2026-11-01 nordmu ruled that the shipped runtime must be open source and
-  buildable from source, which drops MediaPipe Tasks; the open runtimes were
-  measured the same evening. **3.7, the working pick (nordmu,
-  2026-11-01):** MoveNet SinglePose Thunder on TensorFlow.js, WebGL, every
-  frame, as a PWA and in Capacitor; final once 3.6 passes on the validation
-  set ([pose-spike.md](pose-spike.md)). Open:
-  - 3.0, not run: the re-extraction of `lateral-raise-cable-1` with
-    ViTPose-L and its diff against the committed track (max and mean
-    keypoint distance in pixels, the verdicts raw and smoothed). The night
-    session's queued job died with no output on 2026-11-01, and the
-    re-queued one was stopped at the session's end because a pascaline
-    shift still ran. Only while no night shift runs: start `src/app.py`
-    directly (`COACH_PORT=8091`), POST the clip to `/api/pose/video/start`
-    with `size=l`, `frame_stride=1`, save `/api/pose/video/result` outside
-    the repo, then `node spike/pose-bench/difftrack.mjs <that file>`;
-  - 3.0, the validation set: not in by this session's end (2026-11-01,
-    20:00; neither the clips nor the friend's written OK), so 3.6 stays
-    open. The clips from
-    YouTube can't stand in (no lateral raises, mostly front views, on
-    Noah's machine). Then its ViTPose-L references, after a clean 3.0 diff;
-  - 3.6 on the validation set, which replaces the provisional agreement
-    numbers (four example clips, where every candidate but MoveNet
-    Lightning sits at 100%) and decides between MoveNet Thunder and
-    BlazePose, and the snatch.
+  **Phase 3** runs on branch `p3/spike` (worktree
+  `.claude/worktrees/p3-spike`). It was fast-forwarded into `phase-0` with
+  nordmu's OK at the end of the 2026-11-01 evening session; later spike
+  work merges again only with nordmu's OK. Done: 3.1–3.5, 3.6's comparison
+  script, 3.0's precondition (passed, accepted by nordmu) and 3.8 on paper,
+  measured on the Fairphone in Brave and the Capacitor WebView on
+  2026-10-31/11-01. The shipped runtime must be open source and buildable
+  from source (nordmu, 2026-11-01), which drops MediaPipe Tasks. **3.7,
+  the working pick (nordmu, 2026-11-01):** MoveNet SinglePose Thunder on
+  TensorFlow.js, WebGL, every frame, as a PWA and in Capacitor, built from
+  the TF.js tags' sources in 5.3; final once 3.6 passes on the validation
+  set ([pose-spike.md](pose-spike.md)). Open, all waiting on the validation
+  set (not in by 2026-11-01, 21:00: neither the clips nor the friend's
+  written OK; the YouTube clips can't stand in: no lateral raises, mostly
+  front views, on Noah's machine):
+  - its ViTPose-L references, made on this laptop with
+    `scripts/batch_extract_tracks.py --host 127.0.0.1:8091 --scope local`
+    (CPU-heavy: only while no night shift runs), and who judges the few
+    person verdicts (ask nordmu);
+  - 3.6 on it in Brave on the Fairphone, which replaces the provisional
+    agreement numbers (four example clips, where every candidate but
+    MoveNet Lightning sits at 100%), confirms Thunder or switches to
+    BlazePose, and decides the snatch.
 
-  Then Phase 5; milestone B's steps also wait for question 7.
+  **Phase 5 starts next**, on `phase-0`: 5.1 (question 7) comes before
+  anything of milestone B is designed; ask nordmu where 5.2's mockups
+  stand; 5.3 builds on the working pick. The rest of Phase 3 runs as its
+  own session once the clips and the OK are in.
 - **Start now, outside a session** (to-dos, not session work):
   - nordmu: a one-line written OK to GPL-3.0-or-later from Noah, Nicola
     Walker and JMLuner (a chat message each is enough);
@@ -237,15 +235,19 @@ condition are decided ([decisions.md](decisions.md#what-010-is)).
       nordmu films, after a written OK to use the footage,
       about 10 lateral-raise sets of several reps and about 5 side-view
       snatches (kept out of git, under `tests/fixtures/local/`). Each gets a
-      ViTPose-L reference track from the dev server and a few verdicts judged
-      by a person. **Precondition**, before the first new reference track or
-      golden: re-extract one committed clip's track with the edited
-      `vitpose_backend.infer_video` (`212f502` changed it; no pose pass has
-      run since) and diff it against the committed track. Start `src/app.py`
-      directly (`coach_launch.sh` runs `pkill -f`), and only while no
-      pascaline night shift runs (`ps -eo args | grep [n]ight.sh`): at about
-      1 s per frame on this CPU, a 3 s clip takes minutes. Not run on
-      2026-10-31 or 11-01: a night shift had the CPU each time.
+      ViTPose-L reference track from the dev server, made on this laptop,
+      and a few verdicts judged by a person. Not in as of 2026-11-01, 21:00.
+      **The precondition passed** (2026-11-01, accepted by nordmu):
+      `lateral-raise-cable-1` re-extracted with ViTPose-L on this laptop's
+      CPU (75 frames, 1080×1920) against the committed track (Noah's
+      machine, 2026-09-07). All 10 verdicts the same, raw and smoothed;
+      keypoints mean 2.7 px, p95 6.8, max 52.9 (one left ear at confidence
+      0.48), none across the 0.3 confidence gate. A second run here matched
+      the first to 0.000 px, and `212f502` only removed the bar-detection
+      thread, off for this clip: the machine differs, not the code. Tools:
+      `src/app.py` started directly (`coach_launch.sh` runs `pkill -f`) and
+      `spike/pose-bench/difftrack.mjs` (`db315b5`); 75 frames took 1.5 min
+      at nice 19 beside a night shift.
 - [x] 3.1 Candidates: MediaPipe Pose Landmarker (lite, full, heavy),
       ViTPose-S/B and RTMPose-s/m, the last two behind Megvii's YOLOX
       (Apache-2.0); versions, sources and licence flags (ViTPose's MAE
