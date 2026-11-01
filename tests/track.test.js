@@ -9,7 +9,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { loadDiagnostics } = require('./loadDiagnostics');
-const { loadManifests, trackPathFor } = require('./fixtures');
+const { loadManifests, trackPathFor, diagnosticsSet } = require('./fixtures');
 const { oldPage, oldDiagnostics, diagnosticsLine } = require('./loadOldCode');
 
 const smoothing = import('../src/track/smoothing.mjs');
@@ -23,7 +23,7 @@ const oldKeep = diagnosticsLine('const keep = ids.', ['ids', 'prev'], 'keep');
 
 const manifest = loadManifests();
 const FIXTURES = Object.keys(manifest).sort().map(slug => ({
-  slug, set: manifest[slug].diagnostics || 'snatch',
+  slug, set: diagnosticsSet(manifest, slug, loadDiagnostics()),
   track: JSON.parse(fs.readFileSync(trackPathFor(slug), 'utf8')),
 }));
 

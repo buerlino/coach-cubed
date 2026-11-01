@@ -10,6 +10,7 @@ python3 -m unittest discover -s tests -p 'test_*.py'  # the Python tests
 | File | Tests |
 | --- | --- |
 | `diagnostics.test.js` | `src/diagnostics.js`: every fixture's results against its golden snapshot, plus synthetic tracks for the phase triggers and rep counting. |
+| `fixtures.test.js` | `diagnosticsSet` in `fixtures.js`: a manifest entry without a `diagnostics` field, or naming a set `diagnostics.js` doesn't know, throws and names the slug; every entry of the committed global manifest passes. |
 | `pose.test.js` | `src/pose/coco17.mjs`: the BlazePose-33 → COCO-17 mapping and its `[y, x, conf]` output. |
 | `viewer.test.js` | The 3D view's click-to-flip-a-depth-sign, run on the viewer module taken straight out of `src/app.py` (`loadViewer.js`) with three.js's renderer stubbed: no GPU, no browser. This interaction broke twice in ways nothing else could see. |
 | `anatomy.test.js`, `anatomy-grip.test.js`, `anatomy-sequence.test.js`, `anatomy-stability.test.js` | The anatomy view's modules in `src/anatomy/`: the rig, the hand contacts on the bar, the display sequence, stabilization. |
@@ -150,7 +151,9 @@ npm test
 ```
 
 Picks up every fixture in `manifest.json` automatically — no test code to
-edit when a new stance shows up, only steps 3 and 6 above. A fixture with a
+edit when a new stance shows up, only steps 3 and 6 above. Every entry needs
+its `diagnostics` field (a `DIAGNOSTIC_SETS` key): a fixture without one, or
+with an unknown name, fails with its slug instead of being scored as a snatch. A fixture with a
 `.track.json` but no golden snapshot fails loudly with the `update_golden.js`
 command to fix it, rather than being silently skipped.
 
