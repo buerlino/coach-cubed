@@ -283,11 +283,15 @@ condition are decided ([decisions.md](decisions.md#what-010-is)).
       WebView (plans `7eb0142`; the record `64412d8`). **nordmu,
       2026-11-01: MoveNet Thunder on TF.js is the working pick**; final once
       3.6 passes on the validation set.
-- [~] 3.8 **F-Droid, a paper check** (drafted in [pose-spike.md](pose-spike.md#f-droid-step-38-on-paper)) off the critical path (pascaline did the
-      same): can the chosen runtime and the model weights be built from
-      source, or are they accepted as assets? The runtime rule of
-      2026-11-01 now steers 3.7; F-Droid itself still doesn't. Until it
-      passes, 0.1.0 ships as a PWA and a GitHub APK.
+- [x] 3.8 **F-Droid, a paper check**, off the critical path
+      ([pose-spike.md](pose-spike.md#f-droid-step-38-on-paper)): the weights
+      pass as assets; TF.js (WebGL, WebGPU) builds from source with esbuild
+      from its tags, not with its own Bazel build, which a recipe can't run
+      (2026-11-01). Upstream no longer reviews or releases, so fixes ship as
+      our own patches
+      ([pose-spike.md](pose-spike.md#maintaining-tfjs-ourselves)); 5.3
+      builds TF.js from source (nordmu, 2026-11-01). Until F-Droid passes,
+      0.1.0 ships as a PWA and a GitHub APK.
 
 ### Phase 4: a small pipeline (after pascaline's fixes and nordmu's skill)
 
@@ -330,7 +334,10 @@ and 5.5–5.7, and goes to testers. **B**, the gym recording session, adds
         for offline use);
       - the Capacitor Android shell;
       - the pose engine behind one async Worker interface, with the model
-        from Phase 3;
+        from Phase 3: MoveNet Thunder on TensorFlow.js, bundled with esbuild
+        from the tags' TypeScript sources, not npm's dist (nordmu,
+        2026-11-01; [pose-spike.md](pose-spike.md#maintaining-tfjs-ourselves)),
+        checked against the npm bundle's tracks on the example clips;
       - scoring separate from rendering: the new UI calls `diagnostics.js`'s
         `computeResults()` unchanged and draws the results its own,
         mobile-first way. `mount()` builds the old page's desktop panel

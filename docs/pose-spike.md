@@ -378,8 +378,9 @@ the UI: every candidate hands COCO-17 to `diagnostics.js` behind the same
   and runs BlazePose as well (64–71 ms/frame on WebGPU), but needs our own
   pipeline code, 24 MB of fp32 weights and a wasm F-Droid would have to
   rebuild. Google's newer web runtime, LiteRT.js (`@litertjs/core`,
-  Apache-2.0, since 2025-08), wasn't tested, nor whether it builds from
-  source. And the pick rests on four clips at 100%.
+  Apache-2.0, since 2025-08), can't be built from source, so it fails the
+  runtime rule. And the pick rests on four clips at 100%. What owning the
+  fixes means: [Maintaining TF.js ourselves](#maintaining-tfjs-ourselves).
 - **If the validation set fails every open candidate:** native ONNX Runtime
   for Android in a Capacitor plugin (open, built from source by an F-Droid
   app already; Android only, untested), or MediaPipe Tasks as an exception
@@ -399,11 +400,34 @@ now steers the choice; F-Droid itself still doesn't.
   its weights would pass as assets.
 - **TensorFlow.js on WebGL or WebGPU ships no wasm at all:** TypeScript and
   shader strings, so the scanner's ban on prebuilt `.wasm` doesn't touch it.
-  What a recipe would still have to do is build tfjs (4.22.0) and
-  tfjs-models (pose-detection 2.1.3) from their tags, and the bundle with
-  esbuild; the tfjs repo builds with Bazel and yarn, and whether a recipe
-  can run that is **unchecked**. The WASM backend would bring back the wasm
-  problem below.
+  **A recipe can build it from source, though not with tfjs's own build**
+  (on paper, 2026-11-01):
+  - tfjs 4.22.0 pins Bazel 5.3.0, which Debian doesn't ship (4.2.3 and
+    7.7.1; Bazel 6 dropped a WORKSPACE feature tfjs uses), and its
+    WORKSPACE downloads Node 18 (end of life), yarn, a standalone Python
+    and npm packages with prebuilt binaries before it builds anything. Two
+    of fdroiddata's 7,252 recipes use Bazel at all.
+  - **Without Bazel it is small:** the tag's root `tsconfig.json` maps
+    every `@tensorflow/*` package to its `src/index.ts`, so esbuild can
+    bundle core, the WebGL and WebGPU backends, the converter and
+    pose-detection straight from the TypeScript at their tags
+    (`tfjs-v4.22.0`, `pose-detection-v2.1.3`). The only generated sources
+    are the converter's op lists, a few lines of Node from JSON in the
+    repo. The npm tarballs hold only built `dist/` (pose-detection's
+    minified), so today's bundles (`build-tfjs.mjs`) start from npm's
+    output, not from source.
+  - **Recipes do this already:** 239 run npm, yarn or pnpm installs from
+    the registry, and `au.how2vote.app`, a Capacitor app, builds esbuild
+    from a srclib with `go build` and hands it to its build through
+    `ESBUILD_BINARY_PATH` before `cap copy`.
+  - The recipe would take tfjs and tfjs-models as srclibs (or submodules),
+    build esbuild from its srclib, point our bundle script at the sources,
+    and `cap sync`. **Open:** whether a from-source bundle gives the same
+    tracks as today's (the example clips through both), whether F-Droid
+    takes the two repos as srclibs or wants them vendored, and whether
+    esbuild handles every TypeScript construct tfjs uses (`const enum`
+    across files). The WASM fallback stays out of an F-Droid build, or
+    needs the emscripten rebuild below.
 - **ONNX Runtime Web (and TF.js's WASM backend) would need their wasm
   rebuilt in the recipe.** F-Droid's scanner rejects prebuilt `.wasm`
   (fdroidserver MR !1562, 2024-11), and recipes rebuild wasm with Debian's
@@ -423,5 +447,41 @@ now steers the choice; F-Droid itself still doesn't.
 
 **The tension of the first round is gone:** MoveNet's and BlazePose's
 weights pass the gate, and TF.js on WebGL runs them with no wasm to
-rebuild. What stays open is whether an F-Droid recipe can build TF.js
-itself.
+rebuild. What stays open is a trial of the from-source build.
+
+## Maintaining TF.js ourselves
+
+nordmu asked (2026-11-01) whether coach could fix TF.js upstream if it
+breaks, rather than work around it in the app. On paper, the same day:
+
+- **Upstream no longer reviews or releases.** npm's `latest` is still
+  4.22.0 and `next` 4.23.0-rc.0 (2025-01); the pull request that would
+  release 4.23.0 has been open since 2025-01-16 (tensorflow/tfjs#8499).
+  The last commit on master is a 2026-04 chore, the one before 2025-06.
+  The repo isn't archived and carries no deprecation notice; Google's
+  LiteRT.js post (2026-07) calls LiteRT.js "a powerful evolution from
+  TensorFlow.js" and says nothing about TF.js's future. pose-detection
+  hasn't changed since 2024-05. No maintained community fork was found.
+- **So a fix made upstream wouldn't reach us.** An outside fix for a real
+  breakage, WebGPU's Transpose shader on int32 tensors failing in Chrome
+  141+ (#8638), has waited unreviewed since 2026-01 (#8616); its issue was
+  closed without it. Contributing also needs Google's CLA.
+- **What works: offer the fix upstream, ship our own patch.** Built from
+  source (above), a fix is a patch to the TypeScript at the tag, applied
+  in our build and sent upstream as a pull request. WebGL and WebGPU fixes
+  are TypeScript and shader strings; WASM fixes need its Bazel and
+  emscripten build. The real cost is attention: the breakages since 2024
+  came from browsers, GPU drivers and OS updates (Chrome's WGSL compiler,
+  an Adreno driver on One UI 7, rotated video frames on iOS 26), each a
+  small fix that needs the device to debug.
+- **Measured here:** MoveNet Thunder on WebGPU ran in Brave 156 and the
+  WebView 153 with the same verdicts as on WebGL, so the Chrome 141+ bug
+  doesn't touch its graph.
+- **The exits:** BlazePose on ONNX Runtime (maintained, measured above);
+  MoveNet converted to ONNX (untested). LiteRT.js (Apache-2.0, released
+  monthly) is no exit under the runtime rule: its wasm is "compiled via our
+  internal process, so those build scripts aren't available"
+  (google-ai-edge/LiteRT#6470).
+- **Decided for 5.3 (nordmu, 2026-11-01):** the app bundles TF.js from the
+  tags' sources from the start, so a patch, the F-Droid recipe and the APK
+  share one build.

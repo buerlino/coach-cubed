@@ -30,11 +30,11 @@ Newest first within each group.
 ### What 0.1.0 is
 
 - **2026-11-01, nordmu: the pose runtime that ships is open source and
-  buildable from source,** which MediaPipe Tasks' web runtime isn't: it
-  stays the benchmark, a fallback only nordmu can choose. **Step 3.7:
-  MoveNet Thunder on TensorFlow.js**, every frame, the working pick until
-  3.6 passes on the validation set; a frozen runtime is the accepted cost.
-  Backends and numbers: [pose-spike.md](pose-spike.md).
+  buildable from source,** so not MediaPipe Tasks' web runtime (the
+  benchmark; a fallback only nordmu can choose). **Step 3.7: MoveNet
+  Thunder on TensorFlow.js**, every frame, the working pick until 3.6
+  passes on the validation set. TF.js is frozen, so 5.3 builds it from its
+  tags' sources and fixes are ours. See [pose-spike.md](pose-spike.md).
 - **2026-10-31, nordmu: 0.1.0 comes in two milestones.** A: import a clip
   and get the cues, offline, for testers (nordmu, Noah, friends). B: the gym
   recording session. The public 0.1.0 needs both.
