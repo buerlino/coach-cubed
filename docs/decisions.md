@@ -30,9 +30,11 @@ Newest first within each group.
 ### What 0.1.0 is
 
 - **2026-11-01, nordmu: the pose runtime that ships is open source and
-  buildable from source.** MediaPipe Tasks' web runtime isn't (its GPU code
-  is closed): it stays the benchmark, and a fallback only if nordmu chooses
-  it knowingly. Step 3.7's pick, proposed: [pose-spike.md](pose-spike.md).
+  buildable from source,** which MediaPipe Tasks' web runtime isn't: it
+  stays the benchmark, a fallback only nordmu can choose. **Step 3.7:
+  MoveNet Thunder on TensorFlow.js**, every frame, the working pick until
+  3.6 passes on the validation set; a frozen runtime is the accepted cost.
+  Backends and numbers: [pose-spike.md](pose-spike.md).
 - **2026-10-31, nordmu: 0.1.0 comes in two milestones.** A: import a clip
   and get the cues, offline, for testers (nordmu, Noah, friends). B: the gym
   recording session. The public 0.1.0 needs both.
@@ -120,9 +122,8 @@ Newest first within each group.
 
 ### Rules and docs
 
-- **2026-10-31, nordmu: step 3.7's numbers go in a new
-  `docs/pose-spike.md`**, linked from a short entry here, so this file
-  stays in its budget.
+- **2026-10-31, nordmu: step 3.7's numbers live in
+  [pose-spike.md](pose-spike.md)**, so this file stays in its budget.
 
 - **2026-10-31, nordmu: AGENTS.md is a lean entry point, and the docs'
   budgets are tested** (step 2.9), following pascaline. AGENTS.md holds only

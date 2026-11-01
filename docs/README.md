@@ -33,7 +33,7 @@ the size budgets ([tests/docs.test.js](../tests/docs.test.js)).
 
 | Doc | Covers |
 | --- | --- |
-| [pose-spike.md](pose-spike.md) | Step 3.7, proposed: the on-device pose spike's numbers on the Fairphone (speed, memory, agreement with ViTPose-L, capture, heat), the licence gate, F-Droid (3.8) and the recommendation. |
+| [pose-spike.md](pose-spike.md) | Step 3.7, the working pick (nordmu, 2026-11-01): the on-device pose spike's numbers on the Fairphone (speed, memory, agreement with ViTPose-L, capture, heat), the licence gate, F-Droid (3.8) and the decision. |
 | [fixture-data-contract.md](fixture-data-contract.md) | The consuming side: `track.json`/`manifest.json` schemas, where profiles live, the endpoints a page reads them through, and what the extracted data is actually like. |
 | [../tests/README.md](../tests/README.md) | What each test file covers, how to run the tests, and how a lift video becomes a fixture with a golden snapshot. |
 | [../tests/fixtures/README.md](../tests/fixtures/README.md) | The fixture layout, global vs. local scope, where each example clip came from and why none is committed, the limb and sign profiles. |

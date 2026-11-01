@@ -22,11 +22,10 @@ finish (git keeps the history). Decisions and open questions are in
   Fairphone in Brave and the Capacitor WebView on 2026-10-31/11-01. On
   2026-11-01 nordmu ruled that the shipped runtime must be open source and
   buildable from source, which drops MediaPipe Tasks; the open runtimes were
-  measured the same evening. 3.7 and 3.8 are re-drafted, **proposed,
-  awaiting nordmu**: [pose-spike.md](pose-spike.md) (MoveNet SinglePose
-  Thunder on TensorFlow.js, WebGL, every frame, as a PWA and in Capacitor;
-  BlazePose on TF.js or ONNX Runtime second). Open:
-  - nordmu: confirm or change the draft;
+  measured the same evening. **3.7, the working pick (nordmu,
+  2026-11-01):** MoveNet SinglePose Thunder on TensorFlow.js, WebGL, every
+  frame, as a PWA and in Capacitor; final once 3.6 passes on the validation
+  set ([pose-spike.md](pose-spike.md)). Open:
   - 3.0, not run: the re-extraction of `lateral-raise-cable-1` with
     ViTPose-L and its diff against the committed track (max and mean
     keypoint distance in pixels, the verdicts raw and smoothed). The night
@@ -276,13 +275,14 @@ condition are decided ([decisions.md](decisions.md#what-010-is)).
       verdicts, against the thresholds from 3.0. The script:
       `spike/pose-bench/compare.mjs` (`c7f30d5`).
 - [~] 3.7 A decision record: model, runtime and shell (PWA / Capacitor /
-      TWA), with the numbers, and whether the stop condition was hit.
-      Drafted, proposed, awaiting nordmu: [pose-spike.md](pose-spike.md)
-      (`1277d38`); re-drafted on 2026-11-01 after the open-runtime rule
-      (`d5e41e2`): MoveNet Thunder and Lightning and BlazePose on
-      TensorFlow.js (`8aec0a4`), BlazePose's Tasks models converted to ONNX
-      on ONNX Runtime (`160a10c`), measured on the Fairphone in Brave and
-      the WebView (plans `7eb0142`); the record `64412d8`.
+      TWA), with the numbers, and whether the stop condition was hit:
+      [pose-spike.md](pose-spike.md). First round `1277d38`; after the
+      open-runtime rule (`d5e41e2`), MoveNet Thunder and Lightning and
+      BlazePose on TensorFlow.js (`8aec0a4`) and BlazePose's Tasks models on
+      ONNX Runtime (`160a10c`), measured on the Fairphone in Brave and the
+      WebView (plans `7eb0142`; the record `64412d8`). **nordmu,
+      2026-11-01: MoveNet Thunder on TF.js is the working pick**; final once
+      3.6 passes on the validation set.
 - [~] 3.8 **F-Droid, a paper check** (drafted in [pose-spike.md](pose-spike.md#f-droid-step-38-on-paper)) off the critical path (pascaline did the
       same): can the chosen runtime and the model weights be built from
       source, or are they accepted as assets? The runtime rule of

@@ -1,13 +1,15 @@
 # Pose spike: model, runtime and shell (step 3.7)
 
-**Proposed, awaiting nordmu.** Nothing here binds until nordmu confirms it
-and it is recorded in [decisions.md](decisions.md#what-010-is). Since
-2026-11-01 the runtime that ships must be open source and buildable from
-source (nordmu), so the first round's pick, MediaPipe on its closed runtime,
-is out; the open runtimes are the second round, below. The accuracy numbers
-come from the four example clips only and are **provisional** until the
-validation set (step 3.0) exists; the speed, memory and capture numbers are
-measured on the Fairphone 6 and stand.
+**Decided as the working pick (nordmu, 2026-11-01): MoveNet SinglePose
+Thunder on TensorFlow.js** ([the decision](#decision-nordmu-2026-11-01-the-working-pick);
+[decisions.md](decisions.md#what-010-is)). Phase 5 builds on it; it becomes
+final once step 3.6 passes on the validation set (step 3.0), which confirms
+it or switches to BlazePose. Since 2026-11-01 the runtime that ships must be
+open source and buildable from source (nordmu), so the first round's pick,
+MediaPipe on its closed runtime, is out; the open runtimes are the second
+round, below. The accuracy numbers come from the four example clips only and
+are **provisional** until the validation set exists; the speed, memory and
+capture numbers are measured on the Fairphone 6 and stand.
 
 ## What was measured where
 
@@ -342,7 +344,13 @@ Sources: [THIRD_PARTY.md](../THIRD_PARTY.md#fetched-by-the-phase-3-spike-not-shi
   100% smoothed. The validation set (3.0) decides between MoveNet Thunder
   and BlazePose, and the snatch.
 
-### Recommendation (proposed, awaiting nordmu)
+### Decision (nordmu, 2026-11-01): the working pick
+
+nordmu took this recommendation as the working pick: Phase 5 builds on it,
+and 3.6 on the validation set confirms it or switches. A switch costs an
+engine module, its weights and a re-run of the validation, not the cues or
+the UI: every candidate hands COCO-17 to `diagnostics.js` behind the same
+`estimate()`.
 
 - **Model and runtime: MoveNet SinglePose Thunder on TensorFlow.js,
   every frame**, WebGL backend by default (TypeScript and shaders: the
