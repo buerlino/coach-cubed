@@ -880,6 +880,8 @@ function makeFirstPullBackAngle(spec) {
     phaseLabel: 'first pull',
     cue: spec.cue,
     unit: '°',
+    provisional: true,   // SD_GOOD/SD_WARN
+    worstRule: 'farthest-from-mean',   // the verdict is the SD around the pull's mean
 
     // Active phase: floor to bar-past-knee — both triggers come from
     // firstPullWindow, which is shared with the bar-axis estimate (see there for
@@ -1161,6 +1163,8 @@ const secondPullTripleExtension = {
   phaseLabel: 'second pull',
   cue: 'At the top of the second pull the hips and knees open fully — "triple extension" — before the arms bend into the turnover.',
   unit: '°',
+  provisional: true,   // EXT_GOOD/EXT_WARN
+  worstRule: 'phase-end',   // the deficits are read over the phase's last samples
 
   // Active phase: bar-past-knee (the first pull's own end trigger) to peak hip
   // elevation.
@@ -1506,6 +1510,8 @@ const lateralRaiseTopHeight = {
   phaseLabel: null,   // one rep looks like any other on the video — no label needed there
   cue: 'At the top of each rep the arms lift to about shoulder height — not swung above it, not stopped short.',
   unit: '%',
+  provisional: true,   // TOP_GOOD/TOP_WARN
+  worstRule: 'summary-worst',   // the verdict is the worst rep's height
 
   // Active phase: every rep this clip contains, start to finish — the union of
   // lateralRaiseReps' rep list rather than one window, since the cue applies
@@ -1673,6 +1679,8 @@ const lateralRaiseTorsoLean = {
   phaseLabel: null,   // spans the whole set — no distinct sub-phase to name on the video
   cue: 'The trunk stays upright throughout the set: the weight is raised by the arms, not by leaning or swinging the torso.',
   unit: '°',
+  provisional: true,   // LEAN_GOOD/LEAN_WARN
+  worstRule: 'farthest-from-mean',   // the verdict is the SD around the set's mean
 
   // Active phase: the same rep span lateralRaiseTopHeight uses, but measured
   // continuously frame-by-frame rather than only at each rep's peak — a lean
@@ -1825,6 +1833,8 @@ const lateralRaiseElbowLead = {
   phaseLabel: null,   // spans the whole set — no distinct sub-phase to name on the video
   cue: 'Through the raise the elbow stays at or slightly above the wrist — the wrist shouldn\'t flick up and lead the lift.',
   unit: '%',
+  provisional: true,   // ELBOW_GOOD/ELBOW_WARN
+  worstRule: 'summary-worst',   // the verdict is the lowest elbow lead
 
   phase(samples, scale, ax) {
     const notes = [];
@@ -1963,6 +1973,8 @@ const lateralRaiseTempo = {
   phaseLabel: null,   // spans the whole set — no distinct sub-phase to name on the video
   cue: 'The weight is lowered under control — the descent isn\'t noticeably faster than the raise.',
   unit: 'x',
+  provisional: true,   // TEMPO_GOOD/TEMPO_WARN
+  worstRule: 'summary-worst',   // the verdict is the fastest descent
 
   phase(samples, scale, ax) {
     const notes = [];
@@ -2107,6 +2119,8 @@ const lateralRaiseSymmetry = {
   phaseLabel: null,   // spans the whole set — no distinct sub-phase to name on the video
   cue: 'Every rep in the set reaches about the same height as the first — height dropping as the set goes on is fatigue, not a one-off.',
   unit: '%',
+  provisional: true,   // SYM_GOOD/SYM_WARN
+  worstRule: 'summary-last',   // the decline is measured to the last rep
 
   phase(samples, scale, ax) {
     const notes = [];
@@ -2808,14 +2822,74 @@ function buildSections() {
   }
 }
 
+// Two ways in. The old page mounts a panel: mount(), setPage(), setTrack(),
+// draw(), overlay(ctx, time), liftWindow(). The headless API needs no DOM and
+// no mounted panel; it is what the new app (app/) and the tests use:
+//
+//   computeResults(keypoints, meta, personId)
+//       Scores the active set (setPage) against one person's COCO-17 track.
+//       Returns { samples, scale, axis, lift, results }; results[id] is
+//       { phase, series, summary, verdict, notes } or { error }.
+//   describe(set) -> [{ id, title, cue, unit, phaseLabel, provisional }]
+//       A set's cues in the panel's order (set: a DIAGNOSTIC_SETS key, e.g.
+//       'snatch', 'lateral-raise'); an unknown set throws. phaseLabel is null
+//       for a cue spanning the whole set; provisional is true while its
+//       thresholds aren't checked on real lifts (all of them today).
+//   tiles(id, result) -> [{ label, value, sub, status }]
+//       The tiles the old panel shows above the cue's plot; [] for a result
+//       that can't be scored. `result` is computeResults().results[id].
+//   referenceLine(id, result) -> { value, label } | null
+//       The plot's dashed line. Needs the result: some cues draw it at the
+//       set's own mean or first rep. null without a scored result.
+//   worstMoment(id, result) -> { t, idx, frame, value, rule } | null
+//       The series sample the cue's verdict rests on, by the cue's rule
+//       (`worstRule`, see WORST_RULES); null for a result that can't be scored.
+//   drawCue(ctx, id, t, computed, opts) -> boolean
+//       Draws the cue's overlay at time t (seconds) on any 2D context, from
+//       computed = computeResults()'s whole output (it needs the samples), in
+//       the frame's pixels; draws nothing and returns false outside the cue's
+//       phase or for a cue that can't be scored. opts: smooth (interpolate
+//       between samples, default false), cubic (the interpolator, linear
+//       without one), label (draw the phase label, default true), labelRow
+//       (its line, default 0). It is what overlay() draws for that cue.
+//
+// Every id is a cue id from any set (unknown ids throw); none of these read the
+// active page or the mounted state.
 const Diagnostics = {
-  // Headless entry point: scores every diagnostic against one person's track
-  // with no DOM involved, for tests running against a cached track.json (see
-  // tests/diagnostics.test.js). Returns { samples, scale, axis, results } —
-  // the same shape run() stashes onto the (DOM-mounted) module state, minus
-  // the DOM. Not used by the app itself; mount()/setTrack() below are.
   computeResults(keypoints, meta, personId) {
     return computeResults(keypoints, meta, personId);
+  },
+
+  describe(set) {
+    if (!Object.prototype.hasOwnProperty.call(DIAGNOSTIC_SETS, set)) {
+      throw new Error('Unknown diagnostic set: ' + set);
+    }
+    return DIAGNOSTIC_SETS[set].map(d => ({
+      id: d.id, title: d.title, cue: d.cue, unit: d.unit,
+      phaseLabel: d.phaseLabel || null,
+      provisional: d.provisional === true,
+    }));
+  },
+
+  tiles(id, result) {
+    return cueTiles(cueById(id), result);
+  },
+
+  referenceLine(id, result) {
+    return cueReferenceLine(cueById(id), result);
+  },
+
+  worstMoment(id, result) {
+    return cueWorstMoment(cueById(id), result);
+  },
+
+  drawCue(ctx, id, t, computed, opts) {
+    const d = cueById(id);
+    const o = opts || {};
+    if (typeof t !== 'number' || !isFinite(t) || !computed || !computed.samples) return false;
+    if (!drawCueAt(ctx, d, computed, t, { smooth: !!o.smooth, cubic: o.cubic })) return false;
+    if (d.phaseLabel && o.label !== false) drawPhaseLabel(ctx, d.phaseLabel, o.labelRow || 0);
+    return true;
   },
 
   mount(opts) {

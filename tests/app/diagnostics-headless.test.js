@@ -22,6 +22,9 @@ const { loadManifests, trackPathFor, diagnosticsSet } = require('../fixtures');
 const LATERAL = 'global/example/lateral-raise-cable-1';
 const SNATCH = 'global/snatch/Session14_01_0h18m07s_made';
 const manifest = loadManifests();
+// The set a fixture scores against, read off its manifest entry. (fixtures.js's
+// diagnosticsSet checks it with setPage, which would rebuild a mounted panel.)
+const setOf = slug => manifest[slug].diagnostics;
 
 function loadTrack(slug) {
   return JSON.parse(fs.readFileSync(trackPathFor(slug), 'utf8'));
@@ -229,7 +232,7 @@ test('describe(set) matches the titles the old panel shows', () => {
   for (const slug of [LATERAL, SNATCH]) {
     const { D, el } = oldPage(slug, { sections: true });
     const shown = el.sections.children.map(b => b.children[0].textContent);
-    assert.deepStrictEqual(shown, D.describe(diagnosticsSet(manifest, slug, D)).map(c => c.title), slug);
+    assert.deepStrictEqual(shown, D.describe(setOf(slug)).map(c => c.title), slug);
   }
 });
 
@@ -249,7 +252,7 @@ test('tiles(id, result) are the tiles the old panel shows for each cue', () => {
   for (const slug of [LATERAL, SNATCH]) {
     const { D, el } = oldPage(slug, { sections: true });
     const { out } = computed(slug);
-    const cues = D.describe(diagnosticsSet(manifest, slug, D));
+    const cues = D.describe(setOf(slug));
     cues.forEach((c, k) => {
       const html = el.sections.children[k].children[1].innerHTML;
       const res = out.results[c.id];
@@ -273,7 +276,7 @@ test('referenceLine(id, result) is the line the old chart draws, null when the c
   for (const slug of [LATERAL, SNATCH]) {
     const { D, el } = oldPage(slug, { sections: true });
     const { out } = computed(slug);
-    D.describe(diagnosticsSet(manifest, slug, D)).forEach((c, k) => {
+    D.describe(setOf(slug)).forEach((c, k) => {
       const res = out.results[c.id];
       const chart = el.sections.children[k].children[2].children[0].getContext('2d');
       const line = D.referenceLine(c.id, res);
@@ -297,7 +300,7 @@ test('tiles and referenceLine refuse an unknown cue id', () => {
 test('drawCue draws inside each cue\'s phase and nothing outside it, with no panel, DOM or module state', () => {
   for (const slug of [LATERAL, SNATCH]) {
     const { D, out } = computed(slug);
-    const cues = D.describe(diagnosticsSet(manifest, slug, D));
+    const cues = D.describe(setOf(slug));
     // A second, never-mounted copy of the module on another lift's set: drawCue
     // reads only what it is handed.
     const fresh = loadDiagnostics();
@@ -326,7 +329,7 @@ test('drawCue draws exactly what the old page\'s overlay draws, in every motion 
     for (const [mode, motion] of Object.entries(MODES)) {
       const { perTime, out } = oldOverlayRecord(slug, mode);
       const D = loadDiagnostics();
-      const cues = D.describe(diagnosticsSet(manifest, slug, D));
+      const cues = D.describe(setOf(slug));
       sweep(out.samples).forEach((t, k) => {
         const ctx = recordingContext();
         let row = 0;
@@ -393,7 +396,7 @@ test('worstMoment gives each scored cue the time its verdict rests on, and null 
   let scored = 0;
   for (const slug of [LATERAL, SNATCH]) {
     const { D, out } = computed(slug);
-    for (const c of D.describe(diagnosticsSet(manifest, slug, D))) {
+    for (const c of D.describe(setOf(slug))) {
       const res = out.results[c.id];
       if (res.error) { assert.equal(D.worstMoment(c.id, res), null, c.id); continue; }
       const w = checkWorst(D, c.id, res, out.samples);
