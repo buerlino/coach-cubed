@@ -77,17 +77,24 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CLIPPER_DIR = Path(os.environ["CLIPPER_OUT"]) if os.environ.get("CLIPPER_OUT") else None
 STATE_FILE = REPO_ROOT / "tests" / "fixtures" / "local" / ".clipper_sync_state.json"
 
-# session_NN_HhMMmSSs_result.mp4 — see src/cut.py in the clipper repo. "unknown" is a real
+# session_NN_HhMMmSSs_result.mp4 — see src/cut.py in the clipper repo. NN is
+# {i:02d} there: two digits up to attempt 99, three from attempt 100 on. "unknown" is a real
 # verdict here, not a parse failure: some productions show no referee lights at
 # all, and clipper labels those attempts honestly rather than guessing.
-CLIP_NAME_RE = re.compile(r"^(?P<session>.+)_(?P<idx>\d{2})_(?P<hh>\d+)h(?P<mm>\d{2})m(?P<ss>\d{2})s_(?P<result>made|miss|unknown)\.mp4$")
+CLIP_NAME_RE = re.compile(r"^(?P<session>.+)_(?P<idx>\d+)_(?P<hh>\d+)h(?P<mm>\d{2})m(?P<ss>\d{2})s_(?P<result>made|miss|unknown)\.mp4$")
 
 
 def discover_clips(clipper_dir):
     # Searched at any depth rather than at a fixed one: the per-video folder
     # sits wherever its video does, which is one level down for a playlist and
     # at the top level for a single video or a --local run.
-    return sorted(clipper_dir.rglob("clips/*.mp4"))
+    # Sorted by attempt number, not by name: as text "_100_" sorts before "_99_".
+    # The stem keeps the number as clipper wrote it, so 99 and 100 never share
+    # a fixture slug.
+    def key(path):
+        m = CLIP_NAME_RE.match(path.name)
+        return (path.parent, m["session"], int(m["idx"]), path.name) if m else (path.parent, path.name, 0, path.name)
+    return sorted(clipper_dir.rglob("clips/*.mp4"), key=key)
 
 
 def sha256_file(path):
