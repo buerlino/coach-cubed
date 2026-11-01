@@ -880,6 +880,8 @@ function makeFirstPullBackAngle(spec) {
     phaseLabel: 'first pull',
     cue: spec.cue,
     unit: '°',
+    provisional: true,   // SD_GOOD/SD_WARN
+    worstRule: 'farthest-from-mean',   // the verdict is the SD around the pull's mean
 
     // Active phase: floor to bar-past-knee — both triggers come from
     // firstPullWindow, which is shared with the bar-axis estimate (see there for
@@ -1039,7 +1041,7 @@ function makeFirstPullBackAngle(spec) {
     // Everything the two triggers and the measurement rest on, drawn on the frame
     // itself while the playhead is inside the phase.
     //
-    // `view` is the track at the playhead's actual time (see pointsAtTime), not a
+    // `view` is the track at the playhead's actual time (see pointsAt), not a
     // sampled frame: view.p are the points now, view.at(t) the points at any other
     // instant inside the phase, view.dt the mean spacing of processed frames.
     overlay(ctx, view, phase, res, size) {
@@ -1161,6 +1163,8 @@ const secondPullTripleExtension = {
   phaseLabel: 'second pull',
   cue: 'At the top of the second pull the hips and knees open fully — "triple extension" — before the arms bend into the turnover.',
   unit: '°',
+  provisional: true,   // EXT_GOOD/EXT_WARN
+  worstRule: 'phase-end',   // the deficits are read over the phase's last samples
 
   // Active phase: bar-past-knee (the first pull's own end trigger) to peak hip
   // elevation.
@@ -1371,7 +1375,7 @@ const secondPullTripleExtension = {
   // diagnostic 1 draws its knee/bar rules.
   //
   // `view` is the track at the playhead's actual time, not a sampled frame —
-  // see diagnostic 1's overlay and pointsAtTime.
+  // see diagnostic 1's overlay and pointsAt.
   overlay(ctx, view, phase, res, size) {
     const p = view.p;
     const lw = Math.max(2, size / 260);
@@ -1506,6 +1510,8 @@ const lateralRaiseTopHeight = {
   phaseLabel: null,   // one rep looks like any other on the video — no label needed there
   cue: 'At the top of each rep the arms lift to about shoulder height — not swung above it, not stopped short.',
   unit: '%',
+  provisional: true,   // TOP_GOOD/TOP_WARN
+  worstRule: 'summary-worst',   // the verdict is the worst rep's height
 
   // Active phase: every rep this clip contains, start to finish — the union of
   // lateralRaiseReps' rep list rather than one window, since the cue applies
@@ -1673,6 +1679,8 @@ const lateralRaiseTorsoLean = {
   phaseLabel: null,   // spans the whole set — no distinct sub-phase to name on the video
   cue: 'The trunk stays upright throughout the set: the weight is raised by the arms, not by leaning or swinging the torso.',
   unit: '°',
+  provisional: true,   // LEAN_GOOD/LEAN_WARN
+  worstRule: 'farthest-from-mean',   // the verdict is the SD around the set's mean
 
   // Active phase: the same rep span lateralRaiseTopHeight uses, but measured
   // continuously frame-by-frame rather than only at each rep's peak — a lean
@@ -1825,6 +1833,8 @@ const lateralRaiseElbowLead = {
   phaseLabel: null,   // spans the whole set — no distinct sub-phase to name on the video
   cue: 'Through the raise the elbow stays at or slightly above the wrist — the wrist shouldn\'t flick up and lead the lift.',
   unit: '%',
+  provisional: true,   // ELBOW_GOOD/ELBOW_WARN
+  worstRule: 'summary-worst',   // the verdict is the lowest elbow lead
 
   phase(samples, scale, ax) {
     const notes = [];
@@ -1963,6 +1973,8 @@ const lateralRaiseTempo = {
   phaseLabel: null,   // spans the whole set — no distinct sub-phase to name on the video
   cue: 'The weight is lowered under control — the descent isn\'t noticeably faster than the raise.',
   unit: 'x',
+  provisional: true,   // TEMPO_GOOD/TEMPO_WARN
+  worstRule: 'summary-worst',   // the verdict is the fastest descent
 
   phase(samples, scale, ax) {
     const notes = [];
@@ -2107,6 +2119,8 @@ const lateralRaiseSymmetry = {
   phaseLabel: null,   // spans the whole set — no distinct sub-phase to name on the video
   cue: 'Every rep in the set reaches about the same height as the first — height dropping as the set goes on is fatigue, not a one-off.',
   unit: '%',
+  provisional: true,   // SYM_GOOD/SYM_WARN
+  worstRule: 'summary-last',   // the decline is measured to the last rep
 
   phase(samples, scale, ax) {
     const notes = [];
@@ -2349,8 +2363,12 @@ function run() {
 // The interpolator is app.py's own (el.cubic), passed in rather than
 // reimplemented so the two can't drift apart, and el.smoothMotion() is the same
 // tickbox the mesh obeys. Linear if this is ever mounted without them.
-function mixAt(v0, v1, v2, v3, t0, t1, t2, t3, u) {
-  return el.cubic ? el.cubic(v0, v1, v2, v3, t0, t1, t2, t3, u) : v1 + (v2 - v1) * u;
+//
+// `motion` is { smooth, cubic }: whether to interpolate between samples at all,
+// and the interpolator (linear without one). The old page builds it from `el`
+// (pageMotion); the headless drawCue takes it from its caller.
+function mixAt(cubic, v0, v1, v2, v3, t0, t1, t2, t3, u) {
+  return cubic ? cubic(v0, v1, v2, v3, t0, t1, t2, t3, u) : v1 + (v2 - v1) * u;
 }
 
 function slotAtTime(samples, t) {
@@ -2366,12 +2384,11 @@ function slotAtTime(samples, t) {
 // of the gap is NOT blended — the nearer sample's value stands until halfway,
 // exactly as the mesh does it — so an interpolated mark is never built out of a
 // detection that isn't there.
-function pointsAtTime(t) {
-  const samples = state.samples;
+function pointsAt(samples, t, motion) {
   if (!samples || !samples.length || !samples[0].p) return null;
   const k = slotAtTime(samples, t);
   const a = samples[k], b = samples[k + 1];
-  if (!b || !(el.smoothMotion && el.smoothMotion())) return a.p;
+  if (!b || !(motion && motion.smooth)) return a.p;
   const span = b.t - a.t;
   const u = span > 1e-9 ? Math.min(Math.max((t - a.t) / span, 0), 1) : 0;
   const prev = samples[k - 1], next = samples[k + 2];
@@ -2382,13 +2399,114 @@ function pointsAtTime(t) {
     if (!qa || !qb) { out[i] = u < 0.5 ? qa : qb; continue; }
     const q0 = prev && prev.p[i], q3 = next && next.p[i];
     out[i] = {
-      x: mixAt(q0 && q0.x, qa.x, qb.x, q3 && q3.x, t0, a.t, b.t, t3, u),
-      y: mixAt(q0 && q0.y, qa.y, qb.y, q3 && q3.y, t0, a.t, b.t, t3, u),
+      x: mixAt(motion.cubic, q0 && q0.x, qa.x, qb.x, q3 && q3.x, t0, a.t, b.t, t3, u),
+      y: mixAt(motion.cubic, q0 && q0.y, qa.y, qb.y, q3 && q3.y, t0, a.t, b.t, t3, u),
       // a filled point on either side taints everything between them
       interp: qa.interp || qb.interp,
     };
   }
   return out;
+}
+
+// The old page's motion: its smooth-motion tickbox and app.py's interpolator.
+function pageMotion() {
+  return { smooth: !!(el.smoothMotion && el.smoothMotion()), cubic: el.cubic };
+}
+
+
+// --- one cue, from computeResults()'s output ----------------------------
+//
+// What the old page's panel and overlay do for one cue, as functions of the
+// cue and a result passed in: no DOM, no `el`, no `state`. The old page calls
+// them on its own state; the Diagnostics object's headless API (describe,
+// tiles, referenceLine, worstMoment, drawCue) calls them on whatever
+// computeResults() output the new app hands it.
+
+// Every cue of every set, by id. Ids are unique across sets (the clean's first
+// pull has its own), so a cue is found without knowing the active page.
+const CUE_BY_ID = new Map();
+for (const set of Object.values(DIAGNOSTIC_SETS)) for (const d of set) CUE_BY_ID.set(d.id, d);
+
+function cueById(id) {
+  const d = CUE_BY_ID.get(id);
+  if (!d) throw new Error('Unknown cue id: ' + id);
+  return d;
+}
+
+// The tiles above a cue's plot; none for a cue that can't be scored.
+function cueTiles(d, res) {
+  return (!res || res.error) ? [] : d.tiles(res.summary, res.verdict);
+}
+
+// The plot's dashed reference line, { value, label }, or null. Some cues draw
+// it at a fixed target, some at the set's own mean or first rep, so it needs a
+// scored result either way.
+function cueReferenceLine(d, res) {
+  return (!res || res.error || !d.referenceLine) ? null : d.referenceLine(res.summary);
+}
+
+// The worst moment: the one sample of a cue's series its verdict rests on, so
+// the new UI can show the frame (A2). Each cue names its rule as `worstRule`:
+//   'summary-worst'       the sample whose value the summary names as `worst`
+//   'summary-last'        the last sample, which the summary's `last` is
+//   'farthest-from-mean'  the sample farthest from the mean the verdict's SD is taken around
+//   'phase-end'           the last sample of the phase, where the verdict's value is read
+// A cue without a rule, or a result that can't be scored, has none (null).
+const WORST_RULES = {
+  'summary-worst': res => res.series.find(s => s.value === res.summary.worst),
+  'summary-last': res => res.series[res.series.length - 1],
+  'farthest-from-mean': res => res.series.reduce((a, s) =>
+    Math.abs(s.value - res.summary.mean) > Math.abs(a.value - res.summary.mean) ? s : a),
+  'phase-end': res => res.series[res.series.length - 1],
+};
+
+function cueWorstMoment(d, res) {
+  if (!res || res.error || !res.series || !res.series.length || !WORST_RULES[d.worstRule]) return null;
+  const s = WORST_RULES[d.worstRule](res);
+  return s ? { t: s.t, idx: s.idx, frame: s.frame, value: s.value, rule: d.worstRule } : null;
+}
+
+function overlaySize(ctx) {
+  return ctx.canvas.height || 720;
+}
+
+// Draws one cue on the video at time `t` from `out` ({ samples, axis, results },
+// computeResults()'s shape) and says whether it drew: nothing for a cue that
+// can't be scored or a time outside its phase. `p`, the points at `t`, is
+// passed in by the old page's overlay so every cue drawing one instant draws
+// the same body; otherwise it is interpolated here with `motion`.
+function drawCueAt(ctx, d, out, t, motion, p) {
+  const res = out.results ? out.results[d.id] : null;
+  if (!res || res.error) return false;
+  const samples = out.samples;
+  const ph = res.phase;
+  // The phase is bounded by the times its triggers fired, so the marks come
+  // up at the instant the pull starts rather than at the next processed
+  // frame. On a coarse frame stride that boundary used to be a tenth of a
+  // second out, which is enough to see against the video.
+  const t0 = samples[ph.startIdx].t, t1 = samples[ph.endIdx].t;
+  if (t < t0 || t > t1) return false;
+  if (p === undefined) p = pointsAt(samples, t, motion);
+  if (!p) return false;
+  const steps = ph.endIdx - ph.startIdx;
+  const view = {
+    t, p,
+    axis: out.axis || IMAGE_AXIS,            // the clip's one bar direction
+    dt: steps > 0 ? (t1 - t0) / steps : 0,   // mean processed-frame spacing
+    at: u => (u < t0 || u > t1) ? null : pointsAt(samples, u, motion),
+  };
+  d.overlay(ctx, view, ph, res, overlaySize(ctx));
+  return true;
+}
+
+// A cue's phase label in the frame's top-left corner, `row` lines down, so the
+// labels of cues drawn at one instant stack rather than overwrite.
+function drawPhaseLabel(ctx, label, row) {
+  const size = overlaySize(ctx);
+  ctx.fillStyle = phaseColor(1);
+  ctx.font = Math.max(12, size / 38) + 'px system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(label, 8, Math.max(16, size / 30) + row * (size / 26));
 }
 
 
@@ -2427,7 +2545,7 @@ function drawChart(d, ds, time) {
   // apparent wobble), and wide enough to include the reference line.
   let vMin = Infinity, vMax = -Infinity;
   for (const s of res.series) { vMin = Math.min(vMin, s.lo); vMax = Math.max(vMax, s.hi); }
-  const ref = d.referenceLine ? d.referenceLine(res.summary) : null;
+  const ref = cueReferenceLine(d, res);
   if (ref) { vMin = Math.min(vMin, ref.value); vMax = Math.max(vMax, ref.value); }
   const span = Math.max(vMax - vMin, 10);
   const mid = (vMin + vMax) / 2;
@@ -2585,7 +2703,7 @@ function drawPanels(d, ds, ctxExtra) {
     ds.notes.innerHTML = '<p class="diag-note"><strong>Not scored.</strong> ' + res.error + '</p>';
     return;
   }
-  ds.stats.innerHTML = d.tiles(res.summary, res.verdict).map(t => tile(t.label, t.value, t.sub, t.status)).join('');
+  ds.stats.innerHTML = cueTiles(d, res).map(t => tile(t.label, t.value, t.sub, t.status)).join('');
   const items = d.transparencyLines(res, state.samples, ctxExtra);
   ds.notes.innerHTML = '<p class="diag-cue">' + d.cue + '</p><ul class="diag-notes">' +
     items.map(i => '<li>' + i + '</li>').join('') + '</ul>';
@@ -2704,14 +2822,74 @@ function buildSections() {
   }
 }
 
+// Two ways in. The old page mounts a panel: mount(), setPage(), setTrack(),
+// draw(), overlay(ctx, time), liftWindow(). The headless API needs no DOM and
+// no mounted panel; it is what the new app (app/) and the tests use:
+//
+//   computeResults(keypoints, meta, personId)
+//       Scores the active set (setPage) against one person's COCO-17 track.
+//       Returns { samples, scale, axis, lift, results }; results[id] is
+//       { phase, series, summary, verdict, notes } or { error }.
+//   describe(set) -> [{ id, title, cue, unit, phaseLabel, provisional }]
+//       A set's cues in the panel's order (set: a DIAGNOSTIC_SETS key, e.g.
+//       'snatch', 'lateral-raise'); an unknown set throws. phaseLabel is null
+//       for a cue spanning the whole set; provisional is true while its
+//       thresholds aren't checked on real lifts (all of them today).
+//   tiles(id, result) -> [{ label, value, sub, status }]
+//       The tiles the old panel shows above the cue's plot; [] for a result
+//       that can't be scored. `result` is computeResults().results[id].
+//   referenceLine(id, result) -> { value, label } | null
+//       The plot's dashed line. Needs the result: some cues draw it at the
+//       set's own mean or first rep. null without a scored result.
+//   worstMoment(id, result) -> { t, idx, frame, value, rule } | null
+//       The series sample the cue's verdict rests on, by the cue's rule
+//       (`worstRule`, see WORST_RULES); null for a result that can't be scored.
+//   drawCue(ctx, id, t, computed, opts) -> boolean
+//       Draws the cue's overlay at time t (seconds) on any 2D context, from
+//       computed = computeResults()'s whole output (it needs the samples), in
+//       the frame's pixels; draws nothing and returns false outside the cue's
+//       phase or for a cue that can't be scored. opts: smooth (interpolate
+//       between samples, default false), cubic (the interpolator, linear
+//       without one), label (draw the phase label, default true), labelRow
+//       (its line, default 0). It is what overlay() draws for that cue.
+//
+// Every id is a cue id from any set (unknown ids throw); none of these read the
+// active page or the mounted state.
 const Diagnostics = {
-  // Headless entry point: scores every diagnostic against one person's track
-  // with no DOM involved, for tests running against a cached track.json (see
-  // tests/diagnostics.test.js). Returns { samples, scale, axis, results } —
-  // the same shape run() stashes onto the (DOM-mounted) module state, minus
-  // the DOM. Not used by the app itself; mount()/setTrack() below are.
   computeResults(keypoints, meta, personId) {
     return computeResults(keypoints, meta, personId);
+  },
+
+  describe(set) {
+    if (!Object.prototype.hasOwnProperty.call(DIAGNOSTIC_SETS, set)) {
+      throw new Error('Unknown diagnostic set: ' + set);
+    }
+    return DIAGNOSTIC_SETS[set].map(d => ({
+      id: d.id, title: d.title, cue: d.cue, unit: d.unit,
+      phaseLabel: d.phaseLabel || null,
+      provisional: d.provisional === true,
+    }));
+  },
+
+  tiles(id, result) {
+    return cueTiles(cueById(id), result);
+  },
+
+  referenceLine(id, result) {
+    return cueReferenceLine(cueById(id), result);
+  },
+
+  worstMoment(id, result) {
+    return cueWorstMoment(cueById(id), result);
+  },
+
+  drawCue(ctx, id, t, computed, opts) {
+    const d = cueById(id);
+    const o = opts || {};
+    if (typeof t !== 'number' || !isFinite(t) || !computed || !computed.samples) return false;
+    if (!drawCueAt(ctx, d, computed, t, { smooth: !!o.smooth, cubic: o.cubic })) return false;
+    if (d.phaseLabel && o.label !== false) drawPhaseLabel(ctx, d.phaseLabel, o.labelRow || 0);
+    return true;
   },
 
   mount(opts) {
@@ -2825,40 +3003,17 @@ const Diagnostics = {
     if (t == null) return;
     // Interpolated once and shared: every diagnostic drawing this instant is
     // drawing the same body, so they cannot disagree about where it is.
-    const p = pointsAtTime(t);
+    const motion = pageMotion();
+    const p = pointsAt(state.samples, t, motion);
     if (!p) return;
-    const samples = state.samples;
-    const size = ctx.canvas.height || 720;
     let shown = 0;
     for (const d of DIAGNOSTICS) {
       if (!enabled.has(d.id)) continue;
-      const res = state.results[d.id];
-      if (!res || res.error) continue;
-      const ph = res.phase;
-      // The phase is bounded by the times its triggers fired, so the marks come
-      // up at the instant the pull starts rather than at the next processed
-      // frame. On a coarse frame stride that boundary used to be a tenth of a
-      // second out, which is enough to see against the video.
-      const t0 = samples[ph.startIdx].t, t1 = samples[ph.endIdx].t;
-      if (t < t0 || t > t1) continue;
-      const steps = ph.endIdx - ph.startIdx;
-      const view = {
-        t, p,
-        axis: state.axis || IMAGE_AXIS,          // the clip's one bar direction
-        dt: steps > 0 ? (t1 - t0) / steps : 0,   // mean processed-frame spacing
-        at: u => (u < t0 || u > t1) ? null : pointsAtTime(u),
-      };
-      d.overlay(ctx, view, ph, res, size);
+      if (!drawCueAt(ctx, d, state, t, motion, p)) continue;
       // Only diagnostics scoped to a distinct sub-phase (first pull, top of
       // rep) earn a label here — one spanning the whole set has nothing to
       // name that the active tab doesn't already say.
-      if (d.phaseLabel) {
-        ctx.fillStyle = phaseColor(1);
-        ctx.font = Math.max(12, size / 38) + 'px system-ui, sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText(d.phaseLabel, 8, Math.max(16, size / 30) + shown * (size / 26));
-        shown++;
-      }
+      if (d.phaseLabel) drawPhaseLabel(ctx, d.phaseLabel, shown++);
     }
   },
 };

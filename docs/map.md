@@ -153,8 +153,10 @@ takes about 1 s per 1080p frame once warm.
 ## 2. Diagnostics engine
 
 - **Files:** [src/diagnostics.js](../src/diagnostics.js). An IIFE that sets
-  `window.Diagnostics`, with a headless `computeResults()` that runs in Node.
-- **Cues** (`DIAGNOSTIC_SETS`, line 2237):
+  `window.Diagnostics`, with a headless `computeResults()` that runs in Node
+  and, for the new app, `describe`, `tiles`, `referenceLine`, `worstMoment`
+  and `drawCue` from its output (documented above the `Diagnostics` object).
+- **Cues** (`DIAGNOSTIC_SETS`, line 2251):
   - snatch: first-pull back angle, second-pull triple extension;
   - clean & jerk: first-pull back angle (the snatch's thresholds, copied);
   - lateral raise: top height, torso lean, elbow lead, tempo, symmetry.
