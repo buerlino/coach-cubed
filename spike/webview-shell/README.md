@@ -35,6 +35,13 @@ adb -s 4d42e62f forward tcp:9334 localabstract:webview_devtools_remote_$(adb -s 
 node ../pose-bench/run-cdp.mjs 9334 plans/webview-bundled.json results/webview-bundled.json pose-bench 15
 ```
 
+The open-runtime round (2026-11-01) bundled only its own models: `./build.sh
+bundled pose_landmarker_full.task movenet-thunder-4 movenet-lightning-4
+blazepose-detector-1 blazepose-landmark-full-2 pose_detector_full.onnx
+pose_landmarks_full.onnx` (198 MB), then `plans/webview-open.json`. The
+TF.js bundles (`node ../pose-bench/build-tfjs.mjs`) and the ONNX models
+(`convert-blazepose.py`) must exist first.
+
 Android freezes a WebView in the background: keep the app in the foreground
 (the page holds a screen wake lock). Afterwards: `adb -s 4d42e62f uninstall
 org.coach.spike`, and remove every forward and reverse.

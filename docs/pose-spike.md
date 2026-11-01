@@ -1,21 +1,26 @@
 # Pose spike: model, runtime and shell (step 3.7)
 
 **Proposed, awaiting nordmu.** Nothing here binds until nordmu confirms it
-and it is recorded in [decisions.md](decisions.md#what-010-is). The accuracy
-numbers come from the four example clips only and are **provisional** until
-the validation set (step 3.0) exists; the speed, memory and capture numbers
-are measured on the Fairphone 6 and stand.
+and it is recorded in [decisions.md](decisions.md#what-010-is). Since
+2026-11-01 the runtime that ships must be open source and buildable from
+source (nordmu), so the first round's pick, MediaPipe on its closed runtime,
+is out; the open runtimes are the second round, below. The accuracy numbers
+come from the four example clips only and are **provisional** until the
+validation set (step 3.0) exists; the speed, memory and capture numbers are
+measured on the Fairphone 6 and stand.
 
 ## What was measured where
 
-- **On the Fairphone 6** (LineageOS, Android 16), 2026-10-31/11-01: Brave
-  156 (Chromium), cross-origin isolated (ONNX Runtime's WebAssembly with 4
-  threads); the Capacitor WebView (`com.android.webview` 153); the camera,
-  MediaRecorder, WebCodecs and the heat run. On USB power, a cold page per
-  run, 15 s between runs.
+- **On the Fairphone 6** (LineageOS, Android 16), 2026-10-31/11-01 (the
+  first round) and 2026-11-01 evening (the open runtimes): Brave 156
+  (Chromium), cross-origin isolated (ONNX Runtime's WebAssembly with 4
+  threads in the first round, 1 in the second); the Capacitor WebView
+  (`com.android.webview` 153); the camera, MediaRecorder, WebCodecs and the
+  heat run. On USB power, a cold page per run, 15 s between runs.
 - **On the laptop:** the agreement (spike/pose-bench/compare.mjs: each
   candidate's track against ViTPose-L's, through `diagnostics.js`); the
-  check that ViTPose's heatmap decoding matches easy_ViTPose's.
+  check that ViTPose's heatmap decoding matches easy_ViTPose's; the BlazePose
+  weight comparison and the ONNX conversion with its check against TF Lite.
 - **From docs:** the licences and F-Droid.
 
 The clips: two cable lateral raises (`lateral-raise-cable-1/-2`, 8 scored
@@ -24,7 +29,128 @@ verdicts) and two snatches (`athlete-a-trim`, a front view, and
 decide on:** one flipped verdict moves a lift by 12–25 points, and most
 flips below sit within a few units of a cue's threshold.
 
-## Speed, memory, download (Brave)
+## The open runtimes (2026-11-01)
+
+nordmu's rule of 2026-11-01 ([decisions.md](decisions.md#what-010-is)):
+the runtime that ships must be open source and buildable from source, which
+MediaPipe Tasks' web runtime isn't. The model and the runtime are separate
+choices: BlazePose's weights are Apache-2.0, only Google's runtime is
+closed. So this round runs Apache-2.0 weights on open runtimes, behind the
+same `estimate()`, on the same four clips, with MediaPipe full on its GPU
+delegate re-run the same day as the benchmark.
+
+- **MoveNet SinglePose Thunder (256×256) and Lightning (192×192), v4, on
+  TensorFlow.js 4.22.0**, through `@tensorflow-models/pose-detection` 2.1.3
+  (its crop from the last pose, low-passed; its keypoint smoothing off, as
+  `src/track/` smooths). 17 COCO keypoints straight out, no 33→17 mapping.
+- **BlazePose full on TensorFlow.js**, the same package with runtime
+  `tfjs`. Which weights: the TF.js landmark model (landmark full v2) holds
+  **the same numbers as the Tasks Landmarker's** `pose_landmarks_detector`
+  (all 192 weight tensors, to fp16 rounding). Its detector (v1) is a
+  different, dense one: the Tasks detector stores 38 tensors sparse, and none
+  of the TF.js detector's tensors match it. The legacy `@mediapipe/pose` of
+  the baseline's 0/4 wasn't compared.
+- **BlazePose full, the Tasks models converted to ONNX, on ONNX Runtime Web
+  1.30.0** (step 2b): **it works**, inside the half-day time box. tf2onnx 1.17 converts
+  the landmark model as is; the detector stores 38 weight tensors sparse (TF
+  Lite's `DENSIFY`), which tf2onnx can't convert, so TF Lite's interpreter
+  densifies them first
+  ([convert-blazepose.py](../spike/pose-bench/convert-blazepose.py)). Both
+  models match TF Lite to 9e-4. The detector, the rotated ROI, the heatmap
+  refinement and the ROI tracking are plain JS
+  ([blazepose-onnx.mjs](../spike/pose-bench/lib/blazepose-onnx.mjs)). The
+  converted weights are fp32: 24 MB against the `.task`'s 9.4.
+- Backends: WebGL and WebGPU (TypeScript and shaders, no wasm), and
+  WebAssembly on one thread, the way the app's WebView runs it.
+
+### Speed, memory, download
+
+Columns as in the first round below; 30 fps is what the phone's camera
+records, "full" is each clip's own rate (25, 30 and two at 60 fps). A 5 s
+clip is half the 10 s figure. The worst clip is usually a 3 s one, where
+WebGL's shader compiling on the first frames weighs most (BlazePose WebGL:
+88 ms/frame p50, 174 ms mean on `cable-1`); an app would warm the engine up
+at load.
+
+**Brave** (156, isolated; the four clips):
+
+| Candidate | Runtime | ms/frame, 30 / full | 10 s clip, s | 5 s clip, s | Memory, MB | Download, MB | First load, s |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| MoveNet Thunder | TF.js WebGL | 70 / 69 | 29 / 46 | 15 / 23 | 300 / 308 | 14 | 0.7 |
+| MoveNet Thunder | TF.js WebGPU | 70 / 69 | 24 / 44 | 12 / 22 | 321 / 309 | 13 | 0.6 |
+| MoveNet Thunder | TF.js WASM ×1 | 227 / 228 | 70 / 138 | 35 / 69 | 283 / 282 | 14 | 0.7 |
+| MoveNet Lightning | TF.js WebGL | 50 / 45 | 25 / 32 | 12 / 16 | 264 / 233 | 6 | 0.5 |
+| MoveNet Lightning | TF.js WebGPU | 56 / 55 | 19 / 35 | 9 / 18 | 220 / 171 | 6 | 0.4 |
+| MoveNet Lightning | TF.js WASM ×1 | 116 / 115 | 36 / 70 | 18 / 35 | 310 / 234 | 6 | 0.4 |
+| BlazePose full | TF.js WebGL | 88 / 86 | 44 / 59 | 22 / 29 | 394 / 366 | 14 | 0.6 |
+| BlazePose full | TF.js WebGPU | 71 / 69 | 24 / 46 | 12 / 23 | 303 / 282 | 13 | 0.6 |
+| BlazePose full | TF.js WASM ×1 | 138 / 138 | 44 / 84 | 22 / 42 | 290 / 286 | 14 | 0.6 |
+| BlazePose full, Tasks → ONNX | ONNX Runtime WebGPU | 64 / 64 | 23 / 43 | 12 / 22 | 581 / 556 | 51 | 3.9 |
+| BlazePose full, Tasks → ONNX | ONNX Runtime WASM ×1 | 114 / 114 | 36 / 70 | 18 / 35 | 153 / 170 | 38 | 1.9 |
+| MediaPipe full (benchmark) | GPU delegate | 57 / 56 | 22 / 37 | 11 / 19 | 327 / 370 | 23 | 1.2 |
+
+**The Capacitor WebView** (153, not isolated; the bundled APK, the snatch
+clip only: 1080p60, 7.4 s, the worst case; download as in Brave; first load
+from the APK):
+
+| Candidate | Runtime | ms/frame, 30 / full | 10 s clip, s | 5 s clip, s | Memory, MB | First load, s |
+| --- | --- | --- | --- | --- | --- | --- |
+| MoveNet Thunder | TF.js WebGL | 84 / 83 | 27 / 52 | 14 / 26 | 312 / 337 | 0.2 |
+| MoveNet Thunder | TF.js WebGPU | 73 / 73 | 26 / 49 | 13 / 24 | 325 / 336 | 0.2 |
+| MoveNet Thunder | TF.js WASM ×1 | 223 / 222 | 68 / 135 | 34 / 68 | 277 / 283 | 0.3 |
+| MoveNet Lightning | TF.js WebGL | 53 / 53 | 18 / 34 | 9 / 17 | 270 / 241 | 0.2 |
+| MoveNet Lightning | TF.js WebGPU | 57 / 57 | 21 / 38 | 10 / 19 | 119 / 179 | 0.2 |
+| MoveNet Lightning | TF.js WASM ×1 | 112 / 111 | 35 / 68 | 17 / 34 | 309 / 231 | 0.2 |
+| BlazePose full | TF.js WebGL | 93 / 91 | 30 / 58 | 15 / 29 | 409 / 405 | 0.2 |
+| BlazePose full | TF.js WebGPU | 74 / 74 | 26 / 49 | 13 / 24 | 284 / 320 | 0.3 |
+| BlazePose full | TF.js WASM ×1 | 133 / 133 | 41 / 82 | 21 / 41 | 273 / 267 | 0.3 |
+| BlazePose full, Tasks → ONNX | ONNX Runtime WebGPU | 71 / 70 | 24 / 45 | 12 / 23 | 471 / 539 | 2.6 |
+| BlazePose full, Tasks → ONNX | ONNX Runtime WASM ×1 | 115 / 115 | 36 / 70 | 18 / 35 | 191 / 198 | 0.9 |
+| MediaPipe full (benchmark) | GPU delegate | 62 / 61 | 20 / 38 | 10 / 19 | 272 / 259 | 0.5 |
+
+- **Every open configuration fits the budget at 30 fps**, the slowest
+  (Thunder on one WASM thread) with 68 s for a 10 s clip; at 60 fps only
+  that one doesn't (135 s). Real clips are 2–5 s at 30 fps at most.
+- **The WebView gives the same verdicts as Brave** for MoveNet and
+  MediaPipe (summary values within 1.0, 2.0 for Lightning on WASM at full
+  rate). Every
+  BlazePose configuration at full rate flips the snatch's
+  `second-pull-triple-extension` between the two (its value moves by about
+  1 around the threshold).
+- WebGPU works in this WebView (153) and in Brave; TF.js WebGPU is no
+  faster than WebGL for Thunder in Brave, 13% faster in the WebView.
+- The CPU stayed at 40–55 °C (live readings).
+
+### Agreement with ViTPose-L (provisional: 4 clips)
+
+Smoothed (what counts) / raw; coverage 100% in every row.
+
+| Candidate | Runtime | Lateral raise, 30 fps | Lateral raise, full | Snatch, 30 fps | Snatch, full |
+| --- | --- | --- | --- | --- | --- |
+| MoveNet Thunder | WebGL, WebGPU, WASM | 8/8 / 8/8 | 8/8 / 8/8 | 4/4 / 4/4 | 4/4 / 4/4 |
+| MoveNet Lightning | WebGL, WebGPU | 8/8 / 8/8 | 8/8 / 8/8 | 3/4 / 3/4 | 3/4 / 3/4 |
+| MoveNet Lightning | WASM | 8/8 / 8/8 | 8/8 / 8/8 | 2/4 / 3/4 | 2/4 / 3/4 |
+| BlazePose full, TF.js | WebGL, WebGPU | 8/8 / 5/8 | 8/8 / 7/8 | 4/4 / 4/4 | 4/4 / 4/4 |
+| BlazePose full, TF.js | WASM | 8/8 / 7/8 | 8/8 / 6/8 | 4/4 / 4/4 | 4/4 / 4/4 |
+| BlazePose full, Tasks → ONNX | ONNX Runtime WebGPU | 8/8 / 8/8 | 8/8 / 7/8 | 4/4 / 3/4 | 3/4 / 3/4 |
+| BlazePose full, Tasks → ONNX | ONNX Runtime WASM ×1 | 8/8 / 7/8 | 8/8 / 8/8 | 4/4 / 4/4 | 3/4 / 4/4 |
+| MediaPipe full (benchmark) | GPU delegate | 8/8 / 7/8 | 8/8 / 7/8 | 4/4 / 3/4 | 4/4 / 3/4 |
+
+- **MoveNet Thunder agrees on every verdict, raw too**, on all three
+  backends, as only ViTPose-S at 20 fps did in the first round.
+- **Every snatch miss is one cue at its threshold:** the snatch's
+  `second-pull-triple-extension` on `Session14` (hip deficit 20.0–20.4
+  against the reference's 18.6) for Lightning and for BlazePose on ONNX
+  Runtime at full rate, and for Lightning on WASM also on `athlete-a-trim`
+  (17.9 against 14.3). WASM and the GPU backends round differently.
+- **BlazePose on TF.js is jittery raw** (`lateral-raise-tempo` and
+  `-elbow-lead` on `cable-2` flip, raw only): with the package's smoothing
+  off, its next ROI comes from unsmoothed landmarks, which MediaPipe's
+  graph smooths. Smoothed, it agrees fully.
+- Same day, MediaPipe full repeats the first round's 8/8 and 4/4 smoothed,
+  at 57 against 55 ms/frame.
+
+## The first round: speed, memory, download (Brave)
 
 Engine ms/frame is the p50 over every processed frame, averaged over the
 clips. A 10 s clip is the worst clip's seconds per second of video × 10,
@@ -62,7 +188,7 @@ laptop).
   upper bound: these runs' sampler also read thermalservice's cached
   values; the live readings in the WebView were 42–52 °C).
 
-## Inside the Capacitor WebView
+## The first round: inside the Capacitor WebView
 
 [spike/webview-shell/](../spike/webview-shell/README.md): a throwaway
 debug APK, the snatch clip only (1080p60, 7.4 s), each candidate on its
@@ -102,7 +228,7 @@ peak with MediaPipe full was 1.2 GB.
   candidate's runtime and weights are 19–115 MB (the table above).
 - The CPU stayed at 42–52 °C (the sampler's fixed, live reading).
 
-## Agreement with ViTPose-L (provisional: 4 clips)
+## The first round: agreement with ViTPose-L (provisional: 4 clips)
 
 Smoothed (what counts) / raw, counting only verdicts both sides score. Every
 configuration scored every cue the reference scored (coverage 100%). The
@@ -179,63 +305,83 @@ per clip, so it never idled.
 ## The licence gate
 
 [rules-core.md](rules-core.md#licence-compatible-dependencies): every
-dependency that ships is permissive or GPL-3.0-compatible. Weights ship, so
-their licence is a pass/fail gate next to accuracy and time, not a footnote.
+dependency that ships is permissive or GPL-3.0-compatible, and (nordmu,
+2026-11-01) the pose runtime is open source and buildable from source. The
+weights ship too, so both are pass/fail gates next to accuracy and time.
 Sources: [THIRD_PARTY.md](../THIRD_PARTY.md#fetched-by-the-phase-3-spike-not-shipped).
 
-| Candidate | Weights | Gate |
+| Weights | Licence | Gate |
 | --- | --- | --- |
-| MediaPipe Pose Landmarker (lite, full, heavy) | Apache-2.0, stated on the model card | **passes** |
+| MoveNet SinglePose Thunder / Lightning v4 | Apache-2.0 (model card, and each Kaggle instance) | **passes** |
+| BlazePose GHUM 3D: Pose Landmarker lite / full / heavy (`.task`) and full's ONNX conversion; the TF.js detector v1 and landmark full v2 | Apache-2.0 (model card, Kaggle) | **passes** |
 | ViTPose-S/B | Backbones MAE-pretrained; MAE's weights are CC BY-NC 4.0 | **not shippable** unless nordmu and Noah accept the risk |
 | RTMPose-s/m | No weights licence stated; trained on 7 datasets with unverified terms | **not shippable** unless nordmu and Noah accept the risk |
 | YOLOX-nano (person box for ViTPose and RTMPose) | Apache-2.0 (Megvii) | passes; matters only with a top-down model |
 
-### The outcome, two ways (provisional: 4 clips)
+| Runtime | Open source, buildable from source? | F-Droid |
+| --- | --- | --- |
+| TensorFlow.js WebGL, WebGPU (+ pose-detection) | **Yes**: TypeScript and shader strings, Apache-2.0 | The best case: a Node build, no wasm. The recipe would build tfjs and tfjs-models from their tags, and esbuild (Go; Debian packages it) |
+| TensorFlow.js WASM | Yes: C++ (XNNPACK) through emscripten and Bazel | A wasm rebuild in the recipe, with the emsdk-vs-Debian mismatch below |
+| ONNX Runtime Web (WASM, WebGPU) | Yes: C++ through emscripten | Same mismatch: ORT pins its own emsdk; no recipe builds `onnxruntime-web` |
+| MediaPipe Tasks Vision (web) | **No**: "The GPU code and the code that invokes MediaPipe are not open source" (#5791) | Can't build; fails the rule. Benchmark, and a fallback only if nordmu chooses it |
+| ONNX Runtime for Android (native, in a Capacitor plugin) | Yes | `de.schliweb.makeacopy` builds it from source in its recipe; a later option, **not tested** |
 
-**If only MediaPipe counts** (the gate as it stands):
+### The outcome (provisional: 4 clips)
 
-- **Lateral raise: MediaPipe full**, GPU delegate, every frame: 8/8
-  verdicts smoothed, 100% coverage, a 10 s 1080p60 clip in 38–39 s (Brave
-  and the WebView). Heavy agrees as well (8/8) at 61 s and twice the memory;
-  lite fails (6/8, 75%).
-- **Snatch: provisionally in.** MediaPipe full at full rate agrees on 4/4.
-  The expected "snatch moves to 0.2" isn't supported tonight, but the two
-  clips are front or oblique views, so the side-view clips of 3.0 decide.
-- **The stop condition is not hit:** no candidate is under 70% on the
-  lateral raise.
-
-**If nordmu and Noah accepted the ViTPose/RTMPose risk:** the pick stays
-MediaPipe full. ViTPose-S agrees best on raw tracks, but in the app (no
-isolation) it needs 171 s for a 10 s clip at 20 fps (100 s on ONNX
-Runtime's WebGPU). RTMPose-s agrees on 7/8 and 4/4 and needs 53 s at 20 fps
-on one thread (33 s on WebGPU). Per frame both are 2.4–14× slower than
-MediaPipe full in the WebView, and they download 1.7–5× more. So the outcome
-doesn't depend on the risk, and Noah needn't be asked unless the
-validation set fails MediaPipe.
+- **Open candidates pass.** MoveNet Thunder on TF.js agrees on 8/8
+  lateral-raise and 4/4 snatch verdicts with 100% coverage, and needs
+  27 s for a 10 s clip at 30 fps in the WebView on WebGL (90 s allowed).
+  BlazePose full passes too, on TF.js (8/8, 4/4 smoothed) and on ONNX
+  Runtime at 30 fps (at full rate 3/4 on the snatch). Lightning fails the
+  snatch (3/4, 75%) on one cue at its threshold.
+- **The stop condition is not hit:** every candidate agrees on 8/8 lateral
+  raises.
+- **The weights aren't the problem, Google's runtime is:** the TF.js
+  BlazePose landmark model is the Tasks Landmarker's, number for number.
+- **Four clips can't separate the candidates:** all but Lightning sit at
+  100% smoothed. The validation set (3.0) decides between MoveNet Thunder
+  and BlazePose, and the snatch.
 
 ### Recommendation (proposed, awaiting nordmu)
 
-- **Model and runtime:** MediaPipe Pose Landmarker full (Tasks Vision
-  1.1.1), GPU delegate, every frame; the CPU delegate as the fallback (71
-  ms/frame in Brave, 73 in the WebView: a 10 s clip in 45 s; it needs no
-  threads, so isolation doesn't matter). Every frame because at 20 fps MediaPipe
-  full misread the snatch's back angle once; the phone's camera gives 30
-  fps, so a 10 s recording is about 20 s of processing.
-- **Shell:** one web app as a PWA and in Capacitor; MediaPipe on the GPU
-  needs the same 39 s for a 10 s clip in the WebView as in Brave, and it
-  needs no cross-origin isolation, which the WebView can't give. A TWA
-  brings nothing a PWA doesn't and needs a Chrome-like browser the test
-  phone lacks.
-- **The strongest counter-argument:** MediaPipe's web runtime is a closed,
-  prebuilt binary (its GPU code isn't open source, see F-Droid below). coach
-  can't fix it, can't ship it on F-Droid, and depends on Google's releases.
-  And four clips decide nothing yet; the stock Android phone (question 3) is
-  untested.
+- **Model and runtime: MoveNet SinglePose Thunder on TensorFlow.js,
+  every frame**, WebGL backend by default (TypeScript and shaders: the
+  most portable backend, and no wasm for F-Droid to rebuild); WebGPU where
+  the WebView offers it (26 s against 27 for a 10 s clip in the WebView);
+  WebAssembly on one thread as the fallback for a phone without a usable
+  GPU (68 s for a 10 s clip at 30 fps, inside 90 s). Weights Apache-2.0, 14 MB with the runtime. Every
+  frame because the camera gives 30 fps and the first round saw a 20 fps
+  misread.
+- **Why Thunder over BlazePose:** the same verdicts smoothed, but Thunder
+  agrees raw too (BlazePose on TF.js flips up to three raw verdicts on the
+  lateral raises) and gives the same verdicts in the WebView as in Brave
+  (BlazePose flips the snatch's second pull at full rate); it is as fast on
+  WebGPU and faster on WebGL, outputs COCO-17 directly, and is one model with
+  a crop from the last pose, no detector or ROI tracking. BlazePose stays the
+  second choice, on TF.js or on ONNX Runtime: 33 points (feet, hands) if a
+  later cue needs them.
+- **Shell:** unchanged, one web app as a PWA and in Capacitor; the WebView
+  can't be isolated, which matters only to the WASM fallback (one thread).
+- **The strongest counter-argument:** TensorFlow.js is frozen. 4.22.0
+  (2024-10) is its last release and pose-detection 2.1.3 (2023-08) its
+  last; the TF Hub URLs it ships with are dead (the weights now come from
+  Kaggle). coach would carry a runtime nobody maintains and own every fix;
+  open source makes that possible, not cheap. ONNX Runtime is maintained
+  and runs BlazePose as well (64–71 ms/frame on WebGPU), but needs our own
+  pipeline code, 24 MB of fp32 weights and a wasm F-Droid would have to
+  rebuild. Google's newer web runtime, LiteRT.js (`@litertjs/core`,
+  Apache-2.0, since 2025-08), wasn't tested, nor whether it builds from
+  source. And the pick rests on four clips at 100%.
+- **If the validation set fails every open candidate:** native ONNX Runtime
+  for Android in a Capacitor plugin (open, built from source by an F-Droid
+  app already; Android only, untested), or MediaPipe Tasks as an exception
+  nordmu chooses knowingly.
 
 ## F-Droid (step 3.8, on paper)
 
-It doesn't steer the choice above. Until it passes, 0.1.0 ships as a PWA and
-a GitHub APK ([decisions.md](decisions.md#what-010-is)).
+Until it passes, 0.1.0 ships as a PWA and a GitHub APK
+([decisions.md](decisions.md#what-010-is)). The runtime rule of 2026-11-01
+now steers the choice; F-Droid itself still doesn't.
 
 - **MediaPipe Tasks Vision can't be built from source.** On
   [google-ai-edge/mediapipe#5791](https://github.com/google-ai-edge/mediapipe/issues/5791)
@@ -243,24 +389,31 @@ a GitHub APK ([decisions.md](decisions.md#what-010-is)).
   the code that invokes MediaPipe are not open source" and "It is not
   currently possible to build custom Wasm blobs." So F-Droid can't take it;
   its weights would pass as assets.
-- **ONNX Runtime Web would need its wasm rebuilt in the recipe.**
-  F-Droid's scanner rejects prebuilt `.wasm` (fdroidserver MR !1562,
-  2024-11), and recipes rebuild wasm with Debian's `emscripten` package: in
-  `fdroiddata`, `org.jitsi.meet` rebuilds `olm.wasm` that way, and no recipe
-  uses emsdk (pascaline's own check agrees). ONNX Runtime pins its own emsdk
-  (4.0.23, unverified here) while the build server's Debian ships 3.1.69, and
-  no recipe builds `onnxruntime-web`. The nearest precedent,
-  `de.schliweb.makeacopy`, builds **native** ONNX Runtime for Android from
-  source (`scandelete: external/onnxruntime`, `build_onnxruntime_android.sh`),
-  not the web build.
+- **TensorFlow.js on WebGL or WebGPU ships no wasm at all:** TypeScript and
+  shader strings, so the scanner's ban on prebuilt `.wasm` doesn't touch it.
+  What a recipe would still have to do is build tfjs (4.22.0) and
+  tfjs-models (pose-detection 2.1.3) from their tags, and the bundle with
+  esbuild; the tfjs repo builds with Bazel and yarn, and whether a recipe
+  can run that is **unchecked**. The WASM backend would bring back the wasm
+  problem below.
+- **ONNX Runtime Web (and TF.js's WASM backend) would need their wasm
+  rebuilt in the recipe.** F-Droid's scanner rejects prebuilt `.wasm`
+  (fdroidserver MR !1562, 2024-11), and recipes rebuild wasm with Debian's
+  `emscripten` package: in `fdroiddata`, `org.jitsi.meet` rebuilds
+  `olm.wasm` that way, and no recipe uses emsdk (pascaline's own check
+  agrees). ONNX Runtime pins its own emsdk (4.0.23, unverified here) while
+  the build server's Debian ships 3.1.69, and no recipe builds
+  `onnxruntime-web`. The nearest precedent, `de.schliweb.makeacopy`, builds
+  **native** ONNX Runtime for Android from source (`scandelete:
+  external/onnxruntime`, `build_onnxruntime_android.sh`), not the web build.
 - **Weights are accepted as assets** when their licence is free and their
   provenance documented (per the research: `de.schliweb.makeacopy`,
   `co.rorystandley.rune`, `com.buzbuz.smartautoclicker`,
   `com.benjaminwan.chinesettstflite`); a non-free licence gets the
   `NonFreeAssets` anti-feature, which ViTPose's and RTMPose's would risk.
+  MoveNet's and BlazePose's (Apache-2.0, Google's own uploads) pass.
 
-**The tension:** the candidate whose weights pass the licence gate cleanly
-(MediaPipe) has the runtime F-Droid can't build, and the runtime F-Droid
-could build with work (ONNX Runtime) runs the candidates whose weights don't
-pass. An F-Droid build of coach needs either a permissively licensed model
-run by ONNX Runtime (rebuilt in the recipe) or a MediaPipe that Google opens.
+**The tension of the first round is gone:** MoveNet's and BlazePose's
+weights pass the gate, and TF.js on WebGL runs them with no wasm to
+rebuild. What stays open is whether an F-Droid recipe can build TF.js
+itself.
