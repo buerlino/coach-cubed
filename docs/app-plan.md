@@ -159,15 +159,15 @@ agent work, **M** about two, **L** a full run (three hours at most).
 | --- | --- | --- | --- |
 | `d3` | **The app's frame:** `app/` with `index.html`, the manifest, `tokens.css`, the vendored fonts, Preact and htm, the flow's state machine with placeholder screens, `assemble.mjs` and `serve.mjs`, `app/package.json` with `test`, the paths test covering `app/`, `app/README.md`, the Layout row, THIRD_PARTY. | M | — |
 | `s4` | **`diagnostics.js`'s headless API:** the set's descriptors, `tiles`, `referenceLine` and `drawCue(ctx, id, t, computed)`, additive; red first; the goldens unchanged. Opus. | M | — |
-| `s5` | **The contracts** (1–5 above) in `app/src/contracts/`, with validators and tests. Opus. | M | `d3` |
+| `s5` | **The contracts** (1–5 above) in `app/src/contracts/`, with validators and tests. Opus. | M | `d3`, `s4` |
 
 ### The engine and the analysis
 
 | Id | What | Size | After |
 | --- | --- | --- | --- |
-| `s6` | **TF.js from source:** `app/tools/build-tfjs.mjs`, the pinned clones in the cache outside the repo, `fetch-models.sh` for MoveNet Thunder with its SHA-256; THIRD_PARTY for TF.js, pose-detection and the weights. | L | `d3` |
+| `s6` | **TF.js from source:** `app/tools/build-tfjs.mjs`, the pinned clones in the cache outside the repo, `fetch-models.sh` for MoveNet Thunder with its SHA-256; THIRD_PARTY for TF.js, pose-detection and the weights. Opus. | L | `d3` |
 | `s7` | **The same numbers as npm's bundle,** in Node on the CPU backend: the from-source bundle and the npm one on a fixed input tensor and a synthetic image. Real clips wait for `c26` on the phone (headless Brave's WebGL is software, CPU-heavy). | S | `s6` |
-| `c8` | **The store:** OPFS lifts (contract 3), the index, `persist()`, the quota, delete; tests with an in-memory fake. | M | `s5` |
+| `c8` | **The store:** OPFS lifts (contract 3), the index, a settings record (S1's defaults, A3's options), `persist()`, the quota, delete; tests with an in-memory fake. | M | `s5` |
 | `s9` | **The frame source** in `app/src/media/`: demuxing (mp4box, or mediabunny for imports and recordings both: decided in the package), WebCodecs, rotation, a range decoded from its keyframe, thumbnails. Tests on a tiny generated clip (ffmpeg's test pattern, our own, committed). | L | `s5` |
 | `s10` | **The pose engine** in `app/src/pose/`: pose-bench's worker and client, MoveNet only, warm-up, errors; tests with a fake worker. | M | `s5`, `s6` |
 | `s11` | **The scoring adapter:** `computeResults()` to the cue view model, with the status words, the reasons and the provisional flags; the committed fixture tracks give their goldens through it. | M | `s4`, `s5` |
@@ -183,18 +183,18 @@ agent work, **M** about two, **L** a full run (three hours at most).
 | `d16` | **A1's player:** the video with the skeleton overlay, ported from the old page behind tests pinned to it first (5.5); play, frame steps, speed. | L | `s9`, `s11` |
 | `d17` | **A1's timeline and cue cards:** the lift found, where a cue went wrong, a card per cue from the view model. | M | `d16` |
 | `d18` | **A2, cue detail:** the worst moment with `drawCue`, the cue's plot against its zones, its tiles, how it's scored, "provisional". | L | `d17`, `s4` |
-| `d22` | **A3, view options:** overlays, loop, speed, smoothing, re-mark, delete. | M | `d17` |
+| `d22` | **A3, view options:** overlays, loop, speed, smoothing, re-mark, delete. | M | `d17`, `c8` |
 | `d23` | **What the mockups don't draw** (D3): no person found, a video that can't be read, storage full, the engine failing, the first run, a snatch result. | M | `d17` |
 | `d24` | **S1, settings and about:** the defaults, storage, the version, the privacy text, credits and licences from THIRD_PARTY. | M | `c8` |
-| `d25` | **A4 and the responsive check** (5.7): phone portrait and landscape, tablet, laptop. | M | `d18` |
+| `d25` | **A4 and the responsive check** (5.7): phone portrait and landscape, tablet, laptop, in `c21`'s test build. | M | `d18`, `c21` |
 
 ### The platform and the phone
 
 | Id | What | Size | After |
 | --- | --- | --- | --- |
 | `c19` | **The service worker:** precaching assemble's list, versioned, updating while idle; a headless test with the network off. | M | `d3`, `s6` |
-| `c20` | **The Capacitor shell:** `app/android/`, `webDir` `app/dist`, file import in the WebView, a debug APK build from the spike's `build.sh`, a placeholder package ID. | M | `d3` |
-| `c21` | **The page test** (5.6), `npm --prefix app run test:page`: headless Brave over CDP loads `dist/` offline, imports a lateral raise and a snatch from the example clips' folder (an option; skipped, and said so, without it), fails on a console error, a 404 or an empty cue list. | M | `d17`, `c19` |
+| `c20` | **The Capacitor shell:** `app/android/`, `webDir` `app/dist`, file import in the WebView, a debug APK build from the spike's `build.sh`, a placeholder package ID. | M | `d3`, `s9` |
+| `c21` | **The page test** (5.6), `npm --prefix app run test:page`: headless Brave over CDP loads a test build offline and runs a lateral raise and a snatch through the flow, our own test clip decoded and committed tracks replayed in place of the engine, so it takes seconds in any worktree; an option runs the example clips with the real engine. Fails on a console error, a 404 or an empty cue list. | M | `d17`, `c19` |
 | `c26` | **Milestone A on the Fairphone:** in Brave as a PWA and as the APK, in airplane mode, the four example clips: time, memory, and verdicts against pose-bench's (the real-clip parity `s7` leaves out); the numbers into [pose-spike.md](pose-spike.md). | M | `d14`, `d18`, `c19`, `c20` |
 
 **Checkpoint A:** nordmu uses milestone A on the Fairphone and gives

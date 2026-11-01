@@ -84,7 +84,7 @@ finish (git keeps the history). Decisions and open questions are in
   gitignored `tests/fixtures/local/` on machines that have them, this laptop
   included. A fresh clone runs every test but has no example gallery.
 - **Test counts** (the only place they're kept): 82 JS (5 of them the docs
-  and absolute-path checks) and 6 Python tests. Update them here when a
+  and absolute-path checks) and 15 Python tests. Update them here when a
   commit changes them.
 - **AGENTS.md stays lean** (step 2.9): status, history and reasoning go in
   this file, [backlog.md](backlog.md) or [decisions.md](decisions.md), never
