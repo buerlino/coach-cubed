@@ -78,7 +78,7 @@ becomes a test case: [`tests/README.md`](tests/README.md).
 | `clips_inbox/` | A gitignored landing spot for raw clips waiting to become fixtures. |
 | `Caddyfile`, `pki-public/`, `log/` | A reference copy of the reverse-proxy config (not the live one), the published root cert, and the dev server's logs. |
 | [`pipeline/`](pipeline/README.md) | The agent pipeline's scripts: one work package from its file to a merge into `phase-0`, with fresh agents ([docs/pipeline.md](docs/pipeline.md)). |
-| `.claude/agents/` | The pipeline's agents: the workers dirac, schrödinger and curie, the advisor einstein, the auditor hillbert. |
+| `.claude/agents/` | The pipeline's agents: the workers dirac, schrödinger and curie, the advisor einstein, the auditor hillbert, and faraday, who runs the queue overnight. |
 | `.claude/hooks/` | `adb_guard.py`, run before every Bash command (`.claude/settings.json`): an adb command must name the phone, `adb -s 4d42e62f`, and nothing may name the tablet of pascaline's nights. |
 | `.claude/skills/` | Playbooks for recurring changes (add a lift page, add a diagnostic), written for an AI pair-programmer but just as usable by hand. |
 | `THIRD_PARTY.md` | Every third-party component: version, licence and source. |
