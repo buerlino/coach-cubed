@@ -12,8 +12,12 @@ Rewrite in place.
 
 - **2026-11-01:** nordmu approved mockups v1 as the basis to build on
   ("good enough to build now"; tweaks later) and decided D1–D4
-  ([below](#decided-2026-11-01)). The packages are cut from this plan; the
-  first watched run (plan step 4.4) is `s1`, then `d3`.
+  ([below](#decided-2026-11-01)). The packages are cut from this plan.
+  Plan step 4.4 is `s1`, watched by nordmu, then `s2` and `d3`; `d3` is
+  watched too, as the first run of the app's checks.
+- **2026-11-01, after the plan's review:** its fixes are in: D5–D8
+  ([below](#decided-2026-11-01)), the new package `s32`, Look A0 and the
+  tester APK's `c33`.
 
 ## What it builds on
 
@@ -53,7 +57,7 @@ app/
     pose/        the engine: worker, client, MoveNet on TF.js
     analysis/    a job (decode, pose per frame, track, smoothing, score) and the queue
     scoring/     diagnostics.js behind an adapter: the cue view model
-    media/       decoding and frame access; capture and the rolling buffer (B)
+    media/       decoding and frame access; the cut kept at Analyse (s32); capture and the rolling buffer (B)
     store/       OPFS: lifts, videos, tracks, results, the quota
     draw/        canvas renderers: skeleton, cue overlays, plots, filmstrip
   vendor/        Preact, htm, the fonts (committed); the TF.js bundle (built, gitignored)
@@ -102,11 +106,13 @@ and the engine are plain modules, so only the screens depend on Preact.
    `result {id, keypoints, ms}`, keypoints COCO-17 `[y, x, conf]` in frame
    pixels or `null`. pose-bench's, trimmed.
 2. **An analysis job:** id, lift id, lift (`lateral-raise` or `snatch`),
-   source, range `{t0, t1}`, state (queued, reading, pose, scoring, done,
-   failed, cancelled), progress `{stage, done, total, etaS}`, error.
-3. **A stored lift:** id, created, lift, the video's path, the range, the
-   track's and the result's paths, the app version, the engine (model,
-   backend, runtime version).
+   source (the stored cut's path, D6), range `{t0, t1}` in the cut's own
+   timeline, state (queued, reading, pose, scoring, done, failed,
+   cancelled), progress `{stage, done, total, etaS}`, error. A queued job
+   names only stored files, so it survives a restart.
+3. **A stored lift:** id, created, lift, the video's path (the cut, D6),
+   the range, the track's and the result's paths, the app version, the
+   engine (model, backend, runtime version).
 4. **The cue view model**, what the UI draws: per cue its id, title, cue,
    status (good, watch, work on, can't score), verdict text, value and
    unit, tiles, series, phase `{t0, t1}`, worst moment, whether its
@@ -133,18 +139,20 @@ and the engine are plain modules, so only the screens depend on Preact.
   and spacing are tokens in one stylesheet; Barlow and Barlow Condensed are
   vendored (OFL-1.1). Dark only and English only in 0.1.0. The manifest's
   name is the placeholder "coach" until question 10 is settled.
-- **What the mockups drop:** the old page's raw keypoint plots. A2 plots
-  each cue's own series against its zones instead, so step 5.5 ports the
-  skeleton overlay and the lift window, not the keypoint plots.
-- **Storage:** OPFS, one folder per lift (the cut video, `track.json` in
-  the fixture format, `result.json`) and an index; `persist()` asked at
-  the first save; the quota shown in S1.
+- **What the mockups drop:** the old page's raw keypoint plots (D5,
+  nordmu's call). A2 plots each cue's own series against its zones
+  instead, so step 5.5 ports the skeleton overlay and the lift window; the
+  raw plots stay on the old page as a dev tool.
+- **Storage:** OPFS, one folder per lift (the cut video, D6: the marked
+  range cut to MP4 at Analyse by `s32`; `track.json` in the fixture
+  format; `result.json`) and an index; `persist()` asked at the first
+  save; the quota shown in S1.
 - **Offline:** curie's service worker precaches `dist/` (dirac's app
   shell, TF.js, the weights, the fonts) under a versioned cache; an update
   waits until no job runs.
 - **Capacitor 8.5.3**, as in the spike: `webDir` is `app/dist`. Debug APKs
   only, until the name and the package ID are fixed (question 10) and the
-  signing key has a holder (6.2).
+  signing key has a holder (6.2); then `c33` makes the tester APK.
 
 ## The packages, in stages
 
@@ -157,21 +165,22 @@ agent work, **M** about two, **L** a full run (three hours at most).
 
 | Id | What | Size | After |
 | --- | --- | --- | --- |
-| `d3` | **The app's frame:** `app/` with `index.html`, the manifest, `tokens.css`, the vendored fonts, Preact and htm, the flow's state machine with placeholder screens, `assemble.mjs` and `serve.mjs`, `app/package.json` with `test`, the paths test covering `app/`, `app/README.md`, the Layout row, THIRD_PARTY. | M | — |
-| `s4` | **`diagnostics.js`'s headless API:** the set's descriptors, `tiles`, `referenceLine` and `drawCue(ctx, id, t, computed)`, additive; red first; the goldens unchanged. Opus. | M | — |
+| `d3` | **The app's frame:** `app/` with `index.html`, the manifest, `tokens.css`, the vendored fonts, Preact and htm, the flow's state machine with placeholder screens, `assemble.mjs` and `serve.mjs`, `app/package.json` with `test`, the paths test covering `app/`, `app/README.md`, the Layout row, THIRD_PARTY's new-app section. | M | — |
+| `s4` | **`diagnostics.js`'s headless API:** the set's descriptors, `tiles`, `referenceLine` and `drawCue(ctx, id, t, computed)`, additive; red first; the goldens unchanged. Opus. | M | `d3` |
 | `s5` | **The contracts** (1–5 above) in `app/src/contracts/`, with validators and tests. Opus. | M | `d3`, `s4` |
 
 ### The engine and the analysis
 
 | Id | What | Size | After |
 | --- | --- | --- | --- |
-| `s6` | **TF.js from source:** `app/tools/build-tfjs.mjs`, the pinned clones in the cache outside the repo, `fetch-models.sh` for MoveNet Thunder with its SHA-256; THIRD_PARTY for TF.js, pose-detection and the weights. Opus. | L | `d3` |
-| `s7` | **The same numbers as npm's bundle,** in Node on the CPU backend: the from-source bundle and the npm one on a fixed input tensor and a synthetic image. Real clips wait for `c26` on the phone (headless Brave's WebGL is software, CPU-heavy). | S | `s6` |
+| `s6` | **TF.js from source:** `app/tools/build-tfjs.mjs`, the pinned clones in the cache outside the repo, `fetch-models.sh` for MoveNet Thunder with its SHA-256; THIRD_PARTY for TF.js, pose-detection and the weights. Opus. At the 3-hour limit: its file names a split point, `s6b`. | L | `d3` |
+| `s7` | **The same numbers as npm's bundle,** in Node on the CPU backend: the from-source bundle and the npm one on a fixed input tensor and a synthetic image. A difference stops the queue before `s10`. Real clips wait for `c26` on the phone (headless Brave's WebGL is software, CPU-heavy). | S | `s6` |
 | `c8` | **The store:** OPFS lifts (contract 3), the index, a settings record (S1's defaults, A3's options), `persist()`, the quota, delete; tests with an in-memory fake. | M | `s5` |
-| `s9` | **The frame source** in `app/src/media/`: demuxing (mp4box, or mediabunny for imports and recordings both: decided in the package), WebCodecs, rotation, a range decoded from its keyframe, thumbnails. Tests on a tiny generated clip (ffmpeg's test pattern, our own, committed). | L | `s5` |
-| `s10` | **The pose engine** in `app/src/pose/`: pose-bench's worker and client, MoveNet only, warm-up, errors; tests with a fake worker. | M | `s5`, `s6` |
+| `s9` | **The frame source** in `app/src/media/`: demuxing with mediabunny (D6: one library for imports, cuts and later recordings), WebCodecs, rotation, a range decoded from its keyframe, thumbnails. Tests on a tiny generated clip (ffmpeg's test pattern, our own, committed). | L | `s5` |
+| `s10` | **The pose engine** in `app/src/pose/`: pose-bench's worker and client, MoveNet only, warm-up, errors; tests with a fake worker. | M | `s5`, `s6`, `s7` |
 | `s11` | **The scoring adapter:** `computeResults()` to the cue view model, with the status words, the reasons and the provisional flags; the committed fixture tracks give their goldens through it. | M | `s4`, `s5` |
-| `s12` | **The analysis job and the queue:** the range decoded, the engine on every frame, the track in the fixture format, `src/track/`'s smoothing, scoring; progress by stage, the time left from the measured ms per frame, cancel; one job at a time. Tests with a fake decoder and engine. Opus. | L | `s9`, `s10`, `s11` |
+| `s32` | **Keep the lift's video** (D6): the marked range cut to MP4 by mediabunny at Analyse, a stream copy from the keyframe at or before the start, and `keepVideo` through the store, so the job and A1 read the stored cut. | M | `s9`, `c8` |
+| `s12` | **The analysis job and the queue:** the stored cut decoded, the engine on every frame, the track in the fixture format, `src/track/`'s smoothing, scoring; progress by stage, the time left from the measured ms per frame, cancel; one job at a time; a queued job survives a restart. Tests with a fake decoder and engine. Opus. | L | `s9`, `s10`, `s11`, `c8`, `s32` |
 
 ### Milestone A's screens
 
@@ -180,27 +189,46 @@ agent work, **M** about two, **L** a full run (three hours at most).
 | `d13` | **H and import:** the lift, the file picker, today's lifts and their state, earlier sessions, "everything stays on this phone". | M | `d3`, `c8` |
 | `d14` | **M1–M3, marking:** the filmstrip under a fixed playhead, Set start and Set end, one-frame steps, the marked length and its analysis time, Analyse into the queue, Redo. | L | `s9`, `s12` |
 | `d15` | **Q1, analysing:** the stages, the time left, the queue; leaving doesn't stop it. | S | `s12` |
-| `d16` | **A1's player:** the video with the skeleton overlay, ported from the old page behind tests pinned to it first (5.5); play, frame steps, speed. | L | `s9`, `s11` |
+| `d16` | **A1's player:** the stored cut (`s32`) with the skeleton overlay, ported from the old page behind tests pinned to it first (5.5); play, frame steps, speed. At the 3-hour limit: its file names a split point, `d16b`. | L | `s9`, `s11`, `s32` |
 | `d17` | **A1's timeline and cue cards:** the lift found, where a cue went wrong, a card per cue from the view model. | M | `d16` |
 | `d18` | **A2, cue detail:** the worst moment with `drawCue`, the cue's plot against its zones, its tiles, how it's scored, "provisional". | L | `d17`, `s4` |
-| `d22` | **A3, view options:** overlays, loop, speed, smoothing, re-mark, delete. | M | `d17`, `c8` |
-| `d23` | **What the mockups don't draw** (D3): no person found, a video that can't be read, storage full, the engine failing, the first run, a snatch result. | M | `d17` |
-| `d24` | **S1, settings and about:** the defaults, storage, the version, the privacy text, credits and licences from THIRD_PARTY. | M | `c8` |
+| `d22` | **A3, view options:** overlays, loop, speed, smoothing, re-mark, delete. | M | `d17`, `c8`, `d14` |
+| `d23` | **What the mockups don't draw** (D3): no person found, a video that can't be read, storage full, the engine failing, the first run, a snatch result. | M | `d17`, `s12`, `c8` |
+| `d24` | **S1, settings and about:** the defaults, storage, the version, the privacy text, credits and licences from THIRD_PARTY's new-app section. | M | `c8` |
 | `d25` | **A4 and the responsive check** (5.7): phone portrait and landscape, tablet, laptop, in `c21`'s test build. | M | `d18`, `c21` |
+
+**Look A0** (D7): once `d17` has merged, nordmu uses H → import → mark →
+Q1 → A1 on the Fairphone for about 15 minutes and gives feedback by
+screen ID. The coordinating session installs a debug APK with `c20`'s
+script, or nordmu opens the PWA. Fixes run as packages, design changes go
+through the canvas. It isn't a gate: the queue goes on with `d18` unless
+nordmu stops it.
 
 ### The platform and the phone
 
+Phone packages (`c20`, `c26`, and later `c31` and `c33`) run by day, with
+nordmu told first.
+
 | Id | What | Size | After |
 | --- | --- | --- | --- |
-| `c19` | **The service worker:** precaching assemble's list, versioned, updating while idle; a headless test with the network off. | M | `d3`, `s6` |
-| `c20` | **The Capacitor shell:** `app/android/`, `webDir` `app/dist`, file import in the WebView, a debug APK build from the spike's `build.sh`, a placeholder package ID. | M | `d3`, `s9` |
-| `c21` | **The page test** (5.6), `npm --prefix app run test:page`: headless Brave over CDP loads a test build offline and runs a lateral raise and a snatch through the flow, our own test clip decoded and committed tracks replayed in place of the engine, so it takes seconds in any worktree; an option runs the example clips with the real engine. Fails on a console error, a 404 or an empty cue list. | M | `d17`, `c19` |
-| `c26` | **Milestone A on the Fairphone:** in Brave as a PWA and as the APK, in airplane mode, the four example clips: time, memory, and verdicts against pose-bench's (the real-clip parity `s7` leaves out); the numbers into [pose-spike.md](pose-spike.md). | M | `d14`, `d18`, `c19`, `c20` |
+| `c19` | **The service worker:** precaching assemble's list, versioned, updating while idle; a headless test with the network off. | M | `d3`, `s6`, `s12` |
+| `c20` | **The Capacitor shell, and the engine on the phone:** `app/android/`, `webDir` `app/dist`, file import in the WebView, a debug APK build from the spike's `build.sh`, a placeholder package ID. It runs early (#11 in the queue) and also runs the engine on the Fairphone: the from-source WebGL bundle's first run on real hardware, on `s9`'s test clip. | M | `d3`, `s9`, `s10` |
+| `c21` | **The page test** (5.6), `npm --prefix app run test:page`: headless Brave over CDP loads a test build offline (without the gitignored TF.js bundle and weights) and runs a lateral raise and a snatch through the flow, replaying committed fixture tracks over its own clips, matched to each track's size, rate and length, and asserting the adapter's verdicts; seconds in any worktree. The real engine is an optional mode on the CPU backend, run in slices; the real clips belong to `c26`. Fails on a console error, a 404 or a wrong verdict. | M | `d13`, `d14`, `d15`, `d17`, `c19` |
+| `c26` | **Milestone A on the Fairphone:** in Brave as a PWA, offline with the forwards removed, and as the APK in airplane mode, switched off again after; the four example clips: time, memory, verdicts, and track parity with `difftrack.mjs` against pose-bench's npm bundle on the same clips (the real-clip parity `s7` leaves out); the numbers into [pose-spike.md](pose-spike.md). | M | `d13`, `d14`, `d18`, `c19`, `c20` |
 
 **Checkpoint A:** nordmu uses milestone A on the Fairphone and gives
 feedback by screen ID; fixes run as packages, design changes go through
-the canvas first ([ui-design.md](ui-design.md)). Testers get an APK only
-after the gates below.
+the canvas first ([ui-design.md](ui-design.md)). Then, with the queue
+empty (no `wp/*` branch, no run), 2.7's LICENSE and SPDX headers and
+2.8's history rewrite (D8). Milestone B's packages are written after it.
+
+### Before testers
+
+Cut now, written after checkpoint A. Testers get an APK only from it.
+
+| Id | What | Size | After |
+| --- | --- | --- | --- |
+| `c33` | **The tester APK:** the real name and package ID, release signing, `versionCode`, the icon; nordmu uploads it. | M | checkpoint A, 2.8, question 10, the key's holder |
 
 ### Milestone B, the gym session
 
@@ -209,7 +237,7 @@ them.
 
 | Id | What | Size | After |
 | --- | --- | --- | --- |
-| `c27` | **Capture and the rolling buffer** in `app/src/media/`: the back camera at 30 fps and its real rate, H.264 with a keyframe a second, a 60 s ring, a cut of a range to MP4 by mediabunny, the wake lock; tests with fakes. | L | `s9`, `c8` |
+| `c27` | **Capture and the rolling buffer** in `app/src/media/`: the back camera at 30 fps and its real rate, H.264 with a keyframe a second, a 60 s ring, a range cut to MP4 by `s32`'s cut, the wake lock; tests with fakes. | L | checkpoint A |
 | `d28` | **R1 and R2:** setup (the framing guide, the lift) and recording (REC, the session time, the real rate, the queue, Replay, End). | M | `c27` |
 | `d29` | **R3 and R3b:** the last 20 s at once, pause, scrub, ½×; keep and mark through M1–M3, then back to R2 with the lift queued; R3b, the delayed view, as a setting. | L | `d28`, `d14` |
 | `c30` | **Recording and analysis together:** the queue runs while recording goes on; the camera permission in the WebView; the screen kept on; what Android's freeze of a backgrounded WebView does to a running job. | M | `d29`, `s12` |
@@ -228,19 +256,21 @@ them.
   contracts keep COCO-17, so nothing else changes). Whatever stays
   unvalidated shows as provisional.
 - The release criteria of 6.2, most of them nordmu's: the hosting origin,
-  the signing key, a stock Android phone, LICENSE and the SPDX headers
-  after the authors' OKs, the privacy text, the credits.
+  the signing key, a stock Android phone, the privacy text, the credits.
+  LICENSE and the SPDX headers come earlier, at checkpoint A (D8).
 - An F-Droid recipe trial (3.8's follow-up). Off the critical path.
 
 ## The size, roughly
 
-Step 6.3's estimate: milestone A is 24 packages, about 52 hours of agent
-work before fix rounds; milestone B 5 packages, about 12 more. Sizes, not
-dates: the first runs calibrate them. Phone packages also wait for the
-Fairphone, which pascaline's nights share. The critical path to milestone
-A runs from `d3` and `s5` along two lines that meet in `c26`: the analysis
-(`s6`, `s10`, `s12`, `d14`) and the result view (`s9`, `d16`, `d17`,
-`d18`).
+Step 6.3's estimate: milestone A is 25 packages, about 54 hours of agent
+work; milestone B 5 packages, about 12 more; `c33` about an M, before
+testers. Not counted: fix rounds, resumes after the worker's 3-hour limit,
+and the coordinating session's re-check before each run. Sizes, not
+dates: re-estimate once `d3` and `s6` have run. Phone packages run by day
+and wait for the Fairphone, which pascaline's nights share. The critical
+path to milestone A runs from `d3` and `s5` along two lines that meet in
+`c26`: the analysis (`s6`, `s7`, `s10`, `s12`, `d14`) and the result view
+(`s9`, `s32`, `d16`, `d17`, `d18`).
 
 ## Decided (2026-11-01)
 
@@ -259,20 +289,40 @@ nordmu's answers, recorded in [decisions.md](decisions.md#what-010-is):
   merged on the audit; nordmu reviews once a prototype runs, at
   checkpoints A and B.
 
+After the plan's review, the same day:
+
+- **D5, the keypoint plots dropped:** the old page's raw keypoint plots
+  aren't ported; A2's per-cue plots replace them, and the raw plots stay
+  on the old page as a dev tool. Step 5.5 ports the skeleton overlay and
+  the lift window only.
+- **D6, the lift's video:** kept as a cut of the marked range, MP4, a
+  stream copy from the keyframe at or before the start, made with
+  mediabunny at Analyse and stored with the lift (`s32`). So `s9` demuxes
+  with mediabunny, one library for imports, cuts and later recordings; the
+  job's source is the stored cut, so a queued job survives a restart; A1
+  plays it; milestone B's `c27` reuses the cut.
+- **D7, Look A0:** once `d17` has merged, nordmu uses H → import → mark →
+  Q1 → A1 on the Fairphone for about 15 minutes and gives feedback by
+  screen ID. Not a gate: the queue goes on unless nordmu stops it.
+- **D8, 2.7 and 2.8 at checkpoint A:** the LICENSE and SPDX headers and
+  the history rewrite run there, with the queue empty; milestone B's
+  packages are written after it anyway. If Noah comes back earlier
+  (question 6), the queue drains early instead.
+
 Settled with the plan: `app/` as the folder, the assembled `dist/`, no
-build for our own code, the keypoint plots not ported, the lifter choice
-hidden.
+build for our own code, the lifter choice hidden.
 
 ## Gates outside the sessions
 
-- **Before testers get an APK:** the name and the package ID (question
-  10), since changing the ID later breaks updates; and who holds the
-  signing key and its backup (6.2), since Obtainium needs the same key
-  forever.
-- **Before the public 0.1.0:** the validation set and 3.6; LICENSE after
-  the authors' written OKs (2.7); a stock Android phone (question 3); the
-  hosting origin; the history rewrite (2.8), with an empty queue, before
-  Noah resumes.
+- **Before testers get an APK:** `c33`, which needs the name and the
+  package ID (question 10), since changing the ID later breaks updates,
+  and who holds the signing key and its backup (6.2), since Obtainium
+  needs the same key forever.
+- **At checkpoint A (D8):** LICENSE and the SPDX headers after the
+  authors' written OKs (2.7), and the history rewrite (2.8), with the
+  queue empty. "Before Noah resumes" stays the outer limit (question 6).
+- **Before the public 0.1.0:** the validation set and 3.6; a stock
+  Android phone (question 3); the hosting origin.
 - **Noah sees the mockups** (nordmu shares the canvas). It doesn't block
   the build.
 
@@ -291,6 +341,15 @@ hidden.
 - **Android freezes a backgrounded WebView:** a job pauses while the app
   is away and resumes after; Q1 says so.
 - **One test phone,** shared with pascaline's nights: phone packages queue
-  on its lock.
+  on its lock and run by day, with nordmu told.
+- **Six L packages sit at the worker's 3-hour hard limit** (`timeout -k
+  60 10800` in `pipeline/pipeline.sh`): `s6`, `s9`, `s12`, `d14`, `d16` and
+  `d18`. `s6` and `d16` name split points (`s6b`, `d16b`); a run cut off
+  resumes and isn't counted in the estimate.
+- **The from-source engine meets real hardware late:** its first run on
+  the phone is `c20`, #11 in the queue, and the real clips only run in
+  `c26`.
+- **Noah may come back before checkpoint A:** then the queue drains early
+  for 2.8 (question 6).
 - **The pick rests on four clips.** A switch to BlazePose costs the engine
   module and a re-run, not the UI.

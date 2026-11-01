@@ -10,11 +10,14 @@ finish (git keeps the history). Decisions and open questions are in
 ## Next session starts here
 
 - **Current step:** Phases 0–2 are done, and the review's fixes are in
-  (commits since `a0a9499`), apart from two steps that wait:
-  - 2.7's LICENSE and SPDX headers (GPL-3.0-or-later), for the authors'
-    written OKs ([decisions.md](decisions.md#licence));
-  - 2.8, the history rewrite, last, with nordmu's explicit OK, once the
-    clipper repo has its home.
+  (commits since `a0a9499`), apart from two steps that run at Phase 5's
+  checkpoint A, with the queue empty
+  (D8, [app-plan.md](app-plan.md#decided-2026-11-01)):
+  - 2.7's LICENSE and SPDX headers (GPL-3.0-or-later), once the authors'
+    written OKs are in ([decisions.md](decisions.md#licence));
+  - 2.8, the history rewrite, with nordmu's explicit OK, once the clipper
+    repo has its home; if Noah comes back earlier, the queue drains early
+    for it (question 6).
 
   **Phase 3** runs on branch `p3/spike` (worktree
   `.claude/worktrees/p3-spike`). It was fast-forwarded into `phase-0` with
@@ -46,12 +49,14 @@ finish (git keeps the history). Decisions and open questions are in
   decided the build plan's open points. [app-plan.md](app-plan.md) holds
   the architecture, the packages in stages and the gates; the queue, its
   order and status are in [packages/README.md](packages/README.md). The
-  rest of Phase 3 runs as its own session once the clips and the OK are
-  in.
+  plan's review is fixed (2026-11-01): nordmu's D5–D8, the new package
+  `s32` (the lift's video kept as a cut), Look A0 after `d17` and the
+  tester APK's `c33`. The rest of Phase 3 runs as its own session once the
+  clips and the OK are in.
 - **Phase 4 is done** (2026-11-01): Phase 5 runs as packages through
   `pipeline/pipeline.sh <id>` ([pipeline.md](pipeline.md)), written by a
   coordinating session. 4.4, the first real run, is `s1`, watched by
-  nordmu, then `s2` and `d3`.
+  nordmu, then `s2` and `d3` (`d3` watched too).
 - **Start now, outside a session** (to-dos, not session work):
   - nordmu: a one-line written OK to GPL-3.0-or-later from Noah, Nicola
     Walker and JMLuner (a chat message each is enough);
@@ -208,9 +213,11 @@ Finished steps keep one line each; the details are in their commits.
 - [x] 2.6 The docs describe the repo as it is now (`e5d3d60`).
 - [~] 2.7 [THIRD_PARTY.md](../THIRD_PARTY.md) and [authors.md](authors.md)
       (`cc72cc8`); LICENSE and the SPDX headers wait for the authors' written
-      OKs ([decisions.md](decisions.md#licence)).
-- [ ] 2.8 One history rewrite at the end of the window, before Noah resumes,
-      with nordmu's explicit OK. **Precondition:** `../weightlifting-clipper`
+      OKs ([decisions.md](decisions.md#licence)), and run at checkpoint A
+      (D8).
+- [ ] 2.8 One history rewrite at the end of the window, at checkpoint A
+      (D8) with the queue empty, before Noah resumes, with nordmu's
+      explicit OK. **Precondition:** `../weightlifting-clipper`
       is in nordmu's private GitHub repo ([decisions.md](decisions.md));
       after the rewrite it is the only copy of clipper. It removes the
       videos, the password and the removed bloat, and the athletes' real
@@ -362,7 +369,8 @@ behind 5.3–5.7 and the gates: [app-plan.md](app-plan.md).
         from Phase 3: MoveNet Thunder on TensorFlow.js, bundled with esbuild
         from the tags' TypeScript sources, not npm's dist (nordmu,
         2026-11-01; [pose-spike.md](pose-spike.md#maintaining-tfjs-ourselves)),
-        checked against the npm bundle's tracks on the example clips;
+        checked against npm's bundle: `s7` in Node on the CPU, `c26` on the
+        Fairphone with the example clips (`difftrack.mjs`);
       - scoring separate from rendering: the new UI calls `diagnostics.js`'s
         `computeResults()` unchanged and draws the results its own,
         mobile-first way. `mount()` builds the old page's desktop panel
@@ -380,8 +388,9 @@ behind 5.3–5.7 and the gates: [app-plan.md](app-plan.md).
       - camera permissions in the Capacitor WebView;
       - processing in a background queue while recording continues.
 - [ ] 5.5 **Port from the old page what the core needs:** video playback with
-      the skeleton overlay, the lift window markers and the keypoint plots;
-      smoothing and the lift window come from 3.2's module. Pin each
+      the skeleton overlay and the lift window markers; the raw keypoint
+      plots aren't ported (D5: A2's per-cue plots replace them); smoothing
+      and the lift window come from 3.2's module. Pin each
       behaviour with tests against the old code before porting it (as 3.2
       does), the overlay included, then port by reading the old code, not
       by copying the Python string.
@@ -421,4 +430,5 @@ behind 5.3–5.7 and the gates: [app-plan.md](app-plan.md).
 
 The packages run through the pipeline, all of them, the UI included,
 and merge on the audit (nordmu, 2026-11-01); nordmu reviews once a
-prototype runs, at checkpoints A and B ([app-plan.md](app-plan.md)).
+prototype runs: Look A0 after `d17` (D7), then checkpoints A and B
+([app-plan.md](app-plan.md)).

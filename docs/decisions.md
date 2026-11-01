@@ -13,7 +13,7 @@ from these are in [rules-core.md](rules-core.md).
 | 3 | Test phones | nordmu, Noah | Answered in part (nordmu, 2026-10-31): nordmu's Fairphone 6 (`4d42e62f`; LineageOS, no Google Chrome). A stock Android phone with Chrome and Google's WebView before the public release; whose phone is open. An iPhone too, if iOS matters. |
 | 5 | `.auth_password` is an unsalted SHA-256 hash of the old login password, with a scheme "identical to tecna". Is that password used anywhere else? | Noah | Change it wherever it's used. The file leaves the history in step 2.8 either way. |
 | 8 | Review the parking of the squat, image and clean & jerk tabs. It was written up as nordmu's; nordmu has not confirmed it (asked again 2026-10-31: still open). | nordmu | Until confirmed it is a proposal: follow it, but don't build anything that depends on its exact wording. |
-| 6 | How long the restructuring window lasts | Noah | Step 2.8 (the history rewrite) has to finish before Noah resumes. |
+| 6 | How long the restructuring window lasts | Noah | Step 2.8 (the history rewrite) has to finish before Noah resumes. It is scheduled at Phase 5's checkpoint A (D8); if Noah comes back earlier, the queue drains early for it. |
 | 9 | Branch protection on `main` of `noahsta/coach`, so one push from an old clone can't undo step 2.8 | Noah (repo owner) | Turn it on. |
 | 10 | **The app's name.** nordmu likes coach³, "Coach Cubed" (2026-11-01). | nordmu, Noah | Clean where checked ([branding.md](branding.md)); then Noah, a trademark search, the package ID, before testers get an APK. |
 
@@ -29,6 +29,13 @@ Newest first within each group.
 
 ### What 0.1.0 is
 
+- **2026-11-01, nordmu, after the plan's review**
+  ([app-plan.md](app-plan.md#decided-2026-11-01)): D5, the raw keypoint
+  plots aren't ported (A2's per-cue plots replace them). D6, an analysed
+  lift keeps a cut of its marked range, MP4, made with mediabunny at
+  Analyse (package `s32`). D7, Look A0: nordmu tries the app on the
+  Fairphone once `d17` merges, not a gate. D8, 2.7 and 2.8 run at
+  checkpoint A with the queue empty.
 - **2026-11-01, nordmu: mockups v1 are the basis to build on** ("good
   enough to build now"; tweaks later), and the build follows
   [app-plan.md](app-plan.md). D1: the UI in Preact with htm, vendored, no
