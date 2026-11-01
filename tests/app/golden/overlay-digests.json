@@ -1,0 +1,30 @@
+{
+ "global/example/lateral-raise-cable-1": {
+  "step": {
+   "calls": 7917,
+   "sha256": "4aee9c6762dd788fa642c32b8666f5e082433732c4c001bcb3055a46c30d34a9"
+  },
+  "linear": {
+   "calls": 7917,
+   "sha256": "c7e9b6ae797413ca1544b88c780a37ab547477cc165203ef890902d109e02cfd"
+  },
+  "cubic": {
+   "calls": 7917,
+   "sha256": "079708e8cfc8efad6e5c5302df054248503902bf798027f1bf82c2f2f0fc564f"
+  }
+ },
+ "global/snatch/Session14_01_0h18m07s_made": {
+  "step": {
+   "calls": 7262,
+   "sha256": "8c8096ae3f192b4804bc3ce1495063ae659c69e7d9d4f7bab41935d5ad2e6f33"
+  },
+  "linear": {
+   "calls": 7262,
+   "sha256": "470bcce5a4734bc7578d9d7b849a899ea4423b93fe1c240516ef640a14a02fa0"
+  },
+  "cubic": {
+   "calls": 7262,
+   "sha256": "36e82be8a9e75e2db4d61ef44730bb3a57197b67cc79e169a0ae82f50cc2f47d"
+  }
+ }
+}
