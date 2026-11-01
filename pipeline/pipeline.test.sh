@@ -65,6 +65,11 @@ case "$mode" in
   nocommit) echo "done; nothing to change";;
   question) printf 'Done: nothing.\nOpen questions:\n- The package file is missing its Done when block: regenerate the bundle with the block.\n';;
   sleep) sleep 317;;
+  app) mkdir -p app/tests
+       printf '{ "name": "app", "version": "0.0.0", "private": true, "scripts": { "test": "node --test" } }\n' > app/package.json
+       printf '{ "name": "app", "version": "0.0.0", "lockfileVersion": 3, "requires": true, "packages": { "": { "name": "app", "version": "0.0.0" } } }\n' > app/package-lock.json
+       printf "const test = require('node:test'); test('app ok', () => {});\n" > app/tests/a.test.js
+       commit "w1: the app's first test";;
   adb) { adb devices; echo "rc=$?"; adb -s HA24BZ2Y shell true; echo "rc=$?"; adb kill-server; echo "rc=$?"; adb shell true; echo "rc=$?"; } > "$SB/adb.out" 2>&1
        echo "phone" >> shared.txt; commit "w2: phone";;
   badtest)
@@ -201,6 +206,16 @@ sleep 0.5
 ps -eo args | grep -qx 'sleep 317' && fail "kill: the agent's child outlived the pipeline"
 [[ ! -d "$sb/coord/locks/branch-wp-dirac-w1" ]] || fail "kill: the branch lock is left"
 
+# 10b. a diff in app/ runs the app's own test script once it exists; test:page only when it exists; app/node_modules installed
+sb="$(sandbox app)"; echo app > "$sb/mode"
+pl "$sb" w1
+[[ "$(rc "$sb")" -eq 0 ]] || fail "app: $(out "$sb") $(tail -n 3 "$sb/err")"
+grep -q 'check app: ok' "$sb/tasks/001-w1/run.log" || fail "app: the app's tests did not run: $(cat "$sb/tasks/001-w1/run.log")"
+grep -q 'check page' "$sb/tasks/001-w1/run.log" && fail "app: test:page ran without its script"
+grep -q 'npm ci in the run.s app' "$sb/coord/log.md" || fail "app: app/node_modules was not installed before the checks"
+grep -q "npm ci in the phase-0 worktree's app/ after the merge" "$sb/coord/log.md" || fail "app: the phase-0 worktree's app/node_modules was not refreshed"
+pl "$sb" w1 --dry-run; grep -q '^checks: npm,py ' "$sb/out" || fail "app: dry run: $(grep '^checks' "$sb/out")"
+
 # 11. lib: audited_head_check, change_id, integ_busy, machine_failure, task_questioned, parse_heading, red_first
 # shellcheck source=pipeline/lib.sh
 source "$here/lib.sh"
@@ -231,6 +246,10 @@ task_questioned "$T/q2" && fail "task_questioned takes a question for nordmu as 
 [[ "$(parse_heading '# w5: pose (schrödinger, sonnet, branch `wp/schroedinger-pose`)')" == "schrödinger sonnet wp/schroedinger-pose" ]] || fail "parse_heading: schrödinger"
 parse_heading '# w6: audit (hillbert, opus, branch `wp/x`)' >/dev/null && fail "parse_heading takes the auditor as a worker"
 [[ "$(slug 'schrödinger')" == schroedinger ]] || fail "slug: $(slug schrödinger)"
+h="$T/hs"; mkdir -p "$h"; printf '{ "scripts": { "test": "x" } }\n' > "$h/package.json"
+has_script "$h" test || fail "has_script misses a script"; has_script "$h" test:page && fail "has_script finds a missing script"
+has_script "$T/nowhere" test && fail "has_script passes without a package.json"
+app_selected <<<"src/diagnostics.js" || fail "app_selected misses src/"; app_selected <<<"docs/x.md" && fail "app_selected takes docs/"
 r="$T/red"; mkdir -p "$r/tests"; git -C "$r" init -q -b phase-0; git -C "$r" config user.name t; git -C "$r" config user.email t@example.org
 echo 'module.exports = () => 1;' > "$r/f.js"; git -C "$r" add -A; git -C "$r" commit -qm base
 git -C "$r" checkout -qb wp/red; echo 'module.exports = () => 2;' > "$r/f.js"

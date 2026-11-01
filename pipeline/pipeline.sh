@@ -14,7 +14,7 @@
 #                           pipeline/lib.sh, else sonnet), sonnet or opus. auto is a floor: such a diff gets opus even when sonnet
 #                           is named (logged)
 #       --no-worker         review only: the branch exists (made by hand or by an earlier run); it goes straight to the queue
-#       --checks LIST       auto (default), none, or a comma list of npm,py,shell,redfirst
+#       --checks LIST       auto (default), none, or a comma list of npm,py,shell,redfirst,app,page
 #       --no-merge          stop after the audit and print the merge command
 #       --dry-run           print the bundle and the plan; start no agent, make no worktree, take no number
 #   pipeline/pipeline.sh selftest                             the pipeline's own shell tests
@@ -177,8 +177,14 @@ wt="$main/.claude/worktrees/wp-$(printf '%03d' "$n")-$id"
 want_checks() {
   case "$checks" in
     none) echo "";;
-    auto) local list="npm,py"
-          if [[ -d "$wt" ]] && git -C "$wt" diff --name-only "$INTEG_BRANCH...HEAD" | shell_selected; then list="$list,shell"; fi
+    auto) local list="npm,py" ch=""
+          [[ ! -d "$wt" ]] || ch="$(git -C "$wt" diff --name-only "$INTEG_BRANCH...HEAD")"
+          if shell_selected <<<"$ch"; then list="$list,shell"; fi
+          # the app's own tests, each once app/package.json has its script (e4 adds test, e22 test:page)
+          if app_selected <<<"$ch"; then
+            has_script "$wt/app" test && list="$list,app"
+            has_script "$wt/app" test:page && list="$list,page"
+          fi
           red_first_wanted "$spec_file" && list="$list,redfirst"
           echo "$list";;
     *) echo "$checks";;
@@ -188,7 +194,7 @@ if [[ $dry -eq 1 ]]; then
   echo "DRY RUN: pipeline run $n, package $id, agent $agent ($model, effort $effort), branch $branch"
   echo "integration branch: $INTEG_BRANCH, worktree $integ"; echo "worker worktree: $wt"
   echo "COACH_PORT=$COACH_PORT COACH_PY=$py$([[ "$agent" == curie ]] && echo " ANDROID_SERIAL=$phone (adb limited to it)" || echo " (adb refused: the phone is curie's)")"
-  echo "checks: $(want_checks)$([[ "$checks" == auto ]] && echo ' (shell too when the diff touches pipeline/)')"
+  echo "checks: $(want_checks)$([[ "$checks" == auto ]] && echo ' (+ shell when the diff touches pipeline/; + app, page when it touches app/ or src/ and app/package.json has test, test:page)')"
   echo "audit: $AUDITOR, model $audit_model (auto: opus when the worker runs on opus or the diff matches $AUDIT_OPUS_RE)"
   echo "locks: $branch_lock for the whole run; integ in the queue (waits up to ${COACH_INTEG_WAIT:-7200} s)"
   echo "merge: $([[ $merge -eq 1 ]] && echo "git -C $integ merge --no-ff <the audited sha>" || echo "none (--no-merge)")"
@@ -273,6 +279,8 @@ run_checks() {  # <round>
       shell)    local sr; selftest_run "$wt" "$out.full" > "$out.sr" || rc=1; sr="$(cat "$out.sr")"
                 { grep -E '^FAIL' "$out.full" | head -n 40 || true; echo "selftest: $sr (full output: $out.full)"; } > "$out";;
       redfirst) red_first "$wt" "$py" "$out" > "$out.why" || { rc=1; why="$(cat "$out.why")"; echo "red-first: $why" >> "$out"; };;
+      app)      own_sh 'cd "$1" && FORCE_COLOR=0 NO_COLOR=1 timeout 1800 npm --prefix app test' "$wt" > "$out" 2>&1 < /dev/null || rc=1;;
+      page)     own_sh 'cd "$1" && FORCE_COLOR=0 NO_COLOR=1 timeout 1800 npm --prefix app run test:page' "$wt" > "$out" 2>&1 < /dev/null || rc=1;;
       *) die "unknown check $name";;
     esac
     if [[ $rc -ne 0 ]]; then
@@ -356,6 +364,26 @@ queue_enter() {
   merge_integ
   [[ $nowork -eq 0 || $first_entry -eq 0 ]] || rounds=$merge_conflicts  # review only: its first resolve round is a fix round
   first_entry=0
+  queue_node_modules
+}
+# queue_node_modules: in the queue, after the merge of the integration branch: app/node_modules is current for the checks. A missing
+# or stale one becomes a hard-link copy of the integration worktree's when that one is current for the same lock file, else gets
+# npm ci in the run's worktree. A failing npm ci is a machine failure, never a fix round (pascaline A34).
+queue_node_modules() {
+  local d=app t0=$SECONDS
+  [[ -f "$wt/$d/package-lock.json" ]] || return 0
+  [[ -d "$wt/$d/node_modules" ]] && ! node_modules_stale "$wt/$d" && return 0
+  if [[ -d "$integ/$d/node_modules" ]] && cmp -s "$wt/$d/package-lock.json" "$integ/$d/package-lock.json" && ! node_modules_stale "$integ/$d"; then
+    nodemods_take "pipeline-$n" "pipeline #$n $id:" || queue_stop "nodemods lock busy (node_modules)"
+    rm -rf "$wt/$d/node_modules.old.$$" "$wt/$d/node_modules.tmp.$$"
+    cp -al "$integ/$d/node_modules" "$wt/$d/node_modules.tmp.$$" || { nodemods_drop; queue_stop "machine: could not copy $d/node_modules"; }
+    [[ ! -e "$wt/$d/node_modules" ]] || mv -T "$wt/$d/node_modules" "$wt/$d/node_modules.old.$$"
+    mv -T "$wt/$d/node_modules.tmp.$$" "$wt/$d/node_modules"; rm -rf "$wt/$d/node_modules.old.$$"
+    nodemods_drop; runlog "$d/node_modules copied from $integ ($((SECONDS - t0)) s)"; return 0
+  fi
+  own_sh 'cd "$1" && timeout 1800 npm ci --prefer-offline --no-audit --no-fund' "$wt/$d" > "$run/npm-ci.log" 2>&1 < /dev/null \
+    || queue_stop "machine: npm ci in $wt/$d failed; see $run/npm-ci.log"
+  log "pipeline #$n $id: npm ci in the run's $d ($((SECONDS - t0)) s)"
 }
 # wait_integ_ready: the integration worktree takes no merge while it has staged changes or a git command runs there (an
 # interactive session committing); wait up to COACH_READY_WAIT seconds (600) for it.
@@ -429,6 +457,15 @@ if git -C "$integ" merge --no-ff -m "Merge $branch: $id (pipeline run $n)" "$aud
   if [[ "$wt" == "$main/.claude/worktrees/wp-"* ]]; then
     git worktree remove --force "$wt" >/dev/null 2>&1 || true
     git -C "$integ" branch -d "$branch" >/dev/null 2>&1 || true
+  fi
+  # The integration worktree's app/node_modules follows its lock file, so the next run can copy it (still holding integ).
+  if [[ -f "$integ/app/package-lock.json" ]] && { [[ ! -d "$integ/app/node_modules" ]] || node_modules_stale "$integ/app"; }; then
+    if nodemods_take "pipeline-$n" "pipeline #$n $id:"; then
+      own_sh 'cd "$1" && timeout 1800 npm ci --prefer-offline --no-audit --no-fund' "$integ/app" > "$run/npm-ci-integ.log" 2>&1 < /dev/null \
+        && log "pipeline #$n $id: npm ci in the $INTEG_BRANCH worktree's app/ after the merge" \
+        || log "pipeline #$n $id: npm ci in the $INTEG_BRANCH worktree's app/ FAILED (see $run/npm-ci-integ.log); the next run installs its own"
+      nodemods_drop
+    fi
   fi
   queue_leave
   log "pipeline #$n $id: MERGED $mc (audited ${audited:0:9})"
