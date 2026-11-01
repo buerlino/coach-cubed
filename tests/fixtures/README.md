@@ -146,3 +146,6 @@ one worked example — rather than freshly generated, so there's a fixture to
 test against from the start. Its lift type (snatch vs. clean) isn't recorded
 in the report, so it's filed under the generic `example` stance rather than a
 guessed one; re-label it once confirmed.
+
+Its manifest entry says `"diagnostics": "snatch"`: that is the set its golden has
+always been scored against, not a confirmed lift type.

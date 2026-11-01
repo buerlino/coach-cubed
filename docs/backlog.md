@@ -29,9 +29,10 @@ During the restructuring window, the order of work and its status are in
 
 ## Unverified
 
-- Whether `global/example/athlete-a-trim` is a snatch: its manifest entry has
-  no `diagnostics` field, and its notes and the fixtures README say the lift
-  type was never confirmed. Until it is set, three tests fail on it by design.
+- Whether `global/example/athlete-a-trim` is a snatch: its manifest entry
+  says `"diagnostics": "snatch"` only because its golden was always scored
+  that way; the notes and the fixtures README say the lift type was never
+  confirmed. Someone who has seen the clip settles it (then the stance too).
 - Whether `diagnostics.js`'s 0.3 confidence gate fits MediaPipe's
   "visibility" values (map areas 2 and 3). Phase 3 should settle it.
 - The goldens score raw tracks; the UI scores smoothed ones, so the tests
