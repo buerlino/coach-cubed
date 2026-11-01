@@ -32,9 +32,10 @@ finish (git keeps the history). Decisions and open questions are in
     keypoint distance in pixels, the verdicts raw and smoothed). The night
     session's queued job died with no output on 2026-11-01, and the
     re-queued one was stopped at the session's end because a pascaline
-    shift still ran. Start `src/app.py` directly (`COACH_PORT=8091`), POST
-    the clip to `/api/pose/video/start` with `size=l`, `frame_stride=1`,
-    only while no night shift runs;
+    shift still ran. Only while no night shift runs: start `src/app.py`
+    directly (`COACH_PORT=8091`), POST the clip to `/api/pose/video/start`
+    with `size=l`, `frame_stride=1`, save `/api/pose/video/result` outside
+    the repo, then `node spike/pose-bench/difftrack.mjs <that file>`;
   - 3.0, the validation set: not in by this session's end (2026-11-01,
     20:00; neither the clips nor the friend's written OK), so 3.6 stays
     open. The clips from
@@ -281,7 +282,7 @@ condition are decided ([decisions.md](decisions.md#what-010-is)).
       (`d5e41e2`): MoveNet Thunder and Lightning and BlazePose on
       TensorFlow.js (`8aec0a4`), BlazePose's Tasks models converted to ONNX
       on ONNX Runtime (`160a10c`), measured on the Fairphone in Brave and
-      the WebView (plans `7eb0142`).
+      the WebView (plans `7eb0142`); the record `64412d8`.
 - [~] 3.8 **F-Droid, a paper check** (drafted in [pose-spike.md](pose-spike.md#f-droid-step-38-on-paper)) off the critical path (pascaline did the
       same): can the chosen runtime and the model weights be built from
       source, or are they accepted as assets? The runtime rule of

@@ -53,6 +53,7 @@ load, heat).
 | `run-cdp.mjs`, `plans/` | Runs a plan over the DevTools protocol, one cold page per run. |
 | `phone-sample.sh` | Battery, temperatures, RSS and GPU memory of the browser, every few seconds. |
 | `compare.mjs` | Step 3.6: verdicts, phase windows and values against the references, and the thresholds. |
+| `difftrack.mjs` | Step 3.0's precondition: a re-extracted ViTPose-L track against the committed one (mean and max keypoint distance in pixels, meta, verdicts raw and smoothed). |
 | `summarize.mjs` | A plan's runs joined with `phone-sample.sh`'s samples inside each run's window: the numbers table. |
 | `fetch-models.sh` | Pinned weight downloads with SHA-256 checks. |
 
