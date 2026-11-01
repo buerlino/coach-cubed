@@ -70,7 +70,7 @@ case "$mode" in
        printf '{ "name": "app", "version": "0.0.0", "lockfileVersion": 3, "requires": true, "packages": { "": { "name": "app", "version": "0.0.0" } } }\n' > app/package-lock.json
        printf "const test = require('node:test'); test('app ok', () => {});\n" > app/tests/a.test.js
        commit "w1: the app's first test";;
-  adb) { adb devices; echo "rc=$?"; adb -s HA24BZ2Y shell true; echo "rc=$?"; adb kill-server; echo "rc=$?"; adb shell true; echo "rc=$?"; } > "$SB/adb.out" 2>&1
+  adb) { echo "serial=${ANDROID_SERIAL-unset}"; adb devices; echo "rc=$?"; adb -s HA24BZ2Y shell true; echo "rc=$?"; adb kill-server; echo "rc=$?"; adb shell true; echo "rc=$?"; } > "$SB/adb.out" 2>&1
        echo "phone" >> shared.txt; commit "w2: phone";;
   badtest)
     case "$prompt" in
@@ -184,15 +184,17 @@ sb="$(sandbox lock)"; mkdir -p "$sb/coord/locks/branch-wp-dirac-w1"; echo other 
 pl "$sb" w1
 [[ "$(rc "$sb")" -eq 2 ]] && grep -q 'NOT STARTED (branch wp/dirac-w1 is in use by another run (other))' "$sb/out" || fail "lock: $(out "$sb")"
 
-# 9. adb: curie only reaches the phone, and never kill-server; everyone else is refused
+# 9. adb: curie only reaches the phone, and never kill-server; everyone else is refused, and their ANDROID_SERIAL names
+# no device, so adb by its full path or through Gradle can't fall through to whatever is attached
 sb="$(sandbox adb)"; echo adb > "$sb/mode"
 printf '#!/bin/sh\necho "real-adb $*"\n' > "$sb/bin/adb"; chmod +x "$sb/bin/adb"
 pl "$sb" w2
 a="$(cat "$sb/adb.out" 2>/dev/null)"
 grep -q '^real-adb devices$' <<<"$a" && grep -q 'only 4d42e62f (this is HA24BZ2Y)' <<<"$a" && grep -q 'kill-server: not allowed' <<<"$a" \
-  && grep -q '^real-adb -s 4d42e62f shell true$' <<<"$a" || fail "adb for curie: $a"
+  && grep -q '^real-adb -s 4d42e62f shell true$' <<<"$a" && grep -q '^serial=4d42e62f$' <<<"$a" || fail "adb for curie: $a"
 pl "$sb" w1
-grep -q 'the phone belongs to curie' "$sb/adb.out" && ! grep -q real-adb "$sb/adb.out" || fail "adb for dirac: $(cat "$sb/adb.out")"
+grep -q 'the phone belongs to curie' "$sb/adb.out" && ! grep -q real-adb "$sb/adb.out" && grep -q '^serial=coach-no-device$' "$sb/adb.out" \
+  || fail "adb for dirac: $(cat "$sb/adb.out")"
 
 # 10. a TERM to the pipeline ends the agent's whole session before the locks go (pascaline A54)
 sb="$(sandbox kill)"; echo sleep > "$sb/mode"
