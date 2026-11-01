@@ -19,10 +19,10 @@ finish (git keeps the history). Decisions and open questions are in
     repo has its home; if Noah comes back earlier, the queue drains early
     for it (question 6).
 
-  **Phase 3** runs on branch `p3/spike` (worktree
-  `.claude/worktrees/p3-spike`). It was fast-forwarded into `phase-0` with
-  nordmu's OK at the end of the 2026-11-01 evening session; later spike
-  work merges again only with nordmu's OK. Done: 3.1–3.5, 3.6's comparison
+  **Phase 3** ran on branch `p3/spike`, merged into `phase-0`; its branch
+  and worktree went on 2026-11-02, its gitignored results, models and
+  builds moved to `phase-0`'s `spike/`. Later spike work starts a new
+  branch from `phase-0` and merges only with nordmu's OK. Done: 3.1–3.5, 3.6's comparison
   script, 3.0's precondition (passed, accepted by nordmu) and 3.8 on paper,
   measured on the Fairphone in Brave and the Capacitor WebView on
   2026-10-31/11-01. The shipped runtime must be open source and buildable
@@ -56,7 +56,11 @@ finish (git keeps the history). Decisions and open questions are in
 - **Phase 4 is done** (2026-11-01): Phase 5 runs as packages through
   `pipeline/pipeline.sh <id>` ([pipeline.md](pipeline.md)), written by a
   coordinating session. 4.4, the first real run, is `s1`, watched by
-  nordmu, then `s2` and `d3` (`d3` watched too).
+  nordmu, then `s2` and `d3` (`d3` watched too); after that faraday runs
+  the queue overnight (`.claude/agents/faraday.md`).
+- **`phase-0` is on GitHub** as its own branch (`origin/phase-0`,
+  2026-11-02, nordmu's OK). `main` stays at `62b2cee` until Noah has looked
+  at `phase-0` and agreed; every later push needs nordmu's OK too.
 - **Start now, outside a session** (to-dos, not session work):
   - nordmu: a one-line written OK to GPL-3.0-or-later from Noah, Nicola
     Walker and JMLuner (a chat message each is enough);
