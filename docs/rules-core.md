@@ -47,6 +47,9 @@ covers is in [decisions.md](decisions.md); how the repo gets there is in
   dependency that ships in the app is permissive or GPL-3.0-compatible, and
   nothing AGPL ships: YOLOv8 (`ultralytics`) is AGPL-3.0 and stays on the
   dev server.
+- The pose runtime that ships is open source and buildable from source
+  (nordmu, 2026-11-01): no closed binary such as MediaPipe Tasks' web
+  runtime ([pose-spike.md](pose-spike.md#the-licence-gate)).
 - Record each one with its name, version, licence and source in the root
   [THIRD_PARTY.md](../THIRD_PARTY.md).
 
