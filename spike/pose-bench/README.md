@@ -22,6 +22,7 @@ cd spike/pose-bench
 npm ci --ignore-scripts      # the pinned runtimes below
 node build-tfjs.mjs          # TensorFlow.js: one ES module per backend, in bundles/
 ./fetch-models.sh            # the weights, each checked against its SHA-256
+python3 convert-blazepose.py # optional: BlazePose's Tasks models → ONNX (needs the tools below)
 node serve.mjs 8790          # http://127.0.0.1:8790/spike/pose-bench/
 ```
 
@@ -42,6 +43,8 @@ load, heat).
 | `index.html`, `bench.mjs` | The page and one run: fetch, demux, decode (hardware or software, `decode`), sample frames at 20 fps or all of them, the engine, scoring, timings. `window.bench.run(opts)` for CDP. |
 | `pose-worker.mjs`, `lib/pose-client.mjs` | The worker and its one async interface. |
 | `lib/engines.mjs` | The candidates: MediaPipe Pose Landmarker; ViTPose and RTMPose behind a person detector (`lib/detector.mjs`), cropped and decoded as their reference code does; MoveNet and BlazePose on TensorFlow.js through `@tensorflow-models/pose-detection` (runtime `tfjs`: MoveNet's crop from the last pose, BlazePose's detector and landmark ROI tracking; its keypoint smoothing off, as `src/track/` smooths), `ep` `tfjs-webgl`, `tfjs-webgpu` or `tfjs-wasm` (one thread, as in the app's WebView). |
+| `lib/blazepose-onnx.mjs` | BlazePose on ONNX Runtime: the Tasks Landmarker full's own two models, converted; the detector (SSD anchors, letterbox), the rotated ROI, the heatmap refinement and the landmark ROI tracking in plain JS, ported from pose-detection's `blazepose_tfjs`. Candidate `blazepose-onnx-full`, `ep` `webgpu` or `wasm`. |
+| `convert-blazepose.py` | `pose_landmarker_full.task` → `models/pose_{detector,landmarks}_full.onnx` with tf2onnx; the detector's 38 sparse (DENSIFY) tensors are densified by TF Lite's interpreter first; checks each model against TF Lite. Run in a venv with tensorflow-cpu 2.20.0, tf2onnx 1.17.0, onnx 1.19.1, onnxruntime 1.23.2 (dev only). |
 | `build-tfjs.mjs` | esbuild bundles TensorFlow.js and pose-detection into `bundles/tfjs-<backend>.mjs` (a module worker has no import map); pose-detection's `@mediapipe/pose` import becomes a stub that throws. |
 | `lib/decode.mjs` | mp4box.js demux and WebCodecs decode, in order, with backpressure. |
 | `lib/heatmap.mjs` | ViTPose heatmaps → keypoints, ported from easy_ViTPose (DARK + UDP); `check-heatmap.mjs` compares it with the Python original. |

@@ -5,6 +5,7 @@
 import { Sampler, toCHW } from './image.mjs';
 import { decodeHeatmaps } from './heatmap.mjs';
 import { createDetector } from './detector.mjs';
+import { blazeposeOnnx } from './blazepose-onnx.mjs';
 import { COCO17_FROM_MP33, toCoco17 } from '../../../src/pose/coco17.mjs';
 
 const ORT_DIST = new URL('../node_modules/onnxruntime-web/dist/', import.meta.url).href;
@@ -266,8 +267,25 @@ async function tfjs(opts) {
   };
 }
 
+// --- BlazePose's Tasks models converted to ONNX, on ONNX Runtime ---------
+// (lib/blazepose-onnx.mjs: the detector and ROI tracking in plain JS.)
+async function blazeposeOrt(opts) {
+  const ort = await loadOrt(opts.ep, opts.threads);
+  const bp = await blazeposeOnnx(ort, session, Sampler, opts.weights, opts.ep);
+  return {
+    info: { load: bp.load, ort: ort.env.versions?.web, threads: ort.env.wasm.numThreads },
+    async estimate(frame) {
+      const W = frame.displayWidth, H = frame.displayHeight;
+      const r = await bp.estimate(frame);
+      const lm = r.landmarks33;
+      return { keypoints: lm ? COCO17_FROM_MP33.map(k => [lm[k][1] * H, lm[k][0] * W, lm[k][2]]) : null, ms: r.ms };
+    },
+  };
+}
+
 // The candidates, by the name the page offers. weights: file in models/.
 export const CANDIDATES = {
+  'blazepose-onnx-full': { kind: 'blazepose-onnx', weights: ['pose_detector_full.onnx', 'pose_landmarks_full.onnx'] },
   'movenet-thunder': { kind: 'tfjs', family: 'movenet', modelType: 'SinglePose.Thunder', weights: 'movenet-thunder-4' },
   'movenet-lightning': { kind: 'tfjs', family: 'movenet', modelType: 'SinglePose.Lightning', weights: 'movenet-lightning-4' },
   'blazepose-tfjs-full': { kind: 'tfjs', family: 'blazepose', weights: ['blazepose-detector-1', 'blazepose-landmark-full-2'] },
@@ -284,5 +302,6 @@ export async function createEngine(opts) {
   const c = CANDIDATES[opts.model];
   if (!c) throw new Error('unknown model ' + opts.model);
   const o = { ...opts, weights: c.weights, head: c.head, family: c.family, modelType: c.modelType };
-  return c.kind === 'mediapipe' ? mediapipe(o) : c.kind === 'tfjs' ? tfjs(o) : topDown(o);
+  const make = { mediapipe, tfjs, 'blazepose-onnx': blazeposeOrt, topdown: topDown }[c.kind];
+  return make(o);
 }
