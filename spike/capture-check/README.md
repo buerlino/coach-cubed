@@ -45,6 +45,7 @@ session ("Remember my decision" off); the Capacitor app gets the camera from
 samples (heat, memory) come from `../pose-bench/phone-sample.sh`. Remove
 every forward and reverse afterwards.
 
-**mediabunny** (MPL-2.0, `1.61.6`) reads WebM (what Android's MediaRecorder
-writes) and fragmented MP4, and writes MP4 and WebM: see
+**mediabunny** (MPL-2.0, `1.61.6`) reads WebM, Matroska and fragmented MP4
+(MediaRecorder writes all three in Brave 156; mp4box reads only the MP4),
+and writes MP4 and WebM: see
 [THIRD_PARTY.md](../../THIRD_PARTY.md#fetched-by-the-phase-3-spike-not-shipped).
