@@ -40,6 +40,16 @@ class AdbGuard(unittest.TestCase):
                   "git commit -m \"$(printf 'x\nadb shell\n')\""]:
             self.assertAllowed(c)
 
+    def test_here_document_text_is_not_a_call(self):
+        for c in ["git commit -F - <<'EOF'\nPackages: x\n\nadb guard.\nEOF", "cat > notes.md <<EOF\nadb shell ls\nEOF\nls",
+                  "cat <<-\"EOF\" > a.md\n\tadb shell ls\n\tEOF", "git commit -F - <<'EOF'\nnot HA24BZ2Y\nEOF"]:
+            self.assertAllowed(c)
+
+    def test_a_here_document_a_shell_runs_or_a_call_after_it(self):
+        for c in ["bash <<'EOF'\nadb shell ls\nEOF", "cat <<EOF | sh\nadb shell ls\nEOF",
+                  "git commit -F - <<'EOF'\nmsg\nEOF\nadb shell ls"]:
+            self.assertBlocked(c, "adb -s 4d42e62f")
+
     def test_a_bare_adb_is_blocked(self):
         for c in ["adb shell ls", "cd app && adb install x.apk", "~/Android/Sdk/platform-tools/adb shell",
                   "$ANDROID_HOME/platform-tools/adb -d shell", "timeout -k 5 30 adb -e shell",

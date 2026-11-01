@@ -10,7 +10,8 @@ Blocks, with exit code 2 and the reason on stderr (Claude Code shows it to the m
 
 The command is split into simple commands (`;`, `&&`, `||`, `|`, `&`, subshells, `$( )`, backticks, newlines), and an
 adb counts only in command position, after variable assignments and wrappers such as `timeout 60` or `nice -n 19`;
-`bash -c` and `eval` strings are checked the same way. Scripts that call adb themselves are not seen here: theirs name
+`bash -c` and `eval` strings are checked the same way. A here-document body is text (a commit message), skipped
+unless a shell reads it. Scripts that call adb themselves are not seen here: theirs name
 the phone (pipeline/stay-awake.sh), and the pipeline's ANDROID_SERIAL covers the rest. docs/pipeline.md, "The phone".
 """
 import json
@@ -29,6 +30,32 @@ WRAPPERS = {"timeout", "nice", "ionice", "nohup", "setsid", "exec", "command", "
             "xargs", "watch", "chrt", "taskset"}
 TAKES_VALUE = {"-u", "--unset", "-C", "--chdir", "-I", "-n", "-c", "-k", "-s", "--signal", "--kill-after"}
 SHELLS = {"bash", "sh", "dash", "zsh"}
+HEREDOC = re.compile(r"(?<!<)<<(-?)\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\2")
+
+
+def heredocs(cmd):
+    """The command without its here-document bodies, and the bodies a shell reads as commands.
+
+    A body is text (a commit message, a file being written), not commands, unless the line feeds it to a shell
+    (`bash <<EOF`, `cat <<EOF | sh`)."""
+    lines = cmd.split("\n")
+    kept, scripts = [], []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        kept.append(line)
+        i += 1
+        for m in HEREDOC.finditer(line):
+            word, body = m.group(3), []
+            while i < len(lines):
+                end = lines[i].lstrip("\t") if m.group(1) else lines[i]
+                i += 1
+                if end == word:
+                    break
+                body.append(lines[i - 1])
+            if any(program(t)[0] in SHELLS for t in simple_commands(line)):
+                scripts.append("\n".join(body))
+    return "\n".join(kept), scripts
 
 
 def simple_commands(cmd):
@@ -71,6 +98,11 @@ def program(tokens):
 
 def check(cmd, depth=0):
     """None when the command may run, else the reason it may not."""
+    cmd, scripts = heredocs(cmd)
+    for script in scripts if depth < 3 else []:
+        reason = check(script, depth + 1)
+        if reason:
+            return reason
     if TABLET.lower() in cmd.lower():
         return (f"{TABLET} is the tablet pascaline's night shifts run on; coach never names it, not even to read "
                 f"its state. coach's phone is {PHONE} (docs/pipeline.md, \"The phone\").")
