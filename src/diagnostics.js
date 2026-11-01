@@ -1039,7 +1039,7 @@ function makeFirstPullBackAngle(spec) {
     // Everything the two triggers and the measurement rest on, drawn on the frame
     // itself while the playhead is inside the phase.
     //
-    // `view` is the track at the playhead's actual time (see pointsAtTime), not a
+    // `view` is the track at the playhead's actual time (see pointsAt), not a
     // sampled frame: view.p are the points now, view.at(t) the points at any other
     // instant inside the phase, view.dt the mean spacing of processed frames.
     overlay(ctx, view, phase, res, size) {
@@ -1371,7 +1371,7 @@ const secondPullTripleExtension = {
   // diagnostic 1 draws its knee/bar rules.
   //
   // `view` is the track at the playhead's actual time, not a sampled frame —
-  // see diagnostic 1's overlay and pointsAtTime.
+  // see diagnostic 1's overlay and pointsAt.
   overlay(ctx, view, phase, res, size) {
     const p = view.p;
     const lw = Math.max(2, size / 260);
@@ -2349,8 +2349,12 @@ function run() {
 // The interpolator is app.py's own (el.cubic), passed in rather than
 // reimplemented so the two can't drift apart, and el.smoothMotion() is the same
 // tickbox the mesh obeys. Linear if this is ever mounted without them.
-function mixAt(v0, v1, v2, v3, t0, t1, t2, t3, u) {
-  return el.cubic ? el.cubic(v0, v1, v2, v3, t0, t1, t2, t3, u) : v1 + (v2 - v1) * u;
+//
+// `motion` is { smooth, cubic }: whether to interpolate between samples at all,
+// and the interpolator (linear without one). The old page builds it from `el`
+// (pageMotion); the headless drawCue takes it from its caller.
+function mixAt(cubic, v0, v1, v2, v3, t0, t1, t2, t3, u) {
+  return cubic ? cubic(v0, v1, v2, v3, t0, t1, t2, t3, u) : v1 + (v2 - v1) * u;
 }
 
 function slotAtTime(samples, t) {
@@ -2366,12 +2370,11 @@ function slotAtTime(samples, t) {
 // of the gap is NOT blended — the nearer sample's value stands until halfway,
 // exactly as the mesh does it — so an interpolated mark is never built out of a
 // detection that isn't there.
-function pointsAtTime(t) {
-  const samples = state.samples;
+function pointsAt(samples, t, motion) {
   if (!samples || !samples.length || !samples[0].p) return null;
   const k = slotAtTime(samples, t);
   const a = samples[k], b = samples[k + 1];
-  if (!b || !(el.smoothMotion && el.smoothMotion())) return a.p;
+  if (!b || !(motion && motion.smooth)) return a.p;
   const span = b.t - a.t;
   const u = span > 1e-9 ? Math.min(Math.max((t - a.t) / span, 0), 1) : 0;
   const prev = samples[k - 1], next = samples[k + 2];
@@ -2382,13 +2385,114 @@ function pointsAtTime(t) {
     if (!qa || !qb) { out[i] = u < 0.5 ? qa : qb; continue; }
     const q0 = prev && prev.p[i], q3 = next && next.p[i];
     out[i] = {
-      x: mixAt(q0 && q0.x, qa.x, qb.x, q3 && q3.x, t0, a.t, b.t, t3, u),
-      y: mixAt(q0 && q0.y, qa.y, qb.y, q3 && q3.y, t0, a.t, b.t, t3, u),
+      x: mixAt(motion.cubic, q0 && q0.x, qa.x, qb.x, q3 && q3.x, t0, a.t, b.t, t3, u),
+      y: mixAt(motion.cubic, q0 && q0.y, qa.y, qb.y, q3 && q3.y, t0, a.t, b.t, t3, u),
       // a filled point on either side taints everything between them
       interp: qa.interp || qb.interp,
     };
   }
   return out;
+}
+
+// The old page's motion: its smooth-motion tickbox and app.py's interpolator.
+function pageMotion() {
+  return { smooth: !!(el.smoothMotion && el.smoothMotion()), cubic: el.cubic };
+}
+
+
+// --- one cue, from computeResults()'s output ----------------------------
+//
+// What the old page's panel and overlay do for one cue, as functions of the
+// cue and a result passed in: no DOM, no `el`, no `state`. The old page calls
+// them on its own state; the Diagnostics object's headless API (describe,
+// tiles, referenceLine, worstMoment, drawCue) calls them on whatever
+// computeResults() output the new app hands it.
+
+// Every cue of every set, by id. Ids are unique across sets (the clean's first
+// pull has its own), so a cue is found without knowing the active page.
+const CUE_BY_ID = new Map();
+for (const set of Object.values(DIAGNOSTIC_SETS)) for (const d of set) CUE_BY_ID.set(d.id, d);
+
+function cueById(id) {
+  const d = CUE_BY_ID.get(id);
+  if (!d) throw new Error('Unknown cue id: ' + id);
+  return d;
+}
+
+// The tiles above a cue's plot; none for a cue that can't be scored.
+function cueTiles(d, res) {
+  return (!res || res.error) ? [] : d.tiles(res.summary, res.verdict);
+}
+
+// The plot's dashed reference line, { value, label }, or null. Some cues draw
+// it at a fixed target, some at the set's own mean or first rep, so it needs a
+// scored result either way.
+function cueReferenceLine(d, res) {
+  return (!res || res.error || !d.referenceLine) ? null : d.referenceLine(res.summary);
+}
+
+// The worst moment: the one sample of a cue's series its verdict rests on, so
+// the new UI can show the frame (A2). Each cue names its rule as `worstRule`:
+//   'summary-worst'       the sample whose value the summary names as `worst`
+//   'summary-last'        the last sample, which the summary's `last` is
+//   'farthest-from-mean'  the sample farthest from the mean the verdict's SD is taken around
+//   'phase-end'           the last sample of the phase, where the verdict's value is read
+// A cue without a rule, or a result that can't be scored, has none (null).
+const WORST_RULES = {
+  'summary-worst': res => res.series.find(s => s.value === res.summary.worst),
+  'summary-last': res => res.series[res.series.length - 1],
+  'farthest-from-mean': res => res.series.reduce((a, s) =>
+    Math.abs(s.value - res.summary.mean) > Math.abs(a.value - res.summary.mean) ? s : a),
+  'phase-end': res => res.series[res.series.length - 1],
+};
+
+function cueWorstMoment(d, res) {
+  if (!res || res.error || !res.series || !res.series.length || !WORST_RULES[d.worstRule]) return null;
+  const s = WORST_RULES[d.worstRule](res);
+  return s ? { t: s.t, idx: s.idx, frame: s.frame, value: s.value, rule: d.worstRule } : null;
+}
+
+function overlaySize(ctx) {
+  return ctx.canvas.height || 720;
+}
+
+// Draws one cue on the video at time `t` from `out` ({ samples, axis, results },
+// computeResults()'s shape) and says whether it drew: nothing for a cue that
+// can't be scored or a time outside its phase. `p`, the points at `t`, is
+// passed in by the old page's overlay so every cue drawing one instant draws
+// the same body; otherwise it is interpolated here with `motion`.
+function drawCueAt(ctx, d, out, t, motion, p) {
+  const res = out.results ? out.results[d.id] : null;
+  if (!res || res.error) return false;
+  const samples = out.samples;
+  const ph = res.phase;
+  // The phase is bounded by the times its triggers fired, so the marks come
+  // up at the instant the pull starts rather than at the next processed
+  // frame. On a coarse frame stride that boundary used to be a tenth of a
+  // second out, which is enough to see against the video.
+  const t0 = samples[ph.startIdx].t, t1 = samples[ph.endIdx].t;
+  if (t < t0 || t > t1) return false;
+  if (p === undefined) p = pointsAt(samples, t, motion);
+  if (!p) return false;
+  const steps = ph.endIdx - ph.startIdx;
+  const view = {
+    t, p,
+    axis: out.axis || IMAGE_AXIS,            // the clip's one bar direction
+    dt: steps > 0 ? (t1 - t0) / steps : 0,   // mean processed-frame spacing
+    at: u => (u < t0 || u > t1) ? null : pointsAt(samples, u, motion),
+  };
+  d.overlay(ctx, view, ph, res, overlaySize(ctx));
+  return true;
+}
+
+// A cue's phase label in the frame's top-left corner, `row` lines down, so the
+// labels of cues drawn at one instant stack rather than overwrite.
+function drawPhaseLabel(ctx, label, row) {
+  const size = overlaySize(ctx);
+  ctx.fillStyle = phaseColor(1);
+  ctx.font = Math.max(12, size / 38) + 'px system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(label, 8, Math.max(16, size / 30) + row * (size / 26));
 }
 
 
@@ -2427,7 +2531,7 @@ function drawChart(d, ds, time) {
   // apparent wobble), and wide enough to include the reference line.
   let vMin = Infinity, vMax = -Infinity;
   for (const s of res.series) { vMin = Math.min(vMin, s.lo); vMax = Math.max(vMax, s.hi); }
-  const ref = d.referenceLine ? d.referenceLine(res.summary) : null;
+  const ref = cueReferenceLine(d, res);
   if (ref) { vMin = Math.min(vMin, ref.value); vMax = Math.max(vMax, ref.value); }
   const span = Math.max(vMax - vMin, 10);
   const mid = (vMin + vMax) / 2;
@@ -2585,7 +2689,7 @@ function drawPanels(d, ds, ctxExtra) {
     ds.notes.innerHTML = '<p class="diag-note"><strong>Not scored.</strong> ' + res.error + '</p>';
     return;
   }
-  ds.stats.innerHTML = d.tiles(res.summary, res.verdict).map(t => tile(t.label, t.value, t.sub, t.status)).join('');
+  ds.stats.innerHTML = cueTiles(d, res).map(t => tile(t.label, t.value, t.sub, t.status)).join('');
   const items = d.transparencyLines(res, state.samples, ctxExtra);
   ds.notes.innerHTML = '<p class="diag-cue">' + d.cue + '</p><ul class="diag-notes">' +
     items.map(i => '<li>' + i + '</li>').join('') + '</ul>';
@@ -2825,40 +2929,17 @@ const Diagnostics = {
     if (t == null) return;
     // Interpolated once and shared: every diagnostic drawing this instant is
     // drawing the same body, so they cannot disagree about where it is.
-    const p = pointsAtTime(t);
+    const motion = pageMotion();
+    const p = pointsAt(state.samples, t, motion);
     if (!p) return;
-    const samples = state.samples;
-    const size = ctx.canvas.height || 720;
     let shown = 0;
     for (const d of DIAGNOSTICS) {
       if (!enabled.has(d.id)) continue;
-      const res = state.results[d.id];
-      if (!res || res.error) continue;
-      const ph = res.phase;
-      // The phase is bounded by the times its triggers fired, so the marks come
-      // up at the instant the pull starts rather than at the next processed
-      // frame. On a coarse frame stride that boundary used to be a tenth of a
-      // second out, which is enough to see against the video.
-      const t0 = samples[ph.startIdx].t, t1 = samples[ph.endIdx].t;
-      if (t < t0 || t > t1) continue;
-      const steps = ph.endIdx - ph.startIdx;
-      const view = {
-        t, p,
-        axis: state.axis || IMAGE_AXIS,          // the clip's one bar direction
-        dt: steps > 0 ? (t1 - t0) / steps : 0,   // mean processed-frame spacing
-        at: u => (u < t0 || u > t1) ? null : pointsAtTime(u),
-      };
-      d.overlay(ctx, view, ph, res, size);
+      if (!drawCueAt(ctx, d, state, t, motion, p)) continue;
       // Only diagnostics scoped to a distinct sub-phase (first pull, top of
       // rep) earn a label here — one spanning the whole set has nothing to
       // name that the active tab doesn't already say.
-      if (d.phaseLabel) {
-        ctx.fillStyle = phaseColor(1);
-        ctx.font = Math.max(12, size / 38) + 'px system-ui, sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText(d.phaseLabel, 8, Math.max(16, size / 30) + shown * (size / 26));
-        shown++;
-      }
+      if (d.phaseLabel) drawPhaseLabel(ctx, d.phaseLabel, shown++);
     }
   },
 };
