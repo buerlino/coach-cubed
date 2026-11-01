@@ -36,13 +36,39 @@ export async function post(name, body) {
 
 // --- the camera -------------------------------------------------------------
 
-export async function openCamera({ width = 1920, height = 1080, fps = 60, exactFps = false, deviceId } = {}) {
+// label: a camera by (part of) its label, e.g. 'camera 0,' (the device ids
+// change per origin). exposureTime (100 µs units, as the Image Capture spec
+// has it): manual exposure, so a dim room doesn't stretch every frame and
+// lower the frame rate.
+export async function openCamera({ width = 1920, height = 1080, fps = 60, exactFps = false, deviceId, label,
+  exposureTime } = {}) {
+  if (label) {
+    const d = (await navigator.mediaDevices.enumerateDevices()).find(x => x.kind === 'videoinput' && x.label.includes(label));
+    if (!d) throw new Error('no camera ' + label);
+    deviceId = d.deviceId;
+  }
   const video = { width: { ideal: width }, height: { ideal: height },
     frameRate: exactFps ? { exact: fps } : { ideal: fps } };
   if (deviceId) video.deviceId = { exact: deviceId }; else video.facingMode = { exact: 'environment' };
   const stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
   const track = stream.getVideoTracks()[0];
+  if (exposureTime) await track.applyConstraints({ advanced: [{ exposureMode: 'manual', exposureTime }] });
   return { stream, track, settings: track.getSettings(), capabilities: track.getCapabilities?.() };
+}
+
+// Every camera's label, facing, and the sizes and frame rates it offers.
+export async function cameras() {
+  const out = [];
+  for (const d of (await navigator.mediaDevices.enumerateDevices()).filter(x => x.kind === 'videoinput')) {
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: d.deviceId } } });
+      const t = s.getVideoTracks()[0], c = t.getCapabilities();
+      out.push({ label: d.label, facing: c.facingMode, width: c.width, height: c.height, frameRate: c.frameRate,
+        exposureTime: c.exposureTime, zoom: c.zoom });
+      stopStream(s);
+    } catch (e) { out.push({ label: d.label, error: `${e.name}: ${e.message}` }); }
+  }
+  return out;
 }
 
 export function stopStream(stream) { for (const t of stream.getTracks()) t.stop(); }
@@ -51,7 +77,8 @@ export function stopStream(stream) { for (const t of stream.getTracks()) t.stop(
 // VideoFrame timestamps (Chromium exposes it on Window), so the display's
 // refresh rate doesn't cap what is counted.
 async function frameTimes(track, seconds) {
-  const proc = new MediaStreamTrackProcessor({ track: track.clone() });
+  const clone = track.clone();   // stopped below, or it keeps the camera open
+  const proc = new MediaStreamTrackProcessor({ track: clone });
   const reader = proc.readable.getReader();
   const ts = [], arrive = [];
   let size = null;
@@ -63,7 +90,7 @@ async function frameTimes(track, seconds) {
     size ||= `${f.displayWidth}x${f.displayHeight} ${f.format}`;
     f.close();
   }
-  reader.cancel(); proc.track?.stop?.();
+  reader.cancel(); clone.stop();
   const d = ts.slice(1).map((t, i) => t - ts[i]), a = arrive.slice(1).map((t, i) => t - arrive[i]);
   const span = (ts.at(-1) - ts[0]) / 1000;
   const p50 = stat(d)?.p50 || 0;
@@ -242,7 +269,8 @@ export async function encoder({ seconds = 6, codec = 'avc1.42002A', container = 
     const enc = new VideoEncoder({ output: (chunk, meta) => packets.push({ chunk, meta }), error: e => { error = e; } });
     enc.configure({ codec, width: settings.width, height: settings.height, framerate: fps, bitrate,
       hardwareAcceleration: hardware, latencyMode: 'realtime', ...(codec.startsWith('avc1') ? { avc: { format: 'avc' } } : {}) });
-    const reader = new MediaStreamTrackProcessor({ track: track.clone() }).readable.getReader();
+    const clone = track.clone();
+    const reader = new MediaStreamTrackProcessor({ track: clone }).readable.getReader();
     let n = 0, dropped = 0, t0 = null;
     const encMs = [];
     const end = performance.now() + seconds * 1000;
@@ -256,11 +284,14 @@ export async function encoder({ seconds = 6, codec = 'avc1.42002A', container = 
       encMs.push(performance.now() - s);
       n++; f.close();
     }
-    reader.cancel();
+    reader.cancel(); clone.stop();
+    if (error) throw error;   // the encoder closes itself on an error
     await enc.flush(); enc.close();
     if (error) throw error;
     res.frames = n; res.dropped = dropped; res.packets = packets.length;
     res.keyframes = packets.filter(p => p.chunk.type === 'key').length;
+    // Only the first output carries the decoder config; a cut needs it too.
+    const decoderConfig = packets.find(p => p.meta?.decoderConfig)?.meta.decoderConfig;
     const mux = async list => {
       const output = new Output({ format: container === 'mp4' ? new Mp4OutputFormat({ fastStart: 'in-memory' })
         : new WebMOutputFormat(), target: new BufferTarget() });
@@ -271,7 +302,7 @@ export async function encoder({ seconds = 6, codec = 'avc1.42002A', container = 
       const base = list[0].chunk.timestamp;
       for (const [i, p] of list.entries()) {
         const pk = EncodedPacket.fromEncodedChunk(p.chunk).clone({ timestamp: (p.chunk.timestamp - base) / 1e6 });
-        await src.add(pk, i === 0 ? (p.meta?.decoderConfig ? p.meta : { decoderConfig: list.find(q => q.meta?.decoderConfig).meta.decoderConfig }) : p.meta);
+        await src.add(pk, i === 0 ? { ...p.meta, decoderConfig } : p.meta);
       }
       await output.finalize();
       return output.target.buffer;
@@ -289,8 +320,9 @@ export async function encoder({ seconds = 6, codec = 'avc1.42002A', container = 
 // --- heat: record and process at the same time --------------------------------
 
 // Samples a decoded clip on a 1/fps grid as bench.mjs does, through the
-// engine; returns per-frame timings.
-async function poseClip(engine, media, fps) {
+// engine; returns per-frame timings. t0Ms shifts the timestamps the engine
+// sees: MediaPipe's video mode needs them to keep rising across segments.
+async function poseClip(engine, media, fps, t0Ms = 0) {
   const step = fps === 'full' ? 0 : 1 / fps;
   const srcFps = media.info.frames / (media.info.durationS || 1);
   const half = 0.5 / srcFps;
@@ -301,7 +333,7 @@ async function poseClip(engine, media, fps) {
     const ts = f.timestamp / 1e6;
     if (step && ts < next - half) { f.close(); last = performance.now(); return; }
     if (step) while (next <= ts + half) next += step;
-    const r = await engine.estimate(f, ts * 1000);
+    const r = await engine.estimate(f, t0Ms + ts * 1000);
     ms.push(r.ms.total); processed++; if (r.keypoints) persons++;
     last = performance.now();
   });
@@ -312,18 +344,23 @@ let heatState = null;
 
 // Records segS-second segments back to back (overlapped restarts, as in
 // rolling()) and runs the engine on each finished one while the next records.
+// poseClip: a clip URL whose frames the engine runs on instead of the
+// segment's (the segment is still demuxed and decoded): a camera facing an
+// empty room only exercises MediaPipe's person detector, never its landmark
+// model, so the load would be lower than with a lifter in frame.
 // Posts its log to results/<name> after every segment, so the driver can
 // start it and walk away. A backlog over maxBacklog segments drops the oldest.
 export async function heat({ minutes = 30, segS = 10, model = 'mediapipe-full', ep = 'webgpu', fps = 'full', threads,
-  mimeType, bitrate = 12e6, name = 'heat.json', maxBacklog = 3, ...cam } = {}) {
+  mimeType, bitrate = 12e6, name = 'heat.json', maxBacklog = 3, poseClip: clipUrl, ...cam } = {}) {
   mimeType ||= MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : 'video/webm;codecs=vp8';
   const engine = await PoseEngine.create({ model, ep, threads, detector: 'yolox-nano', detEvery: 1 });
+  const fixture = clipUrl ? await demuxMp4(await (await fetch(clipUrl)).arrayBuffer()) : null;
   const { stream, settings } = await openCamera({ fps: 60, ...cam });
-  const log = { opts: { minutes, segS, model, ep, fps, threads, mimeType, bitrate }, settings, engine: engine.info,
+  const log = { opts: { minutes, segS, model, ep, fps, threads, mimeType, bitrate, poseClip: clipUrl }, settings, engine: engine.info,
     startedAt: Date.now(), segments: [], dropped: 0, stopped: null };
   heatState = { stop: false };
   const queue = [];
-  let recording = true;
+  let recording = true, t0Ms = 0;
   const recLoop = (async () => {
     const until = performance.now() + minutes * 60000;
     let k = 0, cur = null;
@@ -359,7 +396,10 @@ export async function heat({ minutes = 30, segS = 10, model = 'mediapipe-full', 
         seg.parts.length = 0;
         entry.bytes = buf.byteLength;
         const media = mimeType.startsWith('video/mp4') ? await demuxMp4(buf).catch(() => demuxAny(buf)) : await demuxAny(buf);
-        Object.assign(entry, await poseClip(engine, media, fps));
+        if (fixture) entry.segmentDecode = await decodeCount(media);
+        const src = fixture || media;
+        Object.assign(entry, await poseClip(engine, src, fps, t0Ms));
+        t0Ms += (src.info.durationS + 1) * 1000;
       } catch (e) { entry.error = String(e.message || e).slice(0, 300); }
       entry.procEnd = Date.now();
       entry.procS = (entry.procEnd - procStart) / 1000;

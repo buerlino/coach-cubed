@@ -42,6 +42,10 @@ export function demuxMp4(buffer) {
     // the reference's OpenCV decode) would show it after the edit list.
     const t0 = Math.min(...samples.map(s => s.cts));
     const us = v => Math.round(1e6 * v / track.timescale);
+    // A fragmented MP4 (what MediaRecorder writes) has an almost empty moov,
+    // so its track duration says ~0 s: the samples' own span is the truth.
+    const span = (Math.max(...samples.map(s => s.cts + s.duration)) - t0) / track.timescale;
+    const durationS = Math.max(track.duration / track.timescale, span);
     const chunks = samples.map(s => new EncodedVideoChunk({
       type: s.is_sync ? 'key' : 'delta',
       timestamp: us(s.cts - t0),
@@ -55,8 +59,7 @@ export function demuxMp4(buffer) {
       description: description(file, track.id),
     };
     resolve({ config, chunks, info: { codec: track.codec, width: track.video.width, height: track.video.height,
-      frames: samples.length, durationS: track.duration / track.timescale,
-      fps: samples.length / (track.duration / track.timescale) } });
+      frames: samples.length, durationS, fps: samples.length / durationS } });
   });
 }
 
