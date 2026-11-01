@@ -123,6 +123,10 @@ Newest first within each group.
 
 ### Rules and docs
 
+- **2026-11-01, nordmu: Phase 5 runs through the agent pipeline**
+  ([pipeline.md](pipeline.md)): dirac the UI, schrödinger the analysis
+  core, curie the phone and platform, einstein the advisor, hillbert the
+  auditor. This file's budget rises to 15 kB.
 - **2026-10-31, nordmu: step 3.7's numbers live in
   [pose-spike.md](pose-spike.md)**, so this file stays in its budget.
 
