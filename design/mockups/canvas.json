@@ -1,0 +1,40 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-11-01T18:45:00Z"},
+  "title": "coach UI mockups",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 390, "h": 844, "title": "H · Home", "is_interactive": true},
+    "RecordSetup.dc.html": {"x": 470, "y": 0, "w": 390, "h": 844, "title": "R1 · Set up the camera", "is_interactive": true},
+    "RecordLive.dc.html": {"x": 940, "y": 0, "w": 390, "h": 844, "title": "R2 · Recording", "is_interactive": true},
+    "Replay.dc.html": {"x": 1410, "y": 0, "w": 390, "h": 844, "title": "R3 · Replay (option A: replay button)", "is_interactive": true},
+    "DelayedView.dc.html": {"x": 1880, "y": 0, "w": 390, "h": 844, "title": "R3b · Delayed view (option B)", "is_interactive": true},
+    "Mark.dc.html": {"x": 0, "y": 1240, "w": 390, "h": 844, "title": "M1 · Mark the start", "is_interactive": true},
+    "MarkEnd.dc.html": {"x": 470, "y": 1240, "w": 390, "h": 844, "title": "M2 · Mark the end", "is_interactive": true},
+    "MarkReady.dc.html": {"x": 940, "y": 1240, "w": 390, "h": 844, "title": "M3 · Ready to analyse", "is_interactive": true},
+    "Result.dc.html": {"x": 0, "y": 2500, "w": 390, "h": 844, "title": "A1 · Result", "is_interactive": true},
+    "CueDetail.dc.html": {"x": 470, "y": 2500, "w": 390, "h": 844, "title": "A2 · Cue detail", "is_interactive": true},
+    "ViewOptions.dc.html": {"x": 940, "y": 2500, "w": 390, "h": 844, "title": "A3 · View options", "is_interactive": true},
+    "Desktop.dc.html": {"x": 1410, "y": 2500, "w": 1280, "h": 900, "title": "A4 · Result, wide layout", "expand": "fill", "is_interactive": true},
+    "Analysing.dc.html": {"x": 0, "y": 3800, "w": 390, "h": 844, "title": "Q1 · Analysing", "is_interactive": true},
+    "Settings.dc.html": {"x": 470, "y": 3800, "w": 390, "h": 844, "title": "S1 · Settings and about", "is_interactive": true}
+  },
+  "order": [
+    "Main.dc.html", "RecordSetup.dc.html", "RecordLive.dc.html", "Replay.dc.html", "DelayedView.dc.html",
+    "Mark.dc.html", "MarkEnd.dc.html", "MarkReady.dc.html",
+    "Result.dc.html", "CueDetail.dc.html", "ViewOptions.dc.html", "Desktop.dc.html",
+    "Analysing.dc.html", "Settings.dc.html"
+  ],
+  "notes": {
+    "row1": {"x": 0, "y": -300, "text": "1 · Record a gym session", "kind": "title1", "maxW": 2270},
+    "decide1": {"x": 2350, "y": 0, "w": 420, "size": "m", "fill": "orange", "text": "Decide: how the replay shows up\n\nR3, your idea: tap Replay when you're back, the last 20 s play straight away. Not happy? Back to live, recording never stopped.\n\nR3b, my idea: the screen always shows the camera 10 s late, like a gym video-delay mirror. You walk back and watch the lift without touching the phone with chalky hands; tap Keep only for a good one.\n\nBoth can ship, as a setting (S1)."},
+    "facts1": {"x": 2850, "y": 0, "w": 420, "size": "m", "fill": "gray", "text": "Feasibility, from the Phase 3 spike on the Fairphone\n\nThe browser camera gives 30 fps at most; a dim room halves that, so R2 shows the real fps.\n\nA rolling buffer works: WebCodecs' hardware H.264 encoder with a keyframe every second, cut at any keyframe.\n\nRecording, decoding and pose ran together for 35 min: no throttling, about 3.4% battery."},
+    "row2": {"x": 0, "y": 940, "text": "2 · Mark the lift", "kind": "title1", "maxW": 1330},
+    "decide2": {"x": 1410, "y": 1240, "w": 420, "size": "m", "fill": "orange", "text": "Your flow, kept: drag the strip under a fixed playhead, Set start, Set end, Analyse. M1 is live: drag it.\n\nAdded: step one frame with the arrows; the marked length and how long it takes to analyse show live (about 3 s per second of video on the Fairphone).\n\nRough marks are enough: the analysis finds the exact lift inside them by itself, so precision costs nothing but a little margin."},
+    "row3": {"x": 0, "y": 2200, "text": "3 · Analysis", "kind": "title1", "maxW": 2690},
+    "facts3": {"x": 2770, "y": 2500, "w": 420, "size": "m", "fill": "gray", "text": "Real data, not filler: A1 to A4 show the engine's real output and pose track for the test clip lateral-raise-cable-1 (one rep, so symmetry can't be scored).\n\nEvery threshold in diagnostics.js is still provisional, so every verdict says so until the validation set checks it.\n\nA1 plays: press play or drag the timeline. A4 is one responsive page: wide on a laptop, it stacks at phone width."},
+    "row4": {"x": 0, "y": 3500, "text": "4 · Waiting, settings, about", "kind": "title1", "maxW": 860}
+  },
+  "designSystems": []
+}

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings and about</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&amp;family=Barlow+Condensed:wght@600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0E0F11}
+a{color:#C8F04A}a:hover{color:#DDF78A}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; background: #0E0F11; color: #F2F1EC; font-family: Barlow, system-ui, sans-serif">
+
+  <header style="height: 56px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 8px">
+    <a href="Main.dc.html" aria-label="Back to home" style="width: 44px; height: 44px; border-radius: 22px; color: #F2F1EC; display: flex; align-items: center; justify-content: center; text-decoration: none">
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round"><path d="M15 5l-7 7 7 7"></path></svg>
+    </a>
+    <h1 style="margin: 0; font-size: 19px; font-weight: 700">Settings and about</h1>
+  </header>
+
+  <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 4px 16px 24px; display: flex; flex-direction: column; gap: 22px">
+
+    <section aria-labelledby="rec-h" style="display: flex; flex-direction: column; gap: 8px">
+      <h2 id="rec-h" style="margin: 0 4px; font-size: 14px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: #B4B8BF">Gym session</h2>
+      <div role="group" aria-label="How the replay shows up" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 14px; background: #21242A">
+        <sc-for list="{{modes}}" as="m" hint-placeholder-count="2">
+          <button type="button" aria-pressed="{{m.on}}" onClick="{{m.pick}}" style="height: 44px; border: 0; border-radius: 10px; font: 600 15px Barlow, sans-serif; cursor: pointer; background: {{m.bg}}; color: {{m.fg}}">{{m.label}}</button>
+        </sc-for>
+      </div>
+      <div style="border-radius: 16px; background: #17191C; padding: 0 14px">
+        <sc-for list="{{recRows}}" as="r" hint-placeholder-count="4">
+          <button type="button" style="width: 100%; min-height: 52px; padding: 0; border: 0; border-bottom: 1px solid #2E3238; background: transparent; color: #F2F1EC; display: flex; align-items: center; justify-content: space-between; gap: 12px; font: 500 16px Barlow, sans-serif; text-align: left; cursor: pointer">
+            <span>{{r.label}}</span>
+            <span style="display: flex; align-items: center; gap: 4px; color: #B4B8BF">{{r.value}}
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="fill: none; stroke: #8E939B; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M9 5l7 7-7 7"></path></svg>
+            </span>
+          </button>
+        </sc-for>
+      </div>
+      <p style="margin: 0 4px; font-size: 14px; line-height: 1.35; color: #8E939B">This phone's camera gives up to 30 fps in the app. In dim light it drops; the recording screen shows the real rate.</p>
+    </section>
+
+    <section aria-labelledby="st-h" style="display: flex; flex-direction: column; gap: 8px">
+      <h2 id="st-h" style="margin: 0 4px; font-size: 14px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: #B4B8BF">Storage</h2>
+      <div style="border-radius: 16px; background: #17191C; padding: 0 14px">
+        <button type="button" role="switch" aria-checked="{{keep}}" onClick="{{flipKeep}}" style="width: 100%; min-height: 60px; padding: 8px 0; border: 0; border-bottom: 1px solid #2E3238; background: transparent; color: #F2F1EC; display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; font-family: Barlow, sans-serif; cursor: pointer">
+          <span style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-size: 16px; font-weight: 500">Keep the video of each analysed lift</span>
+            <span style="font-size: 14px; color: #8E939B">Off: keep only the pose and the results</span>
+          </span>
+          <span style="width: 48px; height: 28px; flex: none; border-radius: 14px; position: relative; background: {{keepTrack}}">
+            <span style="position: absolute; top: 3px; width: 22px; height: 22px; border-radius: 11px; background: #F2F1EC; left: {{keepKnob}}px"></span>
+          </span>
+        </button>
+        <div style="min-height: 52px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #2E3238; font-size: 16px">
+          <span>On this phone</span><span style="color: #B4B8BF">23 lifts · 412 MB</span>
+        </div>
+        <button type="button" style="width: 100%; min-height: 52px; padding: 0; border: 0; background: transparent; color: #FF6B6B; font: 600 16px Barlow, sans-serif; text-align: left; cursor: pointer">Delete all lifts…</button>
+      </div>
+    </section>
+
+    <section aria-labelledby="ab-h" style="display: flex; flex-direction: column; gap: 8px">
+      <h2 id="ab-h" style="margin: 0 4px; font-size: 14px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: #B4B8BF">About</h2>
+      <div style="padding: 14px; border-radius: 16px; background: #17191C; display: flex; flex-direction: column; gap: 8px">
+        <div style="display: flex; align-items: baseline; gap: 8px">
+          <span style="font: 700 26px 'Barlow Condensed', Barlow, sans-serif">coach</span>
+          <span style="font-size: 15px; color: #B4B8BF">0.1.0</span>
+        </div>
+        <p style="margin: 0; font-size: 15px; line-height: 1.45; color: #F2F1EC">Nothing leaves this phone. No account, no analytics, no uploads: videos, poses and results stay in the app's own storage, and the app works in airplane mode.</p>
+      </div>
+      <div style="border-radius: 16px; background: #17191C; padding: 0 14px">
+        <button type="button" style="width: 100%; min-height: 52px; padding: 0; border: 0; border-bottom: 1px solid #2E3238; background: transparent; color: #F2F1EC; display: flex; align-items: center; justify-content: space-between; font: 500 16px Barlow, sans-serif; cursor: pointer">
+          <span>Credits and licences</span>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="fill: none; stroke: #8E939B; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M9 5l7 7-7 7"></path></svg>
+        </button>
+        <button type="button" style="width: 100%; min-height: 52px; padding: 0; border: 0; border-bottom: 1px solid #2E3238; background: transparent; color: #F2F1EC; display: flex; align-items: center; justify-content: space-between; font: 500 16px Barlow, sans-serif; cursor: pointer">
+          <span>How the cues are scored</span>
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="fill: none; stroke: #8E939B; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round"><path d="M9 5l7 7-7 7"></path></svg>
+        </button>
+        <div style="min-height: 52px; display: flex; align-items: center; justify-content: space-between; font-size: 16px">
+          <span>Source code</span><span style="color: #B4B8BF">GPL-3.0-or-later</span>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const s = Object.assign({ mode: 'button', keep: true }, this.state || {});
+    const MODES = [{ id: 'button', label: 'Replay button' }, { id: 'delay', label: 'Delayed view' }];
+    const rows = s.mode === 'delay'
+      ? [['Delay', '10 s'], ['Keep in memory', 'last 60 s'], ['Camera', 'Back'], ['Quality', '1080p · 30 fps'], ['Default lift', 'Lateral raise']]
+      : [['Replay length', '20 s'], ['Keep in memory', 'last 60 s'], ['Camera', 'Back'], ['Quality', '1080p · 30 fps'], ['Default lift', 'Lateral raise']];
+    return {
+      modes: MODES.map(m => ({
+        label: m.label, on: s.mode === m.id,
+        bg: s.mode === m.id ? '#F2F1EC' : 'transparent',
+        fg: s.mode === m.id ? '#0E0F11' : '#B4B8BF',
+        pick: () => this.setState({ mode: m.id }),
+      })),
+      recRows: rows.map(([label, value]) => ({ label, value })),
+      keep: s.keep,
+      keepTrack: s.keep ? '#C8F04A' : '#3A3F46',
+      keepKnob: s.keep ? 23 : 3,
+      flipKeep: () => this.setState({ keep: !s.keep }),
+    };
+  }
+}
+</script>
+</body>
+</html>

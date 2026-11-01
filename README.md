@@ -72,6 +72,7 @@ becomes a test case: [`tests/README.md`](tests/README.md).
 | [`parked/`](parked/) | Areas outside 0.1.0's core, moved here and unwired from the app: the research report and bar detection. |
 | [`docs/`](docs/) | The rules, the plan, the decisions, the map of the repo and the reference docs; the index is [`docs/README.md`](docs/README.md). |
 | [`spike/`](spike/) | The on-device pose spike (plan Phase 3). |
+| [`design/`](design/README.md) | Design work that isn't app code: a copy of the UI mockups' canvas (plan step 5.2). |
 | `vendor/` | `easy_ViTPose`, a git submodule (server pose). |
 | `logo/` | The header logo. |
 | `clips_inbox/` | A gitignored landing spot for raw clips waiting to become fixtures. |

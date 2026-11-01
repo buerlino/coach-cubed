@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Result</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&amp;family=Barlow+Condensed:wght@600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0E0F11}
+a{color:#C8F04A}a:hover{color:#DDF78A}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; background: #0E0F11; color: #F2F1EC; font-family: Barlow, system-ui, sans-serif">
+
+  <header style="height: 56px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 8px">
+    <a href="Main.dc.html" aria-label="Back" style="width: 44px; height: 44px; border-radius: 22px; color: #F2F1EC; display: flex; align-items: center; justify-content: center; text-decoration: none">
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round"><path d="M15 5l-7 7 7 7"></path></svg>
+    </a>
+    <div style="display: flex; flex-direction: column; line-height: 1.15">
+      <h1 style="margin: 0; font-size: 19px; font-weight: 700">Lateral raise</h1>
+      <span style="font-size: 14px; color: #8E939B">Today 14:27 · 3.0 s</span>
+    </div>
+    <a href="ViewOptions.dc.html" aria-label="View options" style="margin-left: auto; width: 44px; height: 44px; border-radius: 22px; color: #F2F1EC; display: flex; align-items: center; justify-content: center; text-decoration: none">
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style="fill: currentColor"><circle cx="5" cy="12" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="19" cy="12" r="2"></circle></svg>
+    </a>
+  </header>
+
+  <div style="height: 360px; flex: none; position: relative; background: #000">
+    <div aria-label="Video with the pose skeleton" role="img" style="position: absolute; left: 94px; top: 0; width: 202px; height: 360px; overflow: hidden; background: linear-gradient(#2A2E34, #1C1F23)">
+      <sc-for list="{{body}}" as="b" hint-placeholder-count="12"><div style="position: absolute; {{b.s}}"></div></sc-for>
+      <sc-if value="{{showSkel}}" hint-placeholder-val="{{ true }}">
+        <sc-for list="{{bones}}" as="b" hint-placeholder-count="16"><div style="position: absolute; {{b.s}}"></div></sc-for>
+        <sc-for list="{{joints}}" as="j" hint-placeholder-count="17"><div style="position: absolute; width: 7px; height: 7px; margin: -5px 0 0 -5px; border-radius: 6px; background: #F2F1EC; border: 1.5px solid #0E0F11; left: {{j.x}}px; top: {{j.y}}px"></div></sc-for>
+      </sc-if>
+    </div>
+    <button type="button" onClick="{{toggleSkel}}" aria-pressed="{{showSkel}}" style="position: absolute; right: 10px; top: 10px; height: 36px; padding: 0 12px; border: 0; border-radius: 18px; background: rgba(14,15,17,0.75); color: #F2F1EC; font: 600 14px Barlow, sans-serif; display: flex; align-items: center; gap: 6px; cursor: pointer">
+      <span style="width: 10px; height: 10px; border-radius: 5px; background: {{skelDot}}"></span>Skeleton
+    </button>
+    <sc-if value="{{inLift}}" hint-placeholder-val="{{ true }}">
+      <span style="position: absolute; left: 10px; top: 10px; height: 28px; padding: 0 10px; border-radius: 14px; background: rgba(200,240,74,0.9); color: #0E0F11; font-size: 13px; font-weight: 700; display: flex; align-items: center">Rep 1</span>
+    </sc-if>
+  </div>
+
+  <div style="flex: none; display: flex; align-items: center; gap: 4px; padding: 6px 8px 0">
+    <button type="button" onClick="{{togglePlay}}" aria-label="{{playLabel}}" style="width: 44px; height: 44px; border: 0; border-radius: 22px; background: #F2F1EC; color: #0E0F11; display: flex; align-items: center; justify-content: center; cursor: pointer">
+      <sc-if value="{{playing}}" hint-placeholder-val="{{ false }}">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="fill: currentColor"><rect x="6" y="5" width="4" height="14" rx="1"></rect><rect x="14" y="5" width="4" height="14" rx="1"></rect></svg>
+      </sc-if>
+      <sc-if value="{{paused}}" hint-placeholder-val="{{ true }}">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="fill: currentColor"><path d="M8 5v14l11-7z"></path></svg>
+      </sc-if>
+    </button>
+    <button type="button" onClick="{{stepBack}}" aria-label="One frame back" style="width: 44px; height: 44px; border: 0; border-radius: 22px; background: transparent; color: #F2F1EC; display: flex; align-items: center; justify-content: center; cursor: pointer">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round"><path d="M16 6l-6 6 6 6M8 6v12"></path></svg>
+    </button>
+    <button type="button" onClick="{{stepFwd}}" aria-label="One frame forward" style="width: 44px; height: 44px; border: 0; border-radius: 22px; background: transparent; color: #F2F1EC; display: flex; align-items: center; justify-content: center; cursor: pointer">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round"><path d="M8 6l6 6-6 6M16 6v12"></path></svg>
+    </button>
+    <span style="font: 600 15px Barlow, sans-serif; color: #B4B8BF; margin-left: 4px">{{clock}} / 3.00 s</span>
+    <button type="button" onClick="{{toggleSpeed}}" aria-label="Playback speed" style="margin-left: auto; width: 56px; height: 40px; border: 1px solid #3A3F46; border-radius: 12px; background: transparent; color: #F2F1EC; font: 700 15px Barlow, sans-serif; cursor: pointer">{{speedLabel}}</button>
+  </div>
+
+  <div onPointerDown="{{scrubDown}}" onPointerMove="{{scrubMove}}" onPointerUp="{{scrubUp}}" role="slider" tabindex="0" aria-label="Video position" aria-valuemin="0" aria-valuemax="3" aria-valuenow="{{tNow}}" aria-valuetext="{{clock}} seconds" style="flex: none; height: 44px; margin: 0 16px; position: relative; cursor: pointer; touch-action: none">
+    <div style="position: absolute; left: 0; right: 0; top: 18px; height: 8px; border-radius: 4px; background: #2E3238"></div>
+    <div title="Lift found by the analysis" style="position: absolute; top: 18px; height: 8px; border-radius: 4px; background: rgba(200,240,74,0.55); left: 38.7%; width: 60%"></div>
+    <div title="Elbow lead: worst moment" style="position: absolute; left: 74.7%; top: 6px; width: 10px; height: 10px; margin-left: -5px; border-radius: 2px; transform: rotate(45deg); background: #FF8A4C"></div>
+    <div style="position: absolute; top: 12px; width: 4px; height: 20px; margin-left: -2px; border-radius: 2px; background: #F2F1EC; left: {{pct}}%"></div>
+    <span style="position: absolute; left: 38.7%; top: 30px; font-size: 12px; color: #8E939B">lift 1.16–2.96 s</span>
+  </div>
+
+  <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 8px 16px 20px; display: flex; flex-direction: column; gap: 8px">
+    <div style="display: flex; align-items: center; gap: 14px; padding: 4px 4px 2px; font-size: 15px; font-weight: 600">
+      <span style="color: #FF8A4C">1 work on</span>
+      <span style="color: #6FB7FF">3 good</span>
+      <span style="color: #8E939B">1 can't score</span>
+    </div>
+    <p style="margin: 0 4px 4px; font-size: 14px; line-height: 1.35; color: #8E939B">Thresholds are provisional: not yet checked on real lifts.</p>
+
+    <sc-for list="{{cues}}" as="c" hint-placeholder-count="5">
+      <div style="border-radius: 16px; background: #17191C; overflow: hidden">
+        <button type="button" onClick="{{c.toggle}}" aria-expanded="{{c.open}}" style="width: 100%; min-height: 64px; padding: 10px 14px; border: 0; background: transparent; color: #F2F1EC; display: flex; align-items: center; gap: 12px; text-align: left; cursor: pointer; font-family: Barlow, sans-serif">
+          <span style="width: 28px; height: 28px; flex: none; display: flex; align-items: center; justify-content: center; color: {{c.color}}">
+            <sc-if value="{{c.isGood}}" hint-placeholder-val="{{ true }}"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><circle cx="12" cy="12" r="9.5"></circle><path d="M7.5 12.5l3 3 6-6.5"></path></svg></sc-if>
+            <sc-if value="{{c.isWork}}" hint-placeholder-val="{{ false }}"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><path d="M12 3l9.5 17h-19z"></path><path d="M12 10v4.5M12 17.5h.01"></path></svg></sc-if>
+            <sc-if value="{{c.isCant}}" hint-placeholder-val="{{ false }}"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round"><circle cx="12" cy="12" r="9.5" style="stroke-dasharray: 3 3"></circle><path d="M8 12h8"></path></svg></sc-if>
+          </span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+            <span style="font-size: 17px; font-weight: 600">{{c.title}}</span>
+            <span style="font-size: 14px; line-height: 1.3; color: {{c.color}}">{{c.status}} · {{c.verdict}}</span>
+          </span>
+          <span style="font: 700 20px 'Barlow Condensed', Barlow, sans-serif; color: #F2F1EC">{{c.value}}</span>
+        </button>
+        <sc-if value="{{c.open}}" hint-placeholder-val="{{ false }}">
+          <div style="padding: 0 14px 14px 54px; display: flex; flex-direction: column; gap: 10px">
+            <p style="margin: 0; font-size: 15px; line-height: 1.4; color: #B4B8BF">{{c.cue}}</p>
+            <sc-if value="{{c.hasNote}}" hint-placeholder-val="{{ false }}">
+              <p style="margin: 0; padding: 8px 10px; border-radius: 10px; background: #21242A; font-size: 14px; line-height: 1.4; color: #B4B8BF">{{c.note}}</p>
+            </sc-if>
+            <sc-if value="{{c.hasRule}}" hint-placeholder-val="{{ true }}">
+              <span style="font-size: 13px; color: #8E939B">{{c.rule}}</span>
+            </sc-if>
+            <sc-if value="{{c.hasDetail}}" hint-placeholder-val="{{ false }}">
+              <a href="CueDetail.dc.html" style="align-self: flex-start; height: 44px; padding: 0 16px; border-radius: 12px; background: #21242A; color: #F2F1EC; display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 600; text-decoration: none">Plot and details
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round"><path d="M9 5l7 7-7 7"></path></svg>
+              </a>
+            </sc-if>
+          </div>
+        </sc-if>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  componentDidMount() {
+    const tick = ts => {
+      this._raf = requestAnimationFrame(tick);
+      const s = this.cur();
+      if (s.playing && !s.drag && this._last != null) {
+        let t = s.t + (ts - this._last) / 1000 * s.speed;
+        if (t >= 2.99) t = 0;
+        this.setState({ t });
+      }
+      this._last = ts;
+    };
+    this._raf = requestAnimationFrame(tick);
+  }
+  componentWillUnmount() { cancelAnimationFrame(this._raf); }
+
+  cur() { return Object.assign({ t: 2.24, playing: false, speed: 1, drag: false, skel: true, open: 'elbow' }, this.state || {}); }
+
+  // lateral-raise-cable-1's pose track (tests/fixtures/global/example):
+  // 75 frames at 25 fps, COCO-17 [x, y] per joint in thousandths of the
+  // 1080x1920 frame. Every joint is above the 0.3 confidence gate in every frame.
+  frames() {
+    if (!this._f) this._f = [[545,222,553,208,519,209,549,212,447,211,596,285,368,296,638,386,345,416,675,475,434,519,613,493,470,500,580,651,451,660,546,777,411,805],[545,218,552,205,517,206,547,209,444,208,593,283,365,294,638,385,342,415,675,476,431,517,612,492,469,500,582,653,451,661,545,779,410,807],[545,216,552,203,518,204,543,205,443,207,592,280,361,293,638,384,338,413,676,475,431,518,613,494,468,502,579,655,449,665,547,784,408,812],[544,214,552,200,517,201,545,202,442,204,595,280,359,290,639,383,336,413,676,474,427,517,612,493,466,501,579,658,447,665,548,786,408,813],[542,210,550,196,513,197,546,200,439,200,594,277,358,287,638,379,332,413,674,475,426,517,610,493,463,501,579,658,447,666,548,793,406,819],[540,208,549,194,512,195,547,198,439,197,592,277,356,285,637,380,330,413,673,475,429,516,608,494,461,502,577,661,444,670,547,792,404,820],[541,210,548,196,514,196,542,198,438,197,591,276,352,285,636,378,327,413,671,473,428,516,606,493,458,504,578,658,443,666,546,793,403,819],[545,214,552,199,520,199,540,201,443,198,591,277,352,286,635,379,326,413,668,474,429,517,607,493,460,502,577,659,441,667,546,791,401,821],[547,215,555,201,524,200,539,201,447,198,588,277,351,286,634,380,325,413,667,476,427,515,605,493,459,502,576,660,443,667,546,793,401,823],[551,217,559,202,528,202,545,202,450,199,588,277,351,286,630,379,323,412,666,476,425,516,605,493,456,502,576,660,443,666,545,792,401,820],[553,220,560,206,530,207,547,205,452,200,587,277,353,285,632,384,320,410,662,479,418,516,601,495,455,502,576,659,441,666,546,790,402,821],[560,225,568,211,539,211,555,209,459,202,587,278,354,284,631,383,318,409,664,477,422,515,601,493,455,502,576,656,443,664,543,790,401,818],[562,238,575,224,544,222,569,217,466,203,593,280,356,282,633,384,314,405,666,473,418,510,598,492,450,499,575,658,442,665,542,789,401,820],[562,245,577,231,544,230,577,220,471,207,592,278,357,281,634,381,306,399,669,472,409,506,598,493,452,500,574,661,441,670,542,789,402,821],[569,250,585,235,551,233,588,223,480,210,595,278,360,279,634,379,298,393,675,469,399,503,594,493,446,501,574,658,440,667,543,791,401,819],[573,255,590,240,556,239,594,226,489,211,600,275,361,276,637,378,287,391,686,466,383,497,588,492,442,498,573,654,436,668,543,790,400,819],[570,262,591,249,555,246,602,232,498,214,602,275,363,274,640,374,282,384,694,462,365,495,585,491,439,496,570,653,431,665,543,791,402,820],[579,265,599,252,564,249,607,233,501,217,606,278,367,275,644,368,279,380,700,460,349,493,583,495,438,499,568,655,430,665,542,790,402,820],[581,275,602,262,563,258,622,237,503,221,608,281,368,277,643,369,274,380,705,459,328,497,582,497,434,502,567,660,427,673,542,795,401,823],[580,279,603,267,566,263,623,245,506,226,611,286,370,280,646,371,271,385,704,465,313,503,577,498,428,503,565,661,424,673,542,798,401,827],[581,283,602,271,568,266,618,247,508,228,607,288,372,284,647,376,271,389,700,468,302,507,578,502,430,506,564,663,425,674,540,799,400,829],[580,281,602,269,569,264,621,248,512,230,603,290,374,284,644,378,270,391,694,468,300,510,576,503,427,509,565,664,425,677,540,797,399,830],[586,282,606,271,574,266,623,248,515,229,602,284,376,284,639,376,271,389,685,467,300,510,577,503,427,510,565,670,425,683,541,798,398,831],[594,283,613,271,580,267,627,246,516,231,594,285,374,284,635,376,271,390,678,470,305,512,578,505,429,512,565,670,428,686,539,797,398,831],[594,285,615,274,582,269,629,248,519,231,597,290,375,285,635,379,275,391,674,472,312,513,575,510,429,517,564,673,427,690,538,800,397,832],[594,285,614,274,584,269,620,248,526,232,595,284,377,286,636,381,279,397,675,471,323,517,578,505,431,510,565,671,429,683,538,799,397,831],[595,284,613,273,585,268,619,246,528,232,594,280,379,286,633,377,284,400,675,473,335,519,577,502,432,509,566,667,427,681,537,799,397,829],[595,284,614,273,586,268,625,247,533,231,599,281,381,286,635,379,289,398,673,474,340,516,578,505,433,511,567,667,427,681,536,800,396,830],[610,284,629,271,598,268,633,246,537,232,610,287,386,288,636,379,291,400,674,475,346,518,579,506,434,511,567,670,428,681,536,801,397,829],[621,290,637,277,608,273,619,244,544,235,606,281,387,289,638,378,296,404,673,475,354,520,583,507,436,511,567,669,428,680,536,800,397,830],[625,290,641,278,614,274,623,247,548,235,613,284,388,288,640,381,298,406,675,480,356,521,581,507,435,511,568,668,428,679,537,800,396,830],[628,287,645,274,617,270,636,248,550,235,617,285,391,289,642,380,301,404,673,479,355,521,583,506,433,510,568,669,427,680,537,798,396,829],[635,285,652,272,622,268,642,248,553,233,628,290,395,289,643,381,301,403,673,483,358,521,582,506,432,509,568,671,427,681,538,799,397,829],[648,281,666,266,635,263,655,246,559,231,635,291,400,291,645,384,303,404,672,482,360,523,583,506,433,510,567,666,428,678,538,799,397,831],[655,282,671,268,641,266,625,243,569,234,633,290,405,291,647,383,307,403,674,483,359,520,583,504,433,509,568,667,427,681,537,798,398,830],[664,276,679,261,651,259,632,243,574,233,650,297,405,293,650,389,307,405,676,488,362,524,586,505,436,509,569,665,429,679,538,797,398,828],[664,276,681,262,651,259,669,249,577,234,658,299,410,295,655,389,310,406,680,489,366,526,589,506,435,510,571,666,429,681,538,798,400,829],[663,275,680,261,647,258,674,247,573,232,661,299,414,295,658,391,311,406,683,491,371,526,590,506,438,509,571,666,428,682,537,797,398,828],[665,269,681,254,651,252,672,244,574,231,662,299,416,294,663,389,310,403,689,490,375,524,588,506,438,509,574,664,431,678,538,796,399,827],[660,269,675,254,645,252,660,242,571,229,661,294,416,292,668,383,309,401,700,484,381,521,591,505,442,510,576,664,433,681,538,797,399,828],[647,270,664,256,629,255,671,237,561,226,648,284,416,286,674,376,311,397,713,476,392,516,591,502,446,508,583,657,436,677,538,794,402,826],[633,265,652,252,619,248,662,237,556,220,646,283,413,281,683,369,311,387,737,464,398,503,593,500,454,506,580,656,440,669,540,795,400,825],[636,258,653,244,619,241,654,230,550,215,646,278,411,275,689,362,312,380,761,451,405,488,597,497,458,501,582,653,443,664,539,792,402,823],[626,250,646,236,611,234,652,223,543,209,641,270,405,268,699,352,311,368,789,433,413,476,603,498,462,506,582,653,444,662,544,785,403,817],[617,250,639,237,601,234,655,223,535,206,646,265,406,262,712,341,312,359,820,415,411,458,613,496,464,500,586,653,450,661,544,786,404,815],[611,245,631,232,595,229,647,218,530,203,645,261,406,259,724,332,309,350,847,396,407,440,610,490,466,495,588,647,451,656,548,787,407,815],[605,241,624,228,588,226,640,215,523,200,642,259,399,255,734,319,299,337,859,370,394,419,612,484,467,488,592,641,454,652,547,782,406,812],[605,238,622,225,587,223,635,209,520,197,641,254,403,249,741,307,296,322,874,345,388,394,613,478,468,484,595,638,458,647,548,782,408,810],[598,233,614,221,582,219,627,209,516,196,639,250,403,243,752,293,291,304,882,321,379,367,617,482,472,487,596,641,458,649,549,780,407,808],[599,235,617,221,582,220,622,206,514,194,637,245,401,239,757,280,291,288,908,299,368,333,619,482,475,487,598,638,458,648,545,777,410,806],[598,234,615,220,579,219,619,204,510,192,634,243,404,234,768,267,282,277,918,280,356,304,617,478,475,483,594,638,458,648,546,773,409,803],[599,232,618,218,578,217,627,204,508,193,634,244,399,233,776,255,264,270,929,259,327,275,617,477,472,484,594,638,456,652,547,774,408,805],[602,235,619,221,581,219,624,203,513,191,622,242,419,240,771,244,262,271,924,242,318,253,619,477,473,485,593,638,454,653,545,776,407,807],[599,233,618,222,582,218,632,207,516,191,626,237,421,232,780,234,257,265,940,227,298,236,614,474,472,482,591,637,456,650,546,774,405,804],[592,234,612,221,577,219,624,203,516,190,629,234,406,236,778,227,270,252,941,215,293,214,612,477,470,484,591,633,451,650,541,770,405,801],[594,234,613,222,580,218,617,205,519,189,625,234,404,231,774,220,280,245,935,205,279,201,609,474,467,480,587,632,448,647,539,770,403,799],[594,235,613,223,578,219,626,206,517,190,628,232,408,222,778,218,262,239,943,202,260,195,606,472,464,478,583,630,446,643,538,766,401,798],[594,236,614,224,580,220,633,204,516,188,630,230,406,219,782,218,259,238,955,202,250,199,603,470,460,476,582,628,444,644,537,768,400,796],[597,232,613,219,584,216,623,203,515,188,626,232,407,221,778,222,289,240,950,210,254,204,596,467,455,473,578,627,439,640,533,767,396,796],[592,235,610,223,578,220,626,205,512,188,629,231,412,222,778,226,311,218,954,219,260,214,592,467,449,473,574,625,434,638,529,765,393,796],[593,238,611,226,581,222,625,205,510,190,618,232,400,220,770,231,288,234,950,231,238,225,585,465,443,471,569,625,427,638,526,765,389,794],[578,239,599,227,562,223,624,204,502,188,624,232,401,223,761,238,294,231,926,242,238,236,580,463,435,469,564,624,424,639,524,769,383,797],[578,239,598,228,564,223,622,206,500,188,620,237,393,224,757,245,295,227,913,257,237,243,573,463,430,467,561,621,419,631,518,766,378,795],[579,244,598,232,564,227,621,207,499,191,617,239,383,226,751,254,265,240,913,271,229,263,569,465,426,468,558,620,414,631,515,767,376,797],[584,246,602,234,568,230,623,210,497,194,608,242,377,231,740,260,232,252,906,285,223,282,560,458,421,462,552,616,410,623,509,765,370,794],[568,247,587,235,555,230,612,209,496,192,599,242,371,231,730,264,223,261,894,295,228,305,559,461,417,464,549,619,405,628,505,767,367,796],[571,250,592,239,559,234,617,212,496,193,602,244,366,234,726,273,217,276,887,308,231,325,555,456,414,459,546,616,406,622,503,765,365,794],[556,250,579,238,545,233,600,214,493,192,596,245,362,237,717,281,221,277,875,321,237,342,552,464,407,468,537,621,396,628,499,767,359,797],[562,245,582,233,550,229,605,211,487,192,592,247,355,239,710,286,212,288,866,334,240,357,543,457,401,463,534,614,394,622,491,764,353,793],[557,250,580,237,546,232,603,212,487,190,588,247,353,240,700,292,212,295,848,344,248,372,542,464,397,469,532,620,388,628,487,764,351,794],[554,247,575,235,542,230,598,210,485,190,579,248,345,242,690,296,211,308,829,349,251,389,537,463,395,469,526,619,384,626,482,763,347,791],[551,245,572,233,540,229,591,208,484,189,579,248,344,243,687,303,209,314,820,362,254,402,533,467,391,472,519,621,376,632,478,763,340,794],[558,247,581,236,544,231,600,213,485,193,579,251,344,244,687,311,211,317,817,376,263,417,532,471,385,475,515,627,373,639,478,764,337,791],[567,248,589,235,551,231,604,211,486,192,584,254,346,245,676,312,213,323,803,386,264,424,531,475,383,478,513,629,371,640,477,762,336,790],[571,248,592,235,559,231,593,212,497,193,582,255,344,247,677,319,218,332,795,391,271,434,533,475,383,476,512,634,371,644,476,762,334,792]];
+    return this._f;
+  }
+
+  // The 17 joints at time t (s), linearly between frames, in px of a W x H frame.
+  joints(t, W, H) {
+    const F = this.frames(), x = Math.max(0, Math.min(74, t * 25));
+    const i = Math.floor(x), j = Math.min(74, i + 1), a = x - i;
+    return Array.from({ length: 17 }, (_, k) => ({
+      x: (F[i][2 * k] + (F[j][2 * k] - F[i][2 * k]) * a) * W / 1000,
+      y: (F[i][2 * k + 1] + (F[j][2 * k + 1] - F[i][2 * k + 1]) * a) * H / 1000,
+    }));
+  }
+
+  bar(a, b, w, c) {
+    const f = n => n.toFixed(1), dx = b.x - a.x, dy = b.y - a.y;
+    return { s: 'left:' + f(a.x - w / 2) + 'px;top:' + f(a.y - w / 2) + 'px;width:' + f(Math.hypot(dx, dy) + w) + 'px;height:' + f(w) + 'px;border-radius:' + f(w / 2) + 'px;transform-origin:' + f(w / 2) + 'px 50%;transform:rotate(' + f(Math.atan2(dy, dx) * 180 / Math.PI) + 'deg);background:' + c };
+  }
+
+  renderVals() {
+    const s = this.cur(), W = 202, H = 360;
+    const P = this.joints(s.t, W, H);
+    const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+    // The "video": the lifter drawn as soft bars from the same track, so the
+    // skeleton has something to sit on. The real app shows the recording.
+    const G = '#454A52';
+    const body = [
+      this.bar(mid(P[5], P[6]), mid(P[11], P[12]), 40, G),
+      this.bar(P[5], P[7], 13, G), this.bar(P[7], P[9], 11, G),
+      this.bar(P[6], P[8], 13, G), this.bar(P[8], P[10], 11, G),
+      this.bar(P[11], P[13], 17, G), this.bar(P[13], P[15], 14, G),
+      this.bar(P[12], P[14], 17, G), this.bar(P[14], P[16], 14, G),
+      this.bar(mid(P[3], P[4]), mid(P[3], P[4]), 26, G),
+    ];
+    const EDGES = [[0,1],[0,2],[1,3],[2,4],[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]];
+    const fmt = t => t.toFixed(2);
+    const pctAt = e => {
+      const r = e.currentTarget.getBoundingClientRect();
+      return Math.max(0, Math.min(2.99, (e.clientX - r.left) / r.width * 3));
+    };
+    const CUES = [
+      { id: 'elbow', kind: 'work', title: 'Elbow lead', verdict: 'wrist rises above elbow', value: '−11.4%',
+        cue: 'Through the raise the elbow stays at or slightly above the wrist — the wrist shouldn\'t flick up and lead the lift.',
+        rule: 'Good from +5% (elbow above wrist), work on below −5%. Provisional.', detail: true },
+      { id: 'top', kind: 'good', title: 'Top of rep', verdict: 'right at shoulder height', value: '+10.8%',
+        cue: 'At the top of each rep the arms lift to about shoulder height — not swung above it, not stopped short.',
+        rule: 'Good within 15% of torso length of shoulder height, work on beyond 30%. Provisional.' },
+      { id: 'lean', kind: 'good', title: 'Torso lean', verdict: 'stays upright', value: '1.2°',
+        cue: 'The trunk stays upright throughout the set: the weight is raised by the arms, not by leaning or swinging the torso.',
+        note: 'The two sides disagree by 10.0° on average. A steady offset means the camera is not square to the lifter.',
+        rule: 'Good up to 3° of sway (SD), work on beyond 7°. Provisional.' },
+      { id: 'tempo', kind: 'good', title: 'Tempo', verdict: 'controlled descent', value: '1.07×',
+        cue: 'The weight is lowered under control — the descent isn\'t noticeably faster than the raise.',
+        rule: 'Good up to 1.5× faster down than up, work on beyond 2.5×. Provisional.' },
+      { id: 'sym', kind: 'cant', title: 'Rep-to-rep symmetry', verdict: 'needs two reps or more', value: '—',
+        cue: 'Only one rep was found in this clip — there\'s nothing to compare rep-to-rep.' },
+    ];
+    const LOOK = {
+      good: { color: '#6FB7FF', status: 'Good' },
+      work: { color: '#FF8A4C', status: 'Work on' },
+      cant: { color: '#8E939B', status: 'Can\'t score' },
+    };
+    return {
+      body,
+      bones: EDGES.map(([a, b]) => this.bar(P[a], P[b], 3, 'rgba(200,240,74,0.95)')),
+      joints: P.map(p => ({ x: p.x.toFixed(1), y: p.y.toFixed(1) })),
+      showSkel: s.skel,
+      skelDot: s.skel ? '#C8F04A' : '#4A4F57',
+      toggleSkel: () => this.setState({ skel: !s.skel }),
+      inLift: s.t >= 1.16 && s.t <= 2.96,
+      clock: fmt(s.t),
+      tNow: s.t.toFixed(2),
+      pct: (s.t / 3 * 100).toFixed(2),
+      playing: s.playing,
+      paused: !s.playing,
+      playLabel: s.playing ? 'Pause' : 'Play',
+      togglePlay: () => { this._last = null; this.setState({ playing: !s.playing }); },
+      stepBack: () => this.setState({ playing: false, t: Math.max(0, Math.round(s.t * 25 - 1) / 25) }),
+      stepFwd: () => this.setState({ playing: false, t: Math.min(2.96, Math.round(s.t * 25 + 1) / 25) }),
+      speedLabel: s.speed === 1 ? '1×' : s.speed === 0.5 ? '½×' : '¼×',
+      toggleSpeed: () => this.setState({ speed: s.speed === 1 ? 0.5 : s.speed === 0.5 ? 0.25 : 1 }),
+      scrubDown: e => { e.currentTarget.setPointerCapture(e.pointerId); this.setState({ drag: true, t: pctAt(e) }); },
+      scrubMove: e => { if (this.cur().drag) this.setState({ t: pctAt(e) }); },
+      scrubUp: () => this.setState({ drag: false }),
+      cues: CUES.map(c => Object.assign({}, c, LOOK[c.kind], {
+        isGood: c.kind === 'good', isWork: c.kind === 'work', isCant: c.kind === 'cant',
+        open: s.open === c.id,
+        hasNote: !!c.note, hasRule: !!c.rule, hasDetail: !!c.detail,
+        toggle: () => this.setState({ open: s.open === c.id ? null : c.id }),
+      })),
+    };
+  }
+}
+</script>
+</body>
+</html>

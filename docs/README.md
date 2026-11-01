@@ -28,6 +28,7 @@ the size budgets ([tests/docs.test.js](../tests/docs.test.js)).
 | [../THIRD_PARTY.md](../THIRD_PARTY.md) | Every third-party component, in the app and around it: name, version, licence, source. |
 | [authors.md](authors.md) | Who wrote how much of the code, for the licence consent (question 1). |
 | [server.md](server.md) | The Flask server as dev tooling: what runs, the checkpoints, the setup and launch scripts, testing under the `/coach/` prefix, its landmines, the sibling notes on the deploy machine. |
+| [ui-design.md](ui-design.md) | The new UI's design (step 5.2): nordmu's requirements, the mockups' screens and what they propose, the look, feasibility, how the design work continues, the open questions. The mockups' sources: [../design/](../design/README.md). |
 
 ## Reference
 

@@ -12,7 +12,7 @@ from these are in [rules-core.md](rules-core.md).
 | 2 | Where 0.1.0 is published | Noah | nordmu decided it (PWA and GitHub APK, F-Droid after a check; "What 0.1.0 is"). Noah was asked too and may revise it; until he does, nordmu's answer binds. |
 | 3 | Test phones | nordmu, Noah | Answered in part (nordmu, 2026-10-31): nordmu's Fairphone 6 (`4d42e62f`; LineageOS, no Google Chrome). A stock Android phone with Chrome and Google's WebView is tested after the spike, before the public release, so step 3.7 decides without it; whose phone is open. An iPhone too, if iOS matters. |
 | 5 | `.auth_password` is an unsalted SHA-256 hash of the old login password, with a scheme "identical to tecna". Is that password used anywhere else? | Noah | Change it wherever it's used. The file leaves the history in step 2.8 either way. |
-| 7 | **How the gym recording session works** (see "What 0.1.0 is"). To cover: how long the rolling buffer is; how start and end are marked (buttons, tap on a timeline, voice?); whether several lifts per session are kept; which lift is set before or after; front or back camera, resolution and frame rate (60 fps matters for the snatch); what happens to the raw video afterwards; where the phone stands. | nordmu | Ask nordmu when Phase 5 starts; nothing gets built before nordmu's input. |
+| 7 | **The rest of the gym session** (answered in part, see "What 0.1.0 is"): the replay (a button, a delayed view, or both), the replay and buffer lengths, whether an analysed lift keeps its video, who writes a fix tip per cue. Listed in [ui-design.md](ui-design.md#open-questions). | nordmu | Ask with the next round of mockups. |
 | 8 | Review the parking of the squat, image and clean & jerk tabs. It was written up as nordmu's; nordmu has not confirmed it (asked again 2026-10-31: still open). | nordmu | Until confirmed it is a proposal: follow it, but don't build anything that depends on its exact wording. |
 | 6 | How long the restructuring window lasts | Noah | Step 2.8 (the history rewrite) has to finish before Noah resumes. |
 | 9 | Branch protection on `main` of `noahsta/coach`, so one push from an old clone can't undo step 2.8 | Noah (repo owner) | Turn it on. |
@@ -55,9 +55,11 @@ Newest first within each group.
 - **2026-10-31, nordmu: 0.1.0 includes a gym recording session.** The camera
   records continuously (a rolling recording). Right after a lift, the user
   marks its start and end, and the lift is processed on the phone while the
-  user is still training. "The app is only useful" with it (nordmu). How it
-  works in detail waits for nordmu's input (question 7); it is built in
-  Phase 5.
+  user is still training. "The app is only useful" with it (nordmu).
+  **2026-11-01, nordmu:** place the phone, lift, walk back, and the replay
+  plays at once; not happy, carry on; mark start and end by dragging the
+  video under a fixed playhead, as tight as possible, then Analyse
+  ([ui-design.md](ui-design.md)). The rest is question 7. Built in Phase 5.
 - **2026-10-31, nordmu: the UI is reworked from scratch, mobile-first.** One
   responsive app: designed for phones, and the layout widens on laptops and
   desktops (for example, video and plots side by side). No desktop-only
@@ -72,12 +74,10 @@ Newest first within each group.
   (Capacitor; installable with Obtainium). **F-Droid comes after a
   feasibility check** (step 3.8): F-Droid builds everything from source, and
   the pose runtimes (WebAssembly) and model weights are prebuilt binaries.
-  Noah was asked the same question; if Noah answers differently, this entry is
-  revisited.
+  Noah may revise it (question 2).
 - **Proposed, awaiting nordmu's review (question 8): park the squat, image
-  and clean & jerk tabs.** The new UI offers only what 0.1.0 analyses (lateral
-  raise, plus the snatch if the spike passes), which follows from the
-  confirmed decision on lifts. Clean & jerk's one cue is a copy of the
+  and clean & jerk tabs.** The new UI offers only what 0.1.0 analyses, which
+  follows from the decision on lifts. Clean & jerk's one cue copies the
   snatch's.
 - **2026-10-31, nordmu: the core of 0.1.0 is the lift analysis pipeline:**
   video, on-device pose, `diagnostics.js`, plots and verdicts (map areas 1–3).

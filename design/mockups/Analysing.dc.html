@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Analysing</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&amp;family=Barlow+Condensed:wght@600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0E0F11}
+a{color:#C8F04A}a:hover{color:#DDF78A}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; background: #0E0F11; color: #F2F1EC; font-family: Barlow, system-ui, sans-serif">
+
+  <header style="height: 56px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 8px">
+    <a href="Main.dc.html" aria-label="Back to home" style="width: 44px; height: 44px; border-radius: 22px; color: #F2F1EC; display: flex; align-items: center; justify-content: center; text-decoration: none">
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round"><path d="M15 5l-7 7 7 7"></path></svg>
+    </a>
+    <h1 style="margin: 0; font-size: 19px; font-weight: 700">{{heading}}</h1>
+  </header>
+
+  <div style="flex: 1; padding: 8px 16px 20px; display: flex; flex-direction: column; gap: 16px">
+    <div style="display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 16px; background: #17191C">
+      <span style="width: 56px; height: 56px; flex: none; border-radius: 12px; background: #21242A; color: #8E939B; display: flex; align-items: center; justify-content: center">
+        <svg viewBox="0 0 48 48" width="40" height="40" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round"><circle cx="24" cy="11" r="4"></circle><path d="M24 17v15M24 19H10M24 19h14M10 15.5v7M38 15.5v7M24 32l-5 12M24 32l5 12"></path></svg>
+      </span>
+      <span style="display: flex; flex-direction: column; gap: 2px">
+        <span style="font-size: 17px; font-weight: 600">Lateral raise</span>
+        <span style="font-size: 14px; color: #8E939B">Kept 14:32 · 13.0 s marked · 390 frames</span>
+      </span>
+    </div>
+
+    <div role="progressbar" aria-label="Analysis progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{pctNow}}" style="padding: 20px 16px; border-radius: 20px; background: #17191C; display: flex; flex-direction: column; gap: 14px">
+      <div style="display: flex; align-items: baseline; justify-content: space-between">
+        <span style="font: 700 56px 'Barlow Condensed', Barlow, sans-serif; line-height: 1">{{pctLabel}}</span>
+        <span style="font-size: 15px; color: #B4B8BF">{{left}}</span>
+      </div>
+      <div style="height: 10px; border-radius: 5px; background: #2E3238; overflow: hidden">
+        <div style="height: 10px; border-radius: 5px; background: #C8F04A; width: {{pctNow}}%"></div>
+      </div>
+      <ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px">
+        <sc-for list="{{stages}}" as="g" hint-placeholder-count="3">
+          <li style="display: flex; align-items: center; gap: 10px; font-size: 16px; color: {{g.fg}}">
+            <span style="width: 22px; height: 22px; flex: none; border-radius: 11px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; background: {{g.bg}}; border: 2px solid {{g.ring}}; color: #0E0F11">{{g.mark}}</span>
+            <span style="flex: 1">{{g.label}}</span>
+            <span style="font-size: 14px; color: #8E939B">{{g.detail}}</span>
+          </li>
+        </sc-for>
+      </ol>
+    </div>
+
+    <div style="display: flex; align-items: center; gap: 10px; padding: 0 4px; font-size: 14px; line-height: 1.35; color: #8E939B">
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>
+      <span>Runs on this phone; nothing is uploaded. You can leave this screen: it keeps going.</span>
+    </div>
+
+    <div style="padding: 12px 14px; border-radius: 14px; border: 1px solid #2E3238; display: flex; justify-content: space-between; gap: 12px; font-size: 15px">
+      <span style="color: #B4B8BF">Next in the queue</span>
+      <span style="font-weight: 600">Snatch · 3.4 s · about 10 s</span>
+    </div>
+
+    <div style="margin-top: auto; display: flex; flex-direction: column; gap: 8px">
+      <sc-if value="{{done}}" hint-placeholder-val="{{ false }}">
+        <a href="Result.dc.html" style="height: 60px; border-radius: 18px; background: #C8F04A; color: #0E0F11; display: flex; align-items: center; justify-content: center; font: 700 19px Barlow, sans-serif; text-decoration: none">Open the result</a>
+      </sc-if>
+      <a href="RecordLive.dc.html" style="height: 56px; border-radius: 18px; background: {{backBg}}; color: {{backFg}}; display: flex; align-items: center; justify-content: center; font: 700 17px Barlow, sans-serif; text-decoration: none">Back to the session</a>
+      <sc-if value="{{running}}" hint-placeholder-val="{{ true }}">
+        <button type="button" style="height: 48px; border: 0; border-radius: 14px; background: transparent; color: #FF6B6B; font: 600 16px Barlow, sans-serif; cursor: pointer">Cancel this analysis</button>
+      </sc-if>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  componentDidMount() {
+    this._tick = setInterval(() => {
+      const p = (this.state && this.state.pct) || 60;
+      if (p < 100) this.setState({ pct: Math.min(100, p + 0.5) });
+    }, 100);
+  }
+  componentWillUnmount() { clearInterval(this._tick); }
+
+  renderVals() {
+    const pct = (this.state && this.state.pct) || 60;
+    const done = pct >= 100;
+    const frame = Math.max(0, Math.min(390, Math.round((pct - 10) / 85 * 390)));
+    // About 2.9 s per second of 30 fps video on the Fairphone (MoveNet Thunder, WebGL).
+    const secsLeft = Math.ceil(38 * (1 - pct / 100));
+    const stage = (label, from, to, detail) => {
+      const isDone = pct >= to, now = pct >= from && !isDone;
+      return {
+        label, detail: now ? detail : '',
+        mark: isDone ? '✓' : '',
+        bg: isDone ? '#C8F04A' : 'transparent',
+        ring: isDone ? '#C8F04A' : now ? '#F2F1EC' : '#4A4F57',
+        fg: isDone ? '#B4B8BF' : now ? '#F2F1EC' : '#8E939B',
+      };
+    };
+    return {
+      heading: done ? 'Ready' : 'Analysing',
+      pctNow: Math.floor(pct),
+      pctLabel: Math.floor(pct) + '%',
+      left: done ? 'done' : 'about ' + secsLeft + ' s left',
+      stages: [
+        stage('Read the video', 0, 10, ''),
+        stage('Find the pose', 10, 95, 'frame ' + frame + ' of 390'),
+        stage('Score the cues', 95, 100, '5 cues'),
+      ],
+      done,
+      running: !done,
+      backBg: done ? '#21242A' : '#F2F1EC',
+      backFg: done ? '#F2F1EC' : '#0E0F11',
+    };
+  }
+}
+</script>
+</body>
+</html>

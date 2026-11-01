@@ -40,10 +40,13 @@ finish (git keeps the history). Decisions and open questions are in
     MoveNet Lightning sits at 100%), confirms Thunder or switches to
     BlazePose, and decides the snatch.
 
-  **Phase 5 starts next**, on `phase-0`: 5.1 (question 7) comes before
-  anything of milestone B is designed; ask nordmu where 5.2's mockups
-  stand; 5.3 builds on the working pick. The rest of Phase 3 runs as its
-  own session once the clips and the OK are in.
+  **Phase 5 started** on `phase-0` (2026-11-01): 5.2's mockups v1, 14
+  screens on a claude.ai canvas, built from nordmu's input on the gym
+  session (5.1, in part). Next: nordmu's feedback by screen ID and the rest
+  of question 7; how the design work continues is in
+  [ui-design.md](ui-design.md#how-the-design-work-continues). 5.3 builds on
+  the working pick once nordmu approves the mockups. The rest of Phase 3
+  runs as its own session once the clips and the OK are in.
 - **Start now, outside a session** (to-dos, not session work):
   - nordmu: a one-line written OK to GPL-3.0-or-later from Noah, Nicola
     Walker and JMLuner (a chat message each is enough);
@@ -56,8 +59,8 @@ finish (git keeps the history). Decisions and open questions are in
   - nordmu, later: a stock Android phone with Chrome and Google's WebView,
     after the spike and before the public release (question 3).
 - **Waiting on nordmu:** question 8, the review of the tab parking (the goal
-  and the principles are confirmed); question 7, how the gym recording
-  session works (milestone B).
+  and the principles are confirmed); feedback on the mockups and the rest
+  of question 7 ([ui-design.md](ui-design.md#open-questions)).
 - **Waiting on Noah:** what he was asked, and what goes in the next message,
   is in [decisions.md](decisions.md#needs-an-answer).
 - **The old page is frozen:** don't edit `INDEX_HTML` in `src/app.py`, or the
@@ -320,17 +323,21 @@ clip and get the cues offline, needs 5.2's import and result flows, 5.3
 and 5.5–5.7, and goes to testers. **B**, the gym recording session, adds
 5.1 and 5.4. The public 0.1.0 needs both.
 
-- [ ] 5.1 **nordmu's input on the gym recording session** (question 7). Ask
-      before anything is designed: rolling buffer length, how start and end
-      are marked, several lifts per session, choosing the lift, camera and
-      frame rate, what happens to the raw video, where the phone stands.
-- [ ] 5.2 **Design first, then build.** Clickable HTML mockups of the phone
+- [~] 5.1 **nordmu's input on the gym recording session.** Given in part on
+      2026-11-01 ([decisions.md](decisions.md#what-010-is)); the rest is
+      question 7.
+- [~] 5.2 **Design first, then build.** Clickable HTML mockups of the phone
       layout and the widened desktop layout, tried on the Fairphone. nordmu
       approves them before 5.3. Flows to cover:
       - the recording session;
       - marking a lift;
       - the processing queue;
       - the result view: video with overlay, cues, plots.
+
+      v1 of 2026-11-01 covers all four, both milestones and the wide
+      layout: a claude.ai canvas, its sources in `design/mockups/`
+      ([ui-design.md](ui-design.md)). Awaiting nordmu's feedback; not yet
+      tried on the Fairphone.
 - [ ] 5.3 **The app skeleton**, as static files with no Flask:
       - a PWA (manifest, a service worker that caches the app and the models
         for offline use);
