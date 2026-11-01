@@ -33,6 +33,7 @@ It logs each request (`200 /index.html`); a `404` there is a broken path.
 | `src/ui/` | `app.mjs` (the shell: draws the screen the flow's state names), `screens/` (one component per screen ID: `H`, `Import`, `M`, `Q1`, `A1`, `S1`, `R2`, `R3`), `components/` (shared pieces). Screens call the flow and never each other. `html.mjs` is htm bound to Preact. |
 | `src/styles/` | `tokens.css` (every colour, the status colours with their words, the type, the spacing, the 44 px touch target; dark only) and `base.css` (the `@font-face` rules, the reset and the classes every screen shares). A screen styles itself from tokens, never from literal values. |
 | `src/track/` | One-line stubs, see below. |
+| `src/contracts/` | The shapes the app's parts agree on: JSDoc types, validators, examples. See [Contracts](#contracts). |
 | `vendor/` | Third-party files, each with its licence text, byte for byte from its npm package ([THIRD_PARTY.md](../THIRD_PARTY.md#in-the-new-app-app)): `preact/` (Preact 11.1.1 and its hooks), `htm/` (htm 3.1.1), `fonts/` (Barlow and Barlow Condensed, woff2, with `OFL.txt`). `vendor/tfjs/` is built later (gitignored). |
 | `tools/` | `assemble.mjs`, `serve.mjs`, `make-icon.mjs`. Node only, no dependencies; not copied into `dist/`. |
 | `dist/` | The assembled app (gitignored): what the PWA host and Capacitor get. `files.json` lists every file in it, with a version hash, for the service worker. |
@@ -76,12 +77,39 @@ browser loads it with a `<script src="./src/diagnostics.js">`, and the tests
 load it with `tests/loadDiagnostics.js`. The scoring adapter (`s11`) decides how
 the app wraps it.
 
+## Contracts
+
+The interfaces between the app's parts, agreed before both sides build on
+them ([app-plan.md](../docs/app-plan.md#the-contracts-agreed-before-both-sides-build),
+package `s5`). One module per contract in `src/contracts/`, each with its
+JSDoc typedef, a `validate…(value)` that returns a list of errors (empty
+when valid; each error starts with the field it is about, and an unknown
+field is an error too) and a small valid example. They are plain modules
+with no dependencies and no DOM, so the pose worker imports them as well as
+the screens and the tests.
+
+| Module | For | Produced by | Consumed by |
+| --- | --- | --- | --- |
+| `pose-messages.mjs` | 1. The pose worker's messages: `init {backend}` → `ready {info}` or `error {error}`; `estimate {id, frame, tMs}` → `result {id, keypoints, ms}` or `result {id, error}`. pose-bench's, trimmed to MoveNet: no model choice, no detector, no box. | the pose client and its worker (`s10`) | the analysis job (`s12`), through the client |
+| `analysis-job.mjs` | 2. An analysis job: the lift, its `source` (the stored cut's path, D6, never a `File`), its range in the cut's timeline, the state, progress by stage with the time left, the error. `createJob(id, lift)` makes a queued one; a job read back after a restart is the same job. | Analyse in M3 (`d14`), through the queue (`s12`) | the queue (`s12`), Q1 (`d15`), H (`d13`) |
+| `stored-lift.mjs` | 3. A stored lift: id, created, lift, the cut's path, the range, the track's and the result's paths, the app version, the engine. `liftPaths(id)` is the folder's layout: `lifts/<id>/cut.mp4`, `track.json`, `result.json`. | the store (`c8`) at Analyse, with `s32`'s cut; completed by the job (`s12`) | H (`d13`), A1 and A3 (`d16`, `d17`, `d22`), the job (`s12`) |
+| `cue-view.mjs` | 4. The cue view model: per cue its id, title, cue, status word (good, watch, work on, can't score), verdict, value, tiles, reference line, series, phase, worst moment, provisional flag and, when it can't be scored, the engine's reason; plus the lift window and the notes. `CUE_VIEW_SOURCES` names where each field comes from (`computeResults()`, `s4`'s API, or the adapter); `VERDICT_VALUE` names, per cue rule, the summary field the verdict is scored on, which is the card's value (the SD for a cue scored on its spread, not the worst moment's sample). A lift's `result.json` holds one `ResultView`. | the scoring adapter (`s11`), in the job's scoring stage | A1, A2, A4 (`d17`, `d18`, `d25`), the page test (`c21`) |
+| `frame-source.mjs` | 5. A frame source: an opened video's info (duration, frame rate, upright size, rotation), a frame at a time, a range as a stream of `VideoFrame`s, thumbnails. `exampleFrameSource()` is a stand-in with no video behind it, for tests. | the media module (`s9`) | marking (`d14`), A1's player (`d16`), the job (`s12`) |
+| `track.mjs` | The track, `track.json`, in the fixture format ([fixture-data-contract.md](../docs/fixture-data-contract.md)), so the app's tracks and the committed fixtures read the same. `trackFromFrames()` builds one from the worker's results, `framesFromTrack()` reads one back. | the job (`s12`) | the scoring adapter (`s11`), A1's skeleton (`d16`), the page test (`c21`) |
+| `keypoints.mjs` | COCO-17 `[y, x, conf]` in the frame's pixels, or `null` ([rules-core.md](../docs/rules-core.md), principle 4). | the pose worker | the track, `diagnostics.js` |
+| `common.mjs` | What they share: the lifts, ids, store paths, ranges, the checks. | | the modules above |
+
+A change to a contract is a package of its own: both sides build on it, so
+it is agreed first, with its tests, and then each side follows in its own
+package.
+
 ## The tests
 
 `tests/app/` holds them, because the pipeline's red-first check reads only
 `tests/`: `flow.test.js` (the state machine), `assemble.test.js` (assemble
 into a temporary folder, the manifest and `index.html`), `serve.test.js` (the
-dev server). Every test runs in a fresh worktree, which has neither
+dev server), `contracts.test.js` (the contracts, against the committed tracks
+and `diagnostics.js`'s headless API). Every test runs in a fresh worktree, which has neither
 `app/vendor/tfjs/` nor `app/models/`: a test that needs them makes its own
 fake. `tests/paths.test.js` scans `app/` for absolute asset paths (not
 `vendor/`, `dist/`, `android/` or `node_modules/`).
