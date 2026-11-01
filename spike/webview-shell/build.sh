@@ -11,9 +11,10 @@
 #   server            server.url = http://localhost:8790/spike/pose-bench/,
 #                     the laptop's serve.mjs through `adb reverse`
 #
-# MODEL: the weights to bundle (files in ../pose-bench/models/; default: all
-# but ViTPose-B). The bundled apps carry the snatch clip of the speed subset
-# and nothing else from tests/fixtures/local/. Output: out/coach-spike-MODE.apk.
+# MODEL: the weights to bundle (files or TF.js model folders in
+# ../pose-bench/models/; default: all but ViTPose-B). The bundled apps carry
+# the snatch clip of the speed subset and nothing else from
+# tests/fixtures/local/. Output: out/coach-spike-MODE.apk.
 # Gradle runs niced with one worker: the laptop is shared.
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -33,13 +34,17 @@ else
   B=www/spike/pose-bench C=www/spike/capture-check
   mkdir -p $B/lib $B/models $B/node_modules/onnxruntime-web/dist $B/node_modules/mp4box/dist \
     $B/node_modules/@mediapipe/tasks-vision $C/node_modules/mediabunny/dist/bundles \
+    $B/bundles $B/node_modules/@tensorflow/tfjs-backend-wasm/dist \
     www/src/track www/src/pose "www/tests/fixtures/local/$(dirname $CLIP)"
   cp $BENCH/{index.html,bench.mjs,pose-worker.mjs} $B/ && cp $BENCH/lib/*.mjs $B/lib/
   cp $BENCH/node_modules/onnxruntime-web/dist/{ort.wasm.min.mjs,ort.webgpu.min.mjs} $B/node_modules/onnxruntime-web/dist/
   cp $BENCH/node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded*.{mjs,wasm} $B/node_modules/onnxruntime-web/dist/
   cp $BENCH/node_modules/mp4box/dist/*.mjs $B/node_modules/mp4box/dist/   # mp4box.all.mjs imports its chunks
   cp -r $BENCH/node_modules/@mediapipe/tasks-vision/{vision_bundle.mjs,wasm} $B/node_modules/@mediapipe/tasks-vision/
-  for m in "${MODELS[@]}"; do cp "$BENCH/models/$m" $B/models/; done
+  # TensorFlow.js: the bundles (build-tfjs.mjs) and its wasm backend's binaries.
+  cp $BENCH/bundles/tfjs-*.mjs $B/bundles/
+  cp $BENCH/node_modules/@tensorflow/tfjs-backend-wasm/dist/*.wasm $B/node_modules/@tensorflow/tfjs-backend-wasm/dist/
+  for m in "${MODELS[@]}"; do cp -r "$BENCH/models/$m" $B/models/; done
   cp ../capture-check/{index.html,capture.mjs} $C/
   cp ../capture-check/node_modules/mediabunny/dist/bundles/mediabunny.mjs $C/node_modules/mediabunny/dist/bundles/
   cp $REPO/src/diagnostics.js www/src/ && cp $REPO/src/track/*.mjs www/src/track/ && cp $REPO/src/pose/coco17.mjs www/src/pose/
@@ -70,6 +75,8 @@ grep -q 'android.permission.CAMERA' android/app/src/main/AndroidManifest.xml ||
   sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#&\n    <uses-permission android:name="android.permission.CAMERA" />#' android/app/src/main/AndroidManifest.xml
 grep -q noCompress android/app/build.gradle ||
   sed -i "s#^android {#android {\n    androidResources { noCompress += ['onnx', 'task', 'wasm', 'mp4'] }#" android/app/build.gradle
+grep -q "'bin'" android/app/build.gradle ||   # TF.js weight shards
+  sed -i "s#'mp4'\]#'mp4', 'bin']#" android/app/build.gradle
 ACT=android/app/src/main/java/org/coach/spike/MainActivity.java
 if [[ $MODE == bundled-isolated ]]; then cp patch/MainActivity.java $ACT
 else printf 'package org.coach.spike;\n\nimport com.getcapacitor.BridgeActivity;\n\npublic class MainActivity extends BridgeActivity {}\n' > $ACT; fi

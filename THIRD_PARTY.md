@@ -77,7 +77,7 @@ on nordmu's laptop on 2026-10-31; the licences are what each package declares.
 
 ## Fetched by the Phase 3 spike (not shipped)
 
-Downloaded by `spike/pose-bench/` (`npm ci`, `fetch-models.sh`), `spike/capture-check/` and `spike/webview-shell/` (`npm ci`), never committed; candidates for the app's pose engine ([restructure-plan.md](docs/restructure-plan.md), step 3.1). Checked 2026-10-31; versions are the newest at least two weeks old.
+Downloaded by `spike/pose-bench/` (`npm ci`, `fetch-models.sh`), `spike/capture-check/` and `spike/webview-shell/` (`npm ci`), never committed; candidates for the app's pose engine ([restructure-plan.md](docs/restructure-plan.md), step 3.1). Checked 2026-10-31 (the TensorFlow.js rows 2026-11-01); versions are the newest at least two weeks old.
 
 | Component | Version | Licence | Source |
 | --- | --- | --- | --- |
@@ -85,6 +85,9 @@ Downloaded by `spike/pose-bench/` (`npm ci`, `fetch-models.sh`), `spike/capture-
 | mp4box.js (`mp4box`) | 2.4.1 | BSD-3-Clause | npm, `dist/mp4box.all.mjs` |
 | MediaPipe Tasks Vision (`@mediapipe/tasks-vision`) | 1.1.1 | Apache-2.0 | npm; `wasm/vision_wasm_module_internal.wasm` (13.5 MB) |
 | mediabunny | 1.61.6 | MPL-2.0 (file-level copyleft, GPL-3.0-compatible) | npm, `dist/bundles/mediabunny.mjs`; `spike/capture-check/` only: reads MediaRecorder's WebM and fragmented MP4, writes MP4/WebM from WebCodecs. Chosen over jswebm (MIT, small, unmaintained, untested on MediaRecorder's unknown-size clusters) and web-demuxer (an LGPL FFmpeg build in wasm) |
+| TensorFlow.js (`@tensorflow/tfjs-core`, `-converter`, `-backend-webgl`, `-backend-webgpu`, `-backend-wasm`) | 4.22.0 | Apache-2.0 | npm; bundled per backend by `spike/pose-bench/build-tfjs.mjs`: WebGL 1.17 MB, WebGPU 0.82 MB, WebAssembly 0.97 MB + `tfjs-backend-wasm-simd.wasm` (0.42 MB). The WebGL and WebGPU backends are TypeScript and shaders, no wasm |
+| TF.js pose-detection (`@tensorflow-models/pose-detection`) | 2.1.3 | Apache-2.0 | npm; MoveNet and BlazePose with runtime `tfjs`. Its peer `@mediapipe/pose` (0.5, Apache-2.0, a prebuilt wasm) is installed by npm but stubbed out of the bundles |
+| esbuild | 0.28.2 | MIT | npm, dev only: builds the TF.js bundles |
 | Capacitor (`@capacitor/core`, `/cli`, `/android`) | 8.5.3 | MIT | npm; `spike/webview-shell/` only, a throwaway debug APK. The CLI's telemetry sends nothing from a non-interactive shell |
 
 **Candidate weights:**
@@ -94,6 +97,8 @@ Downloaded by `spike/pose-bench/` (`npm ci`, `fetch-models.sh`), `spike/capture-
 | MediaPipe Pose Landmarker lite / full / heavy | `pose_landmarker_{lite,full,heavy}.task`, 5.8 / 9.4 / 30.7 MB; the person detector is inside | Apache-2.0, stated on the model card ("LICENSED UNDER Apache License, Version 2.0", [card](https://storage.googleapis.com/mediapipe-assets/Model%20Card%20BlazePose%20GHUM%203D.pdf)) | `storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_<v>/float16/1/` |
 | ViTPose-S / -B (COCO), easy_ViTPose's ONNX export | `vitpose-{s,b}-coco.onnx`, 97 / 360 MB (fp32) | **Unclear.** The mirror says to see ViTPose's licence (Apache-2.0, code). ViTPose's README lists every size as MAE-pretrained, and MAE's weights are CC BY-NC 4.0 (<https://github.com/facebookresearch/mae/blob/main/LICENSE>). | `huggingface.co/JunkyByte/easy_ViTPose` at `e838052`, `onnx/coco/` |
 | RTMPose-s / -m (body7, COCO-17) | `rtmpose-{s,m}.onnx`, 22 / 54 MB, from OpenMMLab's SDK zips | **Not stated.** Code Apache-2.0 (MMPose, rtmlib). Trained on 7 datasets (AI Challenger, COCO, CrowdPose, MPII, sub-JHMDB, Halpe, PoseTrack18) whose terms are unverified. | `download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/` |
+| MoveNet SinglePose Thunder / Lightning v4, TF.js | `movenet-{thunder,lightning}-4/` (model.json + shards), 12.6 / 4.8 MB | Apache-2.0: each Kaggle instance's `licenseName` is "Apache 2.0", and the model card says "Licensed Under Apache License, Version 2.0" ([card](https://storage.googleapis.com/movenet/MoveNet.SinglePose%20Model%20Card.pdf)) | `kaggle.com/api/v1/models/google/movenet/tfJs/singlepose-{thunder,lightning}/4/download` (Google's uploads; tfhub.dev's URLs in pose-detection now 404) |
+| BlazePose GHUM 3D for TF.js: detector v1, landmark full v2 | `blazepose-detector-1/`, `blazepose-landmark-full-2/`, 6.1 / 6.5 MB | Apache-2.0 (each Kaggle instance) | `kaggle.com/api/v1/models/mediapipe/blazepose-3d/tfJs/{detector/1,landmark-full/2}/download` |
 | YOLOX-nano / -tiny (COCO), the person detector for ViTPose and RTMPose | `yolox_{nano,tiny}.onnx`, 3.7 / 20.2 MB | Apache-2.0 (Megvii's repo and release) | `github.com/Megvii-BaseDetection/YOLOX/releases/tag/0.1.1rc0` |
 
 Left out: YOLOv8 and every Ultralytics model (AGPL-3.0); OpenMMLab's

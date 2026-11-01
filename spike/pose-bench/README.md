@@ -12,14 +12,15 @@ would ([restructure-plan.md](../../docs/restructure-plan.md), steps 3.1–3.6):
 4. post the track (fixture format) and the timings to `results/`.
 
 Not shipped, not part of `npm test`. Weights (`models/`), the npm installs
-(`node_modules/`) and `results/` are gitignored: results hold tracks of
-third-party clips.
+(`node_modules/`), the TensorFlow.js bundles (`bundles/`) and `results/` are
+gitignored: results hold tracks of third-party clips.
 
 ## Run it
 
 ```sh
 cd spike/pose-bench
 npm ci --ignore-scripts      # the pinned runtimes below
+node build-tfjs.mjs          # TensorFlow.js: one ES module per backend, in bundles/
 ./fetch-models.sh            # the weights, each checked against its SHA-256
 node serve.mjs 8790          # http://127.0.0.1:8790/spike/pose-bench/
 ```
@@ -40,7 +41,8 @@ load, heat).
 | --- | --- |
 | `index.html`, `bench.mjs` | The page and one run: fetch, demux, decode (hardware or software, `decode`), sample frames at 20 fps or all of them, the engine, scoring, timings. `window.bench.run(opts)` for CDP. |
 | `pose-worker.mjs`, `lib/pose-client.mjs` | The worker and its one async interface. |
-| `lib/engines.mjs` | The candidates: MediaPipe Pose Landmarker; ViTPose and RTMPose behind a person detector (`lib/detector.mjs`), cropped and decoded as their reference code does. |
+| `lib/engines.mjs` | The candidates: MediaPipe Pose Landmarker; ViTPose and RTMPose behind a person detector (`lib/detector.mjs`), cropped and decoded as their reference code does; MoveNet and BlazePose on TensorFlow.js through `@tensorflow-models/pose-detection` (runtime `tfjs`: MoveNet's crop from the last pose, BlazePose's detector and landmark ROI tracking; its keypoint smoothing off, as `src/track/` smooths), `ep` `tfjs-webgl`, `tfjs-webgpu` or `tfjs-wasm` (one thread, as in the app's WebView). |
+| `build-tfjs.mjs` | esbuild bundles TensorFlow.js and pose-detection into `bundles/tfjs-<backend>.mjs` (a module worker has no import map); pose-detection's `@mediapipe/pose` import becomes a stub that throws. |
 | `lib/decode.mjs` | mp4box.js demux and WebCodecs decode, in order, with backpressure. |
 | `lib/heatmap.mjs` | ViTPose heatmaps → keypoints, ported from easy_ViTPose (DARK + UDP); `check-heatmap.mjs` compares it with the Python original. |
 | `lib/image.mjs` | Crop and resize through a canvas, normalise to planar floats. |

@@ -6,7 +6,7 @@
 // memory above the idle level just before the run (the browser's RSS plus its
 // GPU memory), the hottest CPU sensor and thermal status, the download (the
 // runtime's wasm plus the weights) and the first load (engine ready).
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 
 const [runsFile, samplesFile] = process.argv.slice(2);
 const md = process.argv.includes('--md');
@@ -16,9 +16,15 @@ const head = rows.shift().split(',');
 const S = rows.map(l => Object.fromEntries(l.split(',').map((v, i) => [head[i], Number(v)])))
   .filter(s => s.procs > 0).map(s => ({ ...s, mem: s.rss_kb * 1024 + s.gpu_bytes }));
 
-// The runtime each configuration downloads, as THIRD_PARTY.md lists it (MB).
-const RUNTIME = { webgpu: { onnx: 26.8, mediapipe: 13.5 }, wasm: { onnx: 14.2, mediapipe: 13.5 } };
+// The runtime each configuration downloads, as THIRD_PARTY.md lists it (MB);
+// TensorFlow.js's from the bundles on disk (build-tfjs.mjs), plus the
+// single-threaded SIMD wasm for its wasm backend.
 const MB = b => b / 1e6;
+const size = p => statSync(new URL(p, import.meta.url)).size;
+const tfjsMB = be => { try { return MB(size(`bundles/tfjs-${be}.mjs`) + (be === 'wasm'
+  ? size('node_modules/@tensorflow/tfjs-backend-wasm/dist/tfjs-backend-wasm-simd.wasm') : 0)); } catch { return null; } };
+const RUNTIME = { webgpu: { onnx: 26.8, mediapipe: 13.5 }, wasm: { onnx: 14.2, mediapipe: 13.5 },
+  'tfjs-webgl': { tfjs: tfjsMB('webgl') }, 'tfjs-webgpu': { tfjs: tfjsMB('webgpu') }, 'tfjs-wasm': { tfjs: tfjsMB('wasm') } };
 
 const groups = new Map();
 for (const r of runs) {
@@ -36,7 +42,7 @@ for (const r of runs) {
     cpuMax: inside.length ? Math.max(...inside.map(s => s.cpu_max_c)) : null,
     thermal: inside.length ? Math.max(...inside.map(s => s.thermal_status)) : null,
     weightsMB: MB(r.engine.load.reduce((a, l) => a + l.bytes, 0)),
-    runtimeMB: RUNTIME[e.ep][e.model.startsWith('mediapipe') ? 'mediapipe' : 'onnx'],
+    runtimeMB: RUNTIME[e.ep][e.ep.startsWith('tfjs-') ? 'tfjs' : e.model.startsWith('mediapipe') ? 'mediapipe' : 'onnx'],
     loadS: r.timings.engineLoadMs / 1000, threads: r.engine.threads, isolated: r.engine.isolated,
   });
 }

@@ -1,0 +1,2 @@
+# build-tfjs.mjs output (TensorFlow.js bundles), rebuilt from node_modules/
+bundles/

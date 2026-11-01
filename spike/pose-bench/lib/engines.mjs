@@ -5,7 +5,7 @@
 import { Sampler, toCHW } from './image.mjs';
 import { decodeHeatmaps } from './heatmap.mjs';
 import { createDetector } from './detector.mjs';
-import { toCoco17 } from '../../../src/pose/coco17.mjs';
+import { COCO17_FROM_MP33, toCoco17 } from '../../../src/pose/coco17.mjs';
 
 const ORT_DIST = new URL('../node_modules/onnxruntime-web/dist/', import.meta.url).href;
 const MODELS = new URL('../models/', import.meta.url).href;
@@ -207,8 +207,70 @@ async function mediapipe(opts) {
   };
 }
 
+// --- TensorFlow.js: @tensorflow-models/pose-detection, runtime 'tfjs' -----
+// MoveNet's own crop across frames (the last pose's keypoints, low-passed)
+// and BlazePose's detector plus landmark ROI tracking, as that package runs
+// them. Its keypoint smoothing is off: coach smooths in src/track/, and the
+// raw track should be the model's. ep: 'tfjs-webgl' | 'tfjs-webgpu' |
+// 'tfjs-wasm' (one thread: the app's WebView can't be isolated).
+const TFJS_WASM = new URL('../node_modules/@tensorflow/tfjs-backend-wasm/dist/', import.meta.url).href;
+
+async function tfjs(opts) {
+  const backend = opts.ep.replace(/^tfjs-/, '');
+  const t0 = performance.now();
+  const { tf, poseDetection, setWasmPaths } = await import(new URL(`../bundles/tfjs-${backend}.mjs`, import.meta.url).href);
+  if (backend === 'wasm') {
+    setWasmPaths(TFJS_WASM);
+    tf.env().set('WASM_HAS_MULTITHREAD_SUPPORT', false);
+  }
+  if (!(await tf.setBackend(backend))) throw new Error(`TF.js backend ${backend} unavailable`);
+  await tf.ready();
+  const t1 = performance.now();
+  // Every model file through one counting fetch, for the download column.
+  const load = [];
+  const handler = dir => {
+    const l = { model: dir, bytes: 0, fetchMs: 0 };
+    load.push(l);
+    return tf.io.http(MODELS + dir + '/model.json', { fetchFunc: async (url, init) => {
+      const s = performance.now();
+      const res = await fetch(url, init);
+      const buf = await res.arrayBuffer();
+      l.bytes += buf.byteLength; l.fetchMs += performance.now() - s;
+      return new Response(buf, { status: res.status, headers: res.headers });
+    } });
+  };
+  const M = poseDetection.SupportedModels;
+  const detector = opts.family === 'movenet'
+    ? await poseDetection.createDetector(M.MoveNet, { modelType: opts.modelType, enableSmoothing: false,
+      modelUrl: handler(opts.weights) })
+    : await poseDetection.createDetector(M.BlazePose, { runtime: 'tfjs', modelType: 'full', enableSmoothing: false,
+      enableSegmentation: false, detectorModelUrl: handler(opts.weights[0]), landmarkModelUrl: handler(opts.weights[1]) });
+  load[0].createMs = performance.now() - t1;
+  load[0].runtimeMs = t1 - t0;
+  return {
+    info: { load, tfjs: tf.version_core, backend: tf.getBackend(),
+      wasmThreads: backend === 'wasm' ? tf.env().getBool('WASM_HAS_MULTITHREAD_SUPPORT') : undefined },
+    async estimate(frame, tMs) {
+      const s = performance.now();
+      // tf.browser.fromPixels takes an ImageBitmap, not a VideoFrame.
+      const bmp = await createImageBitmap(frame);
+      const s1 = performance.now();
+      const poses = await detector.estimatePoses(bmp, { maxPoses: 1, flipHorizontal: false }, tMs);
+      bmp.close();
+      const ms = { pre: s1 - s, pose: performance.now() - s1 };
+      const kp = poses[0]?.keypoints;
+      if (!kp) return { keypoints: null, ms };
+      const pts = opts.family === 'movenet' ? kp : COCO17_FROM_MP33.map(k => kp[k]);
+      return { keypoints: pts.map(p => [p.y, p.x, p.score ?? 0]), ms };
+    },
+  };
+}
+
 // The candidates, by the name the page offers. weights: file in models/.
 export const CANDIDATES = {
+  'movenet-thunder': { kind: 'tfjs', family: 'movenet', modelType: 'SinglePose.Thunder', weights: 'movenet-thunder-4' },
+  'movenet-lightning': { kind: 'tfjs', family: 'movenet', modelType: 'SinglePose.Lightning', weights: 'movenet-lightning-4' },
+  'blazepose-tfjs-full': { kind: 'tfjs', family: 'blazepose', weights: ['blazepose-detector-1', 'blazepose-landmark-full-2'] },
   'vitpose-s': { kind: 'topdown', head: 'vitpose', weights: 'vitpose-s-coco.onnx' },
   'vitpose-b': { kind: 'topdown', head: 'vitpose', weights: 'vitpose-b-coco.onnx' },
   'rtmpose-s': { kind: 'topdown', head: 'rtmpose', weights: 'rtmpose-s.onnx' },
@@ -221,6 +283,6 @@ export const CANDIDATES = {
 export async function createEngine(opts) {
   const c = CANDIDATES[opts.model];
   if (!c) throw new Error('unknown model ' + opts.model);
-  const o = { ...opts, weights: c.weights, head: c.head };
-  return c.kind === 'mediapipe' ? mediapipe(o) : topDown(o);
+  const o = { ...opts, weights: c.weights, head: c.head, family: c.family, modelType: c.modelType };
+  return c.kind === 'mediapipe' ? mediapipe(o) : c.kind === 'tfjs' ? tfjs(o) : topDown(o);
 }

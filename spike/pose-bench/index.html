@@ -21,9 +21,11 @@ Results land in <code>spike/pose-bench/results/</code> on the laptop.</p>
 <label>model <select id="model">
   <option>mediapipe-lite</option><option selected>mediapipe-full</option><option>mediapipe-heavy</option>
   <option>vitpose-s</option><option>vitpose-b</option><option>rtmpose-s</option><option>rtmpose-m</option>
+  <option>movenet-thunder</option><option>movenet-lightning</option><option>blazepose-tfjs-full</option>
 </select></label>
-<label>runtime <select id="ep"><option>webgpu</option><option>wasm</option></select></label>
-<label>fps <select id="fps"><option>20</option><option>full</option></select></label>
+<label>runtime <select id="ep"><option>webgpu</option><option>wasm</option>
+  <option>tfjs-webgl</option><option>tfjs-webgpu</option><option>tfjs-wasm</option></select></label>
+<label>fps <select id="fps"><option>20</option><option>30</option><option>full</option></select></label>
 <label>detector <select id="det"><option>yolox-nano</option><option>yolox-tiny</option><option>frame</option></select></label>
 <button id="go">run</button>
 <pre id="log"></pre>
