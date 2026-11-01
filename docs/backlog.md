@@ -13,8 +13,6 @@ During the restructuring window, the order of work and its status are in
 
 ## Bugs
 
-- A fixture without a `diagnostics` field is silently scored as snatch
-  ([map.md](map.md#11-tests-and-fixtures), area 11).
 - `scripts/sync_clipper_fixtures.py` accepts only 2-digit attempt numbers
   (`\d{2}`) where app.py accepts any (`\d+`); the likely cause of the 30
   skipped clips ([dataset-stats.md](dataset-stats.md)).
@@ -31,6 +29,9 @@ During the restructuring window, the order of work and its status are in
 
 ## Unverified
 
+- Whether `global/example/athlete-a-trim` is a snatch: its manifest entry has
+  no `diagnostics` field, and its notes and the fixtures README say the lift
+  type was never confirmed. Until it is set, three tests fail on it by design.
 - Whether `diagnostics.js`'s 0.3 confidence gate fits MediaPipe's
   "visibility" values (map areas 2 and 3). Phase 3 should settle it.
 - The goldens score raw tracks; the UI scores smoothed ones, so the tests
