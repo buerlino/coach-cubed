@@ -22,6 +22,7 @@ Agent files in `.claude/agents/`. Every package names its worker in its first li
 | curie | worker | the phone and the platform: the Capacitor shell and its build, the service worker (offline caching, updates) and storage (OPFS), the gym recording session, every measurement on the Fairphone; the only one with adb |
 | einstein | advisor | research packages and design questions: evidence, probes, a recommendation; no feature code |
 | hillbert | auditor | the diff audit of every run (Read, Grep, Glob only); reviews over time on request |
+| faraday | night runner | the queue overnight, summoned with "faraday, run the night": the next ready laptop package, checked against what merged, run with `pipeline/pipeline.sh <id>`, its merge recorded in the queue; stops at the gates, reports in the morning; no device, no push |
 
 Two packages that touch the same files don't run at once. Interfaces between owners (the Worker's messages, the result
 object the UI draws) are agreed in a package of their own before both sides build on them.
@@ -35,7 +36,7 @@ A package is one concern a fresh session finishes in one run: a few hours of age
   (`d5b`). A FIX package for an unmerged or merged branch adds `f<k>` (`e2f1`) and has no file: it runs as free text
   (below). An id is minted only after `git grep` on all branches and a look at `.coord/log.md`.
 - **The queue** (the order, the gates, the status) is in [packages/README.md](packages/README.md). The coordinating
-  session keeps it; workers never edit it, so parallel branches don't conflict on it.
+  session keeps it (at night, faraday); workers never edit it, so parallel branches don't conflict on it.
 - **First line, exactly:** `` # <id>: <title> (<agent>, <sonnet|opus>, branch `wp/<agent>-<slug>`) ``, with the agent's
   name as in the table (`schrödinger` keeps its umlaut; its branches spell it `schroedinger`). The pipeline reads the
   agent, the model and the branch from it.

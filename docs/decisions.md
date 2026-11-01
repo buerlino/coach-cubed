@@ -138,6 +138,12 @@ Newest first within each group.
 
 ### Rules and docs
 
+- **2026-11-01, nordmu: faraday runs the night** (`.claude/agents/faraday.md`):
+  one agent that runs the queue, picks the next ready package, checks it
+  against what merged, records merges, stops at the gates and reports in the
+  morning. Laptop packages only; phone packages wait for a watched day run.
+  Opus at medium effort: the check before each run is a judgement nobody
+  catches at night.
 - **2026-11-01, nordmu: Phase 5 runs through the agent pipeline**
   ([pipeline.md](pipeline.md)): dirac the UI, schrödinger the analysis
   core, curie the phone and platform, einstein the advisor, hillbert the
