@@ -1,0 +1,194 @@
+[
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "movenet-lightning",
+  "ep": "tfjs-webgl",
+  "fps": 30,
+  "tag": "wv-open",
+  "post": false
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "movenet-lightning",
+  "ep": "tfjs-webgl",
+  "fps": "full",
+  "tag": "wv-open",
+  "post": false
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "movenet-thunder",
+  "ep": "tfjs-webgl",
+  "fps": 30,
+  "tag": "wv-open",
+  "post": false
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "movenet-thunder",
+  "ep": "tfjs-webgl",
+  "fps": "full",
+  "tag": "wv-open",
+  "post": false
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "blazepose-tfjs-full",
+  "ep": "tfjs-webgl",
+  "fps": 30,
+  "tag": "wv-open",
+  "post": false
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "blazepose-tfjs-full",
+  "ep": "tfjs-webgl",
+  "fps": "full",
+  "tag": "wv-open",
+  "post": false
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "movenet-lightning",
+  "ep": "tfjs-webgpu",
+  "fps": 30,
+  "tag": "wv-open",
+  "post": false
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "movenet-lightning",
+  "ep": "tfjs-webgpu",
+  "fps": "full",
+  "tag": "wv-open",
+  "post": false
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "movenet-thunder",
+  "ep": "tfjs-webgpu",
+  "fps": 30,
+  "tag": "wv-open",
+  "post": false
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "movenet-thunder",
+  "ep": "tfjs-webgpu",
+  "fps": "full",
+  "tag": "wv-open",
+  "post": false
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "blazepose-tfjs-full",
+  "ep": "tfjs-webgpu",
+  "fps": 30,
+  "tag": "wv-open",
+  "post": false
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "blazepose-tfjs-full",
+  "ep": "tfjs-webgpu",
+  "fps": "full",
+  "tag": "wv-open",
+  "post": false
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "mediapipe-full",
+  "ep": "webgpu",
+  "fps": 30,
+  "tag": "wv-open",
+  "post": false
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "mediapipe-full",
+  "ep": "webgpu",
+  "fps": "full",
+  "tag": "wv-open",
+  "post": false
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "movenet-lightning",
+  "ep": "tfjs-wasm",
+  "fps": 30,
+  "tag": "wv-open",
+  "post": false
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "movenet-lightning",
+  "ep": "tfjs-wasm",
+  "fps": "full",
+  "tag": "wv-open",
+  "post": false
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "movenet-thunder",
+  "ep": "tfjs-wasm",
+  "fps": 30,
+  "tag": "wv-open",
+  "post": false
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "movenet-thunder",
+  "ep": "tfjs-wasm",
+  "fps": "full",
+  "tag": "wv-open",
+  "post": false
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "blazepose-tfjs-full",
+  "ep": "tfjs-wasm",
+  "fps": 30,
+  "tag": "wv-open",
+  "post": false
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "blazepose-tfjs-full",
+  "ep": "tfjs-wasm",
+  "fps": "full",
+  "tag": "wv-open",
+  "post": false
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "blazepose-onnx-full",
+  "ep": "webgpu",
+  "fps": 30,
+  "tag": "wv-open",
+  "post": false
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "blazepose-onnx-full",
+  "ep": "webgpu",
+  "fps": "full",
+  "tag": "wv-open",
+  "post": false
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "blazepose-onnx-full",
+  "ep": "wasm",
+  "fps": 30,
+  "tag": "wv-open",
+  "post": false
+ },
+ {
+  "clip": "snatch/Session14_01_0h18m07s_made.mp4",
+  "model": "blazepose-onnx-full",
+  "ep": "wasm",
+  "fps": "full",
+  "tag": "wv-open",
+  "post": false
+ }
+]
