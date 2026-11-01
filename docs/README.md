@@ -31,6 +31,7 @@ the size budgets ([tests/docs.test.js](../tests/docs.test.js)).
 | [branding.md](branding.md) | The app's name and logo: what the name needs, every name checked and where it is taken, nordmu's favourite, and what the logo designer delivers. |
 | [pipeline.md](pipeline.md) | The agent pipeline: the agents and what each owns, the package format, how a run goes (worker, checks, audit, merge), the hard rules, the worker setup, the phone, the report, the definition of done, what the audit checks. The packages: [packages/](packages/README.md); the scripts: [../pipeline/](../pipeline/README.md). |
 | [ui-design.md](ui-design.md) | The new UI's design (step 5.2): nordmu's requirements, the mockups' screens and what they propose, the look, feasibility, how the design work continues, the open questions. The mockups' sources: [../design/](../design/README.md). |
+| [app-plan.md](app-plan.md) | The new app's build plan (Phase 5): what it builds on, the architecture and the contracts, the packages in stages with their sizes, nordmu's decisions D1–D4, the gates, the risks. The queue: [packages/](packages/README.md). |
 
 ## Reference
 

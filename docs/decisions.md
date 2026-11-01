@@ -12,7 +12,6 @@ from these are in [rules-core.md](rules-core.md).
 | 2 | Where 0.1.0 is published | Noah | nordmu decided it (PWA and GitHub APK, F-Droid after a check; "What 0.1.0 is"). Noah was asked too and may revise it; until he does, nordmu's answer binds. |
 | 3 | Test phones | nordmu, Noah | Answered in part (nordmu, 2026-10-31): nordmu's Fairphone 6 (`4d42e62f`; LineageOS, no Google Chrome). A stock Android phone with Chrome and Google's WebView before the public release; whose phone is open. An iPhone too, if iOS matters. |
 | 5 | `.auth_password` is an unsalted SHA-256 hash of the old login password, with a scheme "identical to tecna". Is that password used anywhere else? | Noah | Change it wherever it's used. The file leaves the history in step 2.8 either way. |
-| 7 | **The rest of the gym session** (answered in part, see "What 0.1.0 is"): the replay (a button, a delayed view, or both), the replay and buffer lengths, whether an analysed lift keeps its video, who writes a fix tip per cue. Listed in [ui-design.md](ui-design.md#open-questions). | nordmu | Ask with the next round of mockups. |
 | 8 | Review the parking of the squat, image and clean & jerk tabs. It was written up as nordmu's; nordmu has not confirmed it (asked again 2026-10-31: still open). | nordmu | Until confirmed it is a proposal: follow it, but don't build anything that depends on its exact wording. |
 | 6 | How long the restructuring window lasts | Noah | Step 2.8 (the history rewrite) has to finish before Noah resumes. |
 | 9 | Branch protection on `main` of `noahsta/coach`, so one push from an old clone can't undo step 2.8 | Noah (repo owner) | Turn it on. |
@@ -30,6 +29,15 @@ Newest first within each group.
 
 ### What 0.1.0 is
 
+- **2026-11-01, nordmu: mockups v1 are the basis to build on** ("good
+  enough to build now"; tweaks later), and the build follows
+  [app-plan.md](app-plan.md). D1: the UI in Preact with htm, vendored, no
+  build step (Lit, plain modules and Svelte weighed). D2, question 7: v1's
+  answers until nordmu changes them: R3 as the replay and R3b as a
+  setting, a 20 s replay, a 60 s buffer, an analysed lift keeps its video,
+  several lifts per session, the lift chosen before recording, no fix tips
+  in 0.1.0. D3: the screens v1 doesn't draw are built in its style and
+  reviewed in the app. D4: every package runs through the pipeline.
 - **2026-11-01, nordmu: the pose runtime that ships is open source and
   buildable from source,** so not MediaPipe Tasks' web runtime (the
   benchmark; a fallback only nordmu can choose). **Step 3.7: MoveNet
@@ -60,7 +68,7 @@ Newest first within each group.
   **2026-11-01, nordmu:** place the phone, lift, walk back, and the replay
   plays at once; not happy, carry on; mark start and end by dragging the
   video under a fixed playhead, as tight as possible, then Analyse
-  ([ui-design.md](ui-design.md)). The rest is question 7. Built in Phase 5.
+  ([ui-design.md](ui-design.md)). Question 7: v1's answers (above). Built in Phase 5.
 - **2026-10-31, nordmu: the UI is reworked from scratch, mobile-first.** One
   responsive app: designed for phones, and the layout widens on laptops and
   desktops (for example, video and plots side by side). No desktop-only

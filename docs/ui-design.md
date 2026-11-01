@@ -11,8 +11,10 @@ mockups and what they propose, and what is still open. What binds is in
   <https://claude.ai/artifact/UXtAPva2iUi5m4FWJKxnC5> (private to nordmu's
   account; Noah sees it once nordmu shares it from the canvas's Share menu).
   A copy of its sources is in [design/](../design/README.md).
-- Waiting on nordmu's feedback and the open questions below. Not yet tried
-  on the Fairphone.
+- **Approved by nordmu on 2026-11-01 as the basis to build on** ("good
+  enough to build now"; tweaks later). The build:
+  [app-plan.md](app-plan.md). The real app runs on the Fairphone from
+  milestone A's phone run on.
 
 ## nordmu's requirements (2026-11-01)
 
@@ -110,13 +112,15 @@ The numbers are in [pose-spike.md](pose-spike.md).
 2. A session revises the canvas, records what nordmu decided in
    [decisions.md](decisions.md) and here, and refreshes the copy in
    `design/mockups/` from the canvas, in the same commit.
-3. Once nordmu approves, and Noah has seen it, 5.2 is done. 5.3 builds the
-   app fresh as static files from the approved design; the mockups' code
-   (the canvas's format) isn't reused.
+3. nordmu approved v1 on 2026-11-01, so 5.2 is done; Noah sees it once
+   nordmu shares the canvas. The app is built fresh as static files from
+   it ([app-plan.md](app-plan.md)); the mockups' code (the canvas's
+   format) isn't reused. Changes after checkpoint A go through the canvas
+   first.
 4. On the Fairphone, the canvas opens in a browser logged in to claude.ai;
    from 5.3 on, the real app runs on the phone.
 
-## Keeping the UI maintainable (a proposal for 5.3)
+## Keeping the UI maintainable
 
 - Each screen is its own ES module; one small state machine owns the
   session flow (live, replay, mark, queued, result), so screens never call
@@ -127,19 +131,19 @@ The numbers are in [pose-spike.md](pose-spike.md).
   works).
 - The pose engine sits behind one async Worker interface.
 - Colours, type and spacing are tokens in one stylesheet.
-- A small vendored framework or plain web components: decided in 5.3.
+- The screens are Preact components written with htm, vendored, with no
+  build step (nordmu, 2026-11-01; D1 in [app-plan.md](app-plan.md)).
 
 ## Open questions
 
-For nordmu (the rest of question 7 in [decisions.md](decisions.md)):
+None blocks the build. Question 7 took v1's answers (nordmu, 2026-11-01;
+[decisions.md](decisions.md#what-010-is)) until nordmu changes them: R3
+as the replay and R3b as a setting, a 20 s replay, a 60 s buffer, an
+analysed lift keeps its video, several lifts per session, the lift chosen
+before recording, no "how to fix it" tips in 0.1.0.
 
-- the replay: R3, R3b, or both with a setting;
-- the replay length (20 s in v1) and how much the buffer keeps (60 s in v1);
-- whether an analysed lift keeps its video (on in v1) or only the pose and
-  the results;
-- who writes a "how to fix it" tip per cue (the engine has the cue, no fix);
-- several lifts per session, and the lift chosen before recording (v1
-  assumes both).
-
-Not drawn yet: a snatch result; the errors (no person found, camera
-permission denied, storage full); the first run; a light theme; landscape.
+Not drawn in v1, so built in its style and reviewed in the app (nordmu,
+2026-11-01): a snatch result; the errors (no person found, a video that
+can't be read, storage full, the engine failing); the first run. A light
+theme waits, and phone landscape gets no layout of its own, only 5.7's
+check that nothing breaks.
