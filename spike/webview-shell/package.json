@@ -1,0 +1,11 @@
+{
+  "name": "coach-webview-shell",
+  "private": true,
+  "description": "Phase 3 spike, steps 3.4/3.5: a throwaway Capacitor debug APK (org.coach.spike) that runs pose-bench and the capture check inside Android's WebView. Not shipped.",
+  "license": "GPL-3.0-or-later",
+  "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/cli": "8.5.3",
+    "@capacitor/core": "8.5.3"
+  }
+}
