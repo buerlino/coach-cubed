@@ -105,11 +105,11 @@ export function summariseResult(result) {
 }
 
 const pad = n => String(n).padStart(2, '0');
-const clock = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+export const clock = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const dayKey = d => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-const dayName = d => `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
+export const dayKey = d => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+export const dayName = d => `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;
 const lifts = n => `${n} ${n === 1 ? 'lift' : 'lifts'}`;
 
 /**
