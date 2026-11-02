@@ -237,8 +237,9 @@ test('the first run shows once: the intro starts the app until it is dismissed, 
   assert.equal(await startState(mk()), 'welcome');
   const gone = [];
   const flow = { go: (to, p) => gone.push([to, p]) };
-  await finishWelcome(mk(), flow, 'import');
-  assert.deepEqual(gone, [['import', undefined]]);
+  const file = { name: 'clip.mp4', type: 'video/mp4' };
+  await finishWelcome(mk(), flow, 'lift', { file });
+  assert.deepEqual(gone, [['lift', { file }]]);
   assert.equal(await startState(mk()), 'home', 'after a restart it does not show again');
   assert.equal(await startState({ getSettings: async () => { throw new Error('no store'); } }), 'home', 'never blocks the app');
   // what it says: what the app does, that everything stays on the phone, and a way to import
@@ -254,11 +255,11 @@ test('the intro goes on even when the choice cannot be saved', async () => {
   assert.deepEqual(gone, ['home']);
 });
 
-test('the intro is one more state of the flow, entered at the start and left to home or import', async () => {
+test('the intro is one more state of the flow, entered at the start and left to home or the lift step', async () => {
   const { createFlow, TRANSITIONS, SCREEN_OF } = await load('src/flow/flow.mjs');
   assert.equal(SCREEN_OF.welcome, 'Welcome');
   const flow = createFlow('welcome');
-  assert.equal(flow.can('import'), true);
+  assert.equal(flow.can('lift'), true);
   assert.equal(flow.can('home'), true);
   assert.equal(flow.can('settings'), false);
   assert.ok(Object.values(TRANSITIONS).every(to => !to.includes('welcome')), 'no screen leads back to it');

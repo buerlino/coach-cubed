@@ -431,14 +431,22 @@ test('the region and the length while the end is still open follow the playhead'
   assert.equal(before.region, null, 'a playhead before the start has no region');
 });
 
-// ---- the lift button ----
+// ---- the lift in the header (d53: chosen on L1, shown here, never switched) ----
 
-test('the lift button in the corner offers the other lift, as the mockup\'s does', async () => {
+test('d53 M has no lift switch: no otherLift, no mark-lift button, no default lift; it shows the lift it was given', async () => {
   const m = await model();
-  assert.equal(m.otherLift('lateral-raise'), 'snatch');
-  assert.equal(m.otherLift('snatch'), 'lateral-raise');
-  assert.equal(m.liftLabelOf('lateral-raise'), 'Lateral raise');
-  assert.equal(m.liftLabelOf('snatch'), 'Snatch');
+  assert.equal(m.otherLift, undefined);
+  assert.equal(m.liftLabelOf, undefined);
+  assert.equal(m.liftChoices, undefined);
+  const screen = fs.readFileSync(path.join(APP, 'src', 'ui', 'screens', 'M.mjs'), 'utf8');
+  const src = screen + fs.readFileSync(path.join(APP, 'src', 'ui', 'mark-model.mjs'), 'utf8');
+  assert.doesNotMatch(src, /otherLift|mark-lift|Tap to change|setLift|ChevronDownIcon/);
+  assert.doesNotMatch(screen, /'lateral-raise'|LIFTS\[0\]/, 'the lift comes from the flow only');
+  assert.match(screen, /const \{[^}]*\blift = null\b[^}]*\} = flow\.params/);
+  assert.match(screen, /<\$\{LiftIcon\} lift=\$\{lift\}/);
+  assert.match(screen, /liftLabel\(lift\)/);
+  assert.match(screen, /isProvisional\(lift\)/);
+  assert.match(screen, /if \(!file \|\| !lift\)/, 'a flow without a file or a lift shows the no video state');
 });
 
 // ---- Analyse ----
@@ -464,7 +472,7 @@ async function realQueue(opts = {}) {
 test('Analyse calls analyse(lift, file, {t0, t1}) with the marked frames\' times and hands Q1 the new lift\'s id', async () => {
   const m = await model();
   const { createFlow } = await load('flow/flow.mjs');
-  const flow = createFlow('import');
+  const flow = createFlow('lift');
   const file = clip(H264);
   flow.go('mark', { file, lift: 'snatch' });
   const calls = [];
@@ -484,7 +492,7 @@ test('Analyse calls analyse(lift, file, {t0, t1}) with the marked frames\' times
 test('Analyse with no marks, one mark, or no file queues nothing and stays on M', async () => {
   const m = await model();
   const { createFlow } = await load('flow/flow.mjs');
-  const flow = createFlow('import');
+  const flow = createFlow('lift');
   flow.go('mark', { file: clip(H264), lift: 'snatch' });
   let called = 0;
   const queue = { analyse: async () => { called++; return { liftId: 'x' }; } };
@@ -501,7 +509,7 @@ test('Analyse with no marks, one mark, or no file queues nothing and stays on M'
 test('when the cut cannot be stored the error is the user\'s to read, nothing is queued and the screen stays on M', async () => {
   const m = await model();
   const { createFlow } = await load('flow/flow.mjs');
-  const flow = createFlow('import');
+  const flow = createFlow('lift');
   flow.go('mark', { file: clip(H264), lift: 'lateral-raise' });
   const queue = { analyse: async () => { const e = new Error('There is not enough room on this phone to keep the video.'); e.code = 'storage-full'; throw e; } };
   const ready = m.setMark(m.setMark(m.newMarks(), 4, T30), 40, T30);
@@ -515,7 +523,7 @@ test('when the cut cannot be stored the error is the user\'s to read, nothing is
 test('Analyse twice in a row queues once: a second tap while the first is working does nothing', async () => {
   const m = await model();
   const { createFlow } = await load('flow/flow.mjs');
-  const flow = createFlow('import');
+  const flow = createFlow('lift');
   flow.go('mark', { file: clip(H264), lift: 'lateral-raise' });
   let n = 0, release;
   const gate = new Promise(r => { release = r; });
@@ -539,7 +547,7 @@ test('the queued job from the real queue passes contract 2\'s validator, and is 
   const { store, queue } = await realQueue();
   const { src } = await openSource(H264);
   const ft = src.frameTimes;
-  const flow = createFlow('import');
+  const flow = createFlow('lift');
   const file = clip(H264);
   flow.go('mark', { file, lift: 'lateral-raise' });
   const marks = m.setMark(m.setMark(m.newMarks(), 36, ft), 66, ft);   // 1.2 s .. 2.2 s
@@ -566,7 +574,7 @@ test('with two lifts queued, each Analyse hands Q1 its own lift\'s id', async ()
   const { store, queue } = await realQueue();
   const ids = [];
   for (const lift of ['lateral-raise', 'snatch']) {
-    const flow = createFlow('import');
+    const flow = createFlow('lift');
     flow.go('mark', { file: clip(H264), lift });
     const marks = m.setMark(m.setMark(m.newMarks(), 36, T30), 66, T30);
     await m.analyse({ flow, queue, lift, file: clip(H264), marks, frameTimes: T30 });

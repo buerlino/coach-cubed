@@ -59,17 +59,20 @@ test('a third lift, registered in the test only, reaches H\'s choices, the setti
   try {
     assert.deepEqual([...reg.LIFTS], [...reg.SHIPPED_LIFTS.map(l => l.id), TEST_LIFT.id]);
 
-    // H: the import step offers it, with its label, after the shipped lifts, and takes it into the flow
+    // H and L1: the lift step offers it, with its label, after the shipped lifts, and takes it into the flow
     const home = await load('src', 'ui', 'home-model.mjs');
     assert.deepEqual(home.liftChoices().at(-1), { id: TEST_LIFT.id, label: TEST_LIFT.label, provisional: true });
     assert.equal(home.liftLabel(TEST_LIFT.id), TEST_LIFT.label);
     const { createFlow } = await load('src', 'flow', 'flow.mjs');
     const flow = createFlow();
-    flow.go('import');
-    assert.deepEqual(home.importStep(flow, { name: 'c.mp4', type: 'video/mp4', size: 4 }, TEST_LIFT.id), { ok: true });
+    const file = { name: 'c.mp4', type: 'video/mp4', size: 4 };
+    assert.deepEqual(home.pickStep(flow, file), { ok: true });
+    const lift = await load('src', 'ui', 'lift-model.mjs');
+    assert.ok(lift.liftTiles(null).some(t => t.id === TEST_LIFT.id && t.provisional), 'L1 draws a tile for it');
+    assert.deepEqual(lift.chooseLift(flow, TEST_LIFT.id), { ok: true });
     assert.equal(flow.params.lift, TEST_LIFT.id);
 
-    // the settings: a default lift, which Import starts on and S1 offers
+    // the settings: a default lift, which L1 rings and S1 offers
     const settings = await load('src', 'store', 'settings.mjs');
     assert.deepEqual(settings.validateSettingsPatch({ defaultLift: TEST_LIFT.id }), []);
     assert.equal(settings.readSettings({ defaultLift: TEST_LIFT.id }).defaultLift, TEST_LIFT.id);

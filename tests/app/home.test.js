@@ -101,7 +101,7 @@ test('only a lift the store holds as analysed shows 100 %: a running job stays u
   assert.equal(liftState(TODAY_B, [job(TODAY_B, 'done')]).kind, 'ready');
 });
 
-test('Import starts on the default lift from the settings: the first choice while they load, or for a lift not offered', async () => {
+test('the default lift starts as the settings say: the first choice while they load, or for a lift not offered', async () => {
   const { startLift, liftChoices } = await model();
   const LIFT_CHOICES = liftChoices();
   assert.equal(startLift(null), LIFT_CHOICES[0].id);
@@ -110,14 +110,6 @@ test('Import starts on the default lift from the settings: the first choice whil
   assert.equal(startLift({ defaultLift: 'lateral-raise' }), 'lateral-raise');
   assert.equal(startLift({ defaultLift: 'squat' }), LIFT_CHOICES[0].id);
   assert.equal(startLift({}), LIFT_CHOICES[0].id);
-});
-
-test('Import reads the settings once from the injected store and keeps a choice made before they arrive', () => {
-  const fs = require('node:fs');
-  const text = fs.readFileSync(path.join(APP, 'src', 'ui', 'screens', 'Import.mjs'), 'utf8').replace(/\/\/.*$/gm, '');
-  assert.equal((text.match(/getSettings\(/g) || []).length, 1);
-  assert.match(text, /startLift\(/);
-  assert.match(text, /export function Import\(\{[^}]*\bstore\b/);
 });
 
 test('the state looks at its own lift\'s job only', async () => {
@@ -218,37 +210,46 @@ test('the import choices: lateral raise, and the snatch marked provisional while
   assert.deepEqual(LIFT_CHOICES.map(c => c.id), [...LIFTS]);
 });
 
-test('the import step: the chosen lift goes into the flow with the file, on the way to marking', async () => {
-  const { importStep } = await model();
+test('d53 the pick step: a picked file goes to the lift step with { file }', async () => {
+  const { pickStep } = await model();
   const { createFlow } = await load('flow', 'flow.mjs');
   const flow = createFlow();
-  flow.go('import');
   const file = { name: 'clip.mp4', type: 'video/mp4', size: 10 };
-  const step = importStep(flow, file, 'snatch');
-  assert.equal(step.ok, true);
-  assert.equal(flow.state, 'mark');
-  assert.deepEqual(flow.params, { file, lift: 'snatch' });
+  assert.deepEqual(pickStep(flow, file), { ok: true });
+  assert.equal(flow.state, 'lift');
+  assert.deepEqual(flow.params, { file });
 });
 
-test('the import step: no lift or an unknown one, no file, or a file that is not a video, changes nothing', async () => {
-  const { importStep } = await model();
+test('d53 the pick step: no file (the picker cancelled) changes nothing and says nothing', async () => {
+  const { pickStep } = await model();
   const { createFlow } = await load('flow', 'flow.mjs');
-  const flow = createFlow('import');
-  const file = { name: 'clip.mp4', type: 'video/mp4' };
-  for (const [f, lift] of [[file, null], [file, 'squat'], [null, 'snatch'], [{ name: 'a.txt', type: 'text/plain' }, 'snatch']]) {
-    const step = importStep(flow, f, lift);
+  const flow = createFlow();
+  for (const none of [undefined, null]) {
+    const step = pickStep(flow, none);
     assert.equal(step.ok, false);
-    assert.ok(typeof step.error === 'string' && step.error.length > 0);
-    assert.equal(flow.state, 'import');
+    assert.ok(!step.error, 'no words');
+    assert.equal(flow.state, 'home');
   }
 });
 
-test('the import step takes a file with no type (some Android pickers give none)', async () => {
-  const { importStep } = await model();
+test('d53 the pick step: a file whose type is set and is not video/* changes nothing and says so', async () => {
+  const { pickStep } = await model();
   const { createFlow } = await load('flow', 'flow.mjs');
-  const flow = createFlow('import');
-  assert.equal(importStep(flow, { name: 'IMG_0001.MP4', type: '' }, 'lateral-raise').ok, true);
-  assert.equal(flow.state, 'mark');
+  const flow = createFlow();
+  for (const type of ['text/plain', 'image/png', 'application/pdf']) {
+    assert.deepEqual(pickStep(flow, { name: 'a', type }), { ok: false, error: 'That’s not a video.' });
+    assert.equal(flow.state, 'home');
+  }
+});
+
+test('d53 the pick step takes a file with no type (some Android pickers give none), also from the first run', async () => {
+  const { pickStep } = await model();
+  const { createFlow } = await load('flow', 'flow.mjs');
+  for (const from of ['home', 'welcome', 'mark', 'queued']) {
+    const flow = createFlow(from);
+    assert.equal(pickStep(flow, { name: 'IMG_0001.MP4', type: '' }).ok, true, from);
+    assert.equal(flow.state, 'lift', from);
+  }
 });
 
 test('H follows the queue through the queue it is given, and stops when it is told to', async () => {
@@ -324,9 +325,9 @@ test('H\'s sections sit 16 px from the sides and 24 px (Earlier 20 px) below the
   assert.match(h, /class="section section--earlier"/);
 });
 
-test('H and Import change the flow\'s state only: no other screen, no queue or store import, no literal colour', () => {
+test('H and L1 change the flow\'s state only: no other screen, no queue or store import, no literal colour', () => {
   const fs = require('node:fs');
-  for (const f of ['H.mjs', 'Import.mjs']) {
+  for (const f of ['H.mjs', 'L1.mjs']) {
     const text = fs.readFileSync(path.join(APP, 'src', 'ui', 'screens', f), 'utf8');
     for (const m of text.matchAll(/(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g)) {
       assert.ok(!/analysis|store/.test(m[1]), `${f} imports ${m[1]}: the queue and the store are injected`);
