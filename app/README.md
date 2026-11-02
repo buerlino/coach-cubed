@@ -181,7 +181,7 @@ const { view, computed, personId } = scoreLift(track, 'snatch', { sigmaMs: 50 })
   smoothing, the caveat with the provisional bands, the notes), as plain text,
   `[{label, text}]`; `[]` for a cue that can't be scored. The smoothing is the
   view's, so the "Time smoothing" line says what the verdicts were scored with
-  (the tempo and the symmetry have no such line). A line with markup besides
+  (every scored cue has exactly one, the tempo's and the symmetry's since `s42`). A line with markup besides
   its label throws, so no HTML reaches the screen. For the plot,
   `Diagnostics.zones(id)` gives the verdict's bands in the cue's unit, lowest
   first, `[{status, from, to}]` with contract 4's status words and `null` for

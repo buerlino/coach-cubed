@@ -2105,6 +2105,9 @@ const lateralRaiseTempo = {
         samples[ph.startIdx].frame + '–' + samples[ph.endIdx].frame + '.',
       '<strong>Measurement</strong> — per rep, per side: wrist vertical speed from bottom to peak (ascent) and peak to bottom (descent), each as torso-lengths/second; the ratio descent÷ascent is the rep\'s value, averaged over the sides that could be measured.',
       axisNote(ctxExtra.axis),
+      '<strong>Time smoothing</strong> — ' + (ctxExtra.smoothingMs
+        ? 'trajectories were smoothed with a Gaussian of σ = ' + ctxExtra.smoothingMs + ' ms before scoring (the slider under the video), so the raise and descent durations are read off the smoothed wrist trajectory.'
+        : 'off — scored on raw per-frame detections, so pose jitter is counted as wrist movement in the raise and descent durations.'),
       '<strong>Caveat</strong> — a ratio nowhere near 1 in either direction can also mean a rep\'s ascent or descent was too short to time reliably at this frame stride, not necessarily a real tempo fault. The good/warning bands (' +
         fmt(TEMPO_GOOD, 1) + 'x / ' + fmt(TEMPO_WARN, 1) + 'x) are provisional and not fitted to labelled reps.',
     ].concat(res.notes.map(n => '<strong>Note</strong> — ' + n));
@@ -2249,6 +2252,9 @@ const lateralRaiseSymmetry = {
         'rep ' + (i + 1) + ': ' + (sr.value >= 0 ? '+' : '') + fmt(sr.value) + '%').join(', ') + ' (vs shoulder height, same reading as the top-height diagnostic).',
       '<strong>Measurement</strong> — decline is the first rep\'s value minus the last rep\'s, in percentage points; a negative decline means the last rep was higher, not lower.',
       axisNote(ctxExtra.axis),
+      '<strong>Time smoothing</strong> — ' + (ctxExtra.smoothingMs
+        ? 'trajectories were smoothed with a Gaussian of σ = ' + ctxExtra.smoothingMs + ' ms before scoring (the slider under the video), so the difference between the first and last rep is taken on smoothed wrist heights.'
+        : 'off — scored on raw per-frame detections, so pose jitter is counted in each rep\'s height and in the difference between the first and last rep.'),
       '<strong>Caveat</strong> — with only a few reps in a clip, one noisy rep can dominate the first/last comparison. The good/warning bands (' +
         fmt(SYM_GOOD, 0) + 'pp / ' + fmt(SYM_WARN, 0) + 'pp) are provisional and not fitted to labelled sets.',
     ].concat(res.notes.map(n => '<strong>Note</strong> — ' + n));
