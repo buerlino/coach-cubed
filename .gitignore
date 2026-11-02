@@ -54,3 +54,6 @@ app/dist/
 app/models/
 app/vendor/tfjs/
 app/node_modules/
+# The debug APK (app/tools/build-apk.sh); app/android/ is committed, and its
+# own .gitignore keeps Gradle's outputs and the copied web assets out.
+app/out/

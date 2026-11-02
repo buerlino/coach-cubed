@@ -1,9 +1,14 @@
 // Assembles the app into one folder, app/dist/ by default: what the PWA host
 // and Capacitor get, and what serve.mjs serves.
 //
-//   node app/tools/assemble.mjs [--out DIR] [--app DIR] [--src DIR]
+//   node app/tools/assemble.mjs [--debug] [--out DIR] [--app DIR] [--src DIR]
 //
-// - app/ without tools/, android/, dist/ and node_modules/ (any node_modules);
+// - app/ without tools/, android/, dist/, debug/, capacitor.config.json and
+//   node_modules/ (any node_modules);
+// - with --debug only (the debug APK, tools/build-apk.sh): app/debug/, the
+//   check page (c20), and the test clip it poses, tests/app/clips/
+//   testsrc2-h264-30fps.mp4, into debug/clips/. The shipped dist/ is
+//   assembled without it, so it never holds the check page;
 // - src/diagnostics.js and src/track/ from the repo's src/ (the old page
 //   serves them, so they stay there), into src/ of the output: the same
 //   relative imports work in the repo and here (app/README.md);
@@ -19,7 +24,9 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SKIP_TOP = new Set(['tools', 'android', 'dist', 'node_modules']);
+const SKIP_TOP = new Set(['tools', 'android', 'dist', 'debug', 'node_modules', 'capacitor.config.json']);
+// What --debug adds: the check page's clip, from the repo's tests/ (relative to src/'s parent).
+export const DEBUG_CLIPS = ['testsrc2-h264-30fps.mp4'];
 const OPTIONAL = [
   ['vendor/tfjs', 'the TF.js bundle (s6 builds it)'],
   ['models', "MoveNet's weights (s6 fetches them)"],
@@ -43,7 +50,8 @@ function parseArgs(argv) {
   const opts = {};
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (!['--out', '--app', '--src'].includes(a) || i + 1 >= argv.length) throw new Error(`usage: assemble.mjs [--out DIR] [--app DIR] [--src DIR] (got ${a})`);
+    if (a === '--debug') { opts.debug = true; continue; }
+    if (!['--out', '--app', '--src'].includes(a) || i + 1 >= argv.length) throw new Error(`usage: assemble.mjs [--debug] [--out DIR] [--app DIR] [--src DIR] (got ${a})`);
     opts[a.slice(2)] = argv[++i];
   }
   return opts;
@@ -70,7 +78,7 @@ function copy(from, to) {
   copyFileSync(from, to);
 }
 
-export function assemble({ out, app, src, log = console.log }) {
+export function assemble({ out, app, src, debug = false, log = console.log }) {
   out = resolve(out); app = resolve(app); src = resolve(src);
   for (const [dir, what] of [[app, 'app'], [src, 'src']]) if (!existsSync(dir)) throw new Error(`${what} folder not found: ${dir}`);
   prepareOut(out, app, src);
@@ -89,6 +97,17 @@ export function assemble({ out, app, src, log = console.log }) {
     copy(join(src, 'track', f), join(out, 'src', 'track', f));
     copied.add(`src/track/${f}`);
   }
+  if (debug) {
+    if (!existsSync(join(app, 'debug'))) throw new Error(`--debug: ${join(app, 'debug')} not found`);
+    for (const f of listFiles(join(app, 'debug'))) {
+      copy(join(app, 'debug', f), join(out, 'debug', f));
+      copied.add(`debug/${f}`);
+    }
+    for (const c of DEBUG_CLIPS) {
+      copy(join(src, '..', 'tests', 'app', 'clips', c), join(out, 'debug', 'clips', c));
+      copied.add(`debug/clips/${c}`);
+    }
+  }
   for (const [dir, what] of OPTIONAL) {
     if (![...copied].some((f) => f.startsWith(`${dir}/`))) log(`${dir}/ absent, skipped: ${what}`);
   }
@@ -98,7 +117,7 @@ export function assemble({ out, app, src, log = console.log }) {
   for (const f of files) { hash.update(f); hash.update('\0'); hash.update(readFileSync(join(out, f))); hash.update('\0'); }
   const version = hash.digest('hex').slice(0, 16);
   writeFileSync(join(out, 'files.json'), `${JSON.stringify({ version, files }, null, 2)}\n`);
-  log(`assembled ${files.length} files into ${out}, version ${version}`);
+  log(`assembled ${files.length} files into ${out}, version ${version}${debug ? ' (debug: with the check page)' : ''}`);
   return { version, files };
 }
 
@@ -106,7 +125,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try {
     const o = parseArgs(process.argv.slice(2));
     const app = o.app ?? resolve(HERE, '..');
-    assemble({ out: o.out ?? join(app, 'dist'), app, src: o.src ?? resolve(app, '..', 'src') });
+    assemble({ out: o.out ?? join(app, 'dist'), app, src: o.src ?? resolve(app, '..', 'src'), debug: !!o.debug });
   } catch (e) {
     console.error(`assemble: ${e.message}`);
     process.exit(1);
