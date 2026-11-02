@@ -51,7 +51,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 16 | `s35` | Four contract changes (contracts 1, 2, 4, 5) | schrödinger, opus | `s9`, `s10`, `s11`, `s12` | merged `b972daf` |
 | 17 | `s36` | A lift without a lift window says so | schrödinger, opus | `s35` | merged `f926b4f` |
 | 18 | `s37` | batch_extract_tracks.py writes the diagnostics set | schrödinger, sonnet | — | merged `e8b2a92` |
-| 19 | `s38` | One-frame steps from a cache | schrödinger, opus | `s35`, `c34` | NOT MERGED in run 20 (two fix rounds; the paused decoder held frames outside the budget), branch kept at `9452036`; FIX `s38f1` (nordmu, 2026-11-02) |
+| 19 | `s38` | One-frame steps from a cache | schrödinger, opus | `s35`, `c34` | NOT MERGED in run 20 (two fix rounds); FIX `s38f1` (nordmu, 2026-11-02) merged `4af1286` |
 | 20 | `d41` | Import starts on the default lift; H and Q1 agree on a job's percent | dirac, sonnet | `d13`, `d15`, `d24` | ready (nordmu, 2026-11-02, from d13's, d15's and d24's reports) |
 | 21 | `s42` | The tempo and symmetry cues say their time smoothing | schrödinger, sonnet | `s39` | ready (nordmu, 2026-11-02, from s39's report) |
 | 22 | `c43` | No Android backup, so the privacy text holds | curie, sonnet | `d24`, `c20` | ready; laptop only (nordmu, 2026-11-02: backup off, the privacy text approved) |
