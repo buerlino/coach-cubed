@@ -120,7 +120,11 @@ See `scripts/batch_extract_tracks.py`'s docstring for the full CLI. It appends
 to that scope's `manifest.json` (keyed by clip, so re-running on the same clip
 overwrites rather than duplicates) and never guesses at a `labels`/`notes`
 field it already finds there — those are written by hand, not by the pose
-pass.
+pass. It writes `"diagnostics"` (the `DIAGNOSTIC_SETS` key the tests score the
+fixture against) for every entry: `--diagnostics <set>` if given, else a value
+already in the entry, else the stance. So `--stance snatch` gives `"snatch"`;
+a stance that isn't a set key needs the option: `--stance clean --diagnostics
+clean-and-jerk`.
 
 To promote a local fixture to global, move its `.track.json` under
 `global/<stance>/`, move its entry from `local/manifest.json` to

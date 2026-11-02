@@ -140,9 +140,9 @@ def write_fixture(out_dir, manifest, clip, stance, result, attempt_result, args,
         "labels": existing.get("labels", []),
         "notes": existing.get("notes") or note,
         # DIAGNOSTIC_SETS key this fixture is scored against — our stance
-        # names match those keys exactly. batch_extract_tracks.py only ever
-        # preserves an existing value here; a brand new fixture needs it set
-        # explicitly or every test/golden falls back to "snatch".
+        # names match those keys exactly. The tests fail on a fixture without
+        # the field, so every entry gets it; unlike batch_extract_tracks.py,
+        # which keeps a hand-set value on a re-extract, this sets it afresh.
         "diagnostics": stance,
         "attempt_result": attempt_result,
     }
