@@ -147,3 +147,16 @@ Not drawn in v1, so built in its style and reviewed in the app (nordmu,
 can't be read, storage full, the engine failing); the first run. A light
 theme waits, and phone landscape gets no layout of its own, only 5.7's
 check that nothing breaks.
+
+Built beyond the mockups and kept (nordmu, 2026-11-02, from d13's, d15's,
+d24's and c19's reports): Import as built ("Which lift?", then "Pick a
+video", then Back), starting on S1's default lift (d41); the gym card's
+"Coming in a later version"; the snatch marked "provisional" until step
+3.6 closes; earlier days expanded in place on H; Q1's "Paused" in the
+background and "Analyse again" after a failed or stopped analysis, with
+M handing Q1 the lift's id (d14); H's percent from Q1's bands (d41); S1's
+milestone B settings shown disabled, with the lengths as built until c27
+measures the buffer; the credits keeping the build-only tools, marked so;
+"How the cues are scored" built with A2 (d18); after an update the app
+asks for a reload rather than reloading itself. The privacy text is
+approved as written once Android backup is off (c43).
