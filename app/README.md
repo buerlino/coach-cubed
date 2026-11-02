@@ -339,7 +339,10 @@ st.close();                                           // closes every frame it h
   thumbnails are, so no decoder output is held (a hardware decoder has few
   output buffers). They are the stepper's: draw one, never close it; it stays
   valid until the next `step` or `seek` settles. `cached` says whether the
-  frame was held when the step was asked.
+  frame was held when the step was asked; such a step returns before the
+  refill does anything (it starts on the next task: turning a decoded frame
+  into a bitmap can hold the main thread, 23 ms a step in headless Brave
+  before this).
 - **The window:** the budget's frames, half ahead and half behind until the
   first step, then three quarters on the side the steps go. A background
   refill fills it nearest frame first, one decode at a time. Ahead, one decoder
