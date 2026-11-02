@@ -606,6 +606,143 @@ test('a cut that cannot be stored starts no job, and the store\'s error comes th
   assert.deepEqual(await store.listLifts(), []);
 });
 
+// ---- s50: a re-marked lift replaces the old one once its analysis is done ----
+
+// keepVideo's part for a re-mark without mediabunny: the picked bytes stored as the new lift's cut
+const keepAsIs = async (store, lift, file, range) => ({ lift: await store.saveLift({ lift, video: file, range }) });
+const cutOf = (...b) => new Blob([Uint8Array.from(b)], { type: 'video/mp4' });
+async function analysedLift(store, queue, opts) {
+  const l = await storeLift(store, opts);
+  await queue.enqueue(l);
+  await queue.idle();
+  const rec = await store.getLift(l.id);
+  assert.ok(rec.result, 'the old lift is analysed');
+  return rec;
+}
+// The old lift as it was: its record, its track, its result and its cut, all readable.
+async function assertUntouched(store, old, bytes) {
+  assert.deepEqual(await store.getLift(old.id), old);
+  assert.ok((await store.readTrack(old.id)).keypoints);
+  assert.ok((await store.readResult(old.id)).cues.length > 0);
+  assert.deepEqual([...new Uint8Array(await (await store.readVideo(old.id)).arrayBuffer())], bytes);
+  assert.ok((await store.listLifts()).some(l => l.id === old.id), 'H still lists it');
+}
+// H's rows, as homeView draws them, for one listing and the jobs at that moment.
+async function rowsOf(listing, jobs) {
+  const { homeView } = await load('src/ui/home-model.mjs');
+  const v = homeView(await listing, jobs);
+  return [...(v.today ? v.today.rows : []), ...v.earlier.flatMap(d => d.rows)];
+}
+async function assertReplaced(store, fake, old, job) {
+  const lifts = await store.listLifts();
+  assert.deepEqual(lifts.map(l => l.id), [job.liftId], 'one lift left, the new one');
+  assert.ok(lifts[0].result, 'the new one is analysed');
+  assert.equal(await store.getLift(old.id), null);
+  assert.deepEqual(fake.paths().filter(p => p.includes(old.id)), [], 'the old cut, track, result and record are gone');
+  await assert.rejects(() => store.readVideo(old.id), { code: 'not-found' });
+}
+
+test('s50: a re-mark analysed successfully replaces the old lift, and H never shows both as done lifts', async () => {
+  const listings = [];   // [H's listing, the jobs then]: at every change of the queue, and while the result is saved
+  let queue;
+  const { store, queue: q, fake } = await setup({
+    keepVideo: keepAsIs,
+    wrapStore: s => Object.assign(Object.create(s), {
+      updateLift(...a) { const p = s.updateLift(...a); listings.push([s.listByDay(), queue.jobs()]); return p; },
+    }),
+  });
+  queue = q;
+  const old = await analysedLift(store, queue, { range: { t0: 0.5, t1: 1.0 }, bytes: [1, 2, 3] });
+  listings.length = 0;
+  queue.subscribe(jobs => listings.push([store.listByDay(), jobs]));
+  const job = await queue.analyse('lateral-raise', cutOf(7, 7, 7), { t0: 0.4, t1: 1.1 }, { replaces: old.id });
+  assert.equal(job.replaces, old.id, 'the job names the lift it replaces');
+  assert.notEqual(job.liftId, old.id);
+  assert.equal((await store.readQueue()).jobs.find(j => j.id === job.id).replaces, old.id, 'and keeps it in queue.json');
+  await queue.idle();
+  await assertReplaced(store, fake, old, job);
+  assert.equal(queue.jobs().find(j => j.id === job.id).state, 'done');
+  assert.ok(!queue.jobs().some(j => j.liftId === old.id), 'the old lift\'s ended job leaves the list');
+  assert.ok(listings.length > 5);
+  let bothSeen = 0;
+  for (const [listing, jobs] of listings) {
+    const rows = await rowsOf(listing, jobs);
+    const ready = rows.filter(r => r.state.kind === 'ready' && (r.id === old.id || r.id === job.liftId));
+    assert.ok(ready.length <= 1, `H showed both as done: ${ready.map(r => r.id).join(', ')}`);
+    if (rows.some(r => r.id === old.id) && rows.some(r => r.id === job.liftId)) bothSeen++;
+  }
+  assert.ok(bothSeen > 0, 'while the re-mark ran, H listed the old lift beside the new one');
+});
+
+test('s50: a re-mark whose analysis fails leaves the old lift untouched; a retry that succeeds replaces it', async () => {
+  let calls = 0;
+  const { store, queue, fake } = await setup({
+    keepVideo: keepAsIs,
+    sources: () => {
+      if (calls++ === 1) { const e = new Error("This video's format (hvc1) can't be decoded on this device."); e.code = 'unsupported-codec'; throw e; }
+      return fakeSource({});
+    },
+  });
+  const old = await analysedLift(store, queue, { bytes: [1, 2, 3] });
+  const job = await queue.analyse('lateral-raise', cutOf(7, 7), { t0: 0.4, t1: 1.1 }, { replaces: old.id });
+  await queue.idle();
+  const failed = queue.jobs().find(j => j.id === job.id);
+  assert.equal(failed.state, 'failed');
+  assert.equal(failed.replaces, old.id, 'the failed job still names it, for a retry');
+  await assertUntouched(store, old, [1, 2, 3]);
+  assert.equal((await store.getLift(job.liftId)).result, null);
+  assert.equal(await queue.retry(job.id), true);
+  await queue.idle();
+  await assertReplaced(store, fake, old, job);
+});
+
+test('s50: a re-mark cancelled leaves the old lift untouched; a retry that succeeds replaces it', async () => {
+  let queue, armed = false, cancelled = null, jobId = null;
+  const { store, queue: q, fake } = await setup({
+    keepVideo: keepAsIs,
+    engines: (k, clock) => fakeEngine({ clock, hold: async () => { if (armed) { armed = false; cancelled = queue.cancel(jobId); } } }),
+  });
+  queue = q;
+  const old = await analysedLift(store, queue, { bytes: [4, 5, 6] });
+  armed = true;
+  const job = await queue.analyse('lateral-raise', cutOf(7, 7), { t0: 0.4, t1: 1.1 }, { replaces: old.id });
+  jobId = job.id;
+  await until(() => cancelled, 'the cancel');
+  assert.equal(await cancelled, true);
+  await queue.idle();
+  const end = queue.jobs().find(j => j.id === job.id);
+  assert.equal(end.state, 'cancelled');
+  assert.equal(end.replaces, old.id);
+  await assertUntouched(store, old, [4, 5, 6]);
+  assert.equal(await queue.retry(job.id), true);
+  await queue.idle();
+  await assertReplaced(store, fake, old, job);
+});
+
+test('s50: a re-mark still waiting when the app restarts leaves the old lift readable until its analysis is done', async () => {
+  const fake = createFakeStorage();
+  let hang = false;
+  const first = await setup({ storage: fake, keepVideo: keepAsIs, engines: (k, clock) => fakeEngine({ clock, hold: () => (hang ? new Promise(() => {}) : null) }) });
+  const old = await analysedLift(first.store, first.queue, { bytes: [1, 2, 3] });
+  hang = true;
+  const job = await first.queue.analyse('lateral-raise', cutOf(9, 9), { t0: 0.4, t1: 1.1 }, { replaces: old.id });
+  await until(() => first.made[0].frames.length > 16, 'the re-mark in pose');
+  // the app is gone mid-job; a new one opens the same storage
+  let release;
+  const gate = new Promise(r => { release = r; });
+  const second = await setup({ storage: fake, engines: (k, clock) => fakeEngine({ clock, hold: () => gate }) });
+  const back = await second.queue.load();
+  const waiting = back.find(j => j.id === job.id);
+  assert.equal(waiting.state, 'queued');
+  assert.equal(waiting.replaces, old.id, 'the job read back still names the lift it replaces');
+  await assertUntouched(second.store, old, [1, 2, 3]);
+  await until(() => second.made[0] && second.made[0].frames.length === 1, 'the re-mark running again');
+  await assertUntouched(second.store, old, [1, 2, 3]);
+  release();
+  await second.queue.idle();
+  await assertReplaced(second.store, fake, old, job);
+});
+
 // ---- the kept queue ----
 
 test('the store keeps the queue: valid jobs only, written whole', async () => {

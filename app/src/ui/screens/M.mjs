@@ -7,7 +7,8 @@
 // gives the app's one), so tests pass a fake. What to show and what Analyse does
 // is mark-model.mjs's; this draws it and holds the video open while M is up.
 // A3's re-mark (d22) comes with `range` too: the stored cut and the lift's old range, which M turns back
-// into marks (M3, the playhead on the start) so the lift can be marked again from them.
+// into marks (M3, the playhead on the start) so the lift can be marked again from them, and `replaces`, the
+// old lift's id, which Analyse hands to the queue: the new lift replaces the old one once analysed (s50).
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../html.mjs';
 import { openFrameSource } from '../../media/frame-source.mjs';
@@ -40,7 +41,7 @@ function Picture({ bitmap }) {
 const clockLabel = s => (s % 2 ? '' : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`);
 
 export function M({ flow, queue, openSource = openFrameSource }) {
-  const { file = null, range = null } = flow.params;
+  const { file = null, range = null, replaces = null } = flow.params;
   const [lift, setLift] = useState(flow.params.lift || 'lateral-raise');
   const [source, setSource] = useState(null);     // { frameTimes, info } once the video is open
   const [problem, setProblem] = useState(null);   // the video could not be opened, or a frame could not be decoded
@@ -189,7 +190,7 @@ export function M({ flow, queue, openSource = openFrameSource }) {
   const onAnalyse = async () => {
     setBusy(true);
     setRefused(null);
-    const out = await analyse({ flow, queue, lift, file, marks, frameTimes });
+    const out = await analyse({ flow, queue, lift, file, marks, frameTimes, replaces });
     if (!out.ok) {
       setBusy(false);
       setRefused(out.error);

@@ -399,20 +399,23 @@ const analysing = new WeakSet();   // the flows with an Analyse under way: a sec
  * Analyse: the marked range of the file cut and queued as a new lift, then the
  * flow goes to Q1 with that lift's id (Q1 shows the lift when two are queued).
  * Nothing is queued without both marks and a file; a cut that can't be stored
- * (the store's or the cutter's error) stays on M with the error's words.
+ * (the store's or the cutter's error) stays on M with the error's words. A re-mark
+ * (A3) passes `replaces`, the old lift's id: the queue deletes that lift once the new
+ * one's analysis is done (s50).
  * @param {{flow: {go: Function}, queue: {analyse: Function}, lift: string, file: Blob|null,
- *   marks: Marks, frameTimes: readonly number[]}} args
+ *   marks: Marks, frameTimes: readonly number[], replaces?: string|null}} args
  * @returns {Promise<{ok: true}|{ok: false, error: string|null, problem?: Object}>} error null for a tap that did nothing;
  *   `problem` (problem-model.mjs's, d23) for an error the store or the cutter raised: M draws it as a screen
  */
-export async function analyse({ flow, queue, lift, file, marks, frameTimes }) {
+export async function analyse({ flow, queue, lift, file, marks, frameTimes, replaces = null }) {
   const range = markedRange(marks, frameTimes);
   if (!range) return { ok: false, error: 'Set the start and the end first.' };
   if (!file) return { ok: false, error: 'There is no video to analyse.' };
   if (analysing.has(flow)) return { ok: false, error: null };
   analysing.add(flow);
   try {
-    const job = await queue.analyse(lift, file, { t0: range.t0, t1: range.t1 });
+    const marked = { t0: range.t0, t1: range.t1 };
+    const job = await (replaces ? queue.analyse(lift, file, marked, { replaces }) : queue.analyse(lift, file, marked));
     flow.go('queued', { liftId: job.liftId });
     return { ok: true };
   } catch (e) {

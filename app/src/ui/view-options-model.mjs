@@ -176,11 +176,15 @@ export function createViewOptions(o) {
       return job;
     },
 
-    /** Re-mark: M1–M3 opens on the stored cut with the lift's old marks (M reads the range from the params). */
+    /**
+     * Re-mark: M1–M3 opens on the stored cut with the lift's old marks (M reads the range from the params),
+     * and with this lift's id as `replaces` (s50): M's Analyse hands it to the queue, and the new lift
+     * replaces this one once its analysis is done. A failed or cancelled one leaves this lift as it is.
+     */
     async remark() {
       try {
         const file = await store.readVideo(rec.id);
-        flow.go('mark', { file, lift: rec.lift, range: { ...rec.range } });
+        flow.go('mark', { file, lift: rec.lift, range: { ...rec.range }, replaces: rec.id });
       } catch (e) {
         state.error = `This lift could not be opened for marking: ${messageOf(e)}`;
         emit();

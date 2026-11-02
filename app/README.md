@@ -121,7 +121,7 @@ the screens and the tests.
 | Module | For | Produced by | Consumed by |
 | --- | --- | --- | --- |
 | `pose-messages.mjs` | 1. The pose worker's messages: `init {backend}` → `ready {info}` or `error {error}`; `estimate {id, frame, tMs}` → `result {id, keypoints, ms}` or `result {id, error}`; `reset {id}` → `cleared {id}` or `cleared {id, error}` (`s35`: between clips, the worker clears MoveNet's crop after any estimate before it and keeps its model). pose-bench's, trimmed to MoveNet: no model choice, no detector, no box. | the pose client and its worker (`s10`) | the analysis job (`s12`), through the client |
-| `analysis-job.mjs` | 2. An analysis job: the lift, its `source` (the stored cut's path, D6, never a `File`), its range in the cut's timeline, the state, progress by stage with the time left (reading is one unit, the cut read and opened; pose one a frame; scoring one), the error. `createJob(id, lift)` makes a queued one; a job read back after a restart is the same job. | Analyse in M3 (`d14`), through the queue (`s12`) | the queue (`s12`), Q1 (`d15`), H (`d13`) |
+| `analysis-job.mjs` | 2. An analysis job: the lift, its `source` (the stored cut's path, D6, never a `File`), its range in the cut's timeline, the state, progress by stage with the time left (reading is one unit, the cut read and opened; pose one a frame; scoring one), the error, and `replaces` (`s50`): the lift a re-mark replaces once done, else null. `createJob(id, lift)` makes a queued one; a job read back after a restart is the same job. | Analyse in M3 (`d14`), through the queue (`s12`) | the queue (`s12`), Q1 (`d15`), H (`d13`) |
 | `stored-lift.mjs` | 3. A stored lift: id, created, lift, the cut's path, the range, the track's and the result's paths, the app version, the engine. `liftPaths(id)` is the folder's layout: `lifts/<id>/cut.mp4`, `track.json`, `result.json`. | the store (`c8`) at Analyse, with `s32`'s cut; completed by the job (`s12`) | H (`d13`), A1 and A3 (`d16`, `d17`, `d22`), the job (`s12`) |
 | `cue-view.mjs` | 4. The cue view model: per cue its id, title, cue, status word (good, watch, work on, can't score), verdict, value, tiles, reference line, series, phase, worst moment, provisional flag and, when it can't be scored, the engine's reason; plus whether the lift has a lift window at all (`hasLiftWindow`, diagnostics.js's per set; `s36`: false for a lateral raise, with no window and no reason), the lift window (`{t0, t1: null}` when diagnostics.js found the start and no held finish, its reason then the engine's note; `s35`), the notes and the `smoothing` (`{sigmaMs, keepVelocity}`) the verdicts were scored with. `CUE_VIEW_SOURCES` names where each field comes from (`computeResults()`, `s4`'s API, or the adapter); `VERDICT_VALUE` names, per cue rule, the summary field the verdict is scored on, which is the card's value (the SD for a cue scored on its spread, not the worst moment's sample). A lift's `result.json` holds one `ResultView`. | the scoring adapter (`s11`), in the job's scoring stage | A1, A2, A4 (`d17`, `d18`, `d25`), the page test (`c21`) |
 | `frame-source.mjs` | 5. A frame source: an opened video's info (duration, frame rate, upright size, rotation), `frameTimes` (every frame's start in seconds, presentation order, from the first frame at 0; required since `s35`: M1–M3's one-frame steps and the job's frame count), a frame at a time, a range as a stream of `VideoFrame`s, thumbnails, and (`s38`) the `stepper`: the frames around a playhead decoded once and kept, so M1–M3's one-frame step is a lookup, with its default budget `STEPPER_BUDGET`. `exampleFrameSource()` is a stand-in with no video behind it, for tests. | the media module (`s9`) | marking (`d14`), A1's player (`d16`), the job (`s12`) |
@@ -257,7 +257,11 @@ lifts/<id>/lift.json    the lift's record: contract 3, a StoredLift
   `validateResultView`, before anything is written (else `invalid`). An
   update that fails puts back the old `lift.json` and the files it
   overwrote, and removes the ones it made, so a record never names a file
-  that is not there.
+  that is not there. `updateLift(id, patch, {replaces: oldId})` (`s50`, a
+  re-mark's job) deletes `oldId` in the same step, after the new record and
+  the index are written, with the delete's own steps (below); an update that
+  fails never touches `oldId`, and an `oldId` already gone is nothing to do
+  ([The analysis](#the-analysis) has the order).
 - **The index** is written atomically: `index.json.tmp`, then
   `move('index.json')`; `settings.json`, `meta.json` and `queue.json` too. When the index
   is missing, isn't JSON, has the wrong shape or an invalid entry, it is
@@ -601,6 +605,7 @@ const queue = appQueue();                          // one per app: it outlives s
 const off = queue.subscribe(jobs => …);            // now and at every change: contract 2's jobs, copies
 const cost = await queue.estimate(t1 - t0, { fps }); // M1–M3: { seconds, perSecond, measured, basis }
 const job = await queue.analyse('snatch', file, { t0, t1 });   // keepVideo first, then the job
+await queue.analyse('snatch', cut, range, { replaces: oldId });   // A3's re-mark: the new lift replaces oldId once done (s50)
 await queue.cancel(job.id);                        // between frames; resolves once stopped
 await queue.retry(id); await queue.dismiss(id);    // a failed or cancelled job again, or off the list
 ```
@@ -666,6 +671,31 @@ await queue.retry(id); await queue.dismiss(id);    // a failed or cancelled job 
   and `basis` saying so.
 - `busy()` and `idle()` say whether a job runs or waits: the service
   worker's update (`c19`) waits for `idle()`.
+- **A re-mark replaces the old lift** (`s50`, nordmu, 2026-11-02). A3's
+  "Re-mark this lift" hands M the lift's id as `replaces`; M's Analyse hands it
+  to `analyse(lift, file, range, {replaces})`, and the job carries it (contract
+  2's `replaces`, the old lift's id; `null` for any other job; never the job's
+  own lift). The new lift is stored beside the old one at Analyse, as for any
+  file, and the old one goes only when the new one's analysis succeeds. The
+  order, so that a crash between any two steps leaves at worst both lifts,
+  never neither:
+  1. the new lift's track, result and record, then the index (`updateLift`,
+     called by the job's last step with `{replaces}`);
+  2. in the same store step, once the new record is whole, the old lift through
+     the store's own delete: its `lift.json`, its folder (the cut, the track,
+     the result), its index entry. One store step, so nothing the store answers
+     in between (H's listing at the queue's next change) sees both as done;
+  3. the job marked done, the old lift's ended jobs taken off the list,
+     `queue.json` written.
+
+  Cut off before step 1 ends, the job is queued again at `load()` and the old
+  lift is as it was; cut off between 1 and 3, the job runs again and finds the
+  old lift gone, which is nothing to do. A delete that stops halfway in step 2
+  leaves the new lift complete and the old one for its own delete to finish
+  (`deleteLift` finishes a stopped delete). A re-mark that fails, is cancelled or
+  is still waiting never reaches step 1: the old lift stays as it was, and a
+  retry of the same job still replaces it. A `queue.json` from before `s50`
+  reads back with `replaces: null` for each job. Q1 and H say nothing new.
 
 ## M1–M3, marking a lift
 
@@ -700,9 +730,9 @@ first screen draws), the frame source by `openSource` (default `openFrameSource`
 - **The cost:** `analyseCost` is the queue's `estimate(t1 - t0, {fps})`: the last
   measured rate, or the first-run default, which the screen says it is
   (`estimateNote`).
-- **Analyse:** `analyse({flow, queue, lift, file, marks, frameTimes})` calls
+- **Analyse:** `analyse({flow, queue, lift, file, marks, frameTimes, replaces})` calls
   `queue.analyse(lift, file, {t0, t1})` (the marked frames' own times; the cut is
-  kept first, s32) and then `flow.go('queued', {liftId})` with the new lift's id,
+  kept first, s32; a re-mark adds `{replaces}`, the old lift's id from the flow's params, `s50`) and then `flow.go('queued', {liftId})` with the new lift's id,
   which Q1 shows when two are queued. A cut that can't be stored stays on M with
   the error in the error's words; a second tap while one is working does nothing.
 
@@ -841,7 +871,9 @@ are two of the controller's controls, the same state.
   wins over one that has not begun. The scoring runs on the main thread and takes a few milliseconds.
 - **Re-mark** reads the stored cut and goes `result → mark` with `{file, lift, range}`. M turns `range` back into marks
   (`marksFromRange`: the frames at its two times) and opens in M3 with the playhead on the start; Analyse then queues a new
-  lift from the cut, as for any file. The old lift stays until it is deleted.
+  lift from the cut, as for any file, with this lift's id as `replaces`: the new lift replaces this one once its
+  analysis is done, and a re-mark that fails or is cancelled leaves it as it was (`s50`, [The analysis](#the-analysis)).
+  The label stays "Re-mark this lift" (the wording pass after checkpoint A owns it).
 - **Delete** asks first ("Delete this lift? Its video and result are removed from this phone. This can't be undone.",
   Delete / Keep it); only the confirm calls `store.deleteLift(id)` and goes home. A delete that fails keeps the lift and says why.
 
