@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../html.mjs';
 import { openFrameSource } from '../../media/frame-source.mjs';
 import {
-  PX_PER_SECOND, THUMB, analyse, analyseCost, createLatest, createPlayhead, createThumbPlanner, dragTarget, dropFarThumbs, fitSize, liftLabelOf, markView,
+  PX_PER_SECOND, THUMB, analyse, analyseCost, createLatest, createPlayhead, createThumbPlanner, playheadNote, dragTarget, dropFarThumbs, fitSize, liftLabelOf, markView,
   newMarks, otherLift, redo, setMark, stripLeft, thumbSeconds, thumbTime,
 } from '../mark-model.mjs';
 import { ChevronDownIcon, CloseIcon, StepBackIcon, StepForwardIcon } from '../components/icons.mjs';
@@ -75,8 +75,8 @@ export function M({ flow, queue, openSource = openFrameSource }) {
       if (!current) { stepper.close(); src.close(); return; }
       p.head = createPlayhead({
         stepper,
-        draw: r => paint(r.frame),
-        fail: e => { if (current) setProblem(e && e.message ? e.message : 'The video could not be decoded.'); },
+        draw: r => { if (current) setProblem(playheadNote()); paint(r.frame); },
+        fail: e => { if (current) setProblem(playheadNote({ error: e })); },
       });
       paint(stepper.frame);
       setSource({ frameTimes: src.frameTimes, info: src.info });

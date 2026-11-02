@@ -113,6 +113,15 @@
   --mark-flag-w: 20px;
   --mark-flag-h: 18px;
   --step-mark: 24px;
+  --mark-ring: 2px;
+  --strip-tick-top: 14px;
+  --strip-thumb-top: 26px;
+  --strip-region-top: 24px;
+  --strip-pole-top: 20px;
+  --strip-pole-h: 72px;
+  --strip-playhead-top: 22px;
+  --strip-playhead-h: 78px;
+  --strip-knob-top: 14px;
   --step-button: 56px;
 
   /* The stage's black, the clock chip's scrim and the marked range's wash */

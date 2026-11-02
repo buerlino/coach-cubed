@@ -218,21 +218,21 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .mark-step { display: flex; align-items: center; gap: var(--space-1h); flex: 1; font-size: var(--size-label); font-weight: var(--weight-semibold); color: var(--text-quiet); }
 .mark-step--now { color: var(--text); }
 .mark-step--done { color: var(--text-soft); }
-.mark-step__num { width: var(--step-mark); height: var(--step-mark); flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: var(--size-small); font-weight: var(--weight-bold); border: 2px solid var(--line-strong); color: var(--text-quiet); }
+.mark-step__num { width: var(--step-mark); height: var(--step-mark); flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: var(--size-small); font-weight: var(--weight-bold); border: var(--mark-ring) solid var(--line-strong); color: var(--text-quiet); }
 .mark-step--now .mark-step__num { border-color: var(--text); color: var(--text); }
 .mark-step--done .mark-step__num { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .strip { height: var(--strip); flex: none; position: relative; overflow: hidden; cursor: grab; touch-action: none; user-select: none; }
 .strip:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .strip__track { position: absolute; top: var(--space-1); height: calc(var(--strip) - var(--space-2)); }
-.strip__tick { position: absolute; top: 14px; width: 1px; background: var(--line-strong); }
+.strip__tick { position: absolute; top: var(--strip-tick-top); width: 1px; background: var(--line-strong); }
 .strip__label { position: absolute; top: 0; width: var(--strip-label); margin-left: calc(var(--strip-label) / -2); text-align: center; font-size: var(--size-mark); font-weight: var(--weight-semibold); color: var(--text-quiet); }
-.strip__thumb { position: absolute; top: 26px; width: var(--strip-thumb-w); height: var(--strip-thumb-h); overflow: hidden; border-radius: var(--radius-xs); background: var(--surface-raised); display: flex; align-items: center; justify-content: center; }
+.strip__thumb { position: absolute; top: var(--strip-thumb-top); width: var(--strip-thumb-w); height: var(--strip-thumb-h); overflow: hidden; border-radius: var(--radius-xs); background: var(--surface-raised); display: flex; align-items: center; justify-content: center; }
 .strip__thumb canvas { max-width: 100%; max-height: 100%; }
-.strip__region { position: absolute; top: 24px; height: var(--strip-thumb-h); border-top: var(--mark-line) solid var(--accent); border-bottom: var(--mark-line) solid var(--accent); background: var(--accent-wash); }
-.strip__pole { position: absolute; top: 20px; width: var(--mark-pole); height: 72px; margin-left: calc(var(--mark-pole) / -2); border-radius: var(--space-half); background: var(--accent); }
+.strip__region { position: absolute; top: var(--strip-region-top); height: var(--strip-thumb-h); border-top: var(--mark-line) solid var(--accent); border-bottom: var(--mark-line) solid var(--accent); background: var(--accent-wash); }
+.strip__pole { position: absolute; top: var(--strip-pole-top); width: var(--mark-pole); height: var(--strip-pole-h); margin-left: calc(var(--mark-pole) / -2); border-radius: var(--space-half); background: var(--accent); }
 .strip__flag { position: absolute; top: 0; width: var(--mark-flag-w); height: var(--mark-flag-h); margin-left: calc(var(--mark-flag-w) / -2); border-radius: var(--space-1); background: var(--accent); color: var(--on-accent); font-size: var(--size-mark); font-weight: var(--weight-bold); text-align: center; line-height: var(--mark-flag-h); }
-.strip__playhead { position: absolute; left: 50%; top: 22px; width: var(--playhead); height: 78px; margin-left: calc(var(--playhead) / -2); background: var(--text); }
-.strip__knob { position: absolute; left: 50%; top: 14px; width: var(--playhead-knob); height: var(--playhead-knob); margin-left: calc(var(--playhead-knob) / -2); background: var(--text); transform: rotate(45deg); border-radius: var(--space-half); }
+.strip__playhead { position: absolute; left: 50%; top: var(--strip-playhead-top); width: var(--playhead); height: var(--strip-playhead-h); margin-left: calc(var(--playhead) / -2); background: var(--text); }
+.strip__knob { position: absolute; left: 50%; top: var(--strip-knob-top); width: var(--playhead-knob); height: var(--playhead-knob); margin-left: calc(var(--playhead-knob) / -2); background: var(--text); transform: rotate(45deg); border-radius: var(--space-half); }
 .mark-hints { flex: 1 0 auto; padding: var(--space-2) var(--space-5) 0; display: flex; flex-direction: column; gap: var(--space-1h); }
 .mark-hint { font-size: var(--size-body); line-height: 1.35; }
 .mark-hint--error { color: var(--status-work-on); }

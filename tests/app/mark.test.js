@@ -256,6 +256,42 @@ test('a failing stepper is reported, and the playhead goes on with the next requ
   head.close();
 });
 
+test('a start with no room for an end is refused with a hint, so M2 can never be a dead end', async () => {
+  const m = await model();
+  const last = T30.length - 1;
+  for (const i of [last, last - m.MIN_MARK_FRAMES + 1]) {
+    const refused = m.setMark(m.newMarks(), i, T30);
+    assert.equal(refused.start, null, `frame ${i} of ${T30.length}: no end could follow`);
+    assert.equal(refused.error, 'start-too-late');
+    assert.equal(m.stepOf(refused), 'start');
+    const v = m.markView(refused, { index: i, frameTimes: T30 });
+    assert.equal(v.hintIsError, true);
+    assert.match(v.hint, /drag left/);
+  }
+  const edge = m.setMark(m.newMarks(), last - m.MIN_MARK_FRAMES, T30);
+  assert.equal(edge.start, last - m.MIN_MARK_FRAMES, 'the last start an end can still follow');
+  assert.equal(m.setMark(edge, last, T30).end, last, 'and that end is accepted');
+});
+
+test('a frame drawn after a failed one clears the note over the stage', async () => {
+  const m = await model();
+  let n = 0;
+  const stepper = {
+    seek: async t => { if (n++ === 0) throw new Error('decoder failed'); return { index: 1, time: t, frame: {}, cached: true }; },
+    step: async () => ({ index: 2, time: 0.07, frame: {}, cached: true }),
+  };
+  let note = null;
+  const head = m.createPlayhead({ stepper, draw: () => { note = m.playheadNote(); }, fail: e => { note = m.playheadNote({ error: e }); } });
+  head.request(0.03);
+  await head.idle();
+  assert.equal(note, 'decoder failed');
+  head.request(0.04);
+  await head.idle();
+  assert.equal(note, null, 'the drag seek that succeeded shows its frame and no error');
+  assert.equal(m.playheadNote({ error: {} }), 'The video could not be decoded.');
+  head.close();
+});
+
 test('closing the playhead drops what is pending and draws nothing after', async () => {
   const m = await model();
   let release;

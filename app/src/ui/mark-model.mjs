@@ -121,7 +121,7 @@ export function fitSize(info, box, ratio) {
  * @typedef {Object} Marks
  * @property {number|null} start frame index of Set start
  * @property {number|null} end frame index of Set end
- * @property {'end-before-start'|null} error what the last Set was refused for
+ * @property {'end-before-start'|'start-too-late'|null} error what the last Set was refused for
  */
 
 /** @returns {Readonly<Marks>} no marks set */
@@ -133,7 +133,7 @@ export const stepOf = marks => (marks.start === null ? 'start' : marks.end === n
 /**
  * Set start or Set end at frame `index`, by the step. An end that doesn't come
  * MIN_MARK_FRAMES after the start is refused (the start stays, `error` says
- * why); once both are set, Set does nothing (Redo first).
+ * why), and so is a start with fewer than MIN_MARK_FRAMES frames after it; once both are set, Set does nothing (Redo first).
  * @param {Marks} marks
  * @param {number} index the playhead's frame
  * @param {readonly number[]} frameTimes
@@ -142,7 +142,11 @@ export const stepOf = marks => (marks.start === null ? 'start' : marks.end === n
 export function setMark(marks, index, frameTimes) {
   if (!Number.isInteger(index) || index < 0 || index >= frameTimes.length) return marks;
   const step = stepOf(marks);
-  if (step === 'start') return Object.freeze({ start: index, end: null, error: null });
+  if (step === 'start') {
+    // no room left for an end MIN_MARK_FRAMES later: every Set end would be refused
+    if (index > frameTimes.length - 1 - MIN_MARK_FRAMES) return Object.freeze({ start: null, end: null, error: 'start-too-late' });
+    return Object.freeze({ start: index, end: null, error: null });
+  }
   if (step === 'end') {
     if (index < marks.start + MIN_MARK_FRAMES) return Object.freeze({ ...marks, error: 'end-before-start' });
     return Object.freeze({ start: marks.start, end: index, error: null });
@@ -206,10 +210,12 @@ export function markView(marks, { index, frameTimes, cost = null }) {
   const to = endAt ?? time;
   const length = startAt === null ? 0 : to - startAt;
   const lengthLabel = `${Math.max(0, length).toFixed(1)} s`;
-  const error = marks.error === 'end-before-start';
+  const tooLate = marks.error === 'start-too-late';
+  const error = marks.error === 'end-before-start' || tooLate;
 
   let hint;
-  if (error) hint = 'The end has to come after the start: drag right, past the lift.';
+  if (tooLate) hint = 'Too close to the end of the video for an end to follow: drag left, to before the lift starts.';
+  else if (error) hint = 'The end has to come after the start: drag right, past the lift.';
   else if (step === 'start') hint = 'Drag the filmstrip until the playhead sits just before the lift starts, then tap Set start.';
   else if (step === 'end') hint = 'Now drag to just after the last rep ends, then tap Set end.';
   else if (cost) hint = `${lengthLabel} marked. About ${wholeSeconds(cost.seconds)} to analyse on this phone; it runs in the background while you train.`;
@@ -243,6 +249,18 @@ export function markView(marks, { index, frameTimes, cost = null }) {
 }
 
 // ---- the playhead: frames off the input path ----
+
+/**
+ * The note over the stage for the playhead's last event: a frame that failed to
+ * decode says why, and any frame that is drawn afterwards clears it (a drag seek
+ * that succeeds shows a frame, so an old error must not stay over it).
+ * @param {{error?: unknown}} event `{error}` for a failure, `{}` for a drawn frame
+ * @returns {string|null}
+ */
+export function playheadNote({ error } = {}) {
+  if (error === undefined) return null;
+  return error && error.message ? error.message : 'The video could not be decoded.';
+}
 
 /**
  * The playhead's frames, decoded off the input path. A drag only says where it
