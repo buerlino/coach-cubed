@@ -16,8 +16,18 @@ const loadStore = () => load('store/index.mjs');
 const loadContract = () => load('contracts/stored-lift.mjs');
 
 const ENGINE = { model: 'movenet-thunder', backend: 'webgl', runtime: 'tfjs 4.22.0' };
-const TRACK = { meta: { fps: 30 }, keypoints: [[[1, 2, 0.9]]] };
-const RESULT = { cues: [], notes: [] };
+// A small valid pair: a three-frame track (contracts/track.mjs) and the ResultView example (contracts/cue-view.mjs).
+const loadMod = rel => import(pathToFileURL(path.join(APP, 'src', rel)).href);
+let TRACK, RESULT;
+test.before(async () => {
+  const { trackFromFrames, appTrackMeta } = await loadMod('contracts/track.mjs');
+  const { KEYPOINTS_EXAMPLE } = await loadMod('contracts/keypoints.mjs');
+  const { RESULT_VIEW_EXAMPLE } = await loadMod('contracts/cue-view.mjs');
+  const frames = [0, 1, 2].map(i => ({ index: i, tMs: i * 1000 / 30, keypoints: i === 1 ? null : KEYPOINTS_EXAMPLE }));
+  TRACK = trackFromFrames(frames, appTrackMeta({ fps: 30, frameCount: 3, width: 640, height: 480 }));
+  RESULT = RESULT_VIEW_EXAMPLE;
+});
+const padded = n => ({ ...TRACK, meta: { ...TRACK.meta, pad: 'x'.repeat(n) } });
 const bytes = (...b) => new Blob([Uint8Array.from(b)], { type: 'video/mp4' });
 const clock = iso => { let t = Date.parse(iso); return () => new Date(t++ * 1); };
 const bytesOf = async blob => Array.from(new Uint8Array(await blob.arrayBuffer()));
@@ -307,7 +317,7 @@ test('a full disk is an error the UI can show: "storage full", nothing half-save
   assert.deepEqual(fake.paths(), before, 'the half-written folder is gone');
   assert.deepEqual((await store.listLifts()).map(l => l.id), [kept.id]);
   // the same for the track and result of an update, and for the settings
-  await assert.rejects(() => store.updateLift(kept.id, { track: { pad: 'x'.repeat(5000) }, result: RESULT, engine: ENGINE }), { code: 'storage-full' });
+  await assert.rejects(() => store.updateLift(kept.id, { track: padded(5000), result: RESULT, engine: ENGINE }), { code: 'storage-full' });
   assert.deepEqual(await store.getLift(kept.id), kept);
   assert.deepEqual(fake.paths(), before);
   fake.setQuota(fake.used());
@@ -334,4 +344,100 @@ test('writes only to OPFS: only the store\'s own files appear, and its source to
     const src = fs.readFileSync(path.join(dir, f), 'utf8');
     assert.doesNotMatch(src, /localStorage|sessionStorage|indexedDB|caches\.|fetch\(|XMLHttpRequest|showSaveFilePicker|createObjectURL/, f);
   }
+});
+
+test('an invalid track or result is refused with "invalid", and nothing is written', async () => {
+  const { store, fake } = await setup();
+  const saved = await store.saveLift(lr());
+  const before = fake.paths();
+  const badTrack = { meta: { fps: 30 }, keypoints: [[[1, 2, 0.9]]] };
+  const badResult = { cues: [], notes: [] };
+  await assert.rejects(() => store.updateLift(saved.id, { track: badTrack, result: RESULT, engine: ENGINE }), { code: 'invalid', message: /track\.json/ });
+  await assert.rejects(() => store.updateLift(saved.id, { track: TRACK, result: badResult, engine: ENGINE }), { code: 'invalid', message: /result\.json/ });
+  await assert.rejects(() => store.saveLift(lr({ track: badTrack, result: RESULT, engine: ENGINE })), { code: 'invalid' });
+  await assert.rejects(() => store.saveLift(lr({ track: TRACK, result: badResult, engine: ENGINE })), { code: 'invalid' });
+  assert.deepEqual(fake.paths(), before);
+  assert.deepEqual(await store.getLift(saved.id), saved);
+});
+
+test('an update whose index write fails puts everything back: the old record, and the files it overwrote or made', async () => {
+  const sizeOf = v => new Blob([typeof v === 'string' ? v : JSON.stringify(v)]).size;
+  // A dry run on an identical store measures the record's growth.
+  const dry = await setup();
+  const d0 = await dry.store.saveLift(lr());
+  const d1 = await dry.store.updateLift(d0.id, { track: TRACK, result: RESULT, engine: ENGINE });
+  const room = sizeOf(TRACK) + sizeOf(RESULT) + sizeOf(d1) - sizeOf(d0); // the three files, not the index
+
+  // (a) the files are new
+  const { store, fake } = await setup();
+  const saved = await store.saveLift(lr());
+  const before = fake.paths();
+  fake.setQuota(fake.used() + room);
+  await assert.rejects(() => store.updateLift(saved.id, { track: TRACK, result: RESULT, engine: ENGINE }), { code: 'storage-full' });
+  assert.deepEqual(await store.getLift(saved.id), saved, 'the old record is back');
+  assert.deepEqual(fake.paths(), before, 'the new files are gone');
+  assert.deepEqual((await store.listLifts()).map(l => l.id), [saved.id]);
+
+  // (b) the files are overwritten: the old ones come back byte for byte
+  const two = await setup();
+  const kept = await two.store.saveLift(lr({ track: TRACK, result: RESULT, engine: ENGINE }));
+  const newTrack = { ...TRACK, meta: { ...TRACK.meta, pad: 'y' } };
+  const trackBefore = await two.fake.text(kept.track);
+  const resultBefore = await two.fake.text(kept.result);
+  const recordBefore = await two.fake.text(`lifts/${kept.id}/lift.json`);
+  const newEngine = { ...ENGINE, runtime: 'tfjs 4.22.10' };
+  two.fake.setQuota(two.fake.used() + (sizeOf(newTrack) - sizeOf(TRACK)) + 1); // the grown track and record fit, the index copy does not
+  await assert.rejects(() => two.store.updateLift(kept.id, { track: newTrack, result: RESULT, engine: newEngine }), { code: 'storage-full' });
+  assert.equal(await two.fake.text(kept.track), trackBefore);
+  assert.equal(await two.fake.text(kept.result), resultBefore);
+  assert.equal(await two.fake.text(`lifts/${kept.id}/lift.json`), recordBefore);
+  assert.deepEqual(await two.store.getLift(kept.id), kept);
+  assert.deepEqual(await two.store.readTrack(kept.id), TRACK);
+  assert.deepEqual(await two.store.readResult(kept.id), RESULT);
+});
+
+// The store on `fake`, but removing a folder with its content fails while `state.fail` is set.
+function flaky(storage, state) {
+  const wrap = d => new Proxy(d, {
+    get(t, p) {
+      if (p === 'removeEntry') {
+        return async (name, opts) => {
+          if (state.fail && opts && opts.recursive) throw new Error('the page was killed');
+          return t.removeEntry(name, opts);
+        };
+      }
+      if (p === 'getDirectoryHandle') return async (...a) => wrap(await t.getDirectoryHandle(...a));
+      const v = t[p];
+      return typeof v === 'function' ? v.bind(t) : v;
+    },
+  });
+  return { ...storage, getDirectory: async () => wrap(await storage.getDirectory()) };
+}
+
+test('a delete that stops halfway can be finished: the next delete removes the folder and the entry', async () => {
+  const { fake, lib } = await setup();
+  const state = { fail: false };
+  const store = lib.createStore({ storage: flaky(fake.storage, state), now: () => new Date('2026-11-01T17:42:05.120Z') });
+  const a = await store.saveLift(lr({ created: '2026-11-01T08:00:00.000Z', track: TRACK, result: RESULT, engine: ENGINE }));
+  const b = await store.saveLift(lr({ created: '2026-11-01T09:00:00.000Z' }));
+  state.fail = true;
+  await assert.rejects(() => store.deleteLift(a.id), /killed/);
+  assert.ok(fake.exists(`lifts/${a.id}/cut.mp4`), 'the cut is still there');
+  assert.equal(fake.exists(`lifts/${a.id}/lift.json`), false, 'the record went first');
+  assert.deepEqual((await store.listLifts()).map(l => l.id), [b.id, a.id], 'the index still lists it');
+  state.fail = false;
+  await store.deleteLift(a.id); // the retry: not "not-found"
+  assert.deepEqual(fake.paths().filter(p => p.includes(a.id)), []);
+  assert.deepEqual((await store.listLifts()).map(l => l.id), [b.id]);
+  assert.ok(fake.exists(`lifts/${b.id}/cut.mp4`));
+  await assert.rejects(() => store.deleteLift(a.id), { code: 'not-found' });
+});
+
+test('a record-less folder (a delete that stopped, and the index lost) is removed by a delete too', async () => {
+  const { store, fake } = await setup();
+  const a = await store.saveLift(lr());
+  fake.remove(`lifts/${a.id}/lift.json`);
+  fake.remove('index.json');
+  await store.deleteLift(a.id);
+  assert.equal(fake.exists(`lifts/${a.id}`), false);
 });

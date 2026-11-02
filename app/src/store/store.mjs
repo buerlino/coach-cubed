@@ -18,6 +18,8 @@
 // a move over the real one.
 import { LIFTS_DIR, ID_RE } from '../contracts/common.mjs';
 import { liftPaths, validateStoredLift } from '../contracts/stored-lift.mjs';
+import { validateTrack } from '../contracts/track.mjs';
+import { validateResultView } from '../contracts/cue-view.mjs';
 import { applySettings, readSettings, validateSettings, validateSettingsPatch } from './settings.mjs';
 
 /** The app's version, stored with each lift (the manifest carries none yet). */
@@ -57,6 +59,14 @@ function wrap(e) {
 
 const isMissing = e => e && e.name === 'NotFoundError';
 const invalid = (what, errors) => new StoreError('invalid', `${what}: ${errors.join('; ')}`);
+
+/** The errors of a track and a result, whichever of them is given (undefined is not given). */
+function fileErrors(track, result) {
+  const errors = [];
+  if (track !== undefined) errors.push(...validateTrack(track).map(e => `track.json: ${e}`));
+  if (result !== undefined) errors.push(...validateResultView(result).map(e => `result.json: ${e}`));
+  return errors;
+}
 
 /** Newest first; the id breaks a tie. */
 const newestFirst = (a, b) => (a.created < b.created ? 1 : a.created > b.created ? -1 : (a.id < b.id ? 1 : -1));
@@ -252,6 +262,7 @@ export function createStore({ storage = globalThis.navigator && globalThis.navig
     };
     const precheck = validateStoredLift(build(input.id ?? idBase(new Date(Date.parse(created) || 0), input.lift)));
     if (!blob) precheck.unshift('video: must be a Blob (or bytes) holding the cut');
+    precheck.push(...fileErrors(input.track, input.result));
     if (precheck.length) throw invalid('lift', precheck);
 
     return exclusive(async () => {
@@ -293,22 +304,28 @@ export function createStore({ storage = globalThis.navigator && globalThis.navig
       if (patch.track !== undefined) next.track = p.track;
       if (patch.result !== undefined) next.result = p.result;
       if (patch.engine !== undefined) next.engine = patch.engine;
-      const errors = validateStoredLift(next);
+      const errors = [...validateStoredLift(next), ...fileErrors(patch.track, patch.result)];
       if (errors.length) throw invalid('lift', errors);
 
       const lifts = await loadIndex();
       const folder = await dirAt([LIFTS_DIR, id], false);
-      const fresh = [];
+      // What the update overwrites or creates, to put back if a step fails: the
+      // record must never name a track or a result that is not there.
+      const undo = [];
       try {
         for (const [key, name] of [['track', 'track.json'], ['result', 'result.json']]) {
           if (patch[key] === undefined) continue;
-          if (!(await exists(folder, name))) fresh.push(name);
+          const before = (await exists(folder, name)) ? await (await (await folder.getFileHandle(name)).getFile()).text() : null;
           await writeFile(folder, name, JSON.stringify(patch[key]));
+          undo.push({ name, before });
         }
         await writeFile(folder, LIFT_RECORD, JSON.stringify(next));
+        undo.push({ name: LIFT_RECORD, before: JSON.stringify(cur) });
         await writeIndex([...lifts.filter(l => l.id !== id), next]);
       } catch (e) {
-        for (const name of fresh) await folder.removeEntry(name).catch(() => {});
+        // Old contents first, the old record among them, then the files that were new.
+        for (const { name, before } of undo.filter(u => u.before !== null).reverse()) await writeFile(folder, name, before).catch(() => {});
+        for (const { name, before } of undo) if (before === null) await folder.removeEntry(name).catch(() => {});
         throw e;
       }
       return next;
@@ -317,14 +334,19 @@ export function createStore({ storage = globalThis.navigator && globalThis.navig
 
   async function deleteLift(id) {
     return exclusive(async () => {
-      await requireRecord(id);
-      const lifdir = await dirAt([LIFTS_DIR], false);
-      const folder = await lifdir.getDirectoryHandle(id);
-      // The record first: without it the folder is no lift, even if the next step stops.
-      // Then the folder, to free the room before the (smaller) index is written.
-      await folder.removeEntry(LIFT_RECORD);
-      await lifdir.removeEntry(id, { recursive: true });
+      if (typeof id !== 'string' || !ID_RE.test(id)) throw new StoreError('not-found', `No lift ${JSON.stringify(id)} in the store.`);
       const lifts = await loadIndex();
+      const lifdir = await dirAt([LIFTS_DIR], false).catch(e => { if (isMissing(e)) return null; throw e; });
+      const folder = lifdir && await lifdir.getDirectoryHandle(id).catch(e => { if (isMissing(e)) return null; throw e; });
+      // Idempotent: a delete that stopped halfway (the record gone, the folder or the
+      // index entry still there) is finished by the next one.
+      if (!folder && !lifts.some(l => l.id === id)) throw new StoreError('not-found', `No lift ${JSON.stringify(id)} in the store.`);
+      if (folder) {
+        // The record first: without it the folder is no lift, even if the next step stops.
+        // Then the folder, to free the room before the (smaller) index is written.
+        await folder.removeEntry(LIFT_RECORD).catch(e => { if (!isMissing(e)) throw e; });
+        await lifdir.removeEntry(id, { recursive: true });
+      }
       await writeIndex(lifts.filter(l => l.id !== id));
     });
   }

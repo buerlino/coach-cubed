@@ -135,7 +135,11 @@ lifts/<id>/lift.json    the lift's record: contract 3, a StoredLift
   is written last: a folder with it is a complete lift. A save that fails
   removes its folder. `updateLift(id, {track, result, engine, range})`
   completes a lift when its job is done; every record passes
-  `validateStoredLift` before anything is written.
+  `validateStoredLift`, and a track or result passes `validateTrack` or
+  `validateResultView`, before anything is written (else `invalid`). An
+  update that fails puts back the old `lift.json` and the files it
+  overwrote, and removes the ones it made, so a record never names a file
+  that is not there.
 - **The index** is written atomically: `index.json.tmp`, then
   `move('index.json')`; `settings.json` and `meta.json` too. When the index
   is missing, isn't JSON, has the wrong shape or an invalid entry, it is
@@ -145,7 +149,9 @@ lifts/<id>/lift.json    the lift's record: contract 3, a StoredLift
 - **Deleting** (`deleteLift(id)`) removes `lift.json` first, then the whole
   folder `lifts/<id>/` (the cut, the track, the result), then the index
   entry. Nothing else is touched: other lifts, the settings and the
-  app's cached files stay.
+  app's cached files stay. A delete that stopped halfway (the record gone,
+  the folder or the index entry still there) is finished by calling it
+  again; `not-found` only when neither is left.
 - **Lists:** `listLifts()` newest first; `listByDay()` splits today's (the
   local calendar day) from earlier ones, for H. Ids look like
   `20261101-174205-lr` (UTC time, lift), with `-2`, `-3` for a clash.
