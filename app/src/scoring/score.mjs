@@ -10,7 +10,9 @@
 //      (50 ms, velocity kept: the old page's, and S1's smoothingSigmaMs).
 //      They are on the view as `smoothing` (contract 4, s35), so a stored
 //      result.json says what its verdicts were scored with.
-//   2. Diagnostics.setPage(lift), then Diagnostics.computeResults().
+//   2. Diagnostics.setPage(lift), then Diagnostics.computeResults(). Its lift says whether the
+//      lift has a lift window at all (hasLiftWindow, the set's; s36): a lateral raise has none,
+//      and the view carries the flag with no window and no reason.
 //   3. The view, through s4's headless API: describe() for each cue's words
 //      and provisional flag, tiles(), referenceLine() and worstMoment() for
 //      the rest. CUE_VIEW_SOURCES in the contract names every field's source.
@@ -115,16 +117,18 @@ function head(d) {
 
 // The lift window, as seconds, or null with diagnostics.js's reason. A start with no end (the engine
 // found the pull but no held finish) keeps its start, {t0, t1: null} (contract 4, s35): its reason is the
-// engine's last note, which says why the lift has no end marker, and the other notes stay notes.
+// engine's last note, which says why the lift has no end marker, and the other notes stay notes. A lift
+// whose set has no window (a lateral raise, hasLiftWindow false, s36) has neither window nor reason.
 function liftWindowOf(lift) {
   const notes = [...(lift.notes || [])];
-  if (lift.error) return { liftWindow: null, liftWindowReason: lift.error, notes };
+  if (lift.hasLiftWindow === false) return { hasLiftWindow: false, liftWindow: null, liftWindowReason: null, notes };
+  if (lift.error) return { hasLiftWindow: true, liftWindow: null, liftWindowReason: lift.error, notes };
   if (typeof lift.t0 === 'number' && typeof lift.t1 === 'number') {
-    return { liftWindow: { t0: lift.t0, t1: lift.t1 }, liftWindowReason: null, notes };
+    return { hasLiftWindow: true, liftWindow: { t0: lift.t0, t1: lift.t1 }, liftWindowReason: null, notes };
   }
   const reason = notes.pop();
   const liftWindow = typeof lift.t0 === 'number' ? { t0: lift.t0, t1: null } : null;
-  return { liftWindow, liftWindowReason: reason === undefined ? null : reason, notes };
+  return { hasLiftWindow: true, liftWindow, liftWindowReason: reason === undefined ? null : reason, notes };
 }
 
 /**
@@ -159,9 +163,9 @@ export function scoreLift(track, lift, opts = {}) {
     if (!res) throw new Error(`computeResults() has no result for the cue ${desc.id}`);
     return res.error ? unscoredCue(desc, res) : scoredCue(D, desc, res, computed.samples);
   });
-  const { liftWindow, liftWindowReason, notes } = liftWindowOf(computed.lift);
+  const { hasLiftWindow, liftWindow, liftWindowReason, notes } = liftWindowOf(computed.lift);
   return {
-    view: { lift, liftWindow, liftWindowReason, cues, notes, smoothing: { sigmaMs, keepVelocity } },
+    view: { lift, hasLiftWindow, liftWindow, liftWindowReason, cues, notes, smoothing: { sigmaMs, keepVelocity } },
     computed,
     personId,
   };
