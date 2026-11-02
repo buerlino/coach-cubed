@@ -39,7 +39,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 4 | `s4` | diagnostics.js's headless API | schrödinger, opus | `d3` | merged `3b0e915` |
 | 5 | `s5` | The app's contracts | schrödinger, opus | `d3`, `s4` | merged `4d5d093` |
 | 6 | `s6` | TF.js and pose-detection from source | schrödinger, opus | `d3` | merged `27732d8` |
-| 7 | `s7` | The from-source bundle gives npm's numbers | schrödinger, sonnet | `s6` | waits; a difference stops the queue before `s10` |
+| 7 | `s7` | The from-source bundle gives npm's numbers | schrödinger, sonnet | `s6` | merged `e44db95` |
 | 8 | `c8` | The store | curie, sonnet | `s5` | waits |
 | 9 | `s9` | The frame source (mediabunny) | schrödinger, sonnet | `s5` | waits |
 | 10 | `s10` | The pose engine | schrödinger, sonnet | `s5`, `s6`, `s7` | waits |
