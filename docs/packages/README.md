@@ -44,7 +44,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 9 | `s9` | The frame source (mediabunny) | schrödinger, sonnet | `s5` | merged `9d491e0` |
 | 10 | `s10` | The pose engine | schrödinger, sonnet | `s5`, `s6`, `s7` | merged `13f7f78` |
 | 11 | `c20` | The Capacitor shell, and the engine on the phone | curie, sonnet | `d3`, `s9`, `s10` | waits; phone: by day, nordmu told |
-| 12 | `s11` | The scoring adapter | schrödinger, sonnet | `s4`, `s5` | waits |
+| 12 | `s11` | The scoring adapter | schrödinger, sonnet | `s4`, `s5` | merged `d65e3ed` |
 | 13 | `s32` | Keep the lift's video: the marked range cut to MP4 | schrödinger, sonnet | `s9`, `c8` | waits; new (D6) |
 | 14 | `s12` | The analysis job and its queue | schrödinger, opus | `s9`, `s10`, `s11`, `c8`, `s32` | waits |
 | 15 | `d13` | H and importing a video | dirac, sonnet | `d3`, `c8` | waits |
