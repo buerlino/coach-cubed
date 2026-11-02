@@ -364,3 +364,68 @@ test('result: A1 draws the card\'s rule line and passes the API\'s zones to the 
   assert.match(src, /c\.rule/);
   assert.ok(!src.includes('>Provisional<'), 'the word is not typed on the screen');
 });
+
+// ---- the rule line with the API's words (s45): the unit's noun and the watch band ----
+// Expected strings: design/mockups/Result.dc.html's cards ("Good from +5% (elbow above wrist), work on below −5%",
+// "Good within 15% of torso length of shoulder height, work on beyond 30%", "Good up to 3° of sway (SD), work on
+// beyond 7°", "Good up to 1.5× faster down than up, work on beyond 2.5×") with the watch band of
+// design/mockups/CueDetail.dc.html ("watch between +5% and −5%").
+
+const withRule = (m, view, D) => m.cardsOf(view, id => D.zones(id), id => D.rule(id));
+
+test('result: an open card\'s rule line carries the unit\'s noun and the watch band from diagnostics.js\'s rule(id), a cue whose zones are null included', async () => {
+  const m = await load('ui/result-model.mjs');
+  const { view, D } = await scored(LATERAL);
+  const cards = Object.fromEntries(withRule(m, view, D).map(c => [c.id, c]));
+  assert.equal(cards['lateral-raise-elbow-lead'].rule, 'Good from +5% of torso length, watch between +5% and −5%, work on below −5% · Provisional');
+  assert.equal(cards['lateral-raise-top-height'].rule, 'Good within 15% of torso length of shoulder height, watch between 15% and 30%, work on beyond 30% · Provisional');
+  assert.equal(cards['lateral-raise-tempo'].rule, 'Good up to 1.5× faster down than up, watch between 1.5× and 2.5×, work on beyond 2.5× · Provisional');
+  assert.equal(D.zones('lateral-raise-torso-lean'), null);
+  assert.equal(cards['lateral-raise-torso-lean'].rule, 'Good up to 3° of sway (SD), watch between 3° and 7°, work on beyond 7° · Provisional');
+  // the symmetry can't be scored on this clip (one rep): no verdict, so no rule
+  assert.equal(cards['lateral-raise-symmetry'].rule, 'Provisional');
+});
+
+test('result: every scored lateral-raise and snatch cue\'s open card names its noun and its watch band', async () => {
+  const m = await load('ui/result-model.mjs');
+  for (const slug of [LATERAL, SNATCH]) {
+    const { view, D } = await scored(slug);
+    for (const c of withRule(m, view, D).filter(c => c.scored)) {
+      const r = D.rule(c.id);
+      assert.ok(c.rule.includes(r.noun), `${c.id}: ${c.rule}`);
+      assert.match(c.rule, /, watch (between|from) /, `${c.id}: ${c.rule}`);
+      assert.match(c.rule, / · Provisional$/, c.id);
+    }
+  }
+});
+
+test('result: the rule line is the API\'s words, whatever they are; with no rule(id) it is the shorter sentence', async () => {
+  const m = await load('ui/result-model.mjs');
+  const { view, D } = await scored(LATERAL);
+  const fake = id => ({
+    noun: '% FAKE-NOUN', decides: 'The fake sentence decides.',
+    bands: [{ status: 'work on', from: null, to: -7 }, { status: 'watch', from: -7, to: 2 }, { status: 'good', from: 2, to: null }],
+    id,
+  });
+  const cards = Object.fromEntries(m.cardsOf(view, id => D.zones(id), id => { const r = fake(id); delete r.id; return r; }).map(c => [c.id, c]));
+  assert.equal(cards['lateral-raise-elbow-lead'].rule, 'Good from +2% FAKE-NOUN, watch between +2% and −7%, work on below −7% · Provisional');
+  assert.equal(cards['lateral-raise-torso-lean'].rule, 'Good from +2% FAKE-NOUN, watch between +2% and −7%, work on below −7% · Provisional');
+  // an API without the method, or one that gives null: the zones' shorter sentence, as before
+  const short = Object.fromEntries(m.cardsOf(view, id => D.zones(id), () => null).map(c => [c.id, c]));
+  assert.equal(short['lateral-raise-elbow-lead'].rule, 'Good from +5%, work on below −5% · Provisional');
+  assert.equal(short['lateral-raise-torso-lean'].rule, 'Provisional');
+});
+
+test('result: A1 passes the API\'s rule(id) to the model, and app/src/ types none of its words', () => {
+  const src = fs.readFileSync(path.join(APP, 'src', 'ui', 'screens', 'A1.mjs'), 'utf8');
+  assert.match(src, /cardsOf\(data\.view, [^)]*zones\(id\), [^)]*rule\(id\)\)/);
+  // the words come from src/diagnostics.js (s45, "Done when": grep -rn "torso length\|decides" app/src/)
+  const walk = dir => fs.readdirSync(dir, { withFileTypes: true }).flatMap(e => {
+    const p = path.join(dir, e.name);
+    return e.isDirectory() ? walk(p) : [p];
+  });
+  for (const f of walk(path.join(APP, 'src'))) {
+    const text = fs.readFileSync(f, 'utf8');
+    assert.ok(!/torso length|decides/.test(text), `${path.relative(ROOT, f)} types the API's words`);
+  }
+});

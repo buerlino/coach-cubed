@@ -667,3 +667,108 @@ test('zones: an unknown id throws, and so does a cue that declares none', () => 
   delete cues.get('lateral-raise-tempo').zones;
   assert.throws(() => inner.zones('lateral-raise-tempo'), /lateral-raise-tempo/);
 });
+
+// --- rule(id): the unit's noun, what decides the verdict, its bands (s45) --------
+//
+// A1's rule line and A2's "How it's scored" (design/mockups/Result.dc.html,
+// design/mockups/CueDetail.dc.html: "…15% of torso length", "The lowest margin
+// in the rep decides", "watch between +5% and −5%") need words the screens may
+// not type (contract 4). Every cue of every set gives them, next to its own
+// threshold constants; the bands are checked against the cue's own verdict(),
+// never retyped here.
+
+// The words a cue's rule names its worst-moment rule with (RULES above).
+const RULE_WORDS = {
+  'summary-worst': /\b(lowest|highest|fastest|farthest|worst)\b/,
+  'summary-last': /\blast\b/,
+  'farthest-from-mean': /\(SD\)/,
+  'phase-end': /\blast\b/,
+};
+const UNIT_SYMBOL = { '%': '%', '°': '°', x: '×' };
+
+test('rule(id) gives every cue of every set its unit noun, one sentence on what decides the verdict and its good, watch and work-on bands', async () => {
+  const { VERDICT_STATUS } = await import('../../app/src/contracts/cue-view.mjs');
+  const { D: inner, cues, sets } = loadInternals();
+  const D = loadDiagnostics();
+  assert.equal(typeof D.rule, 'function', 'the headless API has rule(id)');
+  let n = 0;
+  for (const set of sets) {
+    for (const c of D.describe(set)) {
+      const id = c.id, d = cues.get(id);
+      const r = D.rule(id);
+      n++;
+      assert.deepStrictEqual(Object.keys(r), ['noun', 'decides', 'bands'], id);
+      assert.deepStrictEqual(plain(inner.rule(id)), r, id);
+      // the noun follows a number: it starts with the cue's unit and holds no number of its own
+      assert.equal(typeof r.noun, 'string', id);
+      assert.ok(r.noun.startsWith(UNIT_SYMBOL[c.unit]), `${id}: "${r.noun}" starts with the unit ${c.unit}`);
+      assert.ok(r.noun.length > UNIT_SYMBOL[c.unit].length, `${id}: a noun, not the bare unit`);
+      // one sentence, plain text, no number typed in it, naming the cue's worst-moment rule
+      assert.match(r.decides, /^[A-Z][^.]*\bdecides\b[^.]*\.$/, `${id}: one sentence that says what decides`);
+      for (const s of [r.noun, r.decides]) {
+        assert.ok(!MARKUP.test(s), `${id}: no markup in ${JSON.stringify(s)}`);
+        assert.ok(!/\d/.test(s), `${id}: no number typed in ${JSON.stringify(s)}`);
+      }
+      assert.match(r.decides, RULE_WORDS[d.worstRule], `${id}: the sentence matches its rule ${d.worstRule}`);
+      // the bands: zones(id) where the plot shows the verdict's value, else the bands of the value it reads
+      const zones = D.zones(id);
+      if (zones) assert.deepStrictEqual(r.bands, zones, `${id}: the plot's zones`);
+      const statuses = r.bands.map(b => b.status);
+      for (const s of ['good', 'watch', 'work on']) assert.ok(statuses.includes(s), `${id}: names its ${s} band`);
+      r.bands.forEach((b, i) => {
+        assert.deepStrictEqual(Object.keys(b), ['status', 'from', 'to'], id);
+        assert.equal(b.from === null, i === 0, `${id}: only the lowest band is open below`);
+        assert.equal(b.to === null, i === r.bands.length - 1, `${id}: only the highest band is open above`);
+        if (i) assert.equal(b.from, r.bands[i - 1].to, `${id}: the bands meet`);
+        // the cue's own verdict() on a value in this band, whichever summary field it reads
+        const eps = 1e-6;
+        const at = [];
+        if (b.from !== null) at.push(b.from + eps);
+        if (b.to !== null) at.push(b.to - eps);
+        if (b.from === null) at.push(b.to - Math.max(1, Math.abs(b.to)));
+        if (b.to === null) at.push(b.from + Math.max(1, Math.abs(b.from)));
+        for (const v of at) {
+          const verdict = d.verdict({ worst: v, worstAbs: Math.abs(v), sd: v, decline: v, hipDeficit: v, kneeDeficit: v });
+          assert.equal(VERDICT_STATUS[verdict.status], b.status, `${id}: verdict at ${v} is ${verdict.status}, the band says ${b.status}`);
+        }
+      });
+    }
+  }
+  assert.ok(n >= 8, 'every cue of every set');
+  // plain data, a fresh copy each call
+  const a = D.rule('lateral-raise-torso-lean');
+  a.bands[0].to = 99;
+  a.noun = 'changed';
+  assert.notEqual(D.rule('lateral-raise-torso-lean').bands[0].to, 99);
+  assert.notEqual(D.rule('lateral-raise-torso-lean').noun, 'changed');
+});
+
+test('rule(id): the mockups\' unit nouns and bands for the lateral raise', () => {
+  const D = loadDiagnostics();
+  // design/mockups/Result.dc.html: "…15% of torso length of shoulder height", "3° of sway (SD)", "1.5× faster down than up"
+  assert.equal(D.rule('lateral-raise-top-height').noun, '% of torso length of shoulder height');
+  assert.equal(D.rule('lateral-raise-torso-lean').noun, '° of sway (SD)');
+  assert.equal(D.rule('lateral-raise-tempo').noun, '× faster down than up');
+  assert.equal(D.rule('lateral-raise-elbow-lead').noun, '% of torso length');
+  // the same mockup: good up to 3°, work on beyond 7° for the lean, whose zones are null
+  assert.equal(D.zones('lateral-raise-torso-lean'), null);
+  assert.deepStrictEqual(D.rule('lateral-raise-torso-lean').bands, [
+    { status: 'good', from: null, to: 3 },
+    { status: 'watch', from: 3, to: 7 },
+    { status: 'work on', from: 7, to: null },
+  ]);
+});
+
+test('rule: an unknown id throws, and so does a cue without its noun, its sentence or its bands', () => {
+  const D = loadDiagnostics();
+  assert.throws(() => D.rule('no-such-cue'), /no-such-cue/);
+  for (const [id, field] of [['lateral-raise-tempo', 'unitNoun'], ['lateral-raise-tempo', 'decides'], ['lateral-raise-torso-lean', 'bands']]) {
+    const { D: inner, cues } = loadInternals();
+    delete cues.get(id)[field];
+    assert.throws(() => inner.rule(id), new RegExp(id), `${id} without ${field}`);
+  }
+  // zones and bands both: two sources for one threshold
+  const { D: inner, cues } = loadInternals();
+  cues.get('lateral-raise-tempo').bands = cues.get('lateral-raise-tempo').zones;
+  assert.throws(() => inner.rule('lateral-raise-tempo'), /lateral-raise-tempo/);
+});
