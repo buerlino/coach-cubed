@@ -143,9 +143,11 @@ diagnostic's output hasn't silently changed, not that the output is correct.
 
 Seeded from `parked/report/examples/athlete-a-trim.{mp4,track.json}` — the report's
 one worked example — rather than freshly generated, so there's a fixture to
-test against from the start. Its lift type (snatch vs. clean) isn't recorded
-in the report, so it's filed under the generic `example` stance rather than a
-guessed one; re-label it once confirmed.
+test against from the start. Its lift type isn't recorded in the report, so it
+was filed under the generic `example` stance.
 
-Its manifest entry says `"diagnostics": "snatch"`: that is the set its golden has
-always been scored against, not a confirmed lift type.
+It is a snatch: eight frames of the clip show a wide grip and the bar going from
+the floor to overhead in one movement, caught in an overhead squat (looked at
+and confirmed by nordmu on 2026-11-02). Its manifest entry's
+`"diagnostics": "snatch"` is therefore the right set. It stays under `example`: moving it would rename its
+slug, its golden and the local clip's path for no gain.
