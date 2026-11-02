@@ -20,7 +20,7 @@ place.
 - **The package ID** (the reverse of the app's domain, say) is fixed
   before the first APK goes to testers: Obtainium ties updates to the
   package ID and the signing key, so changing it later means a reinstall.
-- **nordmu's favourite (2026-11-01): coach³, "Coach Cubed".** Cubed as in
+- **nordmu's pick (2026-11-02): coach³, "Coach Cubed".** Cubed as in
   volume, since muscles are volumes, and training volume (sets × reps ×
   weight) is how lifters count work. Written "Coach Cubed" wherever text is
   typed or searched (stores, domain, package ID); the ³ belongs to the
@@ -40,7 +40,7 @@ and WIPO's Global Brand Database, Nice classes 9 (apps), 41 (coaching) and
 
 | Name | Already used by | Free domains | Verdict |
 | --- | --- | --- | --- |
-| **Coach³, "Coach Cubed"** (nordmu) | nothing found; the nearest is a Rubik's toy, the "Coach Cube"; typed "coach3" it meets two unrelated apps | coachcubed.com, coachcubed.app, cubed.coach, coach3.app | clean; nordmu's favourite |
+| **Coach³, "Coach Cubed"** (nordmu) | nothing found; the nearest is a Rubik's toy, the "Coach Cube"; typed "coach3" it meets two unrelated apps | coachcubed.com, coachcubed.app, cubed.coach, coach3.app | clean; nordmu's pick |
 | Halterocoach (*haltero-*: weightlifting in French, Spanish, Portuguese) | nothing found | haltero.coach, halterocoach.com, .app | clean |
 | Coachgeist (German *Geist*: spirit, ghost) | nothing found | coachgeist.com, .app | clean |
 | Skelecoach (the skeleton you see) | nothing found | skele.coach, skelecoach.com, .app | clean |

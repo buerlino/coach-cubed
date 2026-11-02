@@ -10,18 +10,18 @@ from these are in [rules-core.md](rules-core.md).
 | # | Question | Who | Recommendation |
 | --- | --- | --- | --- |
 | 2 | Where 0.1.0 is published | Noah | nordmu decided it (PWA and GitHub APK, F-Droid after a check; "What 0.1.0 is"). Noah was asked too and may revise it; until he does, nordmu's answer binds. |
-| 3 | Test phones | nordmu, Noah | Answered in part (nordmu, 2026-10-31): nordmu's Fairphone 6 (`4d42e62f`; LineageOS, no Google Chrome). A stock Android phone with Chrome and Google's WebView before the public release; whose phone is open. An iPhone too, if iOS matters. |
 | 5 | `.auth_password` is an unsalted SHA-256 hash of the old login password, with a scheme "identical to tecna". Is that password used anywhere else? | Noah | Change it wherever it's used. The file leaves the history in step 2.8 either way. |
-| 8 | Review the parking of the squat, image and clean & jerk tabs. It was written up as nordmu's; nordmu has not confirmed it (asked again 2026-10-31: still open). | nordmu | Until confirmed it is a proposal: follow it, but don't build anything that depends on its exact wording. |
 | 6 | How long the restructuring window lasts | Noah | Step 2.8 (the history rewrite) has to finish before Noah resumes. It is scheduled at Phase 5's checkpoint A (D8); if Noah comes back earlier, the queue drains early for it. |
 | 9 | Branch protection on `main` of `noahsta/coach`, so one push from an old clone can't undo step 2.8 | Noah (repo owner) | Turn it on. |
-| 10 | **The app's name.** nordmu likes coach³, "Coach Cubed" (2026-11-01). | nordmu, Noah | Clean where checked ([branding.md](branding.md)); then Noah, a trademark search, the package ID, before testers get an APK. |
+| 10 | **The app's name.** nordmu's pick (2026-11-02): coach³, "Coach Cubed". | Noah | Clean where checked ([branding.md](branding.md)); then Noah, a trademark search, the package ID, before testers get an APK. |
 
 **What went to Noah, and when:** nordmu's message of 2026-10-31 asked
 questions 1 (the licence, now decided), 2 and 5 (as "is it a real
 password?"), and said "no pushes to `main`" and that a history rewrite is
-coming. nordmu's next message asks questions 6 and 9, and whether Noah's
-tailnet hostname and IP addresses may stay public ([backlog.md](backlog.md)).
+coming. nordmu's next message (drafted 2026-11-02) asks for his one-line OK
+to GPL-3.0-or-later, again about 2 and 5, then 6, 9 and 10, whether his
+tailnet hostname and IP addresses may stay public ([backlog.md](backlog.md)),
+and for a look at `origin/phase-0` before `main` moves.
 
 ## Decided
 
@@ -29,6 +29,13 @@ Newest first within each group.
 
 ### What 0.1.0 is
 
+- **2026-11-02, nordmu, later:** s12's stall time, restart, tick and time
+  left are set from `c26`'s phone numbers, in a package after it. Question
+  8: the squat, image and clean & jerk tabs are parked; the new UI offers
+  only what 0.1.0 analyses, and they leave with the old page at step 5.8.
+  Question 3: the test phones are the Fairphone 6, an old Samsung Galaxy
+  S8+ (Google's Chrome and WebView) and an old iPhone XS Max (the PWA in
+  Safari); nordmu has no others. Question 10: nordmu picks "Coach Cubed".
 - **2026-11-02, nordmu, on the first night's reports:** one contract
   package (`s35`): `frameTimes` in contract 5, a `reset` message in
   contract 1, contract 4's window may lack its end and the view records
@@ -103,10 +110,6 @@ Newest first within each group.
   feasibility check** (step 3.8): F-Droid builds everything from source, and
   the pose runtimes (WebAssembly) and model weights are prebuilt binaries.
   Noah may revise it (question 2).
-- **Proposed, awaiting nordmu's review (question 8): park the squat, image
-  and clean & jerk tabs.** The new UI offers only what 0.1.0 analyses, which
-  follows from the decision on lifts. Clean & jerk's one cue copies the
-  snatch's.
 - **2026-10-31, nordmu: the core of 0.1.0 is the lift analysis pipeline:**
   video, on-device pose, `diagnostics.js`, plots and verdicts (map areas 1–3).
   3D, bar detection, anatomy, the Movement Lab and the train tab are parked.

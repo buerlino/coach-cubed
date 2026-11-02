@@ -75,13 +75,11 @@ finish (git keeps the history). Decisions and open questions are in
     friend's written OK to use the footage;
   - nordmu, then Noah: the next message, with branch protection on `main`
     and the other open questions ([decisions.md](decisions.md#needs-an-answer));
-  - nordmu, then Noah: the app's name (question 10; nordmu likes coach³,
-    "Coach Cubed"), a manual trademark search and the domain; then a
-    designer for the logo ([branding.md](branding.md));
-  - nordmu, later: a stock Android phone with Chrome and Google's WebView,
-    after the spike and before the public release (question 3).
-- **Waiting on nordmu:** question 8, the review of the tab parking (the goal
-  and the principles are confirmed).
+  - Noah, then nordmu: the app's name (question 10; nordmu picked coach³,
+    "Coach Cubed", 2026-11-02), a manual trademark search and the domain;
+    then a designer for the logo ([branding.md](branding.md));
+  - nordmu, later: runs on the old Samsung Galaxy S8+ (Google's Chrome and
+    WebView) and iPhone XS Max, before the public release (question 3).
 - **Waiting on Noah:** what he was asked, and what goes in the next message,
   is in [decisions.md](decisions.md#needs-an-answer).
 - **The old page is frozen:** don't edit `INDEX_HTML` in `src/app.py`, or the
@@ -294,7 +292,7 @@ condition are decided ([decisions.md](decisions.md#what-010-is)).
       ([pose-spike.md](pose-spike.md#capture-step-34-brave)).
 - [x] 3.5 Measure on the Fairphone, in Brave and inside a Capacitor WebView:
       ms per frame, decode time, total time per clip, peak memory, download
-      size. The stock Android phone comes after the spike (question 3).
+      size. The Samsung S8+ (Google's WebView) comes after the spike (question 3).
       `ffc8b8a`, the shell [spike/webview-shell/](../spike/webview-shell/README.md)
       (`d20df09`), the samplers (`53bd301`, `5668d11`); numbers in
       [pose-spike.md](pose-spike.md).
@@ -420,8 +418,8 @@ behind 5.3–5.7 and the gates: [app-plan.md](app-plan.md).
       goes to testers (nordmu, Noah, friends) first, and before its first
       APK the name and the package ID are fixed (question 10).
 - [ ] 6.2 Release criteria for the public 0.1.0:
-      - works in airplane mode on the target phones, a stock Android phone
-        with Chrome and Google's WebView included (question 3);
+      - works in airplane mode on the target phones, the Samsung Galaxy S8+
+        with Google's Chrome and WebView included (question 3);
       - a working install path: where the PWA is hosted (a public HTTPS
         origin), and how its service worker updates the app and the models;
       - the APK signing key: who holds it and where it is backed up

@@ -321,8 +321,8 @@ build for our own code, the lifter choice hidden.
 - **At checkpoint A (D8):** LICENSE and the SPDX headers after the
   authors' written OKs (2.7), and the history rewrite (2.8), with the
   queue empty. "Before Noah resumes" stays the outer limit (question 6).
-- **Before the public 0.1.0:** the validation set and 3.6; a stock
-  Android phone (question 3); the hosting origin.
+- **Before the public 0.1.0:** the validation set and 3.6; a run on the
+  Samsung S8+ with Google's WebView (question 3); the hosting origin.
 - **Noah sees the mockups** (nordmu shares the canvas). It doesn't block
   the build.
 
