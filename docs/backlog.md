@@ -45,10 +45,11 @@ During the restructuring window, the order of work and its status are in
 
 ## Before 0.1.0 ships
 
-- The app needs a credits screen: CC BY 4.0 needs BodyParts3D's
-  attribution where users see it (if anatomy ships at all), and Apache-2.0
-  and MIT need their notices shipped with the code. The old page has none;
-  the Movement Lab links `src/squat/THIRD_PARTY.md`.
+- The new app's credits screen is built (S1, `d24`; it lists THIRD_PARTY.md's
+  section for the new app, with the licence texts offline). Still open: CC BY
+  4.0 needs BodyParts3D's attribution where users see it, if anatomy ships at
+  all, and the old page has no credits; the Movement Lab links
+  `src/squat/THIRD_PARTY.md`.
 - The three.js copy in `src/vendor/` has only its licence header; the full
   MIT text is beside the other copy, in `src/squat/vendor/`.
 - The pose model and runtime that Phase 3 picks go into

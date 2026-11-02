@@ -167,3 +167,40 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .button--light { background: var(--text); color: var(--on-accent); border-color: var(--text); }
 .button--quiet { min-height: var(--button-quiet); border: 0; border-radius: var(--radius-m); background: transparent; color: var(--danger-text); }
 .button--quiet:hover { border: 0; }
+
+/* S1, Settings and about (docs/ui-design.md, design/mockups/Settings.dc.html) */
+.settings { flex: 1; display: flex; flex-direction: column; gap: var(--space-5); padding: var(--space-1) var(--space-4) var(--space-6); }
+.settings__section { display: flex; flex-direction: column; gap: var(--space-2); }
+.settings__section > .section__title { padding: 0 var(--space-1); }
+.settings p.quiet { padding: 0 var(--space-1); line-height: 1.35; }
+.group { display: flex; flex-direction: column; border-radius: var(--radius-l); background: var(--surface); padding: 0 var(--space-3h); }
+.row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); width: 100%; min-height: var(--row-min); padding: 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; color: var(--text); font-size: var(--size-body); font-weight: var(--weight-medium); text-align: left; }
+.group > :last-child { border-bottom: 0; }
+.row__value { display: flex; align-items: center; gap: var(--space-1); color: var(--text-soft); font-weight: var(--weight-regular); }
+.row__value .lift-row__chevron { color: var(--text-quiet); width: var(--space-4h); height: var(--space-4h); }
+.row select { appearance: none; background: transparent; border: 0; color: inherit; font: inherit; text-align: right; min-height: var(--touch); padding: 0; cursor: pointer; }
+.row select:disabled { cursor: default; }
+.row--disabled { color: var(--text-quiet); }
+.row--action:disabled { color: var(--text-quiet); }
+.row--action:hover { border-color: var(--line); }
+.row--danger { color: var(--danger-text); font-weight: var(--weight-semibold); }
+.row--danger:disabled { color: var(--text-quiet); }
+.row--stack { flex-direction: column; align-items: stretch; justify-content: center; gap: var(--space-2); padding: var(--space-3) 0; font-weight: var(--weight-regular); }
+.row__actions { display: flex; gap: var(--space-2); }
+.row__actions button { flex: 1; }
+.segmented { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-1); padding: var(--space-1); border-radius: var(--radius-m); background: var(--surface-raised); }
+.segmented button { min-height: var(--touch); border: 0; border-radius: var(--radius-s); background: transparent; color: var(--text-soft); font-size: var(--size-label); }
+.segmented .segmented__on { background: var(--text); color: var(--on-accent); }
+.segmented button:disabled { opacity: 0.6; }
+.about { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3h); border-radius: var(--radius-l); background: var(--surface); font-size: var(--size-label); line-height: 1.45; }
+.about__head { display: flex; align-items: baseline; gap: var(--space-2); }
+.about__name { font-family: var(--font-display); font-weight: var(--weight-bold); font-size: var(--size-subtitle); }
+.about .tag { display: inline-flex; align-items: center; gap: var(--space-1); }
+.credit { border-bottom: 1px solid var(--line); }
+.credit > summary { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: var(--row-min); cursor: pointer; list-style: none; }
+.credit > summary::-webkit-details-marker { display: none; }
+.credit[open] > summary .lift-row__chevron { transform: rotate(90deg); }
+.credit__title { display: flex; flex-direction: column; gap: var(--space-half); }
+.credit__name { font-size: var(--size-body); font-weight: var(--weight-medium); }
+.credit__body { display: flex; flex-direction: column; gap: var(--space-2); padding-bottom: var(--space-3); }
+.licence { margin: 0; max-height: 50vh; overflow: auto; padding: var(--space-3); border-radius: var(--radius-s); background: var(--surface-raised); color: var(--text-soft); font-size: var(--size-small); white-space: pre-wrap; overflow-wrap: anywhere; }
