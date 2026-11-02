@@ -335,6 +335,11 @@ test('result: an open card\'s rule line is built from diagnostics.js\'s zones() 
   assert.equal(D.zones('lateral-raise-torso-lean'), null);
   assert.equal(cards['lateral-raise-torso-lean'].rule, 'Provisional');
   assert.equal(cards['lateral-raise-symmetry'].rule, 'Provisional');
+  // a cue that can't be scored shows "Provisional" alone even when zones() has bands for it (README, "The open card's rule line")
+  assert.notEqual(D.zones('lateral-raise-elbow-lead'), null);
+  const cant = { ...view.cues.find(c => c.id === 'lateral-raise-elbow-lead'), status: "can't score", verdict: null, value: null, tiles: [], referenceLine: null, series: [], phase: null, worst: null, reason: 'No valid rep.' };
+  const unscored = m.cardsOf({ ...view, cues: [cant] }, id => D.zones(id))[0];
+  assert.equal(unscored.rule, 'Provisional');
   // without the API at all (the old call), the card is as d17 left it
   assert.equal(m.cardsOf(view)[0].rule, 'Provisional');
 });

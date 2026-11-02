@@ -78,7 +78,7 @@ export function cardsOf(view, zonesOf = null) {
       line: c.reason === null ? c.verdict : c.reason,
       value: valueText(c),
       provisional: c.provisional,
-      rule: ruleLine(zonesOf ? ruleSentence(c.unit, zonesOf(c.id)) : null, c.provisional),
+      rule: ruleLine(c.reason === null && zonesOf ? ruleSentence(c.unit, zonesOf(c.id)) : null, c.provisional),
       cue: c.cue,
       notes: [...c.notes],
       reason: c.reason,

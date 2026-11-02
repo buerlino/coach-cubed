@@ -128,11 +128,10 @@ test('plot: the phase band, the reference line and the worst moment\'s marker si
   const g = p.plotGeometry(cue, D.zones(cue.id), { ...SIZE, pad: PAD, format: v => `<${v.toFixed(1)}>` });
   near(g.phase.left, g.x(cue.phase.t0), 'phase start');
   near(g.phase.right, g.x(cue.phase.t1), 'phase end');
-  assert.equal(g.reference, null === cue.referenceLine ? null : g.reference);
-  if (cue.referenceLine) {
-    near(g.reference.y, g.y(cue.referenceLine.value), 'reference value');
-    assert.equal(g.reference.label, cue.referenceLine.label);
-  }
+  assert.ok(cue.referenceLine, 'the elbow lead has a reference line');
+  assert.ok(g.reference, 'the plot draws it');
+  near(g.reference.y, g.y(cue.referenceLine.value), 'reference value');
+  assert.equal(g.reference.label, cue.referenceLine.label);
   near(g.worst.x, g.x(cue.worst.t), 'worst time');
   near(g.worst.y, g.y(cue.worst.value), 'worst value');
   assert.equal(g.worst.label, `<${cue.worst.value.toFixed(1)}>`);
@@ -215,7 +214,8 @@ test('plot: plotStyle reads the tokens, never a literal; drawPlot paints the ban
   assert.ok(dot && Math.abs(dot.args[0] - g.worst.x) < 1e-9 && Math.abs(dot.args[1] - g.worst.y) < 1e-9, 'the worst moment\'s dot');
   const words = ctx.calls.filter(c => c.name === 'fillText').map(c => c.args[0]);
   for (const w of ['Good', 'Watch', 'Work on']) assert.ok(words.includes(w), w);
-  assert.ok(words.includes(cue.referenceLine.label) || !cue.referenceLine, 'the reference line\'s label');
+  assert.ok(cue.referenceLine, 'the elbow lead has a reference line');
+  assert.ok(words.includes(cue.referenceLine.label), 'the reference line\'s label');
   assert.ok(words.includes(g.worst.label), 'the marker\'s value');
   // every colour set on the context came from the style
   const allowed = new Set([...Object.values(style.zone), ...Object.values(style.status), style.trace, style.text, style.textSoft, style.ground, style.band, style.phase, style.line, style.marker, style.reference, style.playhead, null]);
@@ -412,10 +412,13 @@ test('S1\'s "How the cues are scored" is enabled and opens its text through the 
   assert.ok(fs.existsSync(path.join(APP, 'src', 'ui', 'screens', `${SCREEN_OF.scoring}.mjs`)));
   assert.equal(createFlow('home').can('scoring'), false, 'only from the settings');
   const s1 = read('app', 'src', 'ui', 'screens', 'S1.mjs');
-  const row = s1.split('\n').find(l => l.includes('How the cues are scored') || false);
+  const at = s1.indexOf('How the cues are scored');
+  const start = s1.lastIndexOf('<button', at);
+  const row = s1.slice(start, s1.indexOf('</button>', at));
+  assert.ok(at > 0 && start > 0, 'the row is a button');
+  assert.ok(!/disabled/.test(row.slice(0, row.indexOf('>'))), 'the row\'s button is not disabled');
+  assert.match(row, /flow\.go\('scoring'\)/);
   assert.ok(!/Coming in a later version/.test(s1.slice(s1.indexOf('How the cues are scored') - 400, s1.indexOf('How the cues are scored') + 200)), 'no more "Coming in a later version" on the row');
-  assert.match(s1, /flow\.go\('scoring'\)/);
-  assert.ok(row);
 });
 
 test('the plot and the screens\' colours come from tokens: no literal in app/src/ui/ or app/src/draw/, and the plot tokens exist', () => {
