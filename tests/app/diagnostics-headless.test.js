@@ -483,9 +483,14 @@ function panelLines(el, k) {
 }
 
 const MARKUP = /[<>]|&(?:[a-zA-Z]+|#\d+|#x[0-9a-fA-F]+);/;
-// diagnostics.js's tempo and symmetry cues have no time-smoothing bullet (their
-// transparencyLines at phase-0, 43b3dd5); every other cue has one.
-const NO_SMOOTHING_LINE = ['lateral-raise-tempo', 'lateral-raise-symmetry'];
+// Every scored cue has exactly one "Time smoothing" line (s42: the tempo and the
+// symmetry had none before): the σ when smoothing is on, "off — …" when it is off.
+function assertSmoothingLine(lines, smoothingMs, where) {
+  const smoothing = lines.filter(l => l.label === 'Time smoothing');
+  assert.equal(smoothing.length, 1, where);
+  if (smoothingMs) assert.match(smoothing[0].text, new RegExp(`σ = ${smoothingMs} ms`), where);
+  else assert.match(smoothing[0].text, /^off — /, where);
+}
 
 test('scoringLines gives each cue\'s transparency lines as plain text that joins back to the old panel\'s, on every committed fixture and set', () => {
   const { cues, sets } = loadInternals();
@@ -511,11 +516,7 @@ test('scoringLines gives each cue\'s transparency lines as plain text that joins
             assert.ok(!MARKUP.test(line.text), `${where}: markup left in ${JSON.stringify(line.text)}`);
           }
           assert.deepStrictEqual(lines.map(l => `<strong>${l.label}</strong> — ${l.text}`), panelLines(el, k), where);
-          const smoothing = lines.filter(l => l.label === 'Time smoothing');
-          if (NO_SMOOTHING_LINE.includes(c.id)) { assert.equal(smoothing.length, 0, where); return; }
-          assert.equal(smoothing.length, 1, where);
-          if (smoothingMs) assert.match(smoothing[0].text, new RegExp(`σ = ${smoothingMs} ms`), where);
-          else assert.match(smoothing[0].text, /^off — /, where);
+          assertSmoothingLine(lines, smoothingMs, where);
         });
       }
     }
@@ -555,6 +556,9 @@ test('scoringLines gives a scored symmetry\'s lines too', () => {
   const out = D.computeResults(keypoints, { fps: 30, frame_indices: idx, frame_times_ms: idx.map(i => i * 1000 / 30) }, '1');
   const id = 'lateral-raise-symmetry';
   assert.ok(!out.results[id].error, out.results[id].error);
+  for (const smoothingMs of [0, 50]) {
+    assertSmoothingLine(D.scoringLines(id, out, { smoothingMs }), smoothingMs, `symmetry σ ${smoothingMs}`);
+  }
   const lines = D.scoringLines(id, out, { smoothingMs: 50 });
   const html = cues.get(id).transparencyLines(out.results[id], out.samples, { smoothingMs: 50, scale: out.scale, axis: out.axis });
   assert.ok(lines.length > 0 && lines.every(l => !MARKUP.test(l.label) && !MARKUP.test(l.text)));
