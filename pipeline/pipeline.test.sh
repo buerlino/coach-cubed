@@ -79,6 +79,11 @@ case "$mode" in
          printf "const test = require('node:test'); const a = require('node:assert'); test('bad', () => a.equal(1, 2));\n" > tests/bad.test.js
          commit "feature with a failing test";;
     esac;;
+  dirty)
+    case "$prompt" in
+      *"fix round"*) commit "the edits left over";;
+      *) echo feature >> shared.txt; commit "feature"; echo stray >> shared.txt; echo note > notes.txt;;
+    esac;;
   *) echo "feature $RANDOM" >> shared.txt; commit "feature";;
 esac
 echo "last commit $(git rev-parse --short HEAD 2>/dev/null), done"
@@ -147,6 +152,15 @@ pl "$sb" w1
 [[ "$(rc "$sb")" -eq 0 ]] || fail "checks: $(out "$sb")"
 grep -q 'checks failed (round 0): npm failed' "$sb/coord/log.md" || fail "checks: no failed-check line: $(cat "$sb/coord/log.md")"
 grep -q "not ok\|# fail 1" "$sb/tasks/001-w1/fix-1.in" || fail "checks: the fix round did not get the failing lines"
+
+# 4b. edits left uncommitted fail the round before any check runs (run 45, s50); the fix round commits them and the run merges
+sb="$(sandbox uncommitted)"; echo dirty > "$sb/mode"
+pl "$sb" w1
+[[ "$(rc "$sb")" -eq 0 ]] || fail "dirty: $(out "$sb")"
+grep -q 'checks failed (round 0): tree failed' "$sb/coord/log.md" || fail "dirty: no failed-tree line: $(cat "$sb/coord/log.md")"
+grep -q 'notes.txt' "$sb/tasks/001-w1/fix-1.in" && grep -q 'shared.txt' "$sb/tasks/001-w1/fix-1.in" || fail "dirty: the fix round did not get the files"
+[[ -f "$sb/integ/notes.txt" ]] && grep -q stray "$sb/integ/shared.txt" || fail "dirty: the committed edits did not merge"
+[[ "$(calls "$sb" hillbert)" -eq 1 ]] || fail "dirty: the dirty round was audited: $(cat "$sb/calls")"
 
 # 5. no commits; a questioned task; a usage limit
 sb="$(sandbox nocommit)"; echo nocommit > "$sb/mode"

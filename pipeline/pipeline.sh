@@ -270,9 +270,17 @@ run_agent() {  # <name> <log> <agent> <model> <effort> <stdin file> <prompt> [to
 
 # The deterministic checks; a failure's excerpt goes to $run/fail-<round>.txt.
 run_checks() {  # <round>
-  local round="$1" list name rc out why
-  list="$(want_checks)"; [[ -n "$list" ]] || { runlog "checks: none"; return 0; }
+  local round="$1" list name rc out why dirty
   : > "$run/fail-$round.txt"
+  # The checks read the worker's tree, the audit and the merge only its commit: an edit left uncommitted can pass the checks and
+  # never reach the integration branch (run 45, s50: its tests passed here and failed on phase-0). A dirty tree fails the round.
+  dirty="$(git -C "$wt" status --porcelain --untracked-files=normal | grep -vE '(^|/)node_modules/?$' || true)"
+  if [[ -n "$dirty" ]]; then
+    { echo "## tree failed: uncommitted changes in the worktree; commit each one that belongs to the package and remove the rest" \
+        "(the audit and the merge read only commits)"; head -n 40 <<<"$dirty"; echo; } >> "$run/fail-$round.txt"
+    runlog "check tree: FAILED"; return 1
+  fi
+  list="$(want_checks)"; [[ -n "$list" ]] || { runlog "checks: none"; return 0; }
   for name in ${list//,/ }; do
     out="$run/check-$round-$name.log"; rc=0; why=""
     case "$name" in

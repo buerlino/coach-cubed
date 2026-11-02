@@ -64,7 +64,8 @@ A package is one concern a fresh session finishes in one run: a few hours of age
    on stdin, no Agent tool, three hours at most. It commits small and ends with the report commit. A worker that ends
    without a commit, or says its package is missing or wrong, ends the run (NOT MERGED).
 3. **The queue:** the run takes the `integ` lock, merges `phase-0` into the branch (a conflict is a resolve round for
-   the worker), and runs the **checks** in the worker's worktree: `npm test`, the Python tests, the pipeline's own shell
+   the worker), and runs the **checks** in the worker's worktree, which must be clean first (an edit left uncommitted
+   fails the round, `tree failed`: the checks would read it, the audit and the merge don't; run 45): `npm test`, the Python tests, the pipeline's own shell
    tests when `pipeline/` changed, red-first when the package asks for it, and the app's own tests when the diff touches
    `app/` or `src/`: `npm --prefix app test` and `npm --prefix app run test:page` (the offline headless page test),
    each only once `app/package.json` has that script. The run installs `app/node_modules` first when it is missing or
