@@ -10,3 +10,19 @@ export const ENGINE_FAILED = 'The pose engine failed:';
 
 /** The watchdog's message (queue.mjs's StallError) starts with this. */
 export const STALLED = 'The analysis stopped responding';
+
+/**
+ * The frame source failed during the job (a MediaError: decode-failed, unreadable, decode-stalled once its
+ * restarts ran out, …): the job keeps `MEDIA_FAILED (code): message`, so a screen can tell the video from the
+ * engine and read the code back with `mediaCodeOf`.
+ */
+export const MEDIA_FAILED = 'The video could not be read';
+
+/** A MediaError as the job's error string: the phrase, the code, the frame source's own message. */
+export const mediaFailure = e => `${MEDIA_FAILED} (${e.code}): ${e.message}`;
+
+/** The MediaError code in a job's error string, or null when it isn't one of ours. */
+export function mediaCodeOf(message) {
+  const m = typeof message === 'string' && message.startsWith(MEDIA_FAILED) ? /^\(([a-z-]+)\):/.exec(message.slice(MEDIA_FAILED.length).trimStart()) : null;
+  return m ? m[1] : null;
+}

@@ -9,7 +9,7 @@
 // `engine` is the raising module's own words (the frame source's message, diagnostics.js's reason, the
 // worker's message, the store's), shown as they are; `title`, `what` and `can` are this screen's. Nothing is
 // invented: advice is only what the app can really do (pick another video, analyse again, delete lifts).
-import { ENGINE_FAILED, NO_PERSON, STALLED } from '../analysis/messages.mjs';
+import { ENGINE_FAILED, MEDIA_FAILED, NO_PERSON, STALLED, mediaCodeOf } from '../analysis/messages.mjs';
 import { STORAGE_FULL } from '../store/index.mjs';
 
 /** The kinds of problem the screens know. */
@@ -29,9 +29,9 @@ const KINDS = {
     actions: { retry: false, another: true },
   },
   'no-webcodecs': {
-    title: "This browser can't read videos",
-    what: 'Reading a video needs WebCodecs, and this browser does not have it.',
-    can: 'Open the app in a current version of Chrome or Brave, or use the Android app.',
+    title: "This app can't read videos here",
+    what: 'Reading a video needs WebCodecs, and this runtime has no video decoder.',
+    can: 'Go back to the home screen.',
     actions: { retry: false, another: false },
   },
   'no-person': {
@@ -64,17 +64,23 @@ const UNREADABLE = new Set(['unreadable', 'no-video', 'decode-failed', 'decode-s
 
 const messageOf = e => (typeof e === 'string' ? e : e && typeof e.message === 'string' && e.message) || '';
 
+function kindOfMediaCode(code) {
+  if (code === 'unsupported-codec') return 'unsupported-codec';
+  if (code === 'no-webcodecs') return 'no-webcodecs';
+  return UNREADABLE.has(code) ? 'unreadable' : null;
+}
+
 function kindOf(e) {
   if (e && typeof e === 'object') {
     if (e.code === 'storage-full') return 'storage-full';
-    if (e.code === 'unsupported-codec') return 'unsupported-codec';
-    if (e.code === 'no-webcodecs') return 'no-webcodecs';
-    if (UNREADABLE.has(e.code)) return 'unreadable';
+    const media = kindOfMediaCode(e.code);
+    if (media) return media;
     if (e.name === 'EngineError' || e.name === 'StallError') return 'engine-failed';
     if (e.name === 'NoPersonError') return 'no-person';
   }
   const m = messageOf(e);
   if (m === STORAGE_FULL) return 'storage-full';
+  if (m.startsWith(MEDIA_FAILED)) return kindOfMediaCode(mediaCodeOf(m)) || 'unreadable';   // a MediaError in the job: its code is in the string
   if (m.startsWith(NO_PERSON)) return 'no-person';
   if (m.startsWith(ENGINE_FAILED) || m.startsWith(STALLED)) return 'engine-failed';
   return 'failed';
@@ -84,6 +90,7 @@ function kindOf(e) {
 function ownWords(kind, m) {
   if (kind === 'no-person' && m.startsWith(NO_PERSON)) return m.slice(NO_PERSON.length).trim() || null;
   if (kind === 'engine-failed' && m.startsWith(ENGINE_FAILED)) return m.slice(ENGINE_FAILED.length).trim() || null;
+  if (m.startsWith(MEDIA_FAILED)) return m.replace(/^[^:]*\([a-z-]+\):\s*/, '') || null;
   return m || null;
 }
 
@@ -99,4 +106,20 @@ export function problemOf(error) {
   const kind = kindOf(error);
   const k = KINDS[kind];
   return { kind, title: k.title, what: k.what, can: k.can, engine: ownWords(kind, messageOf(error)), actions: { ...k.actions } };
+}
+
+/**
+ * The buttons M offers for a problem, in order: `retry` and `marks` only at Analyse (the marks are still
+ * there), `another` where another video can help (never because of where the problem came up), `home` always.
+ * @param {ReturnType<typeof problemOf>} problem
+ * @param {boolean} atAnalyse the problem came up at Analyse, not when the video was opened
+ * @returns {string[]}
+ */
+export function waysOn(problem, atAnalyse) {
+  return [
+    ...(atAnalyse && problem.actions.retry ? ['retry'] : []),
+    ...(atAnalyse ? ['marks'] : []),
+    ...(problem.actions.another ? ['another'] : []),
+    'home',
+  ];
 }

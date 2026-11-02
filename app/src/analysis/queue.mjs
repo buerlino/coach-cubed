@@ -25,7 +25,7 @@
 import { JOB_STAGES, createJob, validateAnalysisJob } from '../contracts/analysis-job.mjs';
 import { EngineError, JobCancelled, runJob } from './job.mjs';
 import { estimateCost, rateOf } from './estimate.mjs';
-import { STALLED } from './messages.mjs';
+import { STALLED, mediaFailure } from './messages.mjs';
 
 /** No progress for the watchdog's time while visible. */
 export class StallError extends Error {
@@ -35,6 +35,8 @@ export class StallError extends Error {
 const copy = j => ({ ...j, range: { ...j.range }, progress: j.progress && { ...j.progress } });
 const ended = s => s === 'done' || s === 'failed' || s === 'cancelled';
 const messageOf = e => (e && typeof e.message === 'string' && e.message) || String(e);
+// what a failed job keeps: a MediaError (the frame source, d23) with its code, so a screen can tell the video from the engine
+const failureOf = e => (e && e.name === 'MediaError' && typeof e.code === 'string' ? mediaFailure(e) : messageOf(e));
 
 /**
  * @param {Object} deps
@@ -186,7 +188,7 @@ export function createQueue({
         const again = e instanceof EngineError || e instanceof StallError || (e && e.code === 'decode-stalled');
         if (again && restarts < maxRestarts && !run.cancel) continue;
         if (run.cancel) return { state: 'cancelled' };
-        return { state: 'failed', error: messageOf(e) };
+        return { state: 'failed', error: failureOf(e) };
       } finally {
         run.abort = null;
       }
@@ -206,7 +208,7 @@ export function createQueue({
     running = run;
     startWatchdog();
     let end;
-    try { end = await drive(job, run); } catch (e) { end = { state: 'failed', error: messageOf(e) }; }
+    try { end = await drive(job, run); } catch (e) { end = { state: 'failed', error: failureOf(e) }; }
     // a cancel the run saw ends it cancelled, whatever the run's own end (a failure after it)
     if (run.cancel && end.state !== 'done') end = { state: 'cancelled' };
     job.state = end.state;

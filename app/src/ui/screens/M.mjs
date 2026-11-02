@@ -16,7 +16,7 @@ import {
   marksFromRange, newMarks, otherLift, redo, setMark, stripLeft, thumbSeconds, thumbTime,
 } from '../mark-model.mjs';
 import { Problem } from '../components/problem.mjs';
-import { problemOf } from '../problem-model.mjs';
+import { problemOf, waysOn } from '../problem-model.mjs';
 import { ChevronDownIcon, CloseIcon, StepBackIcon, StepForwardIcon } from '../components/icons.mjs';
 
 const THUMB_MARGIN = 3;       // seconds of thumbnails made beyond the strip's edges
@@ -203,6 +203,7 @@ export function M({ flow, queue, openSource = openFrameSource }) {
 
   if (file && failure) {
     const { problem: p, atAnalyse } = failure;
+    const ways = waysOn(p, atAnalyse);
     return html`
       <main class="screen" data-screen="M" data-step="problem">
         <header class="mark-header">
@@ -211,9 +212,9 @@ export function M({ flow, queue, openSource = openFrameSource }) {
         </header>
         <div class="screen__body">
           <${Problem} problem=${p}>
-            ${atAnalyse && p.actions.retry ? html`<button type="button" class="button--primary button-big" onClick=${() => { setFailure(null); onAnalyse(); }}>Try again</button>` : null}
-            ${atAnalyse ? html`<button type="button" class="button--raised button-wide" onClick=${() => { setFailure(null); setRefused(null); }}>Back to the marks</button>` : null}
-            ${!atAnalyse || p.actions.another ? html`<button type="button" class=${atAnalyse ? 'button-wide' : 'button--primary button-big'} onClick=${() => flow.go('import')}>Pick another video</button>` : null}
+            ${ways.includes('retry') ? html`<button type="button" class="button--primary button-big" onClick=${() => { setFailure(null); onAnalyse(); }}>Try again</button>` : null}
+            ${ways.includes('marks') ? html`<button type="button" class="button--raised button-wide" onClick=${() => { setFailure(null); setRefused(null); }}>Back to the marks</button>` : null}
+            ${ways.includes('another') ? html`<button type="button" class=${atAnalyse ? 'button-wide' : 'button--primary button-big'} onClick=${() => flow.go('import')}>Pick another video</button>` : null}
             <button type="button" class="button--raised button-wide" onClick=${() => flow.go('home')}>Back to home</button>
           <//>
         </div>

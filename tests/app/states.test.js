@@ -298,3 +298,51 @@ test('the new screens take every colour from tokens.css', () => {
   walk(path.join(APP, 'src', 'ui'));
   for (const f of files) if (/\.(mjs|css)$/.test(f)) assert.ok(!hex.test(fs.readFileSync(f, 'utf8')), `${path.relative(ROOT, f)} has a literal colour`);
 });
+
+// ---- fix round 1 ----
+
+test('no WebCodecs: the screen says only what the app knows and M offers only the way back', async () => {
+  const { problemOf, waysOn } = await load('src/ui/problem-model.mjs');
+  const p = problemOf(Object.assign(new Error('x'), { name: 'MediaError', code: 'no-webcodecs' }));
+  assert.equal(p.kind, 'no-webcodecs');
+  assert.equal(p.actions.another, false);
+  assert.doesNotMatch(`${p.title} ${p.what} ${p.can}`, /Chrome|Brave|Android app/i, 'no advice the app cannot back up');
+  assert.deepEqual(waysOn(p, false), ['home'], 'opening the video: only Back to home');
+  assert.deepEqual(waysOn(problemOf(Object.assign(new Error('x'), { code: 'unreadable' })), false), ['another', 'home']);
+  assert.deepEqual(waysOn(problemOf(Object.assign(new Error('x'), { code: 'storage-full' })), true), ['retry', 'marks', 'home']);
+  const m = fs.readFileSync(path.join(APP, 'src/ui/screens/M.mjs'), 'utf8');
+  assert.match(m, /ways\.includes\('another'\)/, 'M gates "Pick another video" on the problem');
+  assert.doesNotMatch(m, /!atAnalyse \|\|/);
+});
+
+test('a frame-source error during the job is the unreadable-video screen, with no retry', async () => {
+  const { MediaError } = await load('src/media/frame-source.mjs');
+  const { problemOf } = await load('src/ui/problem-model.mjs');
+  const { analysingView } = await load('src/ui/analysing-model.mjs');
+  const { createStore } = await load('src/store/index.mjs');
+  const { createQueue } = await load('src/analysis/index.mjs');
+  const storage = createFakeStorage();
+  const store = createStore({ storage: storage.storage, now: () => new Date('2026-11-02T09:00:00.000Z'), appVersion: '0.1.0' });
+  const source = fakeSource();
+  source.frames = async function* () { throw new MediaError('decode-failed', 'The decoder reported an error (bad NAL)'); };
+  const queue = createQueue({ store, createEngine: async () => engineOf(), openFrameSource: async () => source, Diagnostics, now: () => 0, timers });
+  const job = await queue.enqueue(await lifted(store));
+  await queue.idle();
+  const end = queue.jobs().find(j => j.id === job.id);
+  assert.equal(end.state, 'failed');
+  const p = problemOf(end.error);
+  assert.equal(p.kind, 'unreadable');
+  assert.equal(p.actions.retry, false);
+  assert.equal(p.engine, 'The decoder reported an error (bad NAL)', "the frame source's words, unchanged");
+  const view = analysingView([end], { liftId: end.liftId, lift: null });
+  assert.equal(view.problem.kind, 'unreadable');
+  assert.equal(view.actions.retry, false);
+});
+
+test('a job error from the frame source keeps its code: a codec or a missing decoder is its own screen', async () => {
+  const { MediaError } = await load('src/media/frame-source.mjs');
+  const { mediaFailure } = await load('src/analysis/messages.mjs');
+  const { problemOf } = await load('src/ui/problem-model.mjs');
+  assert.equal(problemOf(mediaFailure(new MediaError('unsupported-codec', 'hvc1 is not supported', { codec: 'hvc1' }))).kind, 'unsupported-codec');
+  assert.equal(problemOf(mediaFailure(new MediaError('no-webcodecs', 'no decoder'))).kind, 'no-webcodecs');
+});

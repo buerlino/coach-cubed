@@ -896,15 +896,15 @@ nordmu in the app. Screenshots stay out of git; this is what each looks like.
   | --- | --- | --- | --- |
   | `unreadable` | s9's `MediaError` `unreadable`, `no-video`, `decode-failed`, `decode-stalled` | This video can't be read | pick another video |
   | `unsupported-codec` | s9's `unsupported-codec` (names the codec) | This phone can't play this video | pick another video |
-  | `no-webcodecs` | s9's `no-webcodecs` | This browser can't read videos | back |
+  | `no-webcodecs` | s9's `no-webcodecs` | This app can't read videos here | back |
   | `no-person` | s12's job: a track nobody is in (`kept_frames` 0) fails with `NO_PERSON` and diagnostics.js's reason | No person found | pick another video (from M); back to home (from Q1) |
   | `engine-failed` | s12: `EngineError` (`ENGINE_FAILED` and the worker's message) and the watchdog's `StallError` | The pose engine stopped | analyse again |
   | `storage-full` | c8's `StoreError` `storage-full`, at Analyse (`saveLift`) and in the job (`updateLift`, as the job's string) | Storage is full | try again after deleting lifts |
   | `failed` | anything else, in its own words | That didn't work | try again |
 
   A failed job keeps only a string (contract 2), so the job's own phrases are in `analysis/messages.mjs`
-  (`NO_PERSON`, `ENGINE_FAILED`, `STALLED`) and the model reads them back; the store's message is `STORAGE_FULL`.
-  **M** takes its whole screen for a video it can't open (Pick another video, Back to home) and for an Analyse the
+  (`NO_PERSON`, `ENGINE_FAILED`, `STALLED`, and `MEDIA_FAILED` with the code: a `MediaError` raised during the job, e.g. `decode-failed`, is kept as `mediaFailure(e)`, so Q1 shows "This video can't be read" with no retry) and the model reads them back; the store's message is `STORAGE_FULL`.
+  **M** takes its whole screen for a video it can't open (`waysOn()`: Pick another video only where the problem allows it, Back to home) and for an Analyse the
   store or the cutter refused (Try again, Back to the marks, Back to home). **Q1** shows the panel in place of the
   old reason line; "Analyse again" is offered only where trying again can help (not for no person found). A person
   found in only some frames is not an error: the cues say what they could not score.
