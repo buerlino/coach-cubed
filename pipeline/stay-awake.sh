@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Keep the phone awake for a measurement, and undo it afterwards. Ported from pascaline's tools/stay-awake.sh; curie runs it.
 #
 #   pipeline/stay-awake.sh <serial>            # save the originals (once), keep the screen on, record the device's info

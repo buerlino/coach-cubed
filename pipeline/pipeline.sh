@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # pipeline/pipeline.sh: one work package, end to end, with fresh headless agents and a small context (docs/pipeline.md).
 # Ported from pascaline's scripts/pipeline.sh: its package run, merge queue and guards, without its nights, lanes, passes, device
 # steps and engine builds.

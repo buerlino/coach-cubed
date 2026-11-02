@@ -13,8 +13,9 @@ finish (git keeps the history). Decisions and open questions are in
   (commits since `a0a9499`), apart from two steps that run at Phase 5's
   checkpoint A, with the queue empty
   (D8, [app-plan.md](app-plan.md#decided-2026-11-01)):
-  - 2.7's LICENSE and SPDX headers (GPL-3.0-or-later), once the authors'
-    written OKs are in ([decisions.md](decisions.md#licence));
+  - 2.7's LICENSE and SPDX headers (AGPL-3.0-or-later, pending Noah:
+    question 11), once the authors' written OKs are in
+    ([decisions.md](decisions.md#licence));
   - 2.8, the history rewrite, with nordmu's explicit OK, once the clipper
     repo has its home; if Noah comes back earlier, the queue drains early
     for it (question 6).
@@ -67,8 +68,8 @@ finish (git keeps the history). Decisions and open questions are in
   2026-11-02, nordmu's OK). `main` stays at `62b2cee` until Noah has looked
   at `phase-0` and agreed; every later push needs nordmu's OK too.
 - **Start now, outside a session** (to-dos, not session work):
-  - nordmu: a one-line written OK to GPL-3.0-or-later from Noah, Nicola
-    Walker and JMLuner (a chat message each is enough);
+  - nordmu: a one-line written OK to AGPL-3.0-or-later (question 11) from
+    Noah, Nicola Walker and JMLuner (a chat message each is enough);
   - nordmu: a private GitHub repo for `../weightlifting-clipper`, pushed
     (2.8's precondition);
   - nordmu: the validation set (3.0), filmed by a friend, with the
@@ -221,7 +222,8 @@ Finished steps keep one line each; the details are in their commits.
 - [~] 2.7 [THIRD_PARTY.md](../THIRD_PARTY.md) and [authors.md](authors.md)
       (`cc72cc8`); LICENSE and the SPDX headers wait for the authors' written
       OKs ([decisions.md](decisions.md#licence)), and run at checkpoint A
-      (D8).
+      (D8). The proposed licence is AGPL-3.0-or-later (question 11), so
+      LICENSE would be <https://www.gnu.org/licenses/agpl-3.0.txt>.
 - [ ] 2.8 One history rewrite at the end of the window, at checkpoint A
       (D8) with the queue empty, before Noah resumes, with nordmu's
       explicit OK. **Precondition:** `../weightlifting-clipper`
