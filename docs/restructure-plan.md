@@ -42,7 +42,7 @@ finish (git keeps the history). Decisions and open questions are in
   - 3.6 on it in Brave on the Fairphone, which replaces the provisional
     agreement numbers (four example clips, where every candidate but
     MoveNet Lightning sits at 100%), confirms Thunder or switches to
-    BlazePose, and decides the snatch.
+    BlazePose (the snatch ships in 0.1.0 as built, nordmu, 2026-11-02).
 
   **Phase 5 is cut into packages** (2026-11-01): nordmu approved mockups
   v1 as the basis to build on (5.2 done; changes after checkpoint A go

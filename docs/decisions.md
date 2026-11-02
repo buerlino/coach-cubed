@@ -137,8 +137,8 @@ restructuring window, merged packages' details) are in [decisions-archive.md](de
 - **2026-10-31, nordmu: the core of 0.1.0 is the lift analysis pipeline:**
   video, on-device pose, `diagnostics.js`, plots and verdicts (map areas 1–3).
   3D, bar detection, anatomy, the Movement Lab and the train tab are parked.
-- **2026-10-31, nordmu: 0.1.0 analyses the lateral raise, plus the snatch if
-  the Phase 3 spike passes** (otherwise the snatch moves to 0.2).
+- **2026-10-31, nordmu: 0.1.0 analyses the lateral raise and the snatch.**
+  The snatch was tied to the spike; 2026-11-02, nordmu: it ships as built.
 - **2026-10-31, nordmu: `clipper/` goes back to its own repo; `report/` stays
   here as a parked research folder.** It lives in `../weightlifting-clipper`,
   a plain folder beside coach. 2026-11-02, nordmu: clipper's history isn't
