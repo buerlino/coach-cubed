@@ -205,8 +205,7 @@ takes about 1 s per 1080p frame once warm.
 - **Models:**
   - ViTPose-L (1.2 GB) and ViTPose-H (2.5 GB), COCO-17;
   - YOLOv8s person detector via `ultralytics`, which is **AGPL-3.0**, as
-    coach is to be (decisions.md, question 11); whether it ships is
-    question 12;
+    coach is to be (decisions.md, question 11); it never ships in the app;
   - SORT tracking.
 - **Runtime:** CUDA, then MPS, then CPU.
 - **Tests:** none.
@@ -427,8 +426,8 @@ These break silently, not as import errors:
   Authors column above).
 - **AGPL:** YOLOv8 via `ultralytics` is AGPL-3.0 (server path only). With
   coach proposed as AGPL-3.0-or-later ([decisions.md](decisions.md#licence)),
-  the licence no longer keeps it out of the app; whether it ships is open
-  (question 12: its size, a Python runtime).
+  the licence no longer keeps it out of the app, but the app doesn't need
+  it, so it never ships (nordmu, 2026-11-02).
 - **`.auth_password`:** an unsalted SHA-256 hash of the app's old login
   password.
   - The first commit (`0529038`, 2026-08-30) read it, with a comment calling

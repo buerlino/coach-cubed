@@ -124,9 +124,8 @@ on nordmu's laptop on 2026-10-31; the licences are what each package declares.
   default" (<https://www.ultralytics.com/license>); the
   `ultralytics/assets` repo the weights come from declares AGPL-3.0. None
   of them names `yolov8s.pt` itself, so treat the weights as AGPL-3.0
-  (checked 2026-10-31). YOLOv8 stays on the dev server; whether it may ever
-  ship is open ([docs/decisions.md](docs/decisions.md#needs-an-answer),
-  question 12).
+  (checked 2026-10-31). YOLOv8 stays on the dev server and never ships in
+  the app, which doesn't need it ([docs/decisions.md](docs/decisions.md#licence)).
 
 ## Fetched by the Phase 3 spike (not shipped)
 
@@ -156,7 +155,7 @@ Downloaded by `spike/pose-bench/` (`npm ci`, `fetch-models.sh`), `spike/capture-
 | YOLOX-nano / -tiny (COCO), the person detector for ViTPose and RTMPose | `yolox_{nano,tiny}.onnx`, 3.7 / 20.2 MB | Apache-2.0 (Megvii's repo and release) | `github.com/Megvii-BaseDetection/YOLOX/releases/tag/0.1.1rc0` |
 
 Left out: YOLOv8 and every Ultralytics model (AGPL-3.0, while coach was
-GPL-3.0 and nothing AGPL could ship; now open, question 12); OpenMMLab's
+GPL-3.0; the app doesn't need them either); OpenMMLab's
 RTMDet-nano person detector (trained on Objects365, whose terms are reported
 as non-commercial, unverified) and its YOLOX HumanArt detectors (Human-Art is
 licensed for non-commercial use only).

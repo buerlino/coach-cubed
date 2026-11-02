@@ -46,10 +46,8 @@ covers is in [decisions.md](decisions.md); how the repo gets there is in
 - coach is AGPL-3.0-or-later, pending Noah and the four authors' OK
   ([decisions.md](decisions.md#licence)). Every dependency that ships in the
   app is permissive or AGPL-3.0-compatible.
-- YOLOv8 (`ultralytics`, AGPL-3.0) stays on the dev server. Whether it may
-  ever ship is open ([decisions.md](decisions.md#needs-an-answer), question
-  12): the licence no longer rules it out, but
-  its size and a Python runtime may.
+- YOLOv8 (`ultralytics`) never ships in the app: the app doesn't need it
+  ([decisions.md](decisions.md#licence)). It stays on the dev server.
 - The pose runtime that ships is open source and buildable from source
   (nordmu, 2026-11-01): no closed binary such as MediaPipe Tasks' web
   runtime ([pose-spike.md](pose-spike.md#the-licence-gate)).
