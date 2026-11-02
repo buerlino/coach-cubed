@@ -1,10 +1,11 @@
 // node app/tools/layout-check.mjs [--browser PATH] [--shots DIR] [--break KIND]     (npm --prefix app run check:layout)
 //
-// The responsive check (package d25, plan step 5.7): every screen of the app at five window sizes, in the page
+// The responsive check (package d25, plan step 5.7): every screen of the app at seven window sizes, in the page
 // test's build (assemble.mjs --test, app/README.md "The page test") in headless Brave or Chromium over the
 // DevTools protocol. It walks the app the way the page test does (first-run intro, H, S1, S1's credits, S1b,
 // Import, M in its three steps and its error, Q1, A1, A3's sheet, A2) and at each screen sets each size in turn:
-//   phone portrait 360×800 and 412×915, phone landscape 800×360, tablet 768×1024, laptop 1280×800.
+//   phone portrait 360×800 and 412×915, phone landscape 800×360, tablet 768×1024, laptop 1280×800, and above A4's
+//   breakpoint a landscape tablet 1024×768 and a narrow window 980×720 (the video column has to give way there).
 // It fails on
 //   - horizontal scrolling: the page is wider than the window;
 //   - content cut off: an element sticking out of the window to the side, outside anything that scrolls or
@@ -33,13 +34,16 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const APP = resolve(HERE, '..');
 const ROOT = resolve(APP, '..');
 
-/** The five sizes of step 5.7, in CSS pixels. `mobile` is what the DevTools emulation needs for a phone or tablet. */
+/** The five sizes of step 5.7 and two more just above A4's breakpoint, in CSS pixels. `mobile` is what the DevTools emulation needs for a phone or tablet. */
 export const VIEWPORTS = Object.freeze([
   { name: 'phone portrait', width: 360, height: 800, mobile: true },
   { name: 'phone portrait, large', width: 412, height: 915, mobile: true },
   { name: 'phone landscape', width: 800, height: 360, mobile: true },
   { name: 'tablet portrait', width: 768, height: 1024, mobile: true },
   { name: 'laptop', width: 1280, height: 800, mobile: false },
+  // the range just above A4's breakpoint, where the video column has to give way: a landscape tablet and a narrow window
+  { name: 'tablet landscape', width: 1024, height: 768, mobile: true },
+  { name: 'narrow laptop window, at the breakpoint', width: WIDE_MIN_PX, height: 720, mobile: false },
 ]);
 /** tokens.css --touch */
 export const TOUCH_PX = 44;
@@ -152,6 +156,13 @@ const say = s => process.stdout.write(`${s}\n`);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // What a deliberate fault adds to the page, to see the check fail.
+/** A1 as it is with a 16:9 video: the stage's ratio variable and the frame's aspect ratio, as A1.mjs sets them. */
+export const LANDSCAPE_VIDEO = `(() => {
+  const stage = document.querySelector('.result-stage'), frame = document.querySelector('.result-frame');
+  if (stage) stage.style.setProperty('--frame-ratio', String(16 / 9));
+  if (frame) frame.style.aspectRatio = '16 / 9';
+})()`;
+
 const BREAKS = {
   scroll: `(() => { const d = document.createElement('div'); d.style.cssText = 'width:2000px;height:4px'; document.body.appendChild(d); })()`,
   clip: `(() => { const d = document.createElement('div'); d.style.cssText = 'width:40px;overflow:hidden;white-space:nowrap'; d.textContent = 'a line of text far too long for its box'; document.body.appendChild(d); })()`,
@@ -226,11 +237,12 @@ async function main() {
     const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
     // Check the screen now showing at every size; `label` names it in the report.
-    async function check(label, extra = null) {
+    async function check(label, extra = null, prep = null) {
       for (const v of VIEWPORTS) {
         await setViewport(v);
         await sleep(350);   // layout, the ResizeObserver redraws, A1's switch between the stacked and wide arrangements
         await evaluate('document.fonts.ready.then(() => true)').catch(() => {});
+        if (prep) { await evaluate(prep); await sleep(150); }
         if (breakKind) await evaluate(BREAKS[breakKind]);
         const found = await evaluate(`(${pageCheck.toString()})(${TOUCH_PX}, ${v.width})`);
         walked.push(`${label} @ ${v.width}×${v.height}`);
@@ -308,6 +320,9 @@ async function main() {
     await waitFor(`document.querySelector('[data-screen="A1"] .result-header__more:not([disabled])')`, 'A1 ready');
     await sleep(800);
     await check('A1', a4Arrangement);
+    // the same with a landscape video: the test clips are portrait, whose stage is narrow, but a 16:9 or square video asks
+    // for the stage's full width, and the video column has to give way to the panel and the sidebar (1024 and 980 px)
+    await check('A1 (landscape video)', a4Arrangement, LANDSCAPE_VIDEO);
     // A4's interaction, in the laptop window: a card in the sidebar selects its cue for the panel (it does not open),
     // and a tap on the plot moves the player to that time
     await setViewport(VIEWPORTS[4]);

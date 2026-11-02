@@ -903,8 +903,11 @@ window is resized across the breakpoint; CSS arranges them (a grid), and the JS 
   selected. The plot is A2's (`components/cue-plot.mjs`, shared: A2 uses it too), with the player's time as its playhead; a tap on
   it moves the player.
 - **Below it** (a phone in either orientation and a portrait tablet: 800 px is the widest we check) nothing changes: A1 as `d16`
-  and `d17` drew it, one column. Why 980: the mockup's columns need 560 + 24 + 340 and 2 × 24 of padding, 972 px, and a round number
-  above that keeps 800 and 768 stacked. The page is 1280 px wide at most, centred.
+  and `d17` drew it, one column. Why 980: the columns are the 340 px sidebar, a 300 px panel (the mockup's flex-basis) and the video, with 2 × 16 of gaps and
+  2 × 24 of padding; the mockup's 270 px video makes 990 px, so the video track gives (below), and a round number near it keeps 800
+  and 768 stacked. The mockup's row wraps when the video is wider; here the video column shrinks instead (`minmax(0, auto)`, the stage
+  at `max-width: 100%`) before the panel does (`--wide-panel-min`, 300 px): a landscape or square video asks for 560 px and gets 260 px
+  at 980 px (932 px of content), 304 px at 1024 px, and the full 560 px at 1280 px. The page is 1280 px wide at most, centred.
 - The rest of the screens are single columns of at most 640 px, centred in a wide window; A2 is unchanged.
 - `tokens.css` has A4's sizes (`--wide-*`, `--size-tile`, `--chip-h`, ...); A3's slider is `--slider-h: var(--touch)` now (44 px:
   the check found 32).
@@ -912,9 +915,11 @@ window is resized across the breakpoint; CSS arranges them (a grid), and the JS 
 **The responsive check** (`tools/layout-check.mjs`, `npm --prefix app run check:layout`): the page test's build (`assemble.mjs
 --test`) served on a free port and opened in headless Brave over CDP, through `browser.mjs`. It walks the app (the first-run intro,
 H, S1, its credits, S1b, Import, M's three steps and its error screen, Q1 while it runs and when it is done, A1, A3, A2; R2 and R3
-are placeholders no flow step reaches in 0.1.0) and sets each of five sizes at each screen: phone portrait 360×800 and 412×915,
+are placeholders no flow step reaches in 0.1.0) and sets each of seven sizes at each screen: phone portrait 360×800 and 412×915,
 phone landscape 800×360, tablet 768×1024, laptop 1280×800 (the emulation's own width, since a mobile window grows with a wide
-page). It fails on:
+page), and the range just above A4's breakpoint, where the video column has to give way: a landscape tablet 1024×768 and a narrow
+window 980×720. A1 is walked twice, as the test clips are portrait (a narrow stage): once as it comes and once with a 16:9 video
+(`LANDSCAPE_VIDEO` sets the stage's ratio), which asks for the stage's full width. It fails on:
 
 - horizontal scrolling (the page wider than the window);
 - cut-off content: an element sticking out at the side with nothing that clips or scrolls it, text clipped by its own box
@@ -925,7 +930,9 @@ page). It fails on:
   plot drawn; below, one column and no panel; and in the laptop window a card selects its cue and a tap on the plot moves the player;
 - a console error or exception on the way.
 
-`--shots DIR` writes a PNG per screen and size (keep it out of the repo); `--break scroll|clip|small|cut` puts a fault in on purpose;
+`--shots DIR` writes a PNG per screen and size (keep it out of the repo); `--break scroll|clip|small|cut` puts a fault in on purpose
+(four browser runs of up to a minute: `tests/app/wide.test.js` runs them only with `COACH_LAYOUT_BREAKS=1`, i.e.
+`npm --prefix app run test:layout-breaks`, since inside `npm --prefix app test` they loaded the machine and made other tests fail);
 no browser is one line and exit 1, or a skip with `COACH_PAGE_TEST_SKIP=1`, as the page test. **What it does not say:** at phone
 landscape (800×360) the video, M's stage and the like are as tall as the window, so their buttons are under the fold and the page
 scrolls to them; nothing is cut off, but landscape has no layout of its own (5.7).

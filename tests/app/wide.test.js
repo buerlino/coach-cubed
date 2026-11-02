@@ -39,9 +39,21 @@ test('A4 draws from tokens only: no colour literal in app/src/ui/, no px or colo
     assert.ok(!/\d(px|rem|em)\b/.test(l.replace(/@media \(min-width: \d+px\)/, '').replace(/\b1px\b/g, '')), `a size literal outside tokens.css: ${l}`);
   }
   const tokens = read('src', 'styles', 'tokens.css');
-  for (const n of ['--wide-max', '--wide-aside', '--wide-stage', '--wide-stage-max', '--size-wordmark-wide', '--size-tile', '--chip-h', '--tile-min']) {
+  for (const n of ['--wide-max', '--wide-aside', '--wide-stage', '--wide-stage-max', '--size-wordmark-wide', '--size-tile', '--chip-h', '--tile-min', '--wide-panel-min']) {
     assert.match(tokens, new RegExp(`${n}:`), `tokens.css defines ${n}`);
   }
+});
+
+test('A4: the video column gives way to the panel and the sidebar (fixed at 1024 px, where the page scrolled sideways)', () => {
+  // The stage is min(560 px, 480 px × ratio) wide: 560 for a landscape or square video. 560 + 340 + 32 + the panel does not fit in
+  // 932 px (980 px less 2 × 24), so the video track shrinks (minmax(0, auto), the stage at max-width 100%) and the panel keeps
+  // the mockup's 300 px. The response is pinned in the browser by layout-check.mjs (A1 with a landscape video at 1024 and 980 px).
+  const css = read('src', 'styles', 'base.css');
+  const grid = css.match(/grid-template-columns: ([^;]+);\s*grid-template-areas: "stage selected cues"/);
+  assert.ok(grid, 'the wide grid');
+  assert.equal(grid[1], 'minmax(0, auto) minmax(var(--wide-panel-min), 1fr) var(--wide-aside)');
+  const stage = css.match(/\.result-stage \{ grid-area: stage;[^}]*\}/)[0];
+  assert.match(stage, /max-width: 100%/);
 });
 
 test('a slider is a touch target: --slider-h is --touch (the responsive check found 32 px in A3)', () => {
@@ -81,9 +93,11 @@ test('footOf and the labels: the rule sentence, then the mockup\'s provisional s
   assert.equal(frameLabel(3.24, { t0: 1, t1: 4 }), 'Video with the pose skeleton, at 2.24 s');
 });
 
-test('layout-check: the five sizes of step 5.7 and the 44 px of tokens.css', async () => {
-  const { VIEWPORTS, TOUCH_PX } = await load('tools', 'layout-check.mjs');
-  assert.deepEqual(VIEWPORTS.map(v => `${v.width}x${v.height}`), ['360x800', '412x915', '800x360', '768x1024', '1280x800']);
+test('layout-check: the five sizes of step 5.7, two just above the breakpoint, and the 44 px of tokens.css', async () => {
+  const { VIEWPORTS, TOUCH_PX, LANDSCAPE_VIDEO } = await load('tools', 'layout-check.mjs');
+  const { WIDE_MIN_PX } = await load('src', 'ui', 'wide-model.mjs');
+  assert.deepEqual(VIEWPORTS.map(v => `${v.width}x${v.height}`), ['360x800', '412x915', '800x360', '768x1024', '1280x800', '1024x768', `${WIDE_MIN_PX}x720`]);
+  assert.match(LANDSCAPE_VIDEO, /--frame-ratio/, 'A1 is also walked with a landscape video, which asks for the stage\'s full width');
   assert.match(read('src', 'styles', 'tokens.css'), new RegExp(`--touch:\\s*${TOUCH_PX}px`));
 });
 
@@ -103,8 +117,11 @@ const { findBrowserSync } = (() => {
   const names = ['brave-browser', 'brave', 'chromium', 'chromium-browser', 'google-chrome', 'google-chrome-stable'];
   return { findBrowserSync: () => process.env.COACH_BROWSER || dirs.flatMap(d => names.map(n => path.join(d, n))).find(p => fs.existsSync(p)) || null };
 })();
+// Four browser runs, 15 s to 1 min each, started inside `npm --prefix app test`, made other tests in the same run fail on a loaded
+// machine (decode stalls, timers). They run on their own: `npm --prefix app run test:layout-breaks`, or with COACH_LAYOUT_BREAKS=1.
 for (const [kind, words] of [['scroll', /horizontal scrolling/], ['clip', /content cut off: div/], ['small', /touch target under 44 px: button/], ['cut', /cut off at the side/]]) {
   test(`layout-check --break ${kind} fails with its own words`, t => {
+    if (process.env.COACH_LAYOUT_BREAKS !== '1') { t.skip('browser run: npm --prefix app run test:layout-breaks (COACH_LAYOUT_BREAKS=1)'); return; }
     if (!findBrowserSync()) { t.skip('no Brave or Chromium on PATH'); return; }
     const r = spawnSync(process.execPath, [path.join(APP, 'tools', 'layout-check.mjs'), '--break', kind], { encoding: 'utf8', timeout: 120000 });
     assert.equal(r.status, 1, r.stdout + r.stderr);

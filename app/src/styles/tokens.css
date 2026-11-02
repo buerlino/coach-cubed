@@ -218,6 +218,7 @@
   --wide-stage: 480px;
   --wide-stage-max: 560px;
   --wide-main-min: 560px;
+  --wide-panel-min: 300px;   /* the selected cue's panel (the mockup's flex-basis); the video column gives way before it does */
   --size-wordmark-wide: 30px;
   --size-tile: 24px;
   --chip-h: 28px;
