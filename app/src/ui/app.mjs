@@ -14,8 +14,9 @@ import { R3 } from './screens/R3.mjs';
 
 const SCREENS = { H, Import, M, Q1, A1, S1, R2, R3 };
 
-export function App({ flow }) {
+// `queue` and `store` are the app's (main.mjs); the screens that need them get them injected.
+export function App({ flow, queue, store }) {
   const { state } = useFlow(flow);
   const Screen = SCREENS[SCREEN_OF[state]];
-  return html`<${Screen} flow=${flow} />`;
+  return html`<${Screen} flow=${flow} queue=${queue} store=${store} />`;
 }

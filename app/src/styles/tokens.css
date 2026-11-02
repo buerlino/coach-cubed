@@ -66,4 +66,11 @@
 
   /* Touch targets are 44 px or more */
   --touch: 44px;
+
+  /* Sizes of H's pieces (the mockup's): action card, thumbnail, list row, progress bar */
+  --card-min: 88px;
+  --card-min-primary: 104px;
+  --thumb: 56px;
+  --row-min: 52px;
+  --bar: 6px;
 }
