@@ -26,6 +26,7 @@ const EPS = 1e-3;   // a frame time read back from a video is rounded: a millise
  * @property {number} t the frame shown, seconds in the cut's timeline
  * @property {number} index its place in frameTimes
  * @property {boolean} playing
+ * @property {boolean} live the <video> shows the moving picture (its first frame came); until then, and whenever it is not playing, the stepped frame is shown
  * @property {number} speed
  */
 
@@ -61,13 +62,12 @@ export function createPlayer(o) {
   overlay.width = scene.meta.width;
   overlay.height = scene.meta.height;
 
-  const state = { t: firstT, index: bounds.first, playing: false, speed: o.speed || 1 };
+  const state = { t: firstT, index: bounds.first, playing: false, live: false, speed: o.speed || 1 };
   let closed = false;
   let chain = Promise.resolve();       // steps, seeks and pauses run one at a time
   let latest = 0;                      // a newer request makes an older one's answer stale
   let loopId = null;                   // the pending rVFC or rAF
   let lastMedia = firstT;              // mediaTime of the last frame the video presented
-  let tickedSincePlay = false;
 
   const indexAtTime = t => {
     let lo = bounds.first, hi = bounds.last;
@@ -102,7 +102,7 @@ export function createPlayer(o) {
   function onFrame(mediaTime) {
     if (closed || !state.playing) return;
     lastMedia = mediaTime;
-    if (!tickedSincePlay) { tickedSincePlay = true; emit(); }   // the video now shows the moving frame: the screen hides the stepped one
+    if (!state.live) state.live = true;   // the video now shows the moving frame: the screen hides the stepped one
     if (mediaTime > lastT + EPS) { ended(); return; }
     const t = Math.max(firstT, mediaTime);
     state.t = t;
@@ -135,6 +135,7 @@ export function createPlayer(o) {
     stopLoop();
     video.pause();
     state.playing = false;
+    state.live = false;
     const token = ++latest;
     const r = await stepper.seek(Math.min(lastT, Math.max(firstT, t)));
     if (token === latest && !closed) show(r); else emit();
@@ -154,7 +155,7 @@ export function createPlayer(o) {
         video.currentTime = state.t;
         lastMedia = state.t;
         video.playbackRate = state.speed;
-        tickedSincePlay = false;
+        state.live = false;
         state.playing = true;
         emit();
         await video.play();
@@ -182,7 +183,7 @@ export function createPlayer(o) {
       const token = ++latest;
       return enqueue(async () => {
         if (closed || token !== latest) return;
-        if (state.playing) { stopLoop(); video.pause(); state.playing = false; }
+        if (state.playing) { stopLoop(); video.pause(); state.playing = false; state.live = false; }
         const r = await stepper.seek(Math.min(lastT, Math.max(firstT, t)));
         if (token === latest && !closed) show(r);
       });

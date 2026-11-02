@@ -243,3 +243,31 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .mark-actions .mark-step-button { width: var(--step-button); flex: none; padding: 0; display: flex; align-items: center; justify-content: center; background: var(--surface); border-color: var(--line-strong); }
 .mark-actions .mark-main { flex: 1; font-size: var(--size-button-big); font-weight: var(--weight-bold); }
 .mark-actions .mark-main--set { background: var(--text); color: var(--on-accent); border-color: var(--text); }
+
+/* A1, Result: the player (docs/ui-design.md, design/mockups/Result.dc.html) */
+.result { height: 100dvh; }
+.result-header__text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+.result-header__more { margin-left: auto; }
+.result-problem { padding: var(--space-4) var(--space-5); }
+.result-stage { flex: 0 1 var(--result-stage); min-height: var(--result-stage-min); position: relative; display: flex; align-items: center; justify-content: center; background: var(--stage-ground); }
+.result-frame { position: relative; height: 100%; max-width: 100%; overflow: hidden; background: var(--surface-raised); }
+.result-layer { position: absolute; inset: 0; width: 100%; height: 100%; }
+.result-layer[hidden] { display: none; }
+.result-skeleton { position: absolute; right: var(--space-2h); top: var(--space-2h); height: var(--toggle-h); padding: 0 var(--space-3); border: 0; border-radius: calc(var(--toggle-h) / 2); background: var(--scrim); color: var(--text); font-size: var(--size-small); font-weight: var(--weight-semibold); display: flex; align-items: center; gap: var(--space-1h); }
+.result-skeleton__dot { width: var(--joint-size); height: var(--joint-size); border-radius: 50%; background: var(--line-strong); }
+.result-skeleton__dot--on { background: var(--accent); }
+.result-controls { flex: none; display: flex; align-items: center; gap: var(--space-1); padding: var(--space-1h) var(--space-2) 0; }
+.result-play { width: var(--touch); height: var(--touch); padding: 0; border: 0; border-radius: 50%; background: var(--text); color: var(--on-accent); display: flex; align-items: center; justify-content: center; }
+.result-clock { margin-left: var(--space-1); font-size: var(--size-label); font-weight: var(--weight-semibold); color: var(--text-soft); }
+.result-speed { margin-left: auto; width: var(--speed-w); height: var(--speed-h); padding: 0; border-radius: var(--radius-s); background: transparent; font-size: var(--size-label); font-weight: var(--weight-bold); }
+.timeline { flex: none; height: var(--timeline); margin: 0 var(--space-4); position: relative; cursor: pointer; touch-action: none; }
+.timeline:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.timeline__bar { position: absolute; left: 0; right: 0; top: var(--timeline-bar-top); height: var(--timeline-bar); border-radius: calc(var(--timeline-bar) / 2); background: var(--line); }
+.timeline__lift { position: absolute; top: var(--timeline-bar-top); height: var(--timeline-bar); border-radius: calc(var(--timeline-bar) / 2); background: var(--accent-span); }
+.timeline__start { position: absolute; top: var(--timeline-bar-top); width: var(--mark-pole); height: var(--timeline-bar); margin-left: calc(var(--mark-pole) / -2); border-radius: var(--space-half); background: var(--accent); }
+.timeline__moment { position: absolute; top: var(--timeline-moment-top); width: var(--timeline-moment); height: var(--timeline-moment); margin-left: calc(var(--timeline-moment) / -2); border-radius: var(--space-half); transform: rotate(45deg); }
+.timeline__moment--work-on { background: var(--status-work-on); }
+.timeline__moment--watch { background: var(--status-watch); }
+.timeline__knob { position: absolute; top: var(--timeline-knob-top); width: var(--timeline-knob-w); height: var(--timeline-knob-h); margin-left: calc(var(--timeline-knob-w) / -2); border-radius: calc(var(--timeline-knob-w) / 2); background: var(--text); }
+.timeline__label { position: absolute; top: var(--timeline-label-top); font-size: var(--size-mark); color: var(--text-quiet); white-space: nowrap; }
+

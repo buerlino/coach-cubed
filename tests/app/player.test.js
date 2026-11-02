@@ -165,12 +165,14 @@ test('player: play runs the video from the playhead; the overlay is painted from
   assert.equal(r.video.paused, false);
   near(r.video.currentTime, 2 / 25, 'plays from the frame shown');
   assert.equal(r.player.state.playing, true);
+  assert.equal(r.player.state.live, false, 'the stepped frame stays until the video shows one');
   r.video.currentTime = 99;                    // the media clock has run on; the frame shown is what the callback names
   const n = r.overlay.ctx.calls.length;
   r.video.present(10 / 25);
   assert.deepStrictEqual(r.overlay.ctx.calls.slice(n), r.expectOverlay(10 / 25));
   near(r.player.state.t, 10 / 25);
   assert.equal(r.player.state.index, 10);
+  assert.equal(r.player.state.live, true);
   r.video.present(11 / 25 - 0.0004);           // a rounded media time still names frame 11
   assert.equal(r.player.state.index, 11);
   assert.equal(r.video.cbs.length, 1, 'one callback waits for the next frame');
@@ -186,6 +188,7 @@ test('player: pause stops the video and shows the frame it presented last, from 
   assert.equal(r.video.paused, true);
   assert.equal(r.video.cbs.length, 0, 'no callback left');
   assert.equal(r.player.state.playing, false);
+  assert.equal(r.player.state.live, false);
   assert.equal(r.player.state.index, 7);
   assert.deepStrictEqual(r.overlay.ctx.calls.slice(-r.expectOverlay(7 / 25).length), r.expectOverlay(7 / 25));
   await r.player.step(1);
