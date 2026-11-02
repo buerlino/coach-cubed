@@ -419,6 +419,23 @@ test('analysis job: each broken field is named', async () => {
   assertNames(v, J, 'source', () => {}, { lift: moved });
 });
 
+test('analysis job: a re-mark names the lift it replaces (s50), null for any other job, and is validated like the rest', async () => {
+  const { validateAnalysisJob, createJob, ANALYSIS_JOB_EXAMPLE: J } = await load('analysis-job.mjs');
+  const { STORED_LIFT_EXAMPLE } = await load('stored-lift.mjs');
+  assert.equal(J.replaces, null, 'a plain Analyse replaces nothing');
+  assert.equal(createJob('job-1', STORED_LIFT_EXAMPLE).replaces, null);
+  const re = createJob('job-1', STORED_LIFT_EXAMPLE, { replaces: '20261101-170000-lr' });
+  assert.equal(re.replaces, '20261101-170000-lr');
+  assert.deepEqual(validateAnalysisJob(re, { lift: STORED_LIFT_EXAMPLE }), []);
+  assert.deepEqual(JSON.parse(JSON.stringify(re)), re, 'it survives a restart');
+  const v = validateAnalysisJob;
+  assertNames(v, J, 'replaces', j => { delete j.replaces; });
+  assertNames(v, J, 'replaces', j => { j.replaces = ''; });
+  assertNames(v, J, 'replaces', j => { j.replaces = 42; });
+  assertNames(v, J, 'replaces', j => { j.replaces = '../other'; });
+  assertNames(v, J, 'replaces', j => { j.replaces = j.liftId; });   // a lift never replaces itself
+});
+
 test('analysis job: a running and a failed job are valid', async () => {
   const { validateAnalysisJob, ANALYSIS_JOB_EXAMPLE: J } = await load('analysis-job.mjs');
   assert.deepEqual(validateAnalysisJob({ ...J, state: 'pose',

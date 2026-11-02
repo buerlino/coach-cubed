@@ -161,6 +161,96 @@ test('deletes a lift with its folder and leaves the others', async () => {
   assert.deepEqual((await store.listLifts()).map(l => l.id), [b.id]);
 });
 
+// ---- s50: a re-marked lift replaces the old one once its analysis is done ----
+
+test('s50: the update that completes a re-marked lift deletes the lift it replaces, after the new record, in the same step', async () => {
+  const { store, fake } = await setup();
+  const old = await store.saveLift(lr({ track: TRACK, result: RESULT, engine: ENGINE, created: '2026-11-01T08:00:00.000Z' }));
+  const other = await store.saveLift(lr({ track: TRACK, result: RESULT, engine: ENGINE, created: '2026-11-01T07:00:00.000Z' }));
+  const re = await store.saveLift(lr({ created: '2026-11-01T09:00:00.000Z', video: bytes(5, 6, 7) }));
+  const from = fake.ops.length;
+  const updating = store.updateLift(re.id, { track: TRACK, result: RESULT, engine: ENGINE }, { replaces: old.id });
+  const seen = store.listLifts();   // a listing asked while the update runs (H's, at the queue's next change)
+  const done = await updating;
+  assert.equal(done.id, re.id);
+  assert.ok(done.track && done.result && done.engine, 'the new lift is analysed');
+  assert.deepEqual((await seen).map(l => l.id), [re.id, other.id], 'nothing sees both lifts: the delete is in the update\'s step');
+  assert.deepEqual((await store.listLifts()).map(l => l.id), [re.id, other.id]);
+  assert.equal(await store.getLift(old.id), null);
+  assert.deepEqual(fake.paths().filter(p => p.includes(old.id)), [], 'its cut, its track, its result and its record are gone');
+  await assert.rejects(() => store.readVideo(old.id), { code: 'not-found' });
+  await assert.rejects(() => store.readResult(old.id), { code: 'not-found' });
+  assert.deepEqual(await bytesOf(await store.readVideo(re.id)), [5, 6, 7]);
+  assert.ok(fake.exists(`lifts/${other.id}/cut.mp4`), 'the other lifts stay');
+  // the order: the new record first, then the delete's own order (the old record, its folder), then the index
+  const ops = fake.ops.slice(from).map(o => o.join(' '));
+  const at = s => ops.findIndex(o => o === s);
+  assert.ok(at(`write lifts/${re.id}/lift.json`) >= 0, ops.join('\n'));
+  assert.ok(at(`write lifts/${re.id}/lift.json`) < at(`remove lifts/${old.id}/lift.json`), ops.join('\n'));
+  assert.ok(at(`remove lifts/${old.id}/lift.json`) < at(`remove lifts/${old.id}`), ops.join('\n'));
+  // after a restart (the index rebuilt from the folders) the old lift stays gone
+  await store.rebuildIndex();
+  assert.deepEqual((await store.listLifts()).map(l => l.id), [re.id, other.id]);
+});
+
+test('s50: a replace is refused for the lift itself or a bad id; a lift already gone is nothing to delete', async () => {
+  const { store } = await setup();
+  const old = await store.saveLift(lr({ track: TRACK, result: RESULT, engine: ENGINE, created: '2026-11-01T08:00:00.000Z' }));
+  const re = await store.saveLift(lr({ created: '2026-11-01T09:00:00.000Z' }));
+  const patch = { track: TRACK, result: RESULT, engine: ENGINE };
+  await assert.rejects(() => store.updateLift(re.id, patch, { replaces: re.id }), { code: 'invalid' });
+  await assert.rejects(() => store.updateLift(re.id, patch, { replaces: '../x' }), { code: 'invalid' });
+  await assert.rejects(() => store.updateLift(re.id, patch, { other: 1 }), { code: 'invalid' });
+  assert.deepEqual(await store.getLift(re.id), re, 'nothing was written');
+  assert.deepEqual((await store.listLifts()).map(l => l.id), [re.id, old.id]);
+  await store.deleteLift(old.id);
+  const done = await store.updateLift(re.id, patch, { replaces: old.id });
+  assert.ok(done.result);
+  assert.deepEqual((await store.listLifts()).map(l => l.id), [re.id]);
+});
+
+test('s50: a replace cut off leaves both lifts, never neither: the new one fails first, or the old one\'s delete stops halfway', async () => {
+  // (a) the new lift can't be completed (the disk is full): the old one is untouched
+  const one = await setup();
+  const old = await one.store.saveLift(lr({ track: TRACK, result: RESULT, engine: ENGINE, created: '2026-11-01T08:00:00.000Z' }));
+  const re = await one.store.saveLift(lr({ created: '2026-11-01T09:00:00.000Z' }));
+  one.fake.setQuota(one.fake.used());
+  await assert.rejects(() => one.store.updateLift(re.id, { track: TRACK, result: RESULT, engine: ENGINE }, { replaces: old.id }), { code: 'storage-full' });
+  assert.deepEqual(await one.store.getLift(old.id), old);
+  assert.deepEqual(await one.store.readResult(old.id), RESULT);
+  assert.deepEqual(await one.store.readTrack(old.id), TRACK);
+  assert.deepEqual(await bytesOf(await one.store.readVideo(old.id)), [1, 2, 3, 4]);
+  assert.equal((await one.store.getLift(re.id)).result, null);
+
+  // (b) the old one's folder can't be removed: the new one is complete, the old one is finished by its own delete
+  const { fake, lib } = await setup();
+  const state = { fail: false };
+  const store = lib.createStore({ storage: flaky(fake.storage, state), now: () => new Date('2026-11-01T17:42:05.120Z') });
+  const a = await store.saveLift(lr({ track: TRACK, result: RESULT, engine: ENGINE, created: '2026-11-01T08:00:00.000Z' }));
+  const b = await store.saveLift(lr({ created: '2026-11-01T09:00:00.000Z' }));
+  state.fail = true;
+  const done = await store.updateLift(b.id, { track: TRACK, result: RESULT, engine: ENGINE }, { replaces: a.id });
+  state.fail = false;
+  assert.ok(done.result, 'the new lift is complete');
+  assert.deepEqual(await store.readResult(b.id), RESULT);
+  assert.ok(fake.exists(`lifts/${a.id}/cut.mp4`), 'the old cut is still there');
+  assert.equal(fake.exists(`lifts/${a.id}/lift.json`), false, 'its delete had begun, with its record');
+  await store.deleteLift(a.id);   // what a stopped delete always needs: the next one finishes it
+  assert.deepEqual((await store.listLifts()).map(l => l.id), [b.id]);
+  assert.deepEqual(fake.paths().filter(p => p.includes(a.id)), []);
+});
+
+test('s50: a queue kept before s50 (jobs without `replaces`) reads back, each job replacing nothing', async () => {
+  const { store, fake } = await setup();
+  const lift = await store.saveLift(lr());
+  const { createJob } = await load('contracts/analysis-job.mjs');
+  const job = createJob(`job-${lift.id}`, lift);
+  const { replaces, ...before } = job;
+  assert.equal(replaces, null);
+  fake.put('queue.json', JSON.stringify({ version: 1, jobs: [before], rate: null }));
+  assert.deepEqual((await store.readQueue()).jobs, [job]);
+});
+
 test('the index is written atomically: a temporary file, then a move over index.json', async () => {
   const { store, fake } = await setup();
   await store.saveLift(lr());

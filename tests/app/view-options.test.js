@@ -388,6 +388,29 @@ test('view options: re-mark opens M with the stored cut and the lift\'s old mark
   assert.match(read('ui/screens/M.mjs'), /flow\.params\.range|marksFromRange/);
 });
 
+test('s50: re-mark carries the lift\'s id from A3 through M to the queue, so the new lift replaces it once analysed', async () => {
+  const r = await rig({ range: { t0: 0.4, t1: 2.2 } });
+  await r.ctl.remark();
+  const p = r.flow.params;
+  assert.equal(p.replaces, r.rec.id, 'A3 hands M the old lift\'s id');
+  const mark = await load('ui/mark-model.mjs');
+  const calls = [];
+  const queue = { analyse: async (...a) => { calls.push(a); return { id: 'job-x', liftId: '20261102-090000-lr' }; } };
+  const marks = mark.marksFromRange(p.range, r.src.frameTimes);
+  const out = await mark.analyse({ flow: r.flow, queue, lift: p.lift, file: p.file, marks, frameTimes: r.src.frameTimes, replaces: p.replaces });
+  assert.deepEqual(out, { ok: true });
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0][3], { replaces: r.rec.id }, 'M\'s Analyse hands it to the queue');
+  assert.equal(r.flow.state, 'queued');
+  assert.deepEqual(r.flow.params, { liftId: '20261102-090000-lr' });
+  // M reads it from the flow's params and gives it to Analyse
+  const src = read('ui/screens/M.mjs');
+  assert.match(src, /replaces\s*=\s*null\s*\}\s*=\s*flow\.params/);
+  assert.match(src, /analyse\(\{[^}]*\breplaces\b[^}]*\}\)/);
+  // the label stays (the wording pass after checkpoint A owns it)
+  assert.equal((await load('ui/view-options-model.mjs')).TEXT.remark, 'Re-mark this lift');
+});
+
 test('view options: marksFromRange gives no marks for a range that is not on the video or is too short to be marked', async () => {
   const m = await load('ui/view-options-model.mjs');
   const mark = await load('ui/mark-model.mjs');
