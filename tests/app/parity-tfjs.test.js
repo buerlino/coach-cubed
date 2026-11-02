@@ -136,9 +136,43 @@ test('compare: a missing call or a different size is a finding, and formatRows n
 });
 
 test('without the build, the weights or npm\'s packages the script says what is missing and exits 2', () => {
-  // Only when this tree has none of them (a fresh worktree); otherwise the run is by hand.
-  if (fs.existsSync(path.join(APP, 'vendor/tfjs/tfjs-cpu.mjs')) && fs.existsSync(path.join(APP, 'models/movenet-thunder-4/model.json'))) return;
-  const r = require('node:child_process').spawnSync(process.execPath, [path.join(APP, 'tools/parity-tfjs.mjs')], { encoding: 'utf8' });
-  assert.equal(r.status, 2);
-  assert.match(r.stderr, /missing: /);
+  // A copy of the script in <tmp>/app/tools/: its APP is an empty tree, so the
+  // test runs whatever this tree holds.
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'coach-parity-test-'));
+  try {
+    fs.mkdirSync(path.join(tmp, 'app/tools'), { recursive: true });
+    const script = path.join(tmp, 'app/tools/parity-tfjs.mjs');
+    fs.copyFileSync(path.join(APP, 'tools/parity-tfjs.mjs'), script);
+    const r = require('node:child_process').spawnSync(process.execPath, [script], { encoding: 'utf8' });
+    assert.equal(r.status, 2, r.stderr);
+    assert.match(r.stderr, /missing: /);
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+});
+
+test('a source bundle whose build-info.json lacks the npm-free record is refused, exit 2', async () => {
+  const { sourceBundleProblem } = await load();
+  assert.match(sourceBundleProblem(null), /no record/);
+  assert.match(sourceBundleProblem({ bundles: { 'tfjs-cpu.mjs': { inputs: 3 } } }), /lacks the npmTensorflowInputs/);
+  assert.match(sourceBundleProblem({ bundles: { 'tfjs-cpu.mjs': { npmTensorflowInputs: 2 } } }), /2 inputs from npm/);
+  assert.equal(sourceBundleProblem({ bundles: { 'tfjs-cpu.mjs': { npmTensorflowInputs: 0 } } }), null);
+});
+
+test('main exits 2 on a build-info.json without the record (everything else in place)', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'coach-parity-test-'));
+  try {
+    const a = path.join(tmp, 'app');
+    fs.mkdirSync(path.join(a, 'tools'), { recursive: true });
+    fs.mkdirSync(path.join(a, 'vendor/tfjs'), { recursive: true });
+    fs.mkdirSync(path.join(a, 'models/movenet-thunder-4'), { recursive: true });
+    fs.mkdirSync(path.join(a, 'node_modules/@tensorflow/tfjs-core'), { recursive: true });
+    fs.writeFileSync(path.join(a, 'vendor/tfjs/tfjs-cpu.mjs'), '');
+    fs.writeFileSync(path.join(a, 'models/movenet-thunder-4/model.json'), '{}');
+    fs.writeFileSync(path.join(a, 'node_modules/@tensorflow/tfjs-core/package.json'), '{}');
+    fs.writeFileSync(path.join(a, 'vendor/tfjs/build-info.json'), JSON.stringify({ bundles: { 'tfjs-cpu.mjs': { inputs: 5 } } }));
+    const script = path.join(a, 'tools/parity-tfjs.mjs');
+    fs.copyFileSync(path.join(APP, 'tools/parity-tfjs.mjs'), script);
+    const r = require('node:child_process').spawnSync(process.execPath, [script], { encoding: 'utf8' });
+    assert.equal(r.status, 2, r.stderr);
+    assert.match(r.stderr, /missing: .*npmTensorflowInputs/);
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 });

@@ -52,6 +52,18 @@ export const IMAGE = { width: 640, height: 480 };
 // up to 640) carry that spacing times 640. Beyond these is a difference.
 export const ROUNDING = { raw: 1e-6, keypoints: 1e-4, crop: 1e-4 };
 
+// The record build-tfjs.mjs keeps in build-info.json: after each bundle it
+// checks that no input came from npm's @tensorflow packages (which sit in
+// app/node_modules/ for this script) and stores the count, 0. Without it the
+// "source" bundle may be npm's code and this comparison npm against npm.
+export function sourceBundleProblem(info, file = 'tfjs-cpu.mjs') {
+  const b = info && info.bundles && info.bundles[file];
+  if (!b) return `build-info.json has no record of ${file}`;
+  if (b.npmTensorflowInputs === undefined) return `build-info.json lacks the npmTensorflowInputs check for ${file} (build again: node app/tools/build-tfjs.mjs)`;
+  if (b.npmTensorflowInputs !== 0) return `${file} has ${b.npmTensorflowInputs} inputs from npm's @tensorflow packages`;
+  return null;
+}
+
 // ---- the inputs --------------------------------------------------------
 
 // A byte from three integers, the same on every machine: an integer hash
@@ -359,6 +371,10 @@ async function main() {
     ["npm's packages (npm --prefix app ci)", join(APP, 'node_modules/@tensorflow/tfjs-core/package.json')]]) {
     if (!existsSync(path)) { console.error(`missing: ${what}`); process.exit(2); }
   }
+  let info = null;
+  try { info = JSON.parse(readFileSync(join(dirname(SOURCE_BUNDLE), 'build-info.json'), 'utf8')); } catch { /* reported below */ }
+  const problem = sourceBundleProblem(info);
+  if (problem) { console.error(`missing: ${problem}`); process.exit(2); }
   try { setPriority(10); } catch { /* niceness is a courtesy */ }
   const calls = Number(arg('--calls', CALLS));
   const tmp = mkdtempSync(join(tmpdir(), 'coach-parity-tfjs-'));

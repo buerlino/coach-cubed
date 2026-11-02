@@ -214,7 +214,13 @@ pinned versions (4.22.0, 2.1.3), bundled in memory the way
 `app/.npmrc` sets `legacy-peer-deps` so that pose-detection's peers (the
 closed `@mediapipe/pose`, `-wasm`, `-webgl`) are not installed with them
 (`-webgpu` is, because pose-detection's ES build imports it). The **source side** is
-`vendor/tfjs/tfjs-cpu.mjs`.
+`vendor/tfjs/tfjs-cpu.mjs`. npm's packages sit in `app/node_modules/`, which
+the from-source build searches for `long` and `seedrandom`, so the build checks
+every bundle's esbuild metafile and fails if any input is under
+`node_modules/@tensorflow/` or `node_modules/@tensorflow-models/`; the count
+(0) is recorded as `npmTensorflowInputs` in `build-info.json`, and the parity
+script exits 2 if the record is missing (build again) or not 0. Without it
+the comparison could be npm against npm.
 
 Inputs, all drawn by the script (no image from anywhere, no random
 generator): the graph model alone on one fixed `[1,256,256,3]` tensor (and
