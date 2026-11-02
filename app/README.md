@@ -24,7 +24,7 @@ pipeline/devlock.sh slice check-tfjs node app/tools/check-tfjs.mjs   # the WebGL
 pipeline/devlock.sh slice parity-tfjs nice node app/tools/parity-tfjs.mjs   # npm's TF.js against the from-source bundle: same keypoints?
 pipeline/devlock.sh slice check-pose node app/tools/check-pose.mjs   # the pose engine (client, worker, MoveNet) in headless Brave on synthetic frames
 node app/tools/check-media.mjs               # the frame source on a real WebCodecs decoder, in headless Brave, on tests/app/clips/
-pipeline/devlock.sh slice check-media node app/tools/check-media.mjs --clips ~/.cache/coach/c34-clips   # the same, plus the step timings on c34's 1080p clips
+pipeline/devlock.sh slice check-media node app/tools/check-media.mjs --clips ~/.cache/coach/c34-clips   # the same, plus the step timings on c34's 1080p clips and the decoded frames an idle stepper holds
 pipeline/devlock.sh slice check-offline node app/tools/check-offline.mjs   # the app offline (c19): load, go offline over CDP, reload; needs the TF.js bundle and the weights
 node app/tools/assemble.mjs --debug          # the same, plus the check page (app/debug/) and its clip: the debug APK's dist/
 pipeline/devlock.sh slice apk-web app/tools/build-apk.sh web      # the debug APK, first half: npm ci, bundle, weights, assemble --debug, cap sync
@@ -370,8 +370,8 @@ st.close();                                           // closes every frame it h
 
 - **The frames** are `ImageBitmap`s, upright and at the size asked for (a
   missing side from the upright aspect), drawn from the turned frame as
-  thumbnails are, so no decoder output is held (a hardware decoder has few
-  output buffers). They are the stepper's: draw one, never close it; it stays
+  thumbnails are; the decoded frame is closed once its bitmap is made. They are
+  the stepper's: draw one, never close it; it stays
   valid until the next `step` or `seek` settles. `cached` says whether the
   frame was held when the step was asked; such a step returns before the
   refill does anything (it starts on the next task: turning a decoded frame
@@ -386,8 +386,18 @@ st.close();                                           // closes every frame it h
   frame needed, once that whole group fits in the window, or when the missing
   frame is a quarter of the window away; a group longer than the window behind
   is decoded again for each window's worth, and given up when a step or seek
-  moves the window off it. A frame decoded on the way that is outside the
-  window (from the keyframe to the window's edge) is closed without being
+  moves the window off it. The decoder ahead is fed one chunk at a time and
+  stops while a decoded frame waits (`STREAM_QUEUES` in `stepper.mjs`:
+  `maxQueued` 1, `maxQueueSize` 1), so while it waits between steps it holds
+  **at most 2 decoded frames** at the file's size, outside the budget and
+  `st.bytes`: the one waiting and the one its last chunk makes (`s38f1`; before,
+  decodeFrames' defaults let up to about 12 come out, and headless Brave held 8
+  1080p frames). A hardware decoder has few output buffers, so these are the
+  frames to keep few. `frameAt`, `frames` and `thumbnails` keep decodeFrames'
+  defaults (4 frames waiting, 8 chunks fed): they run to their end, and a range
+  read stays a few frames ahead of the pose model. A frame decoded on the way
+  that is outside the window (from the keyframe to the window's edge) is
+  closed without being
   turned or made into a bitmap. A step to a frame not held yet waits for it; a
   step never starts a second decode of a group being decoded.
 - **The budget:** at most `maxFrames` frames and `maxBytes` bytes, a frame
@@ -407,13 +417,27 @@ st.close();                                           // closes every frame it h
 What the default budget costs at M1–M3's size: the mockup's video is 248 × 440
 CSS px, a 1080 × 1920 portrait video's 9 : 16, so a frame is that times the
 screen's pixel ratio, squared, times 4 bytes. (The Fairphone's pixel ratio
-isn't measured here: `stepCached` on the check page records it.)
+isn't measured here: `stepCached` on the check page records it.) On top of the
+bitmaps, the paused decoder ahead holds at most 2 decoded frames at the
+file's own size: a 4:2:0 frame (I420 or NV12) is 1.5 bytes a pixel, so
+3,110,400 bytes (2.97 MiB) for a 1080p video, 5.9 MiB for two (4K: 11.9 MiB
+a frame, 23.7 MiB for two; a hardware decoder's buffers may be padded beyond
+that).
 
-| Pixel ratio | Frame | Bytes a frame | Frames held | Memory | Stepping back: frames behind |
-| --- | --- | --- | --- | --- | --- |
-| 1 | 248 × 440 | 436,480 (0.42 MiB) | 90 | 37.5 MiB | 67 |
-| 2 | 496 × 880 | 1,745,920 (1.67 MiB) | 76 | 126.5 MiB | 57 |
-| 3 | 744 × 1320 | 3,928,320 (3.75 MiB) | 34 | 127.4 MiB | 25 |
+| Pixel ratio | Frame | Bytes a frame | Frames held | Bitmaps | With the paused decoder (1080p, 2 frames) | Stepping back: frames behind |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 248 × 440 | 436,480 (0.42 MiB) | 90 | 37.5 MiB | 43.4 MiB | 67 |
+| 2 | 496 × 880 | 1,745,920 (1.67 MiB) | 76 | 126.5 MiB | 132.4 MiB | 57 |
+| 3 | 744 × 1320 | 3,928,320 (3.75 MiB) | 34 | 127.4 MiB | 133.3 MiB | 25 |
+
+In headless Brave (`check-media.mjs`, c34's 1080p clips, 782 × 440 frames,
+the default budget) a stepper with its window full holds 90 bitmaps, 118.1
+MiB, and the paused decoder 1 decoded frame, 3.0 MiB: 121.1 MiB (at most
+124.0 MiB with two). Before `s38f1` it held 8, 23.7 MiB more (141.8 MiB).
+Feeding one chunk at a time cost no measurable speed there: steps back to
+back (the refill's own rate) took a median 18.7 and 20.4 ms before, 19.0 and
+15.3 ms after on k1, 21.3 and 22.7 ms before, 23.5 and 23.4 ms after on
+k2to5 (two runs each), and a step to a held frame stays 0 ms (p90 0.1 ms).
 
 With a phone camera's groups of 60–150 frames, stepping forwards still
 decodes each group once; stepping backwards at a pixel ratio of 3 decodes a
