@@ -150,6 +150,36 @@ test('a variable frame rate keeps each frame\'s own time', async () => {
   near(cut.range.t0, 1.3 - want.start);
 });
 
+test('open GOP: a t0 among the leading pictures of a keyframe starts the cut on the keyframe before it', async () => {
+  // The HEVC clip is an open GOP (x265's default, B-frames): the keyframe at 1.0 s is stored before
+  // the pictures shown at 0.833 .. 0.967 s. A mark among them can't start on that keyframe (it is
+  // later than the mark), so the cut starts on the one at or before t0: 0 s.
+  const HEVC = 'testsrc2-hevc-30fps.mp4';
+  const { cutVideo } = await load('src/media/cut.mjs');
+  const src = await read(clip(HEVC));
+  const origin = Math.min(...src.packets.map(p => p.timestamp));
+  const keyAt = src.packets.findIndex(p => p.type === 'key' && p.timestamp - origin > 0.9);
+  assert.ok(keyAt > 0 && src.packets.slice(keyAt + 1, keyAt + 6).some(p => p.timestamp - origin < 1.0 - 1e-6),
+    'the clip has pictures shown before its second keyframe but stored after it');
+  for (const [t0, t1] of [[0.9, 1.4], [0.9, 0.97], [29 / 30, 29 / 30], [0.85, 0.95]]) {
+    const cut = await cutVideo(clip(HEVC), { t0, t1 });
+    const got = await read(cut.blob);
+    const want = expectedPackets(src, t0, t1);
+    assert.ok(want.start <= t0 + 1e-6, 'the expected start is at or before t0');
+    near(cut.start, want.start);
+    assert.ok(cut.start <= t0 + 1e-6, `[${t0}, ${t1}]: the cut starts at ${cut.start} s, after t0`);
+    near(cut.range.t0, t0 - want.start);
+    near(cut.range.t1, t1 - want.start);
+    assert.ok(cut.range.t0 >= 0 && cut.range.t1 >= cut.range.t0);
+    assert.equal(got.packets.length, want.packets.length, `[${t0}, ${t1}]: packet count`);
+    got.packets.forEach((p, i) => {
+      assert.equal(p.type, want.packets[i].type);
+      assert.deepEqual(p.data, want.packets[i].data, `[${t0}, ${t1}] packet ${i}: bytes`);
+      near(p.timestamp, want.packets[i].timestamp - want.origin - want.start);
+    });
+  }
+});
+
 test('a range that is not a range, or not a video, is a MediaError', async () => {
   const { cutVideo } = await load('src/media/cut.mjs');
   const { MediaError } = await load('src/media/media-error.mjs');

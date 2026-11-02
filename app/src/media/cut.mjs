@@ -15,7 +15,8 @@
 // rotation. Nothing is decoded and nothing is encoded, so it is fast, loses no
 // quality, and an HEVC file the WebView can't decode can still be kept. The packets
 // are the ones the frame source would decode for the same range (the sample table's
-// `plan`): from the key packet before the earliest-stored frame of the range to the
+// `plan`): from the key packet before the earliest-stored frame of the range (or, in an open
+// group, the one before that, so the keyframe is at or before t0) to the
 // latest-stored one (B-frames are stored after a picture shown later). Times in the
 // cut are the source's minus the keyframe's, so the cut starts at 0 and the frame
 // source (s9) opens it like any file.
@@ -55,7 +56,13 @@ export async function cutVideo(blob, range) {
 
     const r = table.indexRange(range.t0, range.t1);
     if (!r) throw new MediaError('range', `No frame of this ${table.duration.toFixed(2)} s video starts between ${range.t0} s and ${range.t1} s.`);
-    const { startDec, endDec } = table.plan(r.first, r.last);
+    let { startDec, endDec } = table.plan(r.first, r.last);
+    // In an open group the pictures shown just before a keyframe are stored after it, so the
+    // key packet before the earliest-stored frame of the range can be shown after the range
+    // starts. Then the cut starts on the keyframe before that one, which is at or before t0
+    // and from which those leading pictures can be decoded.
+    const firstShown = table.times[r.first];
+    while (startDec > 0 && table.times[table.presOf(startDec)] > firstShown + 1e-6) startDec = table.keyBefore(startDec - 1);
     const keyRaw = table.rawTimestamp(startDec);
     const start = table.times[table.presOf(startDec)];
 
