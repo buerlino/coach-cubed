@@ -71,7 +71,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 35 | `c47` | A test's browser ends with the test (the brave wrapper leak; nordmu, 2026-11-02) | curie, sonnet | — | merged `c3cf06f` |
 | 36 | `c48` | The app tests leave no temp folders behind (9.3 GB in /tmp; nordmu, 2026-11-02) | curie, sonnet | — | merged `aef3346` (one fix round: red-first) |
 | 37 | `d22` | A3, view options | dirac, sonnet | `d17`, `c8`, `d14`, `s35`, `c47` | merged `47abc6c` (resumed after run 38's OOM; one fix round: the unsure-joints switch) |
-| 38 | `d23` | The screens v1 doesn't draw | dirac, sonnet | `d17`, `s12`, `c8`, `c47` | waits |
+| 38 | `d23` | The screens v1 doesn't draw | dirac, sonnet | `d17`, `s12`, `c8`, `c47` | merged `2ec0c35` (one fix round: the report hidden behind the queue's merge of phase-0) |
 | 39 | `d24` | S1, settings and about | dirac, sonnet | `c8` | merged `5d33a32` |
 | 40 | `d25` | A4 and the responsive check | dirac, sonnet | `d18`, `c21`, `c47` | waits |
 | 41 | `c26` | Milestone A on the Fairphone | curie, sonnet | `d13`, `d14`, `d18`, `c19`, `c20`, `c34`, `c43` | waits; phone: by day, nordmu told (airplane mode); its numbers set s12's stall time and time left (nordmu, 2026-11-02) |
