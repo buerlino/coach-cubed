@@ -22,6 +22,7 @@ node app/tools/build-tfjs.mjs                # TF.js and pose-detection from sou
 app/tools/fetch-models.sh                    # MoveNet Thunder's weights into app/models/, SHA-256 checked
 pipeline/devlock.sh slice check-tfjs node app/tools/check-tfjs.mjs   # the WebGL bundle in headless Brave
 pipeline/devlock.sh slice parity-tfjs nice node app/tools/parity-tfjs.mjs   # npm's TF.js against the from-source bundle: same keypoints?
+pipeline/devlock.sh slice check-pose node app/tools/check-pose.mjs   # the pose engine (client, worker, MoveNet) in headless Brave on synthetic frames
 node app/tools/check-media.mjs               # the frame source on a real WebCodecs decoder, in headless Brave, on tests/app/clips/
 ```
 
@@ -42,6 +43,7 @@ It logs each request (`200 /index.html`); a `404` there is a broken path.
 | `src/contracts/` | The shapes the app's parts agree on: JSDoc types, validators, examples. See [Contracts](#contracts). |
 | `src/store/` | The store (`c8`): lifts, their cut videos, tracks and results, the index and the settings, in OPFS. See [The store](#the-store). |
 | `src/media/` | The frame source (`s9`): `openFrameSource(blob)` gives contract 5's source over mediabunny and WebCodecs. See [The frame source](#the-frame-source). |
+| `src/pose/` | The pose engine (`s10`): `PoseEngine.create()` gives one async `estimate(frame, tMs)` over a worker running MoveNet Thunder on TF.js. See [The pose engine](#the-pose-engine). |
 | `vendor/` | Third-party files, each with its licence text, byte for byte from its npm package ([THIRD_PARTY.md](../THIRD_PARTY.md#in-the-new-app-app)): `preact/` (Preact 11.1.1 and its hooks), `htm/` (htm 3.1.1), `mediabunny/` (mediabunny 1.61.6, MPL-2.0, the frame source's one demuxer), `fonts/` (Barlow and Barlow Condensed, woff2, with `OFL.txt`). `vendor/tfjs/` is built by `tools/build-tfjs.mjs` (gitignored). |
 | `tools/` | `assemble.mjs`, `serve.mjs`, `make-icon.mjs`, and the TF.js build: `build-tfjs.mjs`, `fetch-models.sh`, `check-tfjs.mjs`, `patches/` ([below](#tfjs-from-source)), and `check-media.mjs` (the frame source on a real decoder, [above](#the-frame-source)). Node only; only `build-tfjs.mjs` needs `app/node_modules/` (esbuild). Not copied into `dist/`. |
 | `dist/` | The assembled app (gitignored): what the PWA host and Capacitor get. `files.json` lists every file in it, with a version hash, for the service worker. |
@@ -323,6 +325,48 @@ SwiftShader, software: it shows the bundle works, not how fast. With
 `--backend cpu` the check runs in Node, against the same local server: the
 CPU bundle is built for Node and doesn't load in a browser.
 
+## The pose engine
+
+`src/pose/` is the engine behind contract 1 (`pose-messages.mjs`): pose-bench's
+worker and client, copied and trimmed to MoveNet SinglePose Thunder on the
+WebGL bundle. Nothing is imported from `spike/`.
+
+```js
+import { PoseEngine } from './pose/pose-client.mjs';
+const engine = await PoseEngine.create({ backend: 'webgl' });  // loads the weights, warms up; engine.info is the lift's `engine`
+const { keypoints, ms } = await engine.estimate(videoFrame, tMs); // COCO-17 [y, x, conf] in pixels, or null
+await engine.reset();    // between clips
+engine.close();
+```
+
+| File | What |
+| --- | --- |
+| `pose-client.mjs` | `PoseEngine`: owns the worker, sends `init` and `estimate`, matches `result` to its call by `id`. Calls made together wait in order and go out one at a time (contract 1: the next after the last result), since MoveNet's crop follows the previous pose. A frame is transferred; the worker closes it. A frame that never reaches the worker (a refused call, a failed transfer, a closed engine) is closed by the client, so the caller never closes a frame it passed in. |
+| `pose-worker.mjs` | The module worker's wiring: `self.onmessage` to the handler, `self.postMessage` out. |
+| `worker-core.mjs` | `createWorkerHandler({load, post})`: init, estimate, the errors. Handles messages one at a time, closes every frame once, turns an engine's exception into `result {id, error}` and a failed load into `error`. No worker or TF.js in it, so Node tests drive it with a fake engine. |
+| `movenet.mjs` | `loadMoveNet(backend)`: imports `../../vendor/tfjs/tfjs-webgl.mjs`, sets the backend, creates the Thunder detector from `../../models/movenet-thunder-4/model.json` (relative URLs, no network), smoothing off (`src/track/` smooths), runs one blank 256 × 256 frame to compile the shaders, then resets the detector's crop. Only `webgl` for now; WebGPU and one-thread WASM come later. |
+| `coco17.mjs` | pose-detection's keypoint objects to `[y, x, conf]`; refuses a count other than 17 and a name out of COCO-17's order. |
+| `check.mjs` | What a result must be before the worker posts it and the client believes it: contract 1's shape, and in the frame's pixels (a pose whose every coordinate is within 0..1 on a frame of hundreds of pixels is normalised, and refused). |
+
+- **Errors.** A failed estimate rejects that call only (`result {id, error}`);
+  the engine goes on. A failed `init`, a worker that dies (`onerror`) or
+  `close()` ends the engine: what is waiting or in flight rejects, later calls
+  reject with the same words.
+- **`reset()`** ends the worker and starts a fresh one (weights and warm-up
+  again, seconds on the phone): contract 1 has no message that clears MoveNet's
+  crop, and a new clip must not start from the last clip's pose. It waits for
+  the estimate in flight. A `reset` message in contract 1 would make it
+  cheap: a package of its own (see the report of `s10`).
+- **`null`** is MoveNet saying nobody is there (its pose score is under its
+  own minimum); the confidences of a pose are passed on as they are, and
+  nothing here thresholds them: the cues do.
+- **The check:** `tools/check-pose.mjs` runs the engine in headless Brave (a
+  real module worker, software WebGL) on a few synthetic frames and a
+  `reset()`. It shows that the engine loads and answers; the phone's speed is
+  `c20`'s and `c26`'s.
+- **Tests:** `tests/app/pose-engine.test.js`, against a fake worker and a fake
+  engine.
+
 ## Parity with npm's TF.js
 
 The spike measured every speed and agreement number with npm's TF.js
@@ -383,7 +427,7 @@ and WebGPU backends, and speed. They wait for the Fairphone (`c26`).
 `tests/`: `flow.test.js` (the state machine), `assemble.test.js` (assemble
 into a temporary folder, the manifest and `index.html`), `serve.test.js` (the
 dev server), `contracts.test.js` (the contracts, against the committed tracks
-and `diagnostics.js`'s headless API), `store.test.js` (the store, on `fake-opfs.js`, an in-memory OPFS), `frame-source.test.js` (the frame source, on our own clips in `tests/app/clips/` and a fake decoder), `build-tfjs.test.js` (the TF.js
+and `diagnostics.js`'s headless API), `store.test.js` (the store, on `fake-opfs.js`, an in-memory OPFS), `frame-source.test.js` (the frame source, on our own clips in `tests/app/clips/` and a fake decoder), `pose-engine.test.js` (the pose engine's client and worker handler, against fakes), `build-tfjs.test.js` (the TF.js
 build's pins, cache, op lists and patch notices, the MoveNet entry's
 refusal of a config without `modelUrl`, and `fetch-models.sh`'s checks and
 clean-up, all without the network). Every test runs in a fresh worktree, which has neither
