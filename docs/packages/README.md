@@ -76,7 +76,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 40 | `d25` | A4 and the responsive check | dirac, sonnet | `d18`, `c21`, `c47` | merged `ee43c27` (two fix rounds: the app tests, then A4's video column in a wide window) |
 | 41 | `c26` | Milestone A on the Fairphone | curie, sonnet | `d13`, `d14`, `d18`, `c19`, `c20`, `c34`, `c43` | waits; phone: by day, nordmu told (airplane mode); its numbers set s12's stall time and time left (nordmu, 2026-11-02) |
 | 42 | `d51` | Q1's "Pick another video", and smoothing capped at 300 ms | dirac, sonnet | `d22`, `d23` | merged `d37d6f6` |
-| 43 | `s50` | A re-marked lift replaces the old one once its analysis is done | schrödinger, opus | `d22` | ready (nordmu, 2026-11-02, on d22's report) |
+| 43 | `s50` | A re-marked lift replaces the old one once its analysis is done | schrödinger, opus | `d22` | merged `8d03665` |
 | 44 | `c52` | The tools' browser leaves no org.chromium.Chromium folders in /tmp | curie, sonnet | `c47`, `c48` | ready; laptop only (nordmu, 2026-11-02, on c48's report) |
 | 45 | `s49` | One lift registry, and the guide to adding a lift or a cue (Noah's handover of the lift side) | schrödinger, opus | `d25` | ready (nordmu, 2026-11-02) |
 | 46 | `d53` | Pick the video, then "Which lift?" (L1); M's lift switch goes | dirac, sonnet | `d51`, `s50`, `s49` | waits (checkpoint A round 1, approved by nordmu 2026-11-02; to run tonight); laptop only |
