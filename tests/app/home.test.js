@@ -41,8 +41,8 @@ test('a lift\'s state: reading, pose and scoring are analysing, with the progres
   const { liftState } = await model();
   for (const [state, p, percent] of [
     ['reading', progress('reading', 0, 1), 0],
-    ['pose', progress('pose', 60, 100, 12), 60],
-    ['scoring', progress('scoring', 0, 1), 99],
+    ['pose', progress('pose', 60, 100, 12), 61],   // Q1's bands: 10 + 85 * 0.6, floored (d41)
+    ['scoring', progress('scoring', 0, 1), 95],
   ]) {
     const s = liftState(TODAY_A, [job(TODAY_A, state, { progress: p })]);
     assert.equal(s.kind, 'analysing', state);
@@ -75,6 +75,48 @@ test('a done job whose lift the store has not shown as analysed yet is still ana
   const s = liftState(TODAY_A, [job(TODAY_A, 'done')]);
   assert.equal(s.kind, 'analysing');
   assert.equal(s.percent, 99);
+});
+
+test('H and Q1 read a running job as the same percent at every stage (d41: Q1\'s bands, one function)', async () => {
+  const { liftState } = await model();
+  const { analysingView } = await load('ui', 'analysing-model.mjs');
+  const cases = [
+    ['reading', progress('reading', 0, 1)], ['reading', progress('reading', 1, 1)],
+    ['pose', progress('pose', 0, 390)], ['pose', progress('pose', 195, 390)], ['pose', progress('pose', 390, 390)],
+    ['scoring', progress('scoring', 0, 1)], ['scoring', progress('scoring', 1, 1)],
+  ];
+  for (const [state, p] of cases) {
+    const jobs = [job(TODAY_A, state, { progress: p })];
+    assert.equal(liftState(TODAY_A, jobs).percent, analysingView(jobs, { liftId: TODAY_A.id }).percent, `${state} ${p.done}/${p.total}`);
+  }
+  const half = [job(TODAY_A, 'pose', { progress: progress('pose', 50, 100) })];
+  assert.equal(liftState(TODAY_A, half).percent, 52, 'half the frames is 52 %, not 50 %');
+});
+
+test('only a lift the store holds as analysed shows 100 %: a running job stays under it', async () => {
+  const { liftState } = await model();
+  for (const [state, p] of [['pose', progress('pose', 390, 390)], ['scoring', progress('scoring', 1, 1)], ['done', progress('scoring', 1, 1)]]) {
+    assert.ok(liftState(TODAY_A, [job(TODAY_A, state, { progress: p })]).percent < 100, state);
+  }
+  assert.equal(liftState(TODAY_B, [job(TODAY_B, 'done')]).kind, 'ready');
+});
+
+test('Import starts on the default lift from the settings: the first choice while they load, or for a lift not offered', async () => {
+  const { startLift, LIFT_CHOICES } = await model();
+  assert.equal(startLift(null), LIFT_CHOICES[0].id);
+  assert.equal(startLift(undefined), LIFT_CHOICES[0].id);
+  assert.equal(startLift({ defaultLift: 'snatch' }), 'snatch');
+  assert.equal(startLift({ defaultLift: 'lateral-raise' }), 'lateral-raise');
+  assert.equal(startLift({ defaultLift: 'squat' }), LIFT_CHOICES[0].id);
+  assert.equal(startLift({}), LIFT_CHOICES[0].id);
+});
+
+test('Import reads the settings once from the injected store and keeps a choice made before they arrive', () => {
+  const fs = require('node:fs');
+  const text = fs.readFileSync(path.join(APP, 'src', 'ui', 'screens', 'Import.mjs'), 'utf8').replace(/\/\/.*$/gm, '');
+  assert.equal((text.match(/getSettings\(/g) || []).length, 1);
+  assert.match(text, /startLift\(/);
+  assert.match(text, /export function Import\(\{[^}]*\bstore\b/);
 });
 
 test('the state looks at its own lift\'s job only', async () => {
