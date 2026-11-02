@@ -54,7 +54,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 19 | `s38` | One-frame steps from a cache | schrödinger, opus | `s35`, `c34` | waits |
 | 20 | `d13` | H and importing a video | dirac, sonnet | `d3`, `c8`, `s12` | merged `109eaeb` |
 | 21 | `d14` | M1–M3, marking a lift | dirac, sonnet | `s9`, `s12`, `s35`, `s38` | waits |
-| 22 | `d15` | Q1, analysing | dirac, sonnet | `s12` | waits |
+| 22 | `d15` | Q1, analysing | dirac, sonnet | `s12` | merged `ea03e35` |
 | 23 | `d16` | A1's player with the skeleton overlay | dirac, sonnet | `s9`, `s11`, `s32`, `s35` | waits; L at the limit: split point `d16b` |
 | 24 | `d17` | A1's timeline and cue cards | dirac, sonnet | `d16`, `s36` | waits |
 | | | **Look A0** (D7): nordmu, about 15 minutes on the Fairphone | | `d13`, `d14`, `d15`, `d17`, `c20` | not a gate |
