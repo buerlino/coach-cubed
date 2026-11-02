@@ -64,7 +64,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 28 | `d18` | A2, a cue's detail | dirac, sonnet | `d17`, `s4`, `s39` | waits |
 | 29 | `d22` | A3, view options | dirac, sonnet | `d17`, `c8`, `d14`, `s35` | waits |
 | 30 | `d23` | The screens v1 doesn't draw | dirac, sonnet | `d17`, `s12`, `c8` | waits |
-| 31 | `d24` | S1, settings and about | dirac, sonnet | `c8` | waits |
+| 31 | `d24` | S1, settings and about | dirac, sonnet | `c8` | merged `5d33a32` |
 | 32 | `d25` | A4 and the responsive check | dirac, sonnet | `d18`, `c21` | waits |
 | 33 | `c26` | Milestone A on the Fairphone | curie, sonnet | `d13`, `d14`, `d18`, `c19`, `c20`, `c34` | waits; phone: by day, nordmu told (airplane mode); its numbers set s12's stall time and time left (nordmu, 2026-11-02) |
 | | | **Checkpoint A:** nordmu uses milestone A on the Fairphone; feedback by screen ID. Then **2.7 and 2.8** with the queue empty (D8) | | `c26` | |
