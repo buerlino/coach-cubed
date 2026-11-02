@@ -1,0 +1,3 @@
+// The store's public face (c8): see store.mjs for the layout and the calls.
+export { APP_VERSION, StoreError, createStore, groupLifts, isStorageFull } from './store.mjs';
+export { DEFAULT_SETTINGS, applySettings, defaultSettings, readSettings, validateSettings, validateSettingsPatch } from './settings.mjs';

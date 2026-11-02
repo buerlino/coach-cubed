@@ -39,6 +39,7 @@ It logs each request (`200 /index.html`); a `404` there is a broken path.
 | `src/styles/` | `tokens.css` (every colour, the status colours with their words, the type, the spacing, the 44 px touch target; dark only) and `base.css` (the `@font-face` rules, the reset and the classes every screen shares). A screen styles itself from tokens, never from literal values. |
 | `src/track/` | One-line stubs, see below. |
 | `src/contracts/` | The shapes the app's parts agree on: JSDoc types, validators, examples. See [Contracts](#contracts). |
+| `src/store/` | The store (`c8`): lifts, their cut videos, tracks and results, the index and the settings, in OPFS. See [The store](#the-store). |
 | `vendor/` | Third-party files, each with its licence text, byte for byte from its npm package ([THIRD_PARTY.md](../THIRD_PARTY.md#in-the-new-app-app)): `preact/` (Preact 11.1.1 and its hooks), `htm/` (htm 3.1.1), `fonts/` (Barlow and Barlow Condensed, woff2, with `OFL.txt`). `vendor/tfjs/` is built by `tools/build-tfjs.mjs` (gitignored). |
 | `tools/` | `assemble.mjs`, `serve.mjs`, `make-icon.mjs`, and the TF.js build: `build-tfjs.mjs`, `fetch-models.sh`, `check-tfjs.mjs`, `patches/` ([below](#tfjs-from-source)). Node only; only `build-tfjs.mjs` needs `app/node_modules/` (esbuild). Not copied into `dist/`. |
 | `dist/` | The assembled app (gitignored): what the PWA host and Capacitor get. `files.json` lists every file in it, with a version hash, for the service worker. |
@@ -107,6 +108,68 @@ the screens and the tests.
 A change to a contract is a package of its own: both sides build on it, so
 it is agreed first, with its tests, and then each side follows in its own
 package.
+
+## The store
+
+`src/store/` keeps what stays on the phone, in OPFS
+(`navigator.storage.getDirectory()`), nothing anywhere else: no
+`localStorage`, no IndexedDB, no network (`tests/app/store.test.js` scans its
+source for them). `createStore({ storage, now, appVersion })` takes
+`navigator.storage` by default; the tests pass the in-memory fake in
+`tests/app/fake-opfs.js`. The calls are async and run one at a time.
+
+The layout, from the store's root:
+
+```
+index.json              the lifts' records, newest first (a cache of the folders)
+settings.json           S1's choices and A3's view options
+meta.json               what persist() answered, and when it was asked
+lifts/<id>/cut.mp4      the cut video (D6)
+lifts/<id>/track.json   the track, once analysed (contract: track.mjs)
+lifts/<id>/result.json  the ResultView, once analysed (cue-view.mjs)
+lifts/<id>/lift.json    the lift's record: contract 3, a StoredLift
+```
+
+- **Saving** (`saveLift({lift, video, range, …})`) writes the cut, then the
+  track and result if given, then `lift.json`, then the index. `lift.json`
+  is written last: a folder with it is a complete lift. A save that fails
+  removes its folder. `updateLift(id, {track, result, engine, range})`
+  completes a lift when its job is done; every record passes
+  `validateStoredLift`, and a track or result passes `validateTrack` or
+  `validateResultView`, before anything is written (else `invalid`). An
+  update that fails puts back the old `lift.json` and the files it
+  overwrote, and removes the ones it made, so a record never names a file
+  that is not there.
+- **The index** is written atomically: `index.json.tmp`, then
+  `move('index.json')`; `settings.json` and `meta.json` too. When the index
+  is missing, isn't JSON, has the wrong shape or an invalid entry, it is
+  rebuilt from the folders' `lift.json` files and written back
+  (`rebuildIndex()` does it on demand and returns what it skipped: a folder
+  with no complete record, which it leaves alone).
+- **Deleting** (`deleteLift(id)`) removes `lift.json` first, then the whole
+  folder `lifts/<id>/` (the cut, the track, the result), then the index
+  entry. Nothing else is touched: other lifts, the settings and the
+  app's cached files stay. A delete that stopped halfway (the record gone,
+  the folder or the index entry still there) is finished by calling it
+  again; `not-found` only when neither is left.
+- **Lists:** `listLifts()` newest first; `listByDay()` splits today's (the
+  local calendar day) from earlier ones, for H. Ids look like
+  `20261101-174205-lr` (UTC time, lift), with `-2`, `-3` for a clash.
+- **Settings:** `getSettings()` reads v1's defaults (a 20 s replay, a 60 s
+  buffer, videos kept, D2) over whatever `settings.json` holds; a field that
+  is missing or fails its check takes its default. `saveSettings(patch)`
+  checks the patch (`validateSettingsPatch`) and keeps the merge. The fields
+  are in `settings.mjs`.
+- **`persist()`** is asked at the first save, once; the answer is kept in
+  `meta.json` (`persistAnswer()`), and a refusal doesn't stop the save.
+- **Quota:** `storageInfo()` gives `estimate()`'s usage and quota, the room
+  left and `persisted()`, for S1; `liftsBytes()` the bytes the lifts hold.
+- **Errors** are `StoreError`s with a `code` the UI can show: `storage-full`
+  (the disk or the quota is full, D3), `unavailable` (no OPFS), `not-found`,
+  `invalid` (the message says which field).
+
+Not here: keeping or dropping the video after Analyse (`keepVideos` is only
+stored; `s32` and the job act on it), and the job queue's own state (`s12`).
 
 ## TF.js from source
 
@@ -247,7 +310,7 @@ and WebGPU backends, and speed. They wait for the Fairphone (`c26`).
 `tests/`: `flow.test.js` (the state machine), `assemble.test.js` (assemble
 into a temporary folder, the manifest and `index.html`), `serve.test.js` (the
 dev server), `contracts.test.js` (the contracts, against the committed tracks
-and `diagnostics.js`'s headless API), `build-tfjs.test.js` (the TF.js
+and `diagnostics.js`'s headless API), `store.test.js` (the store, on `fake-opfs.js`, an in-memory OPFS), `build-tfjs.test.js` (the TF.js
 build's pins, cache, op lists and patch notices, the MoveNet entry's
 refusal of a config without `modelUrl`, and `fetch-models.sh`'s checks and
 clean-up, all without the network). Every test runs in a fresh worktree, which has neither
