@@ -3,7 +3,7 @@
 // frame under it is decoded off the input path (mark-model.mjs's createPlayhead:
 // a drag only says where it is); Set start, Set end, one frame back or on (s38's
 // stepper), the marked length and its time, Analyse, Redo. The file and the lift
-// come in the flow's params from H's import; the queue is injected (main.mjs
+// come in the flow's params from L1 (the lift is chosen there and only shown here); the queue is injected (main.mjs
 // gives the app's one), so tests pass a fake. What to show and what Analyse does
 // is mark-model.mjs's; this draws it and holds the video open while M is up.
 // A3's re-mark (d22) comes with `range` too: the stored cut and the lift's old range, which M turns back
@@ -12,14 +12,16 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../html.mjs';
 import { openFrameSource } from '../../media/frame-source.mjs';
-import { LIFTS } from '../../contracts/lifts.mjs';
+import { liftLabel } from '../../contracts/lifts.mjs';
 import {
-  PX_PER_SECOND, THUMB, analyse, analyseCost, createLatest, createPlayhead, createThumbPlanner, playheadNote, dragTarget, dropFarThumbs, fitSize, liftLabelOf, markView,
-  marksFromRange, newMarks, otherLift, redo, setMark, stripLeft, thumbSeconds, thumbTime,
+  PX_PER_SECOND, THUMB, analyse, analyseCost, createLatest, createPlayhead, createThumbPlanner, playheadNote, dragTarget, dropFarThumbs, fitSize, markView,
+  marksFromRange, newMarks, redo, setMark, stripLeft, thumbSeconds, thumbTime,
 } from '../mark-model.mjs';
+import { PickVideo } from '../components/PickVideo.mjs';
 import { Problem } from '../components/problem.mjs';
+import { isProvisional } from '../home-model.mjs';
 import { problemOf, waysOn } from '../problem-model.mjs';
-import { ChevronDownIcon, CloseIcon, StepBackIcon, StepForwardIcon } from '../components/icons.mjs';
+import { CloseIcon, LiftIcon, StepBackIcon, StepForwardIcon } from '../components/icons.mjs';
 
 const THUMB_MARGIN = 3;       // seconds of thumbnails made beyond the strip's edges
 const THUMB_KEEP = 12;        // seconds of thumbnails kept beyond them
@@ -42,8 +44,7 @@ function Picture({ bitmap }) {
 const clockLabel = s => (s % 2 ? '' : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`);
 
 export function M({ flow, queue, openSource = openFrameSource }) {
-  const { file = null, range = null, replaces = null } = flow.params;
-  const [lift, setLift] = useState(flow.params.lift || LIFTS[0]);   // the registry's first lift when none came in
+  const { file = null, lift = null, range = null, replaces = null } = flow.params;   // the lift is L1's choice; none: the no video state
   const [source, setSource] = useState(null);     // { frameTimes, info } once the video is open
   const [problem, setProblem] = useState(null);   // the video could not be opened, or a frame could not be decoded
   const [marks, setMarks] = useState(newMarks);
@@ -68,7 +69,7 @@ export function M({ flow, queue, openSource = openFrameSource }) {
 
   // the video, its stepper and the playhead; all closed when M closes
   useEffect(() => {
-    if (!file) return undefined;
+    if (!file || !lift) return undefined;
     let current = true;
     const p = parts.current = {};
     (async () => {
@@ -103,7 +104,7 @@ export function M({ flow, queue, openSource = openFrameSource }) {
       thumbs.current.clear();
       planner.current.reset();
     };
-  }, [file, openSource]);
+  }, [file, lift, openSource]);
 
   function paint(frame) {
     const canvas = canvasRef.current;
@@ -203,7 +204,7 @@ export function M({ flow, queue, openSource = openFrameSource }) {
   const left = stripLeft(time, width);
   const px = t => (t * PX_PER_SECOND).toFixed(1);
 
-  if (file && failure) {
+  if (file && lift && failure) {
     const { problem: p, atAnalyse } = failure;
     const ways = waysOn(p, atAnalyse);
     return html`
@@ -216,14 +217,14 @@ export function M({ flow, queue, openSource = openFrameSource }) {
           <${Problem} problem=${p}>
             ${ways.includes('retry') ? html`<button type="button" class="button--primary button-big" onClick=${() => { setFailure(null); onAnalyse(); }}>Try again</button>` : null}
             ${ways.includes('marks') ? html`<button type="button" class="button--raised button-wide" onClick=${() => { setFailure(null); setRefused(null); }}>Back to the marks</button>` : null}
-            ${ways.includes('another') ? html`<button type="button" class=${atAnalyse ? 'button-wide' : 'button--primary button-big'} onClick=${() => flow.go('import')}>Pick another video</button>` : null}
+            ${ways.includes('another') ? html`<${PickVideo} flow=${flow} class=${atAnalyse ? 'button-wide' : 'button--primary button-big'}>Pick another video</${PickVideo}>` : null}
             <button type="button" class="button--raised button-wide" onClick=${() => flow.go('home')}>Back to home</button>
           <//>
         </div>
       </main>`;
   }
 
-  if (!file) {
+  if (!file || !lift) {
     return html`
       <main class="screen" data-screen="M">
         <header class="mark-header">
@@ -241,10 +242,11 @@ export function M({ flow, queue, openSource = openFrameSource }) {
     <main class="screen mark" data-screen="M" data-step=${view ? view.step : 'loading'}>
       <header class="mark-header">
         <button type="button" class="icon-button" aria-label="Close" onClick=${() => flow.go('home')}><${CloseIcon} /></button>
-        <h1 class="mark-header__title">Mark the lift</h1>
-        <button type="button" class="mark-lift" aria-label=${`Lift: ${liftLabelOf(lift)}. Tap to change.`} onClick=${() => setLift(otherLift(lift))}>
-          ${liftLabelOf(lift)}<${ChevronDownIcon} />
-        </button>
+        <h1 class="mark-header__lift" aria-label=${`Mark the lift: ${liftLabel(lift)}`}>
+          <${LiftIcon} lift=${lift} />
+          <span>${liftLabel(lift)}</span>
+          ${isProvisional(lift) ? html`<span class="tag">provisional</span>` : null}
+        </h1>
       </header>
 
       <div class="mark-stage" ref=${stageRef}>

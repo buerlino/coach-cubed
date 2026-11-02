@@ -166,7 +166,7 @@ test('d51/d53: Q1 draws the button on the panel, as a big button that opens the 
   const fs = require('node:fs');
   const q1 = fs.readFileSync(path.join(APP, 'src', 'ui', 'screens', 'Q1.mjs'), 'utf8');
   assert.match(q1, /view\.actions\.another \? html`<\$\{PickVideo\} flow=\$\{flow\} class="button--primary button-big">Pick another video<\/\$\{PickVideo\}>`/);
-  assert.doesNotMatch(q1, /go\('import'\)/);
+  assert.doesNotMatch(q1, /go\("import"\)/);
 });
 
 test('a cancelled job: stopped, retry offered, no reason', async () => {

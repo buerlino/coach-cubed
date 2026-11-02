@@ -97,6 +97,14 @@
   --button-wide: 56px;
   --button-quiet: 48px;
 
+  /* L1's pieces (round 1's page): a lift's tile, its icon box and figure, the ring, the name; the small figure in M's header */
+  --lift-tile-min: 120px;
+  --lift-icon-box: 72px;
+  --lift-figure: 52px;
+  --lift-ring: 2px;
+  --size-lift: 24px;
+  --lift-figure-small: 28px;
+
   /* Sizes of M's pieces (the mockup's): the video stage, the filmstrip, a thumbnail,
      the playhead, a step's mark, the frame-step buttons. The strip's 48 px a second
      is PX_PER_SECOND in ui/mark-model.mjs. */

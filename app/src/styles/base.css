@@ -122,14 +122,20 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 
 .empty { padding: var(--space-6) var(--space-4); text-align: center; display: flex; flex-direction: column; gap: var(--space-2); }
 
-/* Import: the lift choice, then the picker */
-.choice { display: flex; flex-direction: column; gap: var(--space-2); border: 0; margin: 0; padding: 0; }
-.choice__option { display: flex; align-items: center; gap: var(--space-3); min-height: var(--touch); padding: var(--space-2) var(--space-4); border-radius: var(--radius-m); background: var(--surface); border: 1px solid var(--line); cursor: pointer; }
-.choice__option:has(input:checked) { border-color: var(--accent); }
-.choice__option input { accent-color: var(--accent); width: var(--space-5); height: var(--space-5); }
-.picker { position: relative; display: flex; align-items: center; justify-content: center; min-height: var(--card-min); border-radius: var(--radius-xl); font-size: var(--size-subtitle); font-weight: var(--weight-bold); cursor: pointer; }
-.picker input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-.picker:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* L1, Which lift? (round 1: design/checkpoint-a/round-1.html) */
+.lift-step { flex: 1; display: flex; flex-direction: column; gap: var(--space-3h); padding: var(--space-2) var(--space-4) 0; }
+.lift-step__title { padding: var(--space-1) var(--space-1) 0; font-family: var(--font-display); font-size: var(--size-wordmark); font-weight: var(--weight-bold); letter-spacing: var(--tracking-wordmark); line-height: 1.1; }
+.lift-step__clip { display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-1) var(--space-1h); min-width: 0; color: var(--text-quiet); font-size: var(--size-small); }
+.lift-step__clip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lift-tile { display: flex; align-items: center; gap: var(--space-4h); width: 100%; min-height: var(--lift-tile-min); padding: var(--space-4) var(--space-5); text-align: left; font-weight: var(--weight-regular); border: var(--lift-ring) solid var(--line); border-radius: var(--radius-xl); background: var(--surface); }
+.lift-tile--default { border-color: var(--accent); }
+.lift-tile:hover { border-color: var(--text-quiet); }
+.lift-tile--default:hover { border-color: var(--accent-hover); }
+.lift-tile:active { background: var(--surface-raised); }
+.lift-tile__icon { flex: none; width: var(--lift-icon-box); height: var(--lift-icon-box); border-radius: var(--radius-button); background: var(--surface-raised); color: var(--text); display: flex; align-items: center; justify-content: center; }
+.lift-tile__icon svg { width: var(--lift-figure); height: var(--lift-figure); }
+.lift-tile__text { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1h); }
+.lift-tile__name { font-size: var(--size-lift); font-weight: var(--weight-bold); }
 .error { color: var(--status-work-on); font-weight: var(--weight-semibold); }
 
 /* Q1, Analysing (docs/ui-design.md, design/mockups/Analysing.dc.html) */
@@ -209,7 +215,9 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .mark { height: 100dvh; display: flex; flex-direction: column; }   /* the stage gives way on a short screen */
 .mark-header { height: calc(var(--touch) + var(--space-4)); flex: none; display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-3); }
 .mark-header__title { font-size: var(--size-heading); font-weight: var(--weight-bold); }
-.mark-lift { margin-left: auto; min-height: var(--touch); display: flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-3) 0 var(--space-3h); border-radius: var(--radius-xl); background: transparent; border-color: var(--line-strong); font-size: var(--size-label); }
+.mark-header__lift .tag { font-weight: var(--weight-semibold); }
+.mark-header__lift { display: flex; align-items: center; gap: var(--space-2); font-size: var(--size-body); font-weight: var(--weight-semibold); color: var(--text-soft); }
+.mark-header__lift svg { width: var(--lift-figure-small); height: var(--lift-figure-small); }
 .mark-stage { flex: 0 1 var(--stage); min-height: var(--stage-min); position: relative; display: flex; align-items: center; justify-content: center; background: var(--stage-ground); }
 .mark-stage canvas { max-width: 100%; max-height: 100%; }
 .mark-stage__note { padding: 0 var(--space-5); text-align: center; color: var(--text-soft); }

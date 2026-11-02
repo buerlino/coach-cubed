@@ -3,7 +3,7 @@
 // The responsive check (package d25, plan step 5.7): every screen of the app at seven window sizes, in the page
 // test's build (assemble.mjs --test, app/README.md "The page test") in headless Brave or Chromium over the
 // DevTools protocol. It walks the app the way the page test does (first-run intro, H, S1, S1's credits, S1b,
-// Import, M in its three steps and its error, Q1, A1, A3's sheet, A2) and at each screen sets each size in turn:
+// L1 (Which lift?), M in its three steps and its error, Q1, A1, A3's sheet, A2) and at each screen sets each size in turn:
 //   phone portrait 360×800 and 412×915, phone landscape 800×360, tablet 768×1024, laptop 1280×800, and above A4's
 //   breakpoint a landscape tablet 1024×768 and a narrow window 980×720 (the video column has to give way there).
 // It fails on
@@ -284,13 +284,12 @@ async function main() {
     await click('button', 'Back to home');
     await waitFor(`document.querySelector('[data-screen="H"]')`, 'H again');
 
-    // Import → M
-    await click('button', 'Import a video');
-    await waitFor(`document.querySelector('[data-screen="Import"]')`, 'Import');
-    await check('Import');
-    await evaluate(`document.querySelector('input[name="lift"][value="lateral-raise"]').click()`);
-    const input = await evaluate(`document.querySelector('input[type="file"]')`, { objectId: true });
+    // H → the picker (H's file input is set) → L1 → M
+    const input = await evaluate(`document.querySelector('[data-screen="H"] input[type="file"]')`, { objectId: true });
     await send('DOM.setFileInputFiles', { files: [clip], objectId: input.objectId });
+    await waitFor(`document.querySelector('[data-screen="L1"] [data-lift]')`, 'L1');
+    await check('L1');
+    await click('[data-screen="L1"] [data-lift="lateral-raise"]');
     await waitFor(`document.querySelector('[data-screen="M"][data-step="start"] .mark-main--set:not([disabled])')`, 'M with the video open');
     await check('M (set the start)');
     await click('.mark-main--set');
@@ -376,10 +375,10 @@ async function main() {
 
     // a file that is not a video: the error screen
     writeFileSync(junk, 'this is not a video\n');
-    await click('button', 'Import a video');
-    await waitFor(`document.querySelector('[data-screen="Import"]')`, 'Import (junk file)');
-    const input2 = await evaluate(`document.querySelector('input[type="file"]')`, { objectId: true });
+    const input2 = await evaluate(`document.querySelector('[data-screen="H"] input[type="file"]')`, { objectId: true });
     await send('DOM.setFileInputFiles', { files: [junk], objectId: input2.objectId });
+    await waitFor(`document.querySelector('[data-screen="L1"] [data-lift]')`, 'L1 (junk file)');
+    await click('[data-screen="L1"] [data-lift="lateral-raise"]');
     await waitFor(`document.querySelector('[data-screen="M"][data-step="problem"]')`, 'the error screen');
     await check('M (error)');
 

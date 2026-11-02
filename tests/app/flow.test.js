@@ -162,11 +162,11 @@ test('screens never import each other, and the flow is a plain module', () => {
 
 test('d53: the lift step replaces import; the legal moves round it, and home -> mark stays illegal', async () => {
   const { STATES, SCREEN_OF, TRANSITIONS, createFlow } = await load();
-  assert.ok(!STATES.includes('import') && !('import' in SCREEN_OF) && !('import' in TRANSITIONS));
+  assert.ok(!STATES.includes("import") && !("import" in SCREEN_OF) && !("import" in TRANSITIONS));
   for (const [from, to] of [['home', 'lift'], ['welcome', 'lift'], ['lift', 'mark'], ['lift', 'home'], ['mark', 'lift'], ['queued', 'lift']]) {
     assert.ok(TRANSITIONS[from].includes(to), `${from} -> ${to}`);
   }
-  for (const s of STATES) assert.ok(!TRANSITIONS[s].includes('import'), `${s} -> import`);
+  for (const s of STATES) assert.ok(!TRANSITIONS[s].includes("import"), `${s} -> import`);
   assert.equal(createFlow().can('mark'), false);
   assert.deepEqual([...TRANSITIONS.lift].sort(), ['home', 'mark']);
 });

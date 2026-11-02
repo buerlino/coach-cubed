@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { html } from '../html.mjs';
 import { BackIcon, LiftIcon, LockIcon } from '../components/icons.mjs';
+import { PickVideo } from '../components/PickVideo.mjs';
 import { Problem } from '../components/problem.mjs';
 import { analysingView, followAnalysis } from '../analysing-model.mjs';
 
@@ -94,7 +95,7 @@ export function Q1({ flow, queue, store }) {
         <div class="q1-actions">
           ${view.actions.open ? html`<button type="button" class="button--primary button-big" onClick=${() => flow.go(view.actions.open.to, view.actions.open.params)}>Open the result</button>` : null}
           ${view.actions.retry ? html`<button type="button" class="button--primary button-big" disabled=${!view.jobId && !lift} onClick=${() => act(() => (view.jobId ? queue.retry(view.jobId) : queue.enqueue(lift)))}>Analyse again</button>` : null}
-          ${view.actions.another ? html`<button type="button" class="button--primary button-big" onClick=${() => flow.go('import')}>Pick another video</button>` : null}
+          ${view.actions.another ? html`<${PickVideo} flow=${flow} class="button--primary button-big">Pick another video</${PickVideo}>` : null}
           <button type="button" class=${`button-wide ${view.kind === 'done' || view.actions.retry ? 'button--raised' : 'button--light'}`} onClick=${() => flow.go(back.to)}>${back.label}</button>
           ${view.actions.cancel ? html`<button type="button" class="button--quiet" onClick=${() => act(() => queue.cancel(view.jobId))}>Cancel this analysis</button>` : null}
         </div>

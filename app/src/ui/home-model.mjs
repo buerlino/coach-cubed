@@ -1,12 +1,12 @@
 // H's logic as plain functions (package d13): what to show from the store's
-// lifts and the queue's jobs, and what the import step hands the flow. No
+// lifts and the queue's jobs, and what the pick step hands the flow. No
 // Preact and no DOM, so Node runs it as written (tests/app/home.test.js); the
-// screens (screens/H.mjs, screens/Import.mjs) only draw what these give.
+// screens (screens/H.mjs, components/PickVideo.mjs) only draw what these give.
 import { isAnalysed } from '../contracts/stored-lift.mjs';
-import { isLift, isProvisionalLift, liftEntries, liftLabel } from '../contracts/lifts.mjs';
+import { isProvisionalLift, liftEntries, liftLabel } from '../contracts/lifts.mjs';
 
 /**
- * The lifts the import step offers, in the registry's order (contracts/lifts.mjs): each one's id, label and
+ * The lifts L1 offers, in the registry's order (contracts/lifts.mjs): each one's id, label and
  * whether it is provisional as a whole (the snatch, while step 3.6 is open). A function, so a lift registered
  * after this module loaded is offered too.
  * @returns {Array<{id: string, label: string, provisional: boolean}>}
@@ -47,9 +47,8 @@ export function percentOf(job) {
 }
 
 /**
- * The lift Import starts on: the settings' default lift, or the first choice
- * while the settings load (`null`) or when the setting names a lift the import
- * step doesn't offer.
+ * S1's default lift, which L1 rings: the settings' default lift, or the first choice
+ * while the settings load (`null`) or when the setting names a lift the registry lacks.
  * @param {{defaultLift?: string}|null|undefined} settings
  */
 export function startLift(settings) {
@@ -169,18 +168,30 @@ export function homeView(grouped, jobs, results = {}) {
   };
 }
 
+/** What the phone's picker answers when the file isn't a video. */
+export const NOT_A_VIDEO = 'That’s not a video.';
+
 /**
- * The import step: the chosen lift goes into the flow with the file, on the way
- * to marking. Nothing changes for no file, a file that is not a video (a missing
- * type is let through: some Android pickers give none), or a lift the registry doesn't have.
- * @returns {{ok: true}|{ok: false, error: string}}
+ * Whether a picked file may go on: no file (the picker cancelled) is refused without words; a file whose
+ * type is set and isn't video/* is refused with them (a missing type is let through: some Android pickers
+ * give none).
+ * @returns {{ok: true}|{ok: false, error: string|null}}
  */
-export function importStep(flow, file, lift) {
-  if (!isLift(lift)) return { ok: false, error: 'Choose the lift first.' };
-  if (!file) return { ok: false, error: 'Pick a video from this phone.' };
-  if (file.type && !file.type.startsWith('video/')) return { ok: false, error: 'That file is not a video.' };
-  flow.go('mark', { file, lift });
+export function pickCheck(file) {
+  if (!file) return { ok: false, error: null };
+  if (file.type && !file.type.startsWith('video/')) return { ok: false, error: NOT_A_VIDEO };
   return { ok: true };
+}
+
+/**
+ * The pick step: a picked video goes into the flow as `{ file }`, on the way to L1 (the lift step). Nothing
+ * changes for a cancelled picker (no words) or a file that is not a video (`error` says so).
+ * @returns {{ok: true}|{ok: false, error: string|null}}
+ */
+export function pickStep(flow, file) {
+  const check = pickCheck(file);
+  if (check.ok) flow.go('lift', { file });
+  return check;
 }
 
 /**

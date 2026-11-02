@@ -5,7 +5,7 @@ import { useFlow } from './use-flow.mjs';
 import { SCREEN_OF } from '../flow/flow.mjs';
 import { Welcome } from './screens/Welcome.mjs';
 import { H } from './screens/H.mjs';
-import { Import } from './screens/Import.mjs';
+import { L1 } from './screens/L1.mjs';
 import { M } from './screens/M.mjs';
 import { Q1 } from './screens/Q1.mjs';
 import { A1 } from './screens/A1.mjs';
@@ -15,7 +15,7 @@ import { S1b } from './screens/S1b.mjs';
 import { R2 } from './screens/R2.mjs';
 import { R3 } from './screens/R3.mjs';
 
-const SCREENS = { Welcome, H, Import, M, Q1, A1, A2, S1, S1b, R2, R3 };
+const SCREENS = { Welcome, H, L1, M, Q1, A1, A2, S1, S1b, R2, R3 };
 
 // `queue`, `store` and `updates` (the service worker's state, src/updates.mjs) are the app's
 // (main.mjs); the screens that need them get them injected.

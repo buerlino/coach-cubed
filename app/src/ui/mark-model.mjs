@@ -5,9 +5,7 @@
 //
 // The marks are frame indexes into the source's `frameTimes` (contract 5), never
 // times made up from the frame rate: a variable-rate video has its own spacing.
-import { LIFTS } from '../contracts/lifts.mjs';
 import { problemOf } from './problem-model.mjs';
-import { liftChoices, liftLabel } from './home-model.mjs';
 
 /** The filmstrip's scale: pixels to a second (the mockup's), one thumbnail a second. */
 export const PX_PER_SECOND = 48;
@@ -17,11 +15,6 @@ export const THUMB = Object.freeze({ width: 47, height: 64 });
 export const MIN_MARK_FRAMES = 3;
 /** The pixel ratio the stepper's budget is sized for (contract 5: 128 MiB, 744 × 1320 frames). */
 export const MAX_PIXEL_RATIO = 3;
-
-// M's lift switch reads the registry; it goes when the lift gets its own step (nordmu, 2026-11-02, checkpoint A's point 5).
-export const otherLift = lift => LIFTS.find(l => l !== lift) ?? lift;
-export const liftLabelOf = liftLabel;
-export { liftChoices };
 
 // ---- time and the strip ----
 
