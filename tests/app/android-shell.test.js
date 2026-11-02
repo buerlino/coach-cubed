@@ -70,3 +70,23 @@ test('the check page lives in app/debug/ and is reachable only in the debug buil
   // The app links nowhere into debug/.
   for (const f of ['index.html', 'src/main.mjs']) assert.doesNotMatch(read(f), /debug\//, f);
 });
+
+test('no Android backup: allowBackup false, and extraction rules that exclude every domain from cloud backup and device transfer', () => {
+  const manifest = read('android/app/src/main/AndroidManifest.xml');
+  const application = /<application\b[^>]*>/.exec(manifest)?.[0] ?? '';
+  assert.match(application, /android:allowBackup="false"/, 'S1 says the lifts stay on this phone');
+  const rules = /android:dataExtractionRules="@xml\/([A-Za-z0-9_]+)"/.exec(application);
+  assert.ok(rules, '<application> names android:dataExtractionRules (Android 12+ device transfer ignores allowBackup)');
+  const file = `android/app/src/main/res/xml/${rules[1]}.xml`;
+  assert.ok(fs.existsSync(path.join(APP, file)), file);
+  const xml = read(file).replace(/<!--[\s\S]*?-->/g, '');
+  assert.match(xml, /<data-extraction-rules>/);
+  for (const section of ['cloud-backup', 'device-transfer']) {
+    const m = new RegExp(`<${section}\\b[^>]*>([\\s\\S]*?)</${section}>`).exec(xml);
+    assert.ok(m, `<${section}> is there`);
+    assert.doesNotMatch(m[1], /<include\b/, `${section} includes nothing`);
+    const excluded = [...m[1].matchAll(/<exclude\s+domain="([a-z]+)"\s+path="([^"]*)"\s*\/>/g)].map((e) => [e[1], e[2]]);
+    assert.deepEqual(excluded.map((e) => e[0]).sort(), ['database', 'external', 'file', 'root', 'sharedpref'], `${section} excludes every domain`);
+    for (const [domain, p] of excluded) assert.equal(p, '.', `${section}: ${domain} excluded whole`);
+  }
+});

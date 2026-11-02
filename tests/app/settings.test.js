@@ -172,7 +172,7 @@ test('delete all removes every lift, and is held back while the queue has work',
 
 // ---- about ----
 
-test('the privacy text says what the app keeps, where, and that it sends nothing; it is marked a draft', async () => {
+test('the privacy text says what the app keeps, where, and that it sends nothing; it carries no draft text', async () => {
   const { PRIVACY } = await model();
   const all = `${PRIVACY.lead} ${PRIVACY.body}`;
   assert.match(all, /Nothing leaves this phone/);
@@ -180,7 +180,11 @@ test('the privacy text says what the app keeps, where, and that it sends nothing
   assert.match(all, /pose track/);
   assert.match(all, /private storage on this phone/);
   assert.match(all, /sends nothing/);
-  assert.match(PRIVACY.draft, /Draft.*nordmu/);
+  assert.equal('draft' in PRIVACY, false, 'nordmu approved the text on 2026-11-02');
+  assert.doesNotMatch(JSON.stringify(PRIVACY), /draft|to approve/i);
+  const screen = read('app', 'src', 'ui', 'screens', 'S1.mjs').replace(/^\s*\/\/.*$/gm, '');
+  assert.doesNotMatch(screen, /draft|to approve/i, 'S1 shows no draft tag');
+  assert.match(screen, /PRIVACY\.lead/);
 });
 
 // ---- the credits ----

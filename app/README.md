@@ -278,7 +278,7 @@ nothing acts on it yet, see `s12`'s report).
 - **Gym session:** the replay mode, the replay's length or the delay, the buffer, the camera and the quality are **shown disabled** until milestone B (as H's "Start gym session"); their values are the stored ones (v1's defaults). The default lift works now and is saved (`defaultLift`); Import starts on it (`startLift(settings)` in `home-model.mjs`; the first choice while the settings load or if they can't be read, and a choice made meanwhile is kept; d41). Every value S1 offers lies inside `RANGES` (provisional until `c27`, [The store](#the-store)).
 - **Videos are always kept** (nordmu, 2026-11-02): the mockup's "Keep the video of each analysed lift" switch is not drawn, since contract 3 needs every lift's cut and A1 plays it. `keepVideos` stays in the store; the switch comes back with a contract-3 change that allows a lift without its cut.
 - **Storage** is information: what the lifts hold, what the app uses, the room left (the store's `estimate()`), and whether the system promised to keep the files. `persisted: false` (the APK's WebView, `c20`) shows "No" with a plain sentence, never as an error. "Delete all lifts…" asks first and is held back while the queue has work.
-- **About:** the version, the privacy text (a **draft** for nordmu: it says what the app keeps, where, and that it sends nothing), "Credits and licences", "How the cues are scored" (disabled until A2 builds it) and the source licence.
+- **About:** the version, the privacy text (approved by nordmu on 2026-11-02, with no draft tag: it says what the app keeps, where, and that it sends nothing; it holds because the APK has no Android backup, see [The Android shell](#the-android-shell)), "Credits and licences", "How the cues are scored" (disabled until A2 builds it) and the source licence.
 - **Credits and licences** list `CREDITS`, one `<details>` each; opening one reads its licence text from the app's own files (`fetch`, so the service worker's cache serves it offline), and "The full list" shows THIRD_PARTY.md's section "In the new app (`app/`)" only, which `assemble.mjs` cuts out (its heading to the next `## `) and writes to `licences/THIRD_PARTY.md`: the old page's, the dev server's, the spike's and the other sections don't ship, so they never reach the credits. `assemble.mjs` also runs `checkLicences()` after assembling and fails when a text the credits name is missing; the TF.js texts are copied by `build-tfjs.mjs` into the gitignored `vendor/tfjs/`, so they are expected only when that bundle is in `dist/`. A row added to THIRD_PARTY.md's section needs its entry in `credits.mjs`: `tests/app/settings.test.js` compares the two.
 
 ## The frame source
@@ -896,6 +896,19 @@ gets an APK before `c33` sets it. The scheme is `https`: the page's origin is
 isolated in a WebView ([spike/webview-shell](../spike/webview-shell/README.md)).
 No camera permission before milestone B (`c30`); only `INTERNET`, which
 Capacitor's local server needs.
+
+**No Android backup** (`c43`). S1's privacy text says the lifts stay "in its
+own private storage on this phone, and nowhere else"; with Capacitor's default
+`allowBackup="true"` Android could copy the WebView's storage (the lifts'
+videos too) to the user's Google Drive or to a new phone. So the manifest has
+`android:allowBackup="false"` and `android:dataExtractionRules` naming
+`res/xml/data_extraction_rules.xml`, which excludes every domain (root, file,
+database, sharedpref, external) from both `<cloud-backup>` and
+`<device-transfer>`: on Android 12 and later (the app targets SDK 36)
+`allowBackup="false"` alone stops the cloud backup but not the device-to-device
+transfer. `tests/app/android-shell.test.js` checks both files statically. What
+`c26` checks on the phone: the installed package's flags (`dumpsys package
+org.coach.placeholder`) show no `ALLOW_BACKUP`.
 
 **Debug APKs only**, signed with Android's own debug key (`~/.android/`), until
 the name, the ID and the signing key's holder (6.2) are settled.
