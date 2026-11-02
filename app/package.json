@@ -6,7 +6,8 @@
     "test": "node --test \"../tests/app/*.test.js\"",
     "assemble": "node tools/assemble.mjs",
     "serve": "node tools/serve.mjs",
-    "test:page": "node tools/page-test.mjs"
+    "test:page": "node tools/page-test.mjs",
+    "check:layout": "node tools/layout-check.mjs"
   },
   "dependencies": {
     "@capacitor/android": "8.5.3",

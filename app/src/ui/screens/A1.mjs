@@ -1,14 +1,16 @@
 // A1, Result (design/mockups/Result.dc.html), the player half (package d16): the stored cut with the
 // skeleton and the cue drawings over the frame shown, play and pause, one frame back or on, the
 // speed, and a timeline with the lift the analysis found and where a cue went wrong; under it (package d17)
-// the cards, one per cue of the view model, which open to the cue and to A2. What plays and steps, and why: player.mjs; what to show:
+// the cards, one per cue of the view model, which open to the cue and to A2. In a wide window (A4, package d25,
+// wide-model.mjs) the same elements are arranged side by side: the video and the selected cue's plot and tiles,
+// the player's bar below them, the cues in a sidebar where a card selects the cue instead of opening. What plays and steps, and why: player.mjs; what to show:
 // player-model.mjs; the overlay: draw/. The lift's id comes in the flow's params (H, Q1); the store
 // and the diagnostics.js object are injected (main.mjs gives the app's store; tests pass fakes).
 // The skeleton and cue switches, loop and the speed are A3's view options (d22: components/view-options.mjs,
 // view-options-model.mjs's controller), kept in the store's settings.view; the skeleton chip and the speed
 // button here are two of its controls, the same state. A smoothing change in A3 scores the track again and
 // the cards, the timeline and the overlay follow.
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { html } from '../html.mjs';
 import { openFrameSource } from '../../media/frame-source.mjs';
 import { getDiagnostics, scoreLift } from '../../scoring/score.mjs';
@@ -20,6 +22,10 @@ import { createPlayer } from '../player.mjs';
 import { clockOf, fractionAt, headerOf, momentTitle, nextSpeed, playRequest, speedLabel } from '../player-model.mjs';
 import { cardsOf, defaultOpen, provisionalNote, seekTime, summaryOf, timelineOf } from '../result-model.mjs';
 import { ruleOf } from '../rule-model.mjs';
+import { detailOf } from '../detail-model.mjs';
+import { crumbOf, cuesHeading, footOf, frameLabel, selectedOf } from '../wide-model.mjs';
+import { useWide } from '../use-wide.mjs';
+import { CuePlot } from '../components/cue-plot.mjs';
 import { BackIcon, ChevronIcon, MoreIcon, PauseIcon, PlayIcon, StatusIcon, StepBackIcon, StepForwardIcon } from '../components/icons.mjs';
 
 const pixelRatio = () => (globalThis.devicePixelRatio > 0 ? globalThis.devicePixelRatio : 1);
@@ -38,6 +44,7 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
   const [opts, setOpts] = useState(null);       // A3's controller state: the switches, the speed, the smoothing
   const [scored, setScored] = useState(null);   // the view scored again after a smoothing change (A3), else data.view
   const [sheet, setSheet] = useState(false);    // A3 is open
+  const wide = useWide();                       // A4: the window is wide
   const [open, setOpen] = useState(null);       // the cue whose card is open: its phase shows on the timeline
   const parts = useRef({});                     // the open video, its stepper, the object URL and the player: closed when A1 closes
   const flags = useRef({ skeleton: true, cues: true, unsure: false, loop: true });   // A3's controller changes it in place
@@ -158,72 +165,120 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
   const t = ps ? ps.t : range ? range.t0 : 0;
   const clock = range ? clockOf(t, range) : null;
   const playing = !!(ps && ps.playing);
+  // A4: the selected cue's panel (a cue is always selected), its texts, plot data and tiles as A2 has them
+  const picked = wide && data ? selectedOf(cards, open) : null;
+  const pickedId = picked ? picked.id : null;
+  const detail = useMemo(() => (pickedId ? detailOf({ Diagnostics: data.diagnostics, view, computed: scored ? scored.computed : data.computed, cueId: pickedId, range }) : null), [data, scored, pickedId]);
+  const pickedCue = pickedId ? view.cues.find(c => c.id === pickedId) : null;
+  const foot = pickedCue ? footOf(pickedCue, picked.scored ? data.diagnostics.zones(pickedId) : null, picked.scored ? ruleOf(data.diagnostics, pickedId) : null) : null;
+  const crumb = wide && data ? crumbOf(data.rec) : null;
+  const selectCard = c => setOpen(wide ? c.id : open === c.id ? null : c.id);
 
   return html`
-    <main class="screen result" data-screen="A1">
-      <header class="bar-header result-header">
-        <button type="button" class="icon-button" aria-label="Back" onClick=${() => flow.go('home')}><${BackIcon} /></button>
-        <div class="result-header__text">
-          <h1 class="bar-header__title">${head ? head.title : 'Result'}${head && head.provisional ? html` <span class="tag">provisional</span>` : null}</h1>
-          ${head ? html`<span class="quiet">${head.meta}</span>` : null}
-        </div>
-        <button type="button" class="icon-button result-header__more" aria-label="View options" aria-haspopup="dialog" aria-expanded=${sheet} ref=${moreRef} disabled=${!opts} onClick=${() => setSheet(true)}><${MoreIcon} /></button>
-      </header>
+    <main class="screen result" data-screen="A1" data-layout=${wide ? 'wide' : 'stacked'}>
+      ${wide ? html`
+        <header class="result-header result-header--wide">
+          <button type="button" class="wordmark-link" onClick=${() => flow.go('home')}>coach</button>
+          ${crumb ? html`
+            <nav class="crumbs" aria-label="Breadcrumb">
+              <button type="button" class="crumbs__parent" onClick=${() => flow.go('home')}>${crumb.parent}</button>
+              <span aria-hidden="true">/</span>
+              <h1 class="crumbs__now">${crumb.current}${head && head.provisional ? html` <span class="tag">provisional</span>` : null}</h1>
+            </nav>` : html`<h1 class="crumbs__now">Result</h1>`}
+          <div class="result-header__actions">
+            <button type="button" class="header-button" disabled=${!opts} onClick=${() => options() && options().remark()}>Re-mark</button>
+            <button type="button" class="header-button result-header__more" aria-haspopup="dialog" aria-expanded=${sheet} ref=${moreRef} disabled=${!opts} onClick=${() => setSheet(true)}>View options</button>
+          </div>
+        </header>` : html`
+        <header class="bar-header result-header">
+          <button type="button" class="icon-button" aria-label="Back" onClick=${() => flow.go('home')}><${BackIcon} /></button>
+          <div class="result-header__text">
+            <h1 class="bar-header__title">${head ? head.title : 'Result'}${head && head.provisional ? html` <span class="tag">provisional</span>` : null}</h1>
+            ${head ? html`<span class="quiet">${head.meta}</span>` : null}
+          </div>
+          <button type="button" class="icon-button result-header__more" aria-label="View options" aria-haspopup="dialog" aria-expanded=${sheet} ref=${moreRef} disabled=${!opts} onClick=${() => setSheet(true)}><${MoreIcon} /></button>
+        </header>`}
       ${problem ? html`<p class="error result-problem" role="alert">${problem}</p>` : null}
       ${data ? html`
-        <div class="result-stage">
-          <div class="result-frame" ref=${frameBox} role="img" aria-label="Video with the pose skeleton" style=${`aspect-ratio: ${data.meta.width} / ${data.meta.height}`}>
-            <video class="result-layer" ref=${videoRef} src=${data.url} muted playsinline preload="auto"></video>
-            <canvas class="result-layer" ref=${frameRef} hidden=${!!(ps && ps.live)}></canvas>
-            <canvas class="result-layer" ref=${overlayRef}></canvas>
+        <div class="result-body">
+          <div class="result-stage" style=${`--ratio: ${data.meta.width / data.meta.height}`}>
+            <div class="result-frame" ref=${frameBox} role="img" aria-label=${wide ? frameLabel(t, range) : 'Video with the pose skeleton'} style=${`aspect-ratio: ${data.meta.width} / ${data.meta.height}`}>
+              <video class="result-layer" ref=${videoRef} src=${data.url} muted playsinline preload="auto"></video>
+              <canvas class="result-layer" ref=${frameRef} hidden=${!!(ps && ps.live)}></canvas>
+              <canvas class="result-layer" ref=${overlayRef}></canvas>
+            </div>
+            <button type="button" class="result-skeleton" aria-pressed=${skeleton} onClick=${toggleSkeleton}>
+              <span class=${`result-skeleton__dot${skeleton ? ' result-skeleton__dot--on' : ''}`}></span>Skeleton
+            </button>
           </div>
-          <button type="button" class="result-skeleton" aria-pressed=${skeleton} onClick=${toggleSkeleton}>
-            <span class=${`result-skeleton__dot${skeleton ? ' result-skeleton__dot--on' : ''}`}></span>Skeleton
-          </button>
-        </div>
-        <div class="result-controls">
-          <button type="button" class="result-play" aria-label=${playing ? 'Pause' : 'Play'} onClick=${() => player().toggle()}>${playing ? html`<${PauseIcon} />` : html`<${PlayIcon} />`}</button>
-          <button type="button" class="icon-button" aria-label="One frame back" onClick=${() => player().step(-1)}><${StepBackIcon} /></button>
-          <button type="button" class="icon-button" aria-label="One frame forward" onClick=${() => player().step(1)}><${StepForwardIcon} /></button>
-          <span class="result-clock">${clock.now} / ${clock.total} s</span>
-          <button type="button" class="result-speed" aria-label="Playback speed" onClick=${cycleSpeed}>${speedLabel(speed)}</button>
-        </div>
-        <div class="timeline" ref=${barRef} role="slider" tabindex="0" aria-label="Video position" aria-valuemin="0" aria-valuemax=${clock.total} aria-valuenow=${clock.now} aria-valuetext=${`${clock.now} seconds`}
-          onPointerDown=${down} onPointerMove=${move} onPointerUp=${up} onPointerCancel=${up} onKeyDown=${key}>
-          <div class="timeline__bar"></div>
-          ${tl.lift && tl.lift.span ? html`<div class="timeline__lift" title="Lift found by the analysis" style=${`left: ${pct(tl.lift.span[0])}; width: ${pct(tl.lift.span[1] - tl.lift.span[0])}`}></div>` : null}
-          ${tl.lift && !tl.lift.span ? tl.lift.marks.map(m => html`<div class="timeline__start" title="Lift starts here" style=${`left: ${pct(m)}`}></div>`) : null}
-          ${opened && opened.phase ? html`<div class="timeline__phase" title=${`${cards.find(c => c.id === open).title}: where it was scored`} style=${`left: ${pct(opened.phase.from)}; width: ${pct(opened.phase.to - opened.phase.from)}`}></div>` : null}
-          ${tl.cues.filter(c => c.marked).map(m => {
-            const cue = view.cues.find(c => c.id === m.id);
-            return html`<div class=${`timeline__moment timeline__moment--${m.status === 'work on' ? 'work-on' : 'watch'}`} title=${momentTitle(cue)} style=${`left: ${pct(m.worst.fraction)}`}></div>`;
-          })}
-          <div class="timeline__knob" style=${`left: ${pct(fractionAt(t, range))}`}></div>
-          ${tl.label ? html`<span class="timeline__label" style=${`left: ${pct(tl.lift ? (tl.lift.span ? tl.lift.span[0] : tl.lift.marks[0]) : 0)}`}>${tl.label}</span>` : null}
-        </div>
-        <div class="cues">
-          ${tl.reason ? html`<p class="cues-window">${tl.reason}</p>` : null}
-          <div class="cues-summary">${counts.map(c => html`<span class=${`count--${c.status}`}>${c.text}</span>`)}</div>
-          ${note ? html`<p class="cues-note">${note}</p>` : null}
-          ${cards.map(c => html`
-            <div class="cue-card" data-cue=${c.id}>
-              <button type="button" class="cue-card__head" aria-expanded=${open === c.id} aria-label=${`${c.title}: ${c.word}${c.line ? `, ${c.line}` : ''}${c.scored ? `, ${c.value}` : ''}`} onClick=${() => setOpen(open === c.id ? null : c.id)}>
-                <span class=${`cue-card__icon status--${c.cls}`}><${StatusIcon} icon=${c.icon} /></span>
-                <span class="cue-card__text">
-                  <span class="cue-card__title">${c.title}</span>
-                  <span class=${`cue-card__line status--${c.cls}${c.scored ? '' : ' cue-card__line--reason'}`}><span class=${`status status--${c.cls}`}></span><span> · ${c.line}</span></span>
-                </span>
-                <span class="cue-card__value">${c.value}</span>
-              </button>
-              ${open === c.id ? html`
-                <div class="cue-card__body">
-                  <p class="cue-card__cue">${c.cue}</p>
-                  ${c.notes.map(n => html`<p class="cue-card__note">${n}</p>`)}
-                  ${c.rule ? html`<span class="cue-card__rule">${c.rule}</span>` : null}
-                  ${c.scored ? html`<button type="button" class="cue-card__more" onClick=${() => flow.go('detail', { liftId, cue: c.id })}>Plot and details<${ChevronIcon} /></button>` : null}
+          ${picked && detail ? html`
+            <section class="result-selected" aria-labelledby="sel-h">
+              <div class="result-selected__head">
+                <h2 id="sel-h" class="result-selected__title">${picked.title}</h2>
+                <span class=${`result-chip status--${picked.cls}`}><${StatusIcon} icon=${picked.icon} /><span class=${`status status--${picked.cls}`}></span><span> · ${picked.line}</span></span>
+              </div>
+              <p class="result-selected__cue">${picked.cue}</p>
+              ${detail.scored ? html`<${CuePlot} detail=${detail} at=${t} onTap=${tt => player().seek(tt)} />` : null}
+              ${detail.scored && detail.tiles.length ? html`
+                <div class="detail-tiles detail-tiles--wide">
+                  ${detail.tiles.map(k => html`
+                    <div class="detail-tile">
+                      <span class="detail-tile__label">${k.label}</span>
+                      <span class=${`detail-tile__value${k.cls ? ` status--${k.cls}` : ''}`}>${k.value}</span>
+                      ${k.sub ? html`<span class="detail-tile__sub">${k.sub}</span>` : null}
+                    </div>`)}
                 </div>` : null}
-            </div>`)}
-          ${view.notes.map(n => html`<p class="cues-window">${n}</p>`)}
+              ${picked.notes.map(n => html`<p class="cue-card__note">${n}</p>`)}
+              ${foot ? html`<span class="result-selected__foot">${foot}</span>` : null}
+              ${picked.scored ? html`<button type="button" class="cue-card__more" onClick=${() => flow.go('detail', { liftId, cue: picked.id })}>Plot and details<${ChevronIcon} /></button>` : null}
+            </section>` : null}
+          <div class="result-bar">
+            <div class="result-controls">
+              <button type="button" class="result-play" aria-label=${playing ? 'Pause' : 'Play'} onClick=${() => player().toggle()}>${playing ? html`<${PauseIcon} />` : html`<${PlayIcon} />`}</button>
+              <button type="button" class="icon-button" aria-label="One frame back" onClick=${() => player().step(-1)}><${StepBackIcon} /></button>
+              <button type="button" class="icon-button" aria-label="One frame forward" onClick=${() => player().step(1)}><${StepForwardIcon} /></button>
+              <span class="result-clock">${clock.now} / ${clock.total} s</span>
+              <button type="button" class="result-speed" aria-label="Playback speed" onClick=${cycleSpeed}>${speedLabel(speed)}</button>
+            </div>
+            <div class="timeline" ref=${barRef} role="slider" tabindex="0" aria-label="Video position" aria-valuemin="0" aria-valuemax=${clock.total} aria-valuenow=${clock.now} aria-valuetext=${`${clock.now} seconds`}
+              onPointerDown=${down} onPointerMove=${move} onPointerUp=${up} onPointerCancel=${up} onKeyDown=${key}>
+              <div class="timeline__bar"></div>
+              ${tl.lift && tl.lift.span ? html`<div class="timeline__lift" title="Lift found by the analysis" style=${`left: ${pct(tl.lift.span[0])}; width: ${pct(tl.lift.span[1] - tl.lift.span[0])}`}></div>` : null}
+              ${tl.lift && !tl.lift.span ? tl.lift.marks.map(m => html`<div class="timeline__start" title="Lift starts here" style=${`left: ${pct(m)}`}></div>`) : null}
+              ${opened && opened.phase ? html`<div class="timeline__phase" title=${`${cards.find(c => c.id === open).title}: where it was scored`} style=${`left: ${pct(opened.phase.from)}; width: ${pct(opened.phase.to - opened.phase.from)}`}></div>` : null}
+              ${tl.cues.filter(c => c.marked).map(m => {
+                const cue = view.cues.find(c => c.id === m.id);
+                return html`<div class=${`timeline__moment timeline__moment--${m.status === 'work on' ? 'work-on' : 'watch'}`} title=${momentTitle(cue)} style=${`left: ${pct(m.worst.fraction)}`}></div>`;
+              })}
+              <div class="timeline__knob" style=${`left: ${pct(fractionAt(t, range))}`}></div>
+              ${tl.label ? html`<span class="timeline__label" style=${`left: ${pct(tl.lift ? (tl.lift.span ? tl.lift.span[0] : tl.lift.marks[0]) : 0)}`}>${tl.label}</span>` : null}
+            </div>
+          </div>
+          <aside class="cues" aria-labelledby=${wide ? 'cues-h' : undefined}>
+            ${wide ? html`<h2 class="cues-heading" id="cues-h">${cuesHeading(cards.length)}</h2>` : null}
+            ${tl.reason ? html`<p class="cues-window">${tl.reason}</p>` : null}
+            <div class="cues-summary">${counts.map(c => html`<span class=${`count--${c.status}`}>${c.text}</span>`)}</div>
+            ${note ? html`<p class="cues-note">${note}</p>` : null}
+            ${cards.map(c => html`
+              <div class="cue-card" data-cue=${c.id} data-selected=${wide && picked && picked.id === c.id ? 'true' : undefined}>
+                <button type="button" class="cue-card__head" aria-expanded=${wide ? undefined : open === c.id} aria-pressed=${wide ? !!(picked && picked.id === c.id) : undefined} aria-label=${`${c.title}: ${c.word}${c.line ? `, ${c.line}` : ''}${c.scored ? `, ${c.value}` : ''}`} onClick=${() => selectCard(c)}>
+                  <span class=${`cue-card__icon status--${c.cls}`}><${StatusIcon} icon=${c.icon} /></span>
+                  <span class="cue-card__text">
+                    <span class="cue-card__title">${c.title}</span>
+                    <span class=${`cue-card__line status--${c.cls}${c.scored ? '' : ' cue-card__line--reason'}`}><span class=${`status status--${c.cls}`}></span><span> · ${c.line}</span></span>
+                  </span>
+                  <span class="cue-card__value">${c.value}</span>
+                </button>
+                ${!wide && open === c.id ? html`
+                  <div class="cue-card__body">
+                    <p class="cue-card__cue">${c.cue}</p>
+                    ${c.notes.map(n => html`<p class="cue-card__note">${n}</p>`)}
+                    ${c.rule ? html`<span class="cue-card__rule">${c.rule}</span>` : null}
+                    ${c.scored ? html`<button type="button" class="cue-card__more" onClick=${() => flow.go('detail', { liftId, cue: c.id })}>Plot and details<${ChevronIcon} /></button>` : null}
+                  </div>` : null}
+              </div>`)}
+            ${view.notes.map(n => html`<p class="cues-window">${n}</p>`)}
+          </aside>
         </div>` : null}
       ${sheet && opts ? html`<${ViewOptions} options=${opts} controller=${options()} onClose=${closeSheet} />` : null}
     </main>

@@ -208,5 +208,19 @@
   --switch-pad: 3px;
   --radius-segment: 10px;
   --button-sheet: 52px;
-  --slider-h: 32px;
+  --slider-h: var(--touch);   /* a slider is a touch target too (d25) */
+
+  /* A4's pieces (the mockup's): the page's widest, the sidebar, the video at its tallest and widest, the
+     smaller wordmark of the wide header, the tiles' numbers and the status chip. The breakpoint itself is
+     WIDE_MIN_PX (ui/wide-model.mjs), written again in base.css's @media. */
+  --wide-max: 1280px;
+  --wide-aside: 340px;
+  --wide-stage: 480px;
+  --wide-stage-max: 560px;
+  --wide-main-min: 560px;
+  --size-wordmark-wide: 30px;
+  --size-tile: 24px;
+  --chip-h: 28px;
+  --tile-min: 120px;
+  --timeline-min: 240px;
 }
