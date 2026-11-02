@@ -6,5 +6,10 @@
     "test": "node --test \"../tests/app/*.test.js\"",
     "assemble": "node tools/assemble.mjs",
     "serve": "node tools/serve.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "long": "4.0.0",
+    "seedrandom": "3.0.5"
   }
 }
