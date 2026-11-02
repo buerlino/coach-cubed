@@ -239,7 +239,7 @@ test('cancel stops between frames, resets the engine, and leaves the lift unanal
   const lift = await storeLift(store, { range: { t0: 0, t1: 1 } });
   const job = await queue.enqueue(lift);
   await queue.idle();
-  await cancelled;
+  assert.equal(await cancelled, true);
   const e = made[0];
   assert.equal(e.frames.length, 3, 'the frame in flight finishes, no next frame is sent');
   assert.equal(e.resets, 1, 'the engine is reset after a cancel');
@@ -304,6 +304,26 @@ test('an engine that fails is replaced once; failing again fails the job in its 
   const end = queue.jobs().find(j => j.id === job.id);
   assert.equal(end.state, 'failed');
   assert.equal(end.error, 'worker: WebGL context lost');
+});
+
+test('a stalled decoder runs the job again on the same engine', async () => {
+  let opens = 0;
+  const { store, queue, made } = await setup({
+    sources: () => {
+      const src = fakeSource({});
+      if (opens++ === 0) {
+        src.frames = async function* () {
+          const e = new Error('The video decoder made no progress for 15 s.'); e.code = 'decode-stalled'; throw e;
+        };
+      }
+      return src;
+    },
+  });
+  const job = await queue.enqueue(await storeLift(store));
+  await queue.idle();
+  assert.equal(queue.jobs().find(j => j.id === job.id).state, 'done');
+  assert.equal(opens, 2);
+  assert.equal(made.length, 1, 'the engine is kept');
 });
 
 test('the track and the result are saved through the store, the track in the fixture format', async () => {

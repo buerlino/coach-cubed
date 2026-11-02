@@ -177,9 +177,10 @@ export function createQueue({
           try { if (enginePromise && dirty) { const eng = await guard(enginePromise); await guard(eng.reset()); dirty = false; } } catch { dropEngine(); }
           return { state: 'cancelled' };
         }
-        const replace = e instanceof EngineError || e instanceof StallError || (e && e.code === 'decode-stalled');
-        if (replace) dropEngine();
-        if (replace && restarts < maxRestarts && !run.cancel) continue;
+        // a hung or failed engine is replaced; a stalled decoder only needs the run again
+        if (e instanceof EngineError || e instanceof StallError) dropEngine();
+        const again = e instanceof EngineError || e instanceof StallError || (e && e.code === 'decode-stalled');
+        if (again && restarts < maxRestarts && !run.cancel) continue;
         if (run.cancel) return { state: 'cancelled' };
         return { state: 'failed', error: messageOf(e) };
       } finally {
@@ -209,7 +210,7 @@ export function createQueue({
     stopWatchdog();
     persist();
     emit();
-    for (const res of run.waiters) res(true);
+    for (const res of run.waiters) res(end.state === 'cancelled');   // a job that finished first wasn't cancelled
     pump();
   }
 
@@ -257,7 +258,7 @@ export function createQueue({
     },
     /** Queues a stored lift (A3's re-mark, a retry): its cut and its range as stored. */
     enqueue,
-    /** Cancels a job: a queued one at once, a running one between frames. Resolves true once it has stopped. */
+    /** Cancels a job: a queued one at once, a running one between frames. Resolves once it has stopped: true if cancelled. */
     cancel(id) { return isLoaded ? cancelNow(id) : loaded().then(() => cancelNow(id)); },
     /** A failed or cancelled job queued again, from the start. */
     async retry(id) {

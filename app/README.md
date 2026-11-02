@@ -44,6 +44,7 @@ It logs each request (`200 /index.html`); a `404` there is a broken path.
 | `src/store/` | The store (`c8`): lifts, their cut videos, tracks and results, the index and the settings, in OPFS. See [The store](#the-store). |
 | `src/media/` | The frame source (`s9`): `openFrameSource(blob)` gives contract 5's source over mediabunny and WebCodecs. See [The frame source](#the-frame-source). The cut (`s32`): `cutVideo` and `keepVideo` keep the marked range as an MP4. See [Keeping the video](#keeping-the-video). |
 | `src/scoring/` | The scoring adapter (`s11`): `scoreLift(track, lift, opts)` gives contract 4's `ResultView` from a raw track. See [Scoring](#scoring). |
+| `src/analysis/` | The analysis job and its queue (`s12`): `appQueue()` is the app's one queue; Analyse keeps the cut (`s32`), then queues the job, which poses every frame of the range, builds the track and scores it. See [The analysis](#the-analysis). |
 | `src/pose/` | The pose engine (`s10`): `PoseEngine.create()` gives one async `estimate(frame, tMs)` over a worker running MoveNet Thunder on TF.js. See [The pose engine](#the-pose-engine). |
 | `vendor/` | Third-party files, each with its licence text, byte for byte from its npm package ([THIRD_PARTY.md](../THIRD_PARTY.md#in-the-new-app-app)): `preact/` (Preact 11.1.1 and its hooks), `htm/` (htm 3.1.1), `mediabunny/` (mediabunny 1.61.6, MPL-2.0, the frame source's one demuxer), `fonts/` (Barlow and Barlow Condensed, woff2, with `OFL.txt`). `vendor/tfjs/` is built by `tools/build-tfjs.mjs` (gitignored). |
 | `tools/` | `assemble.mjs`, `serve.mjs`, `make-icon.mjs`, and the TF.js build: `build-tfjs.mjs`, `fetch-models.sh`, `check-tfjs.mjs`, `patches/` ([below](#tfjs-from-source)), and `check-media.mjs` (the frame source on a real decoder, [above](#the-frame-source)). Node only; only `build-tfjs.mjs` needs `app/node_modules/` (esbuild). Not copied into `dist/`. |
@@ -172,6 +173,7 @@ The layout, from the store's root:
 index.json              the lifts' records, newest first (a cache of the folders)
 settings.json           S1's choices and A3's view options
 meta.json               what persist() answered, and when it was asked
+queue.json              the analysis queue's jobs (contract 2) and the last measured rate
 lifts/<id>/cut.mp4      the cut video (D6)
 lifts/<id>/track.json   the track, once analysed (contract: track.mjs)
 lifts/<id>/result.json  the ResultView, once analysed (cue-view.mjs)
@@ -189,7 +191,7 @@ lifts/<id>/lift.json    the lift's record: contract 3, a StoredLift
   overwrote, and removes the ones it made, so a record never names a file
   that is not there.
 - **The index** is written atomically: `index.json.tmp`, then
-  `move('index.json')`; `settings.json` and `meta.json` too. When the index
+  `move('index.json')`; `settings.json`, `meta.json` and `queue.json` too. When the index
   is missing, isn't JSON, has the wrong shape or an invalid entry, it is
   rebuilt from the folders' `lift.json` files and written back
   (`rebuildIndex()` does it on demand and returns what it skipped: a folder
@@ -216,8 +218,15 @@ lifts/<id>/lift.json    the lift's record: contract 3, a StoredLift
   (the disk or the quota is full, D3), `unavailable` (no OPFS), `not-found`,
   `invalid` (the message says which field).
 
-Not here: keeping or dropping the video after Analyse (`keepVideos` is only
-stored; `s32` and the job act on it), and the job queue's own state (`s12`).
+- **The queue:** `readQueue()` and `saveQueue({jobs, rate})` keep the
+  analysis queue (`s12`) in `queue.json`: every job passes
+  `validateAnalysisJob`, ids are unique, and the rate is
+  `{msPerFrame, fps, sPerS}` or null (`validateQueueState`), else `invalid`.
+  A missing or damaged file reads as an empty queue; a job that breaks
+  contract 2 is left out.
+
+Not here: dropping the video after Analyse (`keepVideos` is only stored;
+nothing acts on it yet, see `s12`'s report).
 
 ## The frame source
 
@@ -326,6 +335,78 @@ kept.lift;                                        // the StoredLift (contract 3)
   is a few tens of MB).
 - **Size:** as big as the range's share of the file plus the extra seconds from
   the keyframe; see the numbers in the package's report.
+
+## The analysis
+
+`src/analysis/` (`s12`) joins the frame source, the pose engine, the
+scoring adapter and the store. Analyse doesn't block: the lift joins a
+queue and the user carries on.
+
+```js
+import { appQueue } from './analysis/index.mjs';
+const queue = appQueue();                          // one per app: it outlives screen changes
+const off = queue.subscribe(jobs => …);            // now and at every change: contract 2's jobs, copies
+const cost = await queue.estimate(t1 - t0, { fps }); // M1–M3: { seconds, perSecond, measured, basis }
+const job = await queue.analyse('snatch', file, { t0, t1 });   // keepVideo first, then the job
+await queue.cancel(job.id);                        // between frames; resolves once stopped
+await queue.retry(id); await queue.dismiss(id);    // a failed or cancelled job again, or off the list
+```
+
+| File | What |
+| --- | --- |
+| `queue.mjs` | `createQueue(deps)`: the store, `createEngine`, `openFrameSource`, `keepVideo`, `Diagnostics`, the clock and the timers are all injected (`tests/app/analysis.test.js` runs it on fakes). |
+| `job.mjs` | `runJob(job, ctx)`: one run of one job through its stages. |
+| `estimate.mjs` | `estimateCost(durationS, rate, {fps})` and `DEFAULT_RATE`. |
+| `index.mjs` | `appQueue()`: the queue with the browser's parts (the store in OPFS, s9's source, s32's cut, s10's engine on WebGL, `window.Diagnostics`), following `visibilitychange`. |
+
+- **Analyse:** `analyse(lift, file, range)` calls `keepVideo` first; the
+  job is made from the stored lift (`createJob`), so its `source` is the
+  cut's path and its `range` is in the cut's timeline. A cut that can't be
+  stored queues nothing and its error (a `MediaError`, the store's
+  `storage-full`) comes through. `enqueue(storedLift)` queues a lift
+  already stored; a lift has one job at most.
+- **A job:** reads the cut back with `store.readVideo`, opens it
+  (`openFrameSource`), poses every frame `frames(t0, t1)` gives (the cut's
+  extra pictures past `t1` aren't), builds the track with
+  `trackFromFrames` and `appTrackMeta` (frame indices are the cut's, times
+  the decoder's timestamps, size and rate the source's), scores it with
+  `scoreLift` (σ from the settings' `view.smoothingSigmaMs`) and saves the
+  track, the result and the engine (`model`, `backend`, `runtime`) with
+  `updateLift`.
+- **Stages and progress** (Q1): `reading` is one unit (the cut read and
+  opened), `pose` one unit a frame of the range, `scoring` one unit
+  (scored and saved). The time left (`etaS`) is the frames left times the
+  median wall time per frame so far in this job (decode, transfer and
+  model); before the job's first frame, the last job's median; on a first
+  run, null.
+- **One at a time, in order, on one engine,** created on first use
+  (`warmUp()` creates it early). `reset()` respawns the worker (4.4 s on
+  the laptop, `s10`), so it runs once per clip: before a job when the
+  engine has posed another clip, and after a cancel.
+- **Cancel** stops between frames: the frame in flight finishes, no next
+  one is sent, the stream and the source are closed, the engine is reset;
+  the lift stays stored, unanalysed.
+- **Failures** say why, in the words of whatever failed (`error`). An
+  engine that fails (a refused frame, the worker gone) is closed and
+  replaced and the job restarts once; failing again fails it.
+- **Cut off, never hanging:** the queue is kept in the store at every
+  change of state (`queue.json`); `load()` (which `appQueue()` calls)
+  queues again a job found running, which then runs from the start on its
+  stored cut. A frozen WebView runs nothing, so a job resumes where it was;
+  hidden time (`setVisible(false)`) never counts as a stall. A watchdog
+  ends a run with no progress for 30 s while visible: the engine is
+  replaced and the job restarts once, then fails with "The analysis
+  stopped responding". A decoder that stalls (`decode-stalled`) is treated
+  the same. The 30 s is provisional: `c26` measures the engine's start on
+  the phone.
+- **The estimate before Analyse** (M1–M3): seconds per second of video
+  from the last measured rate (the last job's median ms per frame at its
+  frame rate, kept in `queue.json`), scaled by the marked video's frame
+  rate when given. On a first run it is `DEFAULT_RATE`, ui-design.md's
+  2.9 s per second of 30 fps video on the Fairphone, with `measured: false`
+  and `basis` saying so.
+- `busy()` and `idle()` say whether a job runs or waits: the service
+  worker's update (`c19`) waits for `idle()`.
 
 ## TF.js from source
 
