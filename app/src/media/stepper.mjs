@@ -14,7 +14,8 @@
 //  - behind, a decode from the keyframe of the group before, keeping the frames
 //    that fit. It starts once that whole group fits in the window, or when the
 //    missing frame is a quarter of the window away, whichever comes first; a
-//    group longer than the window is decoded again for each window's worth.
+//    group longer than the window is decoded again for each window's worth;
+//    a step or seek that moves the window off its frame gives it up.
 // Every frame held is pinned to a cost (its distance over its side's size); a
 // decoded frame outside the window is closed without a bitmap; a new frame takes
 // the place of the costliest one, which is closed; the playhead's frame is never
@@ -185,6 +186,9 @@ export async function openStepper(ctx, t, options = {}) {
     const { endDec } = table.plan(first, index);
     const wants = us => { const i = ctx.indexOf(us); return i !== undefined && i >= first && i <= index && !held.has(i); };
     for await (const f of ctx.decode(startDec, endDec, wants, controller.signal)) {
+      // a step or seek moved the window off the frame: the decode is given up, so
+      // the new playhead's frame doesn't wait for the rest of this group
+      if (index !== cur && cost(index, sides()) >= 1) { closeQuietly(f); return; }
       if (await take(f) === index) return;
     }
     if (!closed) throw new MediaError('decode-failed', `The video decoder gave no frame at ${table.times[index].toFixed(3)} s.`);

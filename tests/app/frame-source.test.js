@@ -724,6 +724,33 @@ test('a frame outside the window is closed without a bitmap, however far its key
   assert.deepEqual(openFrames(fake), []);
 });
 
+test('a seek away from a refill behind the playhead gives that decode up instead of waiting for it', async () => {
+  // s38's second round, headless Brave: a seek waited for the decode of the group
+  // behind the last playhead to reach its frame, a whole group of 1080p decoding
+  const { src, fake, base } = await open(H264);
+  const st = await src.stepper(frameTime(62), { height: 36, maxFrames: 6 });
+  await st.settled();
+  // stepping back to 60: the frame behind it, 59, is a window's quarter away, so the
+  // refill decodes the group 30–59 from its keyframe at 1 s
+  await st.step(-1);
+  await st.settled();
+  assert.equal((await st.step(-1)).index, 60);
+  const backDecoder = () => fake.log.decoders.slice(base).find(d => d.fed[0] && d.fed[0].type === 'key' && d.fed[0].timestamp === us(1));
+  for (let k = 0; k < 200 && !backDecoder(); k++) await new Promise(r => setImmediate(r));
+  const d = backDecoder();
+  assert.ok(d, 'the refill behind the playhead started');
+  assert.ok(d.fed.length < 20, 'the seek comes while it is still decoding');
+  const r = await st.seek(frameTime(5));
+  assert.equal(r.index, 5);
+  assert.equal(r.frame.timestamp, us(frameTime(5)));
+  await st.settled();
+  assert.ok(d.fed.length < 25, `the decode of 30–59 was given up: ${d.fed.length} chunks fed, 30 to reach frame 59`);
+  assert.equal(d.state, 'closed');
+  st.close(); src.close();
+  assert.deepEqual(openBitmaps(fake), []);
+  assert.deepEqual(openFrames(fake), []);
+});
+
 test('a step to a held frame returns before the refill does any work for it', async () => {
   // measured in headless Brave (s38's report): a refill started inside the step held a
   // 1080p step at a 150 ms tap rate for 23 ms while its frame was already held
