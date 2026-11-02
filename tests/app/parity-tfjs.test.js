@@ -63,8 +63,8 @@ test('the figure is drawn at its joints, moves between frames, and is the same o
     return [img.data[i], img.data[i + 1], img.data[i + 2]];
   };
   // The head disc is skin-coloured at the nose; the wall behind it is grey.
-  assert.deepEqual(px(f0, figureJoints(0).nose), [230, 190, 160]);
-  assert.deepEqual(px(f0, [0.02, 0.5]).slice(0, 2).every(v => v >= 150 && v <= 180), true);
+  px(f0, figureJoints(0).nose).forEach((v, i) => assert.ok(Math.abs(v - [225, 175, 140][i]) <= 3, 'skin at the nose, shaded at most a little'));
+  assert.deepEqual(px(f0, [0.02, 0.5]).slice(0, 2).every(v => v >= 170 && v <= 200), true);
   // The arms rise: the wrists are higher up in the last frame (smaller y).
   assert.ok(figureJoints(5).lWrist[1] < figureJoints(0).lWrist[1]);
 });

@@ -98,21 +98,27 @@ export function figureJoints(k, calls = CALLS) {
   };
 }
 export const FIGURE_BONES = [
-  ['lShoulder', 'rShoulder', 14], ['lShoulder', 'lHip', 14], ['rShoulder', 'rHip', 14], ['lHip', 'rHip', 14],
-  ['lShoulder', 'lElbow', 9], ['lElbow', 'lWrist', 8], ['rShoulder', 'rElbow', 9], ['rElbow', 'rWrist', 8],
-  ['lHip', 'lKnee', 11], ['lKnee', 'lAnkle', 9], ['rHip', 'rKnee', 11], ['rKnee', 'rAnkle', 9],
+  // [from, to, radius at 640 px wide, colour]: shirt, arms (sleeve then skin), trousers, shoes
+  ['lShoulder', 'lHip', 30, [60, 90, 170]], ['rShoulder', 'rHip', 30, [60, 90, 170]],
+  ['lHip', 'rHip', 30, [50, 60, 90]], ['lShoulder', 'rShoulder', 22, [60, 90, 170]],
+  ['lShoulder', 'lElbow', 17, [60, 90, 170]], ['lElbow', 'lWrist', 13, [225, 175, 140]],
+  ['rShoulder', 'rElbow', 17, [60, 90, 170]], ['rElbow', 'rWrist', 13, [225, 175, 140]],
+  ['lHip', 'lKnee', 22, [50, 60, 90]], ['lKnee', 'lAnkle', 17, [50, 60, 90]],
+  ['rHip', 'rKnee', 22, [50, 60, 90]], ['rKnee', 'rAnkle', 17, [50, 60, 90]],
 ];
 
-// The figure drawn on a grey wall and a darker floor: thick bones (colour by
-// bone, so limbs differ), a head disc, a bar between the wrists. Pixels by
-// distance to a segment; nothing outside this file.
+// The figure drawn on a grey wall and a darker floor: filled limbs shaded
+// towards their edges (a person-like silhouette, not a line drawing), a head
+// with hair and eyes, hands and shoes. Pixels by distance to a segment;
+// nothing outside this file.
 export function figureImage(k, { width, height } = IMAGE, calls = CALLS) {
   const J = figureJoints(k, calls);
   const px = ([x, y]) => [x * width, y * height];
+  const unit = width / 640;
   const data = new Int32Array(width * height * 3);
-  const floor = 0.9 * height;
+  const floor = 0.93 * height;
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
-    const i = (y * width + x) * 3, g = y > floor ? 70 : 150 + (y * 30 / height | 0);
+    const i = (y * width + x) * 3, g = y > floor ? 90 : 170 + (y * 30 / height | 0);
     data[i] = g; data[i + 1] = g; data[i + 2] = g + 6;
   }
   const paint = (x0, y0, x1, y1, r, rgb) => {
@@ -121,17 +127,28 @@ export function figureImage(k, { width, height } = IMAGE, calls = CALLS) {
     const ya = Math.max(0, Math.floor(Math.min(y0, y1) - r)), yb = Math.min(height - 1, Math.ceil(Math.max(y0, y1) + r));
     for (let y = ya; y <= yb; y++) for (let x = xa; x <= xb; x++) {
       const u = Math.max(0, Math.min(1, ((x - x0) * ax + (y - y0) * ay) / len2));
-      const dx = x - (x0 + u * ax), dy = y - (y0 + u * ay);
-      if (dx * dx + dy * dy <= r * r) { const i = (y * width + x) * 3; data[i] = rgb[0]; data[i + 1] = rgb[1]; data[i + 2] = rgb[2]; }
+      const dx = x - (x0 + u * ax), dy = y - (y0 + u * ay), d2 = (dx * dx + dy * dy) / (r * r);
+      if (d2 <= 1) {
+        const shade = 1 - 0.4 * d2, i = (y * width + x) * 3;
+        data[i] = rgb[0] * shade | 0; data[i + 1] = rgb[1] * shade | 0; data[i + 2] = rgb[2] * shade | 0;
+      }
     }
   };
-  const colours = [[40, 60, 160], [40, 60, 160], [40, 60, 160], [40, 60, 160], [200, 70, 50], [220, 150, 60],
-    [50, 150, 70], [60, 190, 120], [120, 60, 150], [160, 90, 180], [30, 140, 160], [60, 190, 200]];
-  FIGURE_BONES.forEach(([a, b, r], n) => paint(...px(J[a]), ...px(J[b]), r * width / 640, colours[n]));
+  const disc = (j, r, rgb) => { const [x, y] = px(j); paint(x, y, x, y, r * unit, rgb); };
+  const SKIN = [225, 175, 140], HAIR = [60, 40, 30], SHOE = [30, 30, 30];
+  for (const [a, b, r, rgb] of FIGURE_BONES) paint(...px(J[a]), ...px(J[b]), r * unit, rgb);
+  for (const j of ['lElbow', 'rElbow']) disc(J[j], 17, [60, 90, 170]);
+  for (const j of ['lKnee', 'rKnee']) disc(J[j], 22, [50, 60, 90]);
+  for (const j of ['lWrist', 'rWrist']) disc(J[j], 15, SKIN);
+  for (const j of ['lAnkle', 'rAnkle']) { const [x, y] = px(J[j]); paint(x - 12 * unit, y + 14 * unit, x + 22 * unit, y + 14 * unit, 14 * unit, SHOE); }
+  const [sx, sy] = px([(J.lShoulder[0] + J.rShoulder[0]) / 2, (J.lShoulder[1] + J.rShoulder[1]) / 2]), [nx, ny] = px(J.nose);
+  paint(sx, sy, nx, ny + 12 * unit, 12 * unit, SKIN); // neck
+  disc(J.nose, 34, SKIN); // head
   const [hx, hy] = px(J.nose);
-  paint(hx, hy - 4, hx, hy + 4, 22 * width / 640, [230, 190, 160]);
-  const [lx, ly] = px(J.lWrist), [rx, ry] = px(J.rWrist);
-  paint(lx - 30, ly, rx + 30, ry, 3, [20, 20, 20]);
+  paint(hx - 30 * unit, hy - 22 * unit, hx + 30 * unit, hy - 22 * unit, 14 * unit, HAIR);
+  for (const e of ['lEye', 'rEye']) disc(J[e], 3.5, [20, 20, 20]);
+  const [mx, my] = px([J.nose[0], J.nose[1] + 0.03]);
+  paint(mx - 8 * unit, my, mx + 8 * unit, my, 2 * unit, [150, 70, 70]);
   return { data, shape: [height, width, 3] };
 }
 
@@ -203,38 +220,59 @@ export async function runSide(side, { calls = CALLS, tmp = tmpdir() } = {}) {
   await tf.ready();
   const out = { side, version: tf.version_core, backend: tf.getBackend(), scenarios: {} };
 
-  // 1. the graph model alone, on the fixed tensor
+  const M = poseDetection.SupportedModels.MoveNet;
+  const newDetector = () => poseDetection.createDetector(M, {
+    modelType: poseDetection.movenet.modelType.SINGLEPOSE_THUNDER, enableSmoothing: false, modelUrl: diskHandler(MODEL_DIR),
+  });
+
+  // 1. the graph model alone, on the fixed tensor; then the detector's own
+  // step from raw output to keypoints (runSinglePersonPoseModel: no pose-score
+  // cut, so there are keypoints whatever the model thinks of the input)
   const graph = await converter.loadGraphModel(diskHandler(MODEL_DIR));
   const fx = fixedInput();
   const fixed = tf.tensor4d(fx.data, fx.shape, 'int32');
   const raw = graph.execute(fixed);
-  out.scenarios['fixed-tensor'] = { calls: [{ raw: f32(raw), shape: raw.shape }] };
+  const fixedCall = { raw: f32(raw), shape: raw.shape };
   fixed.dispose(); raw.dispose(); graph.dispose();
+  const det0 = await newDetector();
+  const fixed2 = tf.tensor4d(fx.data, fx.shape, 'int32');
+  const pose0 = await det0.runSinglePersonPoseModel(fixed2);
+  fixed2.dispose(); det0.dispose();
+  fixedCall.keypoints = pose0.keypoints.flatMap(p => [p.y, p.x, p.score]);
+  fixedCall.score = [pose0.score];
+  out.scenarios['fixed-tensor'] = { calls: [fixedCall] };
 
-  // 2. the detector on two image sequences
-  const M = poseDetection.SupportedModels.MoveNet;
-  const frames = {
-    noise: k => noiseImage(IMAGE, k),
-    figure: k => figureImage(k, IMAGE, calls),
+  // 2. the detector on image sequences, each call cropped from the last pose.
+  // MoveNet finds no person in a drawing (and in noise) and then starts again
+  // from the whole frame; 'figure-crop' sets the crop to the figure's box
+  // before every call, the same on both sides, so cropAndResize runs on a
+  // crop that is not the whole frame.
+  const figureBox = k => {
+    const ys = Object.values(figureJoints(k, calls)).map(p => p[1]), xs = Object.values(figureJoints(k, calls)).map(p => p[0]);
+    const yMin = Math.min(...ys) - 0.08, yMax = Math.max(...ys) + 0.08, xMin = Math.min(...xs) - 0.2, xMax = Math.max(...xs) + 0.2;
+    return { yMin, xMin, yMax, xMax, height: yMax - yMin, width: xMax - xMin };
   };
-  for (const [name, frame] of Object.entries(frames)) {
-    const det = await poseDetection.createDetector(M, {
-      modelType: poseDetection.movenet.modelType.SINGLEPOSE_THUNDER, enableSmoothing: false,
-      modelUrl: diskHandler(MODEL_DIR),
-    });
+  const sequences = {
+    noise: { frame: k => noiseImage(IMAGE, k) },
+    figure: { frame: k => figureImage(k, IMAGE, calls) },
+    'figure-crop': { frame: k => figureImage(k, IMAGE, calls), seed: figureBox },
+  };
+  for (const [name, { frame, seed }] of Object.entries(sequences)) {
+    const det = await newDetector();
     // Watch the model's raw output where the detector reads it.
     const model = det.moveNetModel, execute = model.execute.bind(model), rawOut = [];
     model.execute = (...a) => { const o = execute(...a); rawOut.push(f32(Array.isArray(o) ? o[0] : o)); return o; };
     const rec = [];
     for (let k = 0; k < calls; k++) {
       const im = frame(k), img = tf.tensor3d(im.data, im.shape, 'int32');
+      if (seed) det.cropRegion = seed(k);
       const crop = det.cropRegion ? { ...det.cropRegion } : null; // the crop this call will use
       const poses = await det.estimatePoses(img, { maxPoses: 1, flipHorizontal: false });
       img.dispose();
       rec.push({
         raw: rawOut.pop(),
         keypoints: poses[0] ? poses[0].keypoints.flatMap(p => [p.y, p.x, p.score]) : null,
-        score: poses[0] ? poses[0].score ?? null : null,
+        score: poses[0] ? [poses[0].score] : null,
         cropBefore: crop && [crop.yMin, crop.xMin, crop.yMax, crop.xMax],
         cropAfter: det.cropRegion ? [det.cropRegion.yMin, det.cropRegion.xMin, det.cropRegion.yMax, det.cropRegion.xMax] : null,
       });
@@ -242,6 +280,7 @@ export async function runSide(side, { calls = CALLS, tmp = tmpdir() } = {}) {
     out.scenarios[name] = { calls: rec };
     det.dispose();
   }
+  out.kernels = tf.getKernelsForBackend('cpu').map(k => k.kernelName).sort();
   out.tensors = tf.memory().numTensors;
   return out;
 }
@@ -269,10 +308,11 @@ export function compare(npm, source) {
   const rows = [];
   for (const [scenario, s] of Object.entries(npm.scenarios)) {
     const t = source.scenarios[scenario];
-    const outputs = [['raw', 'raw', ROUNDING.raw], ['keypoints', 'keypoints', ROUNDING.keypoints],
+    const outputs = [['raw', 'raw', ROUNDING.raw], ['keypoints', 'keypoints', ROUNDING.keypoints], ['score', 'raw', ROUNDING.raw],
       ['cropBefore', 'crop', ROUNDING.crop], ['cropAfter', 'crop', ROUNDING.crop]];
     for (const [key, kind, tol] of outputs) {
-      if (!s.calls.some(c => c[key] != null) && !(t && t.calls.some(c => c[key] != null))) continue;
+      // Keypoints stay in the table when no call found a pose (that is a result); the rest only when there are values.
+      if (key !== 'keypoints' && !s.calls.some(c => c[key] != null) && !(t && t.calls.some(c => c[key] != null))) continue;
       let n = 0, max = 0, sum = 0, shape = false;
       for (let i = 0; i < s.calls.length; i++) {
         const d = t && t.calls[i] ? absDiff(s.calls[i][key], t.calls[i][key]) : null;
@@ -280,7 +320,8 @@ export function compare(npm, source) {
         n += d.n; sum += d.mean * d.n; max = d.max > max || Number.isNaN(d.max) ? d.max : max;
       }
       const mean = n ? sum / n : 0;
-      rows.push({ scenario, output: key, calls: s.calls.length, values: n, max, mean, tolerance: tol,
+      const found = c => c.filter(x => x[key] != null).length;
+      rows.push({ scenario, output: key, calls: s.calls.length, values: n, found: [found(s.calls), t ? found(t.calls) : 0], max, mean, tolerance: tol,
         exact: !shape && max === 0, ok: !shape && max <= tol, shapeMismatch: shape });
     }
   }
@@ -291,7 +332,7 @@ export function formatRows(rows) {
   const num = v => (Number.isNaN(v) ? 'NaN' : v === 0 ? '0' : v.toExponential(2));
   const head = ['scenario', 'output', 'values', 'max |diff|', 'mean |diff|', 'verdict'];
   const lines = rows.map(r => [r.scenario, r.output, String(r.values), num(r.max), num(r.mean),
-    r.shapeMismatch ? 'SHAPE DIFFERS' : r.exact ? 'identical' : r.ok ? 'rounding' : 'DIFFERENT']);
+    r.shapeMismatch ? 'SHAPE DIFFERS' : r.values === 0 ? 'no pose found, both' : r.exact ? 'identical' : r.ok ? 'rounding' : 'DIFFERENT']);
   const w = head.map((h, i) => Math.max(h.length, ...lines.map(l => l[i].length)));
   return [head, ...lines].map(l => l.map((c, i) => c.padEnd(w[i])).join('  ')).join('\n');
 }
@@ -329,10 +370,12 @@ async function main() {
   const rows = compare(sides.npm, sides.source);
   console.log(`TF.js ${sides.npm.version} (npm) vs ${sides.source.version} (from source), backend ${sides.npm.backend}/${sides.source.backend}, ${calls} calls per sequence`);
   console.log(formatRows(rows));
-  const ok = rows.length > 0 && rows.every(r => r.ok) && sides.npm.version === sides.source.version;
+  const kernelsSame = JSON.stringify(sides.npm.kernels) === JSON.stringify(sides.source.kernels);
+  console.log(`cpu kernels registered: ${sides.npm.kernels.length} (npm), ${sides.source.kernels.length} (source), ${kernelsSame ? 'the same names' : 'DIFFERENT NAMES'}`);
+  const ok = rows.length > 0 && rows.every(r => r.ok) && kernelsSame && sides.npm.version === sides.source.version;
   console.log(ok ? 'parity: yes' : 'parity: NO, a difference beyond rounding: find the op or the patch before anything else');
   const json = arg('--json');
-  if (json) writeFileSync(json, JSON.stringify({ rows, ms: { npm: sides.npm.ms, source: sides.source.ms } }, null, 2) + '\n');
+  if (json) writeFileSync(json, JSON.stringify({ rows, kernels: [sides.npm.kernels.length, sides.source.kernels.length, kernelsSame], ms: { npm: sides.npm.ms, source: sides.source.ms } }, null, 2) + '\n');
   process.exit(ok ? 0 : 1);
 }
 
