@@ -332,7 +332,7 @@ test('detail: the zones come from zones(id): none when it gives null; without ru
   const elbow = m.detailOf({ Diagnostics: noRule, view, computed, cueId: 'lateral-raise-elbow-lead', range: { t0: 0, t1: 10 } });
   assert.deepStrictEqual(elbow.zones, D.zones('lateral-raise-elbow-lead'));
   assert.equal(elbow.rule, 'Good from +5%, work on below −5%');
-  assert.equal(elbow.decides, null);
+  assert.equal(elbow.basis, null);
 });
 
 // s45: design/mockups/CueDetail.dc.html's "How it's scored": "The lowest margin in the rep decides: good from +5%
@@ -342,19 +342,19 @@ test('detail: "How it\'s scored" starts with the API\'s sentence on what decides
   const { view, computed } = await scored(LATERAL);
   const elbow = m.detailOf({ Diagnostics: D, view, computed, cueId: 'lateral-raise-elbow-lead', range: { t0: 0, t1: 10 } });
   const r = D.rule('lateral-raise-elbow-lead');
-  assert.equal(elbow.decides, r.decides);
-  assert.equal(elbow.rule, `${r.decides} Good from +5% of torso length, watch between +5% and −5%, work on below −5%.`);
+  assert.equal(elbow.basis, r.basis);
+  assert.equal(elbow.rule, `${r.basis} Good from +5% of torso length, watch between +5% and −5%, work on below −5%.`);
   // a cue whose zones are null has its rule too (design/mockups/Result.dc.html: "Good up to 3° of sway (SD), work on beyond 7°")
   const lean = m.detailOf({ Diagnostics: D, view, computed, cueId: 'lateral-raise-torso-lean', range: { t0: 0, t1: 10 } });
   assert.equal(lean.zones, null, 'no bands on the plot');
-  assert.equal(lean.rule, `${D.rule('lateral-raise-torso-lean').decides} Good up to 3° of sway (SD), watch between 3° and 7°, work on beyond 7°.`);
+  assert.equal(lean.rule, `${D.rule('lateral-raise-torso-lean').basis} Good up to 3° of sway (SD), watch between 3° and 7°, work on beyond 7°.`);
   // every scored cue of both lifts: the sentence first, the noun, a watch band
   for (const slug of [LATERAL, SNATCH]) {
     const s = await scored(slug);
     for (const cue of s.view.cues.filter(c => c.status !== "can't score")) {
       const d = m.detailOf({ Diagnostics: D, view: s.view, computed: s.computed, cueId: cue.id, range: { t0: 0, t1: 10 } });
       const rr = D.rule(cue.id);
-      assert.ok(d.rule.startsWith(rr.decides + ' '), `${cue.id}: ${d.rule}`);
+      assert.ok(d.rule.startsWith(rr.basis + ' '), `${cue.id}: ${d.rule}`);
       assert.ok(d.rule.includes(rr.noun), cue.id);
       assert.match(d.rule, /, watch (between|from) /, cue.id);
     }
@@ -364,7 +364,7 @@ test('detail: "How it\'s scored" starts with the API\'s sentence on what decides
 test('detail: the rule is the API\'s words, whatever they are (a fake rule(id))', async () => {
   const m = await load('ui/detail-model.mjs');
   const { view, computed } = await scored(LATERAL);
-  const fake = { ...D, rule: () => ({ noun: '° FAKE-NOUN', decides: 'The fake sentence decides.', bands: [{ status: 'good', from: null, to: 4 }, { status: 'watch', from: 4, to: 9 }, { status: 'work on', from: 9, to: null }] }) };
+  const fake = { ...D, rule: () => ({ noun: '° FAKE-NOUN', basis: 'The fake sentence decides.', bands: [{ status: 'good', from: null, to: 4 }, { status: 'watch', from: 4, to: 9 }, { status: 'work on', from: 9, to: null }] }) };
   const d = m.detailOf({ Diagnostics: fake, view, computed, cueId: 'lateral-raise-torso-lean', range: { t0: 0, t1: 10 } });
   assert.equal(d.rule, 'The fake sentence decides. Good up to 4° FAKE-NOUN, watch between 4° and 9°, work on beyond 9°.');
   const t = m.scoringText({ Diagnostics: fake, lift: 'lateral-raise', view: null, computed: null });
@@ -417,7 +417,7 @@ test('detail: S1\'s text is built from scoringLines of a stored lift, and from t
   assert.deepStrictEqual(t.cues.map(c => c.id), D.describe('lateral-raise').map(d => d.id));
   const elbow = t.cues.find(c => c.id === 'lateral-raise-elbow-lead');
   assert.deepStrictEqual(elbow.lines, D.scoringLines('lateral-raise-elbow-lead', computed, { smoothingMs: view.smoothing.sigmaMs }));
-  assert.equal(elbow.rule, `${D.rule(elbow.id).decides} Good from +5% of torso length, watch between +5% and −5%, work on below −5%.`);
+  assert.equal(elbow.rule, `${D.rule(elbow.id).basis} Good from +5% of torso length, watch between +5% and −5%, work on below −5%.`);
   assert.equal(elbow.cue, D.describe('lateral-raise').find(d => d.id === elbow.id).cue);
   assert.equal(t.cues.find(c => c.id === 'lateral-raise-symmetry').lines.length, 0, 'a cue that can\'t score has no lines');
   assert.equal(t.measured, true);

@@ -57,13 +57,16 @@ export function provisionalNote(view) {
  * @param {import('../contracts/cue-view.mjs').ResultView} view
  * @param {(id: string) => Array|null} [zonesOf] diagnostics.js's zones(id) (s39): the bands the open card's rule
  *   sentence is built from; without it the card's `rule` is "Provisional" alone, as d17 had it
+ * @param {(id: string) => Object|null} [ruleOf] diagnostics.js's rule(id) (s45): the unit's noun and the bands,
+ *   so the sentence names the noun and the watch band, for a cue whose zones are null too; without it (or for a
+ *   null answer) the shorter sentence from the zones
  * @returns {Array<{id: string, title: string, fullTitle: string, status: string, cls: string, word: string, icon: string,
  *   verdict: string|null, line: string|null, value: string, provisional: boolean, rule: string|null, cue: string,
  *   notes: string[], reason: string|null, scored: boolean}>}
  *   `line` is what follows the status word: the verdict, or the engine's reason when it can't score. `rule` is
  *   the open card's line: the sentence from the zones and "Provisional" while the thresholds are.
  */
-export function cardsOf(view, zonesOf = null) {
+export function cardsOf(view, zonesOf = null, ruleOf = null) {
   return view.cues.map(c => {
     const look = lookOf(c.status);
     return {
@@ -78,7 +81,7 @@ export function cardsOf(view, zonesOf = null) {
       line: c.reason === null ? c.verdict : c.reason,
       value: valueText(c),
       provisional: c.provisional,
-      rule: ruleLine(c.reason === null && zonesOf ? ruleSentence(c.unit, zonesOf(c.id)) : null, c.provisional),
+      rule: ruleLine(c.reason === null ? ruleSentence(c.unit, zonesOf ? zonesOf(c.id) : null, ruleOf ? ruleOf(c.id) : null) : null, c.provisional),
       cue: c.cue,
       notes: [...c.notes],
       reason: c.reason,

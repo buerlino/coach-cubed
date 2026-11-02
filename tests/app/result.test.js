@@ -403,13 +403,14 @@ test('result: the rule line is the API\'s words, whatever they are; with no rule
   const m = await load('ui/result-model.mjs');
   const { view, D } = await scored(LATERAL);
   const fake = id => ({
-    noun: '% FAKE-NOUN', decides: 'The fake sentence decides.',
+    noun: '% FAKE-NOUN', basis: 'The fake sentence decides.',
     bands: [{ status: 'work on', from: null, to: -7 }, { status: 'watch', from: -7, to: 2 }, { status: 'good', from: 2, to: null }],
     id,
   });
   const cards = Object.fromEntries(m.cardsOf(view, id => D.zones(id), id => { const r = fake(id); delete r.id; return r; }).map(c => [c.id, c]));
   assert.equal(cards['lateral-raise-elbow-lead'].rule, 'Good from +2% FAKE-NOUN, watch between +2% and −7%, work on below −7% · Provisional');
-  assert.equal(cards['lateral-raise-torso-lean'].rule, 'Good from +2% FAKE-NOUN, watch between +2% and −7%, work on below −7% · Provisional');
+  // the lean's zones are null: the fake's bands and noun, in the cue's own unit (°) after the noun's number
+  assert.equal(cards['lateral-raise-torso-lean'].rule, 'Good from +2% FAKE-NOUN, watch between +2° and −7°, work on below −7° · Provisional');
   // an API without the method, or one that gives null: the zones' shorter sentence, as before
   const short = Object.fromEntries(m.cardsOf(view, id => D.zones(id), () => null).map(c => [c.id, c]));
   assert.equal(short['lateral-raise-elbow-lead'].rule, 'Good from +5%, work on below −5% · Provisional');
@@ -418,7 +419,7 @@ test('result: the rule line is the API\'s words, whatever they are; with no rule
 
 test('result: A1 passes the API\'s rule(id) to the model, and app/src/ types none of its words', () => {
   const src = fs.readFileSync(path.join(APP, 'src', 'ui', 'screens', 'A1.mjs'), 'utf8');
-  assert.match(src, /cardsOf\(data\.view, [^)]*zones\(id\), [^)]*rule\(id\)\)/);
+  assert.match(src, /cardsOf\(data\.view, [^)]*zones\(id\), id => ruleOf\(data\.diagnostics, id\)\)/);
   // the words come from src/diagnostics.js (s45, "Done when": grep -rn "torso length\|decides" app/src/)
   const walk = dir => fs.readdirSync(dir, { withFileTypes: true }).flatMap(e => {
     const p = path.join(dir, e.name);

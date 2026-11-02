@@ -697,19 +697,19 @@ test('rule(id) gives every cue of every set its unit noun, one sentence on what 
       const id = c.id, d = cues.get(id);
       const r = D.rule(id);
       n++;
-      assert.deepStrictEqual(Object.keys(r), ['noun', 'decides', 'bands'], id);
+      assert.deepStrictEqual(Object.keys(r), ['noun', 'basis', 'bands'], id);
       assert.deepStrictEqual(plain(inner.rule(id)), r, id);
       // the noun follows a number: it starts with the cue's unit and holds no number of its own
       assert.equal(typeof r.noun, 'string', id);
       assert.ok(r.noun.startsWith(UNIT_SYMBOL[c.unit]), `${id}: "${r.noun}" starts with the unit ${c.unit}`);
       assert.ok(r.noun.length > UNIT_SYMBOL[c.unit].length, `${id}: a noun, not the bare unit`);
       // one sentence, plain text, no number typed in it, naming the cue's worst-moment rule
-      assert.match(r.decides, /^[A-Z][^.]*\bdecides\b[^.]*\.$/, `${id}: one sentence that says what decides`);
-      for (const s of [r.noun, r.decides]) {
+      assert.match(r.basis, /^[A-Z][^.]*\bdecides\b[^.]*\.$/, `${id}: one sentence that says what decides`);
+      for (const s of [r.noun, r.basis]) {
         assert.ok(!MARKUP.test(s), `${id}: no markup in ${JSON.stringify(s)}`);
         assert.ok(!/\d/.test(s), `${id}: no number typed in ${JSON.stringify(s)}`);
       }
-      assert.match(r.decides, RULE_WORDS[d.worstRule], `${id}: the sentence matches its rule ${d.worstRule}`);
+      assert.match(r.basis, RULE_WORDS[d.worstRule], `${id}: the sentence matches its rule ${d.worstRule}`);
       // the bands: zones(id) where the plot shows the verdict's value, else the bands of the value it reads
       const zones = D.zones(id);
       if (zones) assert.deepStrictEqual(r.bands, zones, `${id}: the plot's zones`);
@@ -762,7 +762,7 @@ test('rule(id): the mockups\' unit nouns and bands for the lateral raise', () =>
 test('rule: an unknown id throws, and so does a cue without its noun, its sentence or its bands', () => {
   const D = loadDiagnostics();
   assert.throws(() => D.rule('no-such-cue'), /no-such-cue/);
-  for (const [id, field] of [['lateral-raise-tempo', 'unitNoun'], ['lateral-raise-tempo', 'decides'], ['lateral-raise-torso-lean', 'bands']]) {
+  for (const [id, field] of [['lateral-raise-tempo', 'unitNoun'], ['lateral-raise-tempo', 'verdictBasis'], ['lateral-raise-torso-lean', 'bands']]) {
     const { D: inner, cues } = loadInternals();
     delete cues.get(id)[field];
     assert.throws(() => inner.rule(id), new RegExp(id), `${id} without ${field}`);

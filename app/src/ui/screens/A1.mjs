@@ -14,6 +14,7 @@ import { fitSize } from '../mark-model.mjs';
 import { createPlayer } from '../player.mjs';
 import { clockOf, fractionAt, headerOf, momentTitle, nextSpeed, playRequest, speedLabel } from '../player-model.mjs';
 import { cardsOf, defaultOpen, provisionalNote, seekTime, summaryOf, timelineOf } from '../result-model.mjs';
+import { ruleOf } from '../rule-model.mjs';
 import { BackIcon, ChevronIcon, MoreIcon, PauseIcon, PlayIcon, StatusIcon, StepBackIcon, StepForwardIcon } from '../components/icons.mjs';
 
 const pixelRatio = () => (globalThis.devicePixelRatio > 0 ? globalThis.devicePixelRatio : 1);
@@ -143,7 +144,7 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
   const head = data ? headerOf(data.rec) : null;
   const range = data ? data.rec.range : null;
   const tl = data ? timelineOf(data.view, range) : null;
-  const cards = data ? cardsOf(data.view, id => data.diagnostics.zones(id)) : [];
+  const cards = data ? cardsOf(data.view, id => data.diagnostics.zones(id), id => ruleOf(data.diagnostics, id)) : [];
   const counts = data ? summaryOf(data.view) : [];
   const note = data ? provisionalNote(data.view) : null;
   const opened = tl ? tl.cues.find(c => c.id === open) : null;
