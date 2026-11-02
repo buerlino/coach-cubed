@@ -346,9 +346,10 @@ build for our own code, the lifter choice hidden.
   60 10800` in `pipeline/pipeline.sh`): `s6`, `s9`, `s12`, `d14`, `d16` and
   `d18`. `s6` and `d16` name split points (`s6b`, `d16b`); a run cut off
   resumes and isn't counted in the estimate.
-- **The from-source engine meets real hardware late:** its first run on
-  the phone is `c20`, #11 in the queue, and the real clips only run in
-  `c26`.
+- **The from-source engine on real hardware:** `c20` ran it on the
+  Fairphone (WebView 153, Adreno 810): it loads, answers 17 keypoints or
+  null, 75 ms a frame on the test clip; real clips' speed and parity are
+  `c26`'s.
 - **Noah may come back before checkpoint A:** then the queue drains early
   for 2.8 (question 6).
 - **The pick rests on four clips.** A switch to BlazePose costs the engine
