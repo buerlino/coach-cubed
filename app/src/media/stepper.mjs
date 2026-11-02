@@ -15,9 +15,11 @@
 //    that fit. It starts once that whole group fits in the window, or when the
 //    missing frame is a quarter of the window away, whichever comes first; a
 //    group longer than the window is decoded again for each window's worth.
-// Every frame held is pinned to a cost (its distance over its side's size); a new
-// frame takes the place of the costliest one, which is closed; the playhead's
-// frame is never dropped, nor the frame on screen before the step's frame is in. A step to a frame not held waits for the refill.
+// Every frame held is pinned to a cost (its distance over its side's size); a
+// decoded frame outside the window is closed without a bitmap; a new frame takes
+// the place of the costliest one, which is closed; the playhead's frame is never
+// dropped, nor the frame on screen before the step's frame is in. A step to a
+// frame not held waits for the refill.
 //
 // Errors: a refill that fails (a decoder error, a stall after stallMs) ends; a
 // step waiting then rejects with the MediaError, else the next step does, and the
@@ -113,10 +115,14 @@ export async function openStepper(ctx, t, options = {}) {
   // it stays valid until the next step or seek settles), so the costliest of the
   // others is dropped now; with a budget of one frame there is no other, and the
   // frame on screen is dropped only when the new one takes its place.
+  // A frame outside the window (cost 1 and over) is never worth it: the decodes
+  // start at a keyframe, and the frames on the way there are closed undrawn
+  // instead of each being turned and made into a bitmap that is evicted at once.
   function admit(i) {
     if (held.has(i)) return false;
-    if (held.size < cap) return -1;
     const s = sides(), c = cost(i, s);
+    if (i !== cur && c >= 1) return false;
+    if (held.size < cap) return -1;
     const pinShown = !held.has(cur) && held.has(shown);
     let worst = -1, wc = -1;
     for (const j of held.keys()) {

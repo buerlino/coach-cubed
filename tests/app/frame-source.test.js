@@ -688,6 +688,42 @@ test('a seek with a full cache to a far frame keeps the frame on screen open unt
   }
 });
 
+test('a frame outside the window is closed without a bitmap, however far its keyframe is', async () => {
+  // the audit of s38's second round: the refill decodes from the keyframe, and every
+  // frame on the way that fit the room or was nearer than the farthest one held was
+  // turned and made into a bitmap, then evicted; at frame 140 of a phone camera's
+  // 150-frame group that was about 125 bitmaps at display size before the playhead's
+  const { src, fake } = await open(H264);
+  const idx = b => Math.round(b.timestamp / 1e6 * 30);
+  const madeSince = k => fake.log.bitmaps.slice(k).map(idx);
+  const counts = list => list.reduce((m, i) => m.set(i, (m.get(i) || 0) + 1), new Map());
+  // six frames, three ahead and two behind before the first step: at frame 29, the
+  // last of the group 0–29, the window is 27–32
+  const st = await src.stepper(frameTime(29), { height: 36, maxFrames: 6 });
+  assert.equal(st.index, 29);
+  await st.settled();
+  const opened = madeSince(0);
+  assert.deepEqual(opened.filter(i => i < 27 || i > 32), [], `opening at 29: bitmaps only in the window 27–32, made: ${opened}`);
+  assert.ok([...counts(opened).values()].every(c => c === 1), `each frame made once: ${opened}`);
+  assert.ok(opened.includes(29) && opened.includes(28) && opened.includes(32));
+  // a seek to the last frame, of the group 60–89: the window is 87–89
+  let k = fake.log.bitmaps.length;
+  assert.equal((await st.seek(frameTime(89))).index, 89);
+  await st.settled();
+  const seeked = madeSince(k);
+  assert.deepEqual(seeked.filter(i => i < 87), [], `seeking to 89: bitmaps only in the window 87–89, made: ${seeked}`);
+  assert.ok([...counts(seeked).values()].every(c => c === 1), `each frame made once: ${seeked}`);
+  // stepping back to 84 (four behind, one ahead): each window's decode from frame 60 makes no bitmap before it
+  k = fake.log.bitmaps.length;
+  for (let s = 0; s < 5; s++) { await st.step(-1); await st.settled(); }
+  assert.equal(st.index, 84);
+  const back = madeSince(k);
+  assert.deepEqual(back.filter(i => i < 80), [], `stepping back to 84: bitmaps only from 80 on, made: ${back}`);
+  st.close(); src.close();
+  assert.deepEqual(openBitmaps(fake), []);
+  assert.deepEqual(openFrames(fake), []);
+});
+
 test('a step to a held frame returns before the refill does any work for it', async () => {
   // measured in headless Brave (s38's report): a refill started inside the step held a
   // 1080p step at a 150 ms tap rate for 23 ms while its frame was already held
