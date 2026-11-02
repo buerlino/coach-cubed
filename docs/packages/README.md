@@ -60,7 +60,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | | | **Look A0** (D7): nordmu, about 15 minutes on the Fairphone | | `d13`, `d14`, `d15`, `d17`, `c20` | not a gate |
 | 25 | `c19` | The service worker, the app offline | curie, sonnet | `d3`, `s6`, `s12` | merged `5ccc0a0` |
 | 26 | `c21` | The page test, offline | curie, sonnet | `d13`, `d14`, `d15`, `d17`, `c19` | waits |
-| 27 | `s39` | The headless API gives A2's scoring lines and zones | schrödinger, opus | `s35`, `s36` | waits |
+| 27 | `s39` | The headless API gives A2's scoring lines and zones | schrödinger, opus | `s35`, `s36` | merged `2b93172` |
 | 28 | `d18` | A2, a cue's detail | dirac, sonnet | `d17`, `s4`, `s39` | waits |
 | 29 | `d22` | A3, view options | dirac, sonnet | `d17`, `c8`, `d14`, `s35` | waits |
 | 30 | `d23` | The screens v1 doesn't draw | dirac, sonnet | `d17`, `s12`, `c8` | waits |
