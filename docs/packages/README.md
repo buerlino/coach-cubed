@@ -54,7 +54,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 19 | `s38` | One-frame steps from a cache | schrödinger, opus | `s35`, `c34` | NOT MERGED in run 20 (two fix rounds); FIX `s38f1` (nordmu, 2026-11-02) merged `4af1286` |
 | 20 | `d41` | Import starts on the default lift; H and Q1 agree on a job's percent | dirac, sonnet | `d13`, `d15`, `d24` | merged `8b797a6` |
 | 21 | `s42` | The tempo and symmetry cues say their time smoothing | schrödinger, sonnet | `s39` | merged `5550b77` |
-| 22 | `c43` | No Android backup, so the privacy text holds | curie, sonnet | `d24`, `c20` | ready; laptop only (nordmu, 2026-11-02: backup off, the privacy text approved) |
+| 22 | `c43` | No Android backup, so the privacy text holds | curie, sonnet | `d24`, `c20` | merged `f3eb21d` |
 | 23 | `d13` | H and importing a video | dirac, sonnet | `d3`, `c8`, `s12` | merged `109eaeb` |
 | 24 | `d14` | M1–M3, marking a lift | dirac, sonnet | `s9`, `s12`, `s35`, `s38` | waits |
 | 25 | `d15` | Q1, analysing | dirac, sonnet | `s12` | merged `ea03e35` |
