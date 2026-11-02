@@ -108,7 +108,7 @@ try {
   await sleep(1500);
   out.picker = { before, opened: picker, after: resumed() };
   adb('push', CLIP, pushed);
-  try { sh(`run-as ${PKG} cp ${pushed} files/coach-c20-clip.mp4`); } finally { sh(`rm -f ${pushed}`); }
+  try { sh(`run-as ${PKG} mkdir -p files`); sh(`run-as ${PKG} cp ${pushed} files/coach-c20-clip.mp4`); } finally { sh(`rm -f ${pushed}`); }
   const doc = await c.send('DOM.getDocument', {});
   const node = await c.send('DOM.querySelector', { nodeId: doc.result.root.nodeId, selector: '#file' });
   const set = await c.send('DOM.setFileInputFiles', { nodeId: node.result.nodeId, files: [`/data/user/0/${PKG}/files/coach-c20-clip.mp4`] });

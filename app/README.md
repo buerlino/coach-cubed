@@ -636,6 +636,16 @@ opens the check page, clicks the file input with a user gesture (Android's
 picker opens, then Back), sets the input to the clip copied into the app's
 own `files/` (`run-as`), runs the engine, prints the JSON and uninstalls.
 
+**On the Fairphone 6** (Android 16, LineageOS 4.4.1, WebView 153.0.8010.36,
+Adreno 810; the debug APK of 2026-11-02, `c20`'s report has every number):
+the shell opens, WebGL 2, OPFS and the file picker work, `persist()` answers
+false. s10's engine on the test clip (96 × 54, 90 frames), medians of five:
+75 ms a frame (frames 2–89); `create()` 4.35 s for the first engine in a
+freshly installed app, 1.0 s for each later one in the same app; `reset()`
+1.0 s; frame 0 165 ms and frame 1 104 ms (235 ms for the first frame of the
+first engine): the shaders that depend on the crop's size compile on the
+first real frames, again after every `reset()`.
+
 **The service worker isn't registered in the APK** (`c20`'s choice, for
 `c19`): there the files come from the APK through Capacitor's local server,
 so the app is offline already; a worker would keep a second copy of `dist/`
