@@ -145,3 +145,18 @@ test('page-test.mjs: no browser fails with one clear line, and COACH_PAGE_TEST_S
   const bad = spawnSync(process.execPath, [script, '--break', 'nonsense'], { encoding: 'utf8', env });
   assert.equal(bad.status, 2);
 });
+
+test('setAppQueueDefaults: the queue made after it uses the store its caller passes, with the defaults\' parts', async () => {
+  const { appQueue, setAppQueueDefaults } = await load('app', 'src', 'analysis', 'index.mjs');
+  const engine = async () => ({ info: {}, estimate: async () => null, reset: async () => {}, close() {} });
+  const open = async () => ({});
+  const reads = [];
+  const store = { readQueue: async () => { reads.push('callers'); return { jobs: [], rate: null }; }, getLift: async () => null, saveQueue: async () => {} };
+  setAppQueueDefaults({ store: { readQueue: async () => { reads.push('defaults'); return { jobs: [], rate: null }; } }, createEngine: engine, openFrameSource: open });
+  const queue = appQueue({ store });
+  try {
+    await queue.load();
+    assert.deepEqual(reads, ['callers'], 'the caller\'s store wins over a default');
+    assert.equal(appQueue({ store: {} }), queue, 'the queue stays the one');
+  } finally { queue.close(); }
+});

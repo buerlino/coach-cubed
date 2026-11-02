@@ -1,11 +1,10 @@
-// The page test's boot (package c21), test build only: assemble.mjs --test puts
-// it before main.mjs in index.html. It makes the app's one queue, with the
-// replay engine in place of MoveNet and the fixture's size and rate on the job's
-// source (replay.mjs). With `?real` in the page's URL it makes nothing: main.mjs's own
-// appQueue() then makes the app's, with the real engine (the page test's --real mode: MoveNet
-// on TF.js's WebGL backend, which headless Brave runs in software, on the CPU: the only backend the
-// app has). main.mjs's appQueue() finds the queue made here, if any.
-import { appQueue } from '../src/analysis/index.mjs';
+// The page test's boot (package c21), test build only: assemble.mjs --test puts it before main.mjs in
+// index.html. It sets the app queue's defaults (setAppQueueDefaults): the replay engine in place of MoveNet,
+// and the fixture's size and rate on the job's source (replay.mjs). It makes no queue: main.mjs's
+// appQueue({ store }) makes the app's one, with these deps and main.mjs's own store, as the shipped app does.
+// With `?real` in the page's URL it sets nothing, so the queue gets the real engine (the page test's --real
+// mode: MoveNet on TF.js's WebGL backend, which headless Brave runs in software, on the CPU).
+import { setAppQueueDefaults } from '../src/analysis/index.mjs';
 import { PoseEngine } from '../src/pose/pose-client.mjs';
 import { openFrameSource } from '../src/media/frame-source.mjs';
 import { createReplay } from './replay.mjs';
@@ -26,7 +25,7 @@ if (!real) {
     return createReplay(tracks);
   });
   loaded.catch(() => { /* the first Analyse reports it */ });
-  appQueue({
+  setAppQueueDefaults({
     createEngine: async () => {
       const replay = await loaded;
       return PoseEngine.create({ backend: 'cpu', createWorker: () => replay.createWorker() });

@@ -13,6 +13,17 @@ export { runJob, median, framesInRange, JobCancelled, EngineError } from './job.
 export { DEFAULT_RATE, estimateCost, rateOf } from './estimate.mjs';
 
 let theQueue = null;
+let defaults = {};
+
+/**
+ * Deps appQueue() uses before it makes the queue, under the caller's overrides and over its
+ * own: a build that swaps a part (the page test's replay engine) sets them without making the
+ * queue, so the caller who makes it (main.mjs) still gives its own store. Ignored once the queue exists.
+ * @param {Object} deps createQueue's deps
+ */
+export function setAppQueueDefaults(deps) {
+  defaults = { ...deps };
+}
 
 /**
  * The app's queue: the store in OPFS, s9's frame source, s32's keepVideo, s10's
@@ -28,6 +39,7 @@ export function appQueue(overrides = {}) {
     createEngine: () => PoseEngine.create({ backend: 'webgl' }),
     openFrameSource: blob => openFrameSource(blob),
     keepVideo,
+    ...defaults,
     ...overrides,
   });
   const doc = globalThis.document;
