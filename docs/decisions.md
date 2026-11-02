@@ -37,7 +37,10 @@ Newest first within each group.
   `athlete-a-trim` is a snatch (seen on the clip). S1 hides keepVideos
   until contract 3 allows a lift without its cut; c8's setting ranges are
   provisional until c27. mediabunny ships unminified. s9's and s32's phone
-  measurements move from c26 to `c34`, after c20.
+  measurements move from c26 to `c34`, after c20. After c20 and c34: a
+  frame cache for M1–M3's steps before d14 (`s38`); the placeholder app ID
+  until question 10; persist() false is shown, not an error; the media code
+  stays; c34's clips stay cached for c26.
 - **2026-11-01, nordmu, after the plan's review**
   ([app-plan.md](app-plan.md#decided-2026-11-01)): D5, the raw keypoint
   plots aren't ported (A2's per-cue plots replace them). D6, an analysed
