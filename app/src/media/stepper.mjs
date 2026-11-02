@@ -10,7 +10,8 @@
 // it nearest frame first, one decode at a time:
 //  - ahead, from one decoder that keeps going (`stream`): it is suspended between
 //    frames, so stepping on through a keyframe group decodes the group once
-//    however long it is;
+//    however long it is; it is fed one chunk at a time and stops while a frame
+//    waits (STREAM_QUEUES), so paused it holds at most 2 decoded frames;
 //  - behind, a decode from the keyframe of the group before, keeping the frames
 //    that fit. It starts once that whole group fits in the window, or when the
 //    missing frame is a quarter of the window away, whichever comes first; a
@@ -29,6 +30,13 @@ import { STEPPER_BUDGET } from '../contracts/frame-source.mjs';
 import { MediaError, asMediaError } from './media-error.mjs';
 
 const isTime = t => typeof t === 'number' && Number.isFinite(t);
+// The forward decoder's queues. It is paused at a yield between steps, and
+// decodeFrames' defaults (4 frames waiting, 8 chunks fed) let the chunks already
+// fed come out as frames: about 12 full-size VideoFrames held outside the budget,
+// as a hardware decoder's output buffers, for as long as the user stays on a
+// frame. One chunk fed while no frame waits: paused, it holds at most 2 decoded
+// frames (the one waiting and the one its last chunk makes).
+export const STREAM_QUEUES = Object.freeze({ maxQueued: 1, maxQueueSize: 1 });
 const closeQuietly = x => { try { x.close(); } catch { /* already closed */ } };
 const closedError = () => new MediaError('closed', 'The video was closed.');
 
@@ -53,7 +61,7 @@ export function stepperSize(info, { width, height } = {}) {
  * @param {ReturnType<import('./sample-table.mjs').buildSampleTable>} ctx.table
  * @param {{width: number, height: number}} ctx.info
  * @param {Object} ctx.webcodecs toBitmap
- * @param {(startDec: number, endDec: number, wants: (us: number) => boolean, signal: AbortSignal) => AsyncGenerator<VideoFrame>} ctx.decode
+ * @param {(startDec: number, endDec: number, wants: (us: number) => boolean, signal: AbortSignal, queues?: {maxQueued?: number, maxQueueSize?: number}) => AsyncGenerator<VideoFrame>} ctx.decode
  * @param {(frame: VideoFrame) => Promise<VideoFrame>} ctx.upright the file's rotation applied; the original closed
  * @param {(us: number) => number|undefined} ctx.indexOf a frame's index from its timestamp
  * @param {(s: object) => void} ctx.register
@@ -168,7 +176,7 @@ export async function openStepper(ctx, t, options = {}) {
     if (!stream) {
       const startDec = groupOf(index), first = table.presOf(startDec);
       const wants = us => { const i = ctx.indexOf(us); return i !== undefined && i >= first; };
-      stream = { it: ctx.decode(startDec, n - 1, wants, controller.signal)[Symbol.asyncIterator](), next: first };
+      stream = { it: ctx.decode(startDec, n - 1, wants, controller.signal, STREAM_QUEUES)[Symbol.asyncIterator](), next: first };
     }
     const s = stream;
     const r = await s.it.next();

@@ -100,9 +100,13 @@ export async function openFrameSource(blob, options = {}) {
   }
 
   // decoded frames (as the decoder made them, not yet turned) of the packets
-  // startDec..endDec whose timestamps `wants` accepts
-  const decode = (startDec, endDec, wants, signal = controller.signal) => decodeFrames({
+  // startDec..endDec whose timestamps `wants` accepts; `queues` ({maxQueued,
+  // maxQueueSize}) only for the stepper's paused forward decoder: frameAt, frames
+  // and thumbnails keep decodeFrames' defaults
+  const decode = (startDec, endDec, wants, signal = controller.signal, queues = {}) => decodeFrames({
     webcodecs, config, chunks: chunks(startDec, endDec), wants, signal, stallMs,
+    ...(queues.maxQueued !== undefined && { maxQueued: queues.maxQueued }),
+    ...(queues.maxQueueSize !== undefined && { maxQueueSize: queues.maxQueueSize }),
   });
 
   // the file's rotation applied to a frame; the original is closed
