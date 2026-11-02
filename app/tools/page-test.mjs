@@ -339,6 +339,21 @@ try {
       one.ok = true;
     }
     if (!one.ok && one.ok !== false) one.ok = got.length > 0;
+    // d46: A2's "Play the rep at ½×" opens A1 again on that cue at ½×
+    const scoredCue = got.find(c => !/Can.t score/i.test(c.label ?? '') && c.id);
+    if (scoredCue) {
+      const card = `[data-screen="A1"] .cue-card[data-cue="${scoredCue.id}"]`;
+      const open = await evaluate(`!!document.querySelector(${JSON.stringify(card + ' .cue-card__more')})`);
+      if (!open) await evaluate(`document.querySelector(${JSON.stringify(card + ' .cue-card__head')}).click()`);
+      if (!await click(`${card} .cue-card__more`)) throw new Error('A1: no "Plot and details" on a scored cue');
+      await waitFor(`document.querySelector('[data-screen="A2"]')`, 'A2 after "Plot and details"');
+      await waitFor(`document.querySelector('[data-screen="A2"] .detail-play')`, 'A2\'s button, once the cue is loaded');
+      if (!await click('[data-screen="A2"] .detail-play', 'Play the rep at ½×')) throw new Error('A2: no "Play the rep at ½×" button');
+      await waitFor(`document.querySelector('[data-screen="A1"] .result-speed')`, 'A1 after "Play the rep at ½×"');
+      const back = await evaluate(`({ speed: document.querySelector('.result-speed').textContent, open: !!document.querySelector(${JSON.stringify(card + ' .cue-card__body')}), problem: document.querySelector('.result-problem')?.textContent ?? null })`);
+      one.playHalf = back;
+      if (back.speed !== '½×' || !back.open || back.problem) { problems.push(`${l.lift}: "Play the rep at ½×" opened A1 with ${JSON.stringify(back)}`); one.ok = false; }
+    }
     // back to H for the next lift
     if (!await click('button[aria-label="Back"]')) throw new Error('A1: no Back button');
   }
