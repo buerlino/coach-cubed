@@ -467,6 +467,8 @@ function loadInternals() {
   vm.runInNewContext(src.replace(hook, hook + ' window.__internals = { CUE_BY_ID, DIAGNOSTIC_SETS };'), { window: win });
   return { D: win.Diagnostics, cues: win.__internals.CUE_BY_ID, sets: Object.keys(win.__internals.DIAGNOSTIC_SETS) };
 }
+// Its arrays and objects come from another realm, which deepStrictEqual tells apart.
+const plain = v => JSON.parse(JSON.stringify(v));
 
 function computedFor(D, slug, set) {
   D.setPage(set);
@@ -556,7 +558,7 @@ test('scoringLines gives a scored symmetry\'s lines too', () => {
   const lines = D.scoringLines(id, out, { smoothingMs: 50 });
   const html = cues.get(id).transparencyLines(out.results[id], out.samples, { smoothingMs: 50, scale: out.scale, axis: out.axis });
   assert.ok(lines.length > 0 && lines.every(l => !MARKUP.test(l.label) && !MARKUP.test(l.text)));
-  assert.deepStrictEqual(lines.map(l => `<strong>${l.label}</strong> — ${l.text}`), Array.from(html));
+  assert.deepStrictEqual(plain(lines.map(l => `<strong>${l.label}</strong> — ${l.text}`)), plain(html));
 });
 
 test('scoringLines: [] for a cue that can\'t be scored, the smoothing required, an unknown id throws, no mount needed', () => {
@@ -605,7 +607,7 @@ test('zones(id) are each cue\'s verdict bands on its series\' scale, or null whe
   for (const [id, d] of cues) {
     assert.ok(RULES[id], `${id}: every cue has its worst-moment rule in RULES`);
     const zones = D.zones(id);
-    assert.deepStrictEqual(inner.zones(id), zones, id);
+    assert.deepStrictEqual(plain(inner.zones(id)), zones, id);
     if (RULES[id] !== 'summary-worst') { assert.equal(zones, null, `${id}: scored on ${RULES[id]}, not a series value`); continue; }
     assert.ok(Array.isArray(zones) && zones.length >= 3, id);
     banded++;
