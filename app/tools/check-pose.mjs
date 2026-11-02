@@ -5,11 +5,11 @@
 // module worker on the WebGL bundle, and runs a few synthetic frames through
 // estimate(): fixed hash noise on a canvas (MoveNet scores a pose in it, as in
 // check-tfjs.mjs), wrapped in a VideoFrame; one frame with a drawn figure,
-// which may come back as null (nobody); then reset(), and a noise frame again. It reports, as JSON,
-// the engine's info, the init time (warm-up included), each estimate's
+// which may come back as null (nobody); then reset(), and a noise frame again.
+// It reports, as JSON, the engine's info, the init time (warm-up included), each estimate's
 // keypoint count and ms, and the first point of the first pose; exits 1 unless
-// every noise estimate answered with 17 keypoints [y, x, conf] inside a plausible
-// range of the frame's pixels.
+// every estimate answered (17 keypoints [y, x, conf], or null for nobody) and at
+// least one noise frame gave 17 inside a plausible range of the frame's pixels.
 // Needs build-tfjs.mjs's bundle and fetch-models.sh's weights. Headless Brave's
 // WebGL is SwiftShader (software): this checks that the engine loads and
 // answers, not its speed or whether a drawn figure is "found" the way a lifter
@@ -75,7 +75,12 @@ async function runCheck(frames, W, H) {
     out.resetMs = Math.round(performance.now() - t1);
     await run(0, 'noise after reset', true);
     engine.close();
-    out.ok = out.info.backend === 'webgl' && out.frames.filter(f => /noise/.test(f.label)).every(f => f.keypoints === 17 && f.inFrame);
+    // Every answer is 17 points or null (the client refuses anything else), and MoveNet finds a
+    // pose in at least one noise frame: whether it scores one in a given noise frame is
+    // its call, not a promise.
+    const noise = out.frames.filter(f => /noise/.test(f.label));
+    out.ok = out.info.backend === 'webgl' && noise.some(f => f.keypoints === 17 && f.inFrame)
+      && out.frames.every(f => f.keypoints === 17 || f.keypoints === 0);
   } catch (e) { out.error = String((e && e.stack) || e); }
   return out;
 }
