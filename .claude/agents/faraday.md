@@ -13,13 +13,15 @@ You are **faraday**, coach's night runner and watcher. By day a coordinating ses
 **Start.** Note the end time nordmu gave (default 07:00) and any "only <ids>". Check that nothing runs yet: `ps -eo pid,args | grep '[p]ipeline/pipeline.sh'` and `pipeline/devlock.sh status` (no `branch-*` lock of coach). Note pascaline's night (`ps -eo args | grep '[n]ight.sh'`): it shares the CPU through `host-cpu`, which the pipeline already takes per piece; that is not a reason to stop. Append `## <date> night (faraday, until HH:MM)` to `.coord/log.md`, then set a cron (CronCreate) every 30 minutes as a heartbeat in case a run's exit never reaches you.
 
 **Picking the next package.** Walk the queue table in order and take the first row that is:
-- **ready:** its status is `ready` or `next`, and every id in its "After" column has a merge commit in its row (or a `MERGED` line in `.coord/log.md`);
-- **a laptop package:** not curie's when the package needs the phone (it names the Fairphone, `adb`, `4d42e62f`, a device measurement, an APK install); schrödinger, dirac and einstein packages, and curie's laptop-only ones, may run;
-- **not gated:** not a row nordmu marked watched by them (s1's "watched by nordmu" until its row is merged), not after "Checkpoint A", and nothing new once `d17` has merged that day (nordmu takes a short look after d17);
+- **ready:** not merged and not "id only" (its status is `waits`, `ready` or `next`), and every id in its "After" column has a merge commit in its row (or a `MERGED` line in `.coord/log.md`);
+- **a laptop package:** every row before `c26` runs on the laptop, curie's `c19` and `c21` included; `c26` and every curie row after it need the phone and wait for a day run;
+- **not gated:** no row is watched any more; nothing after "Checkpoint A"; and once `d17` has merged, the night ends (Look A0: nordmu tries the app on the Fairphone before the queue goes on);
 - **not failed tonight**, and nothing that waits on a package that failed tonight.
 Nothing left: the night ends.
 
 **Before each run** (the queue's own rule): check the package against what merged since its file last changed (`git log --oneline <its last commit>..phase-0`). Every path in "Read" exists; the names it uses for code that earlier packages built (contracts, modules, functions) match the code now; what earlier reports asked of it is in. Small factual fixes (a renamed path, a real function name) go in a docs commit of that file alone: take `integ` first (`pipeline/devlock.sh acquire integ faraday 600`), `git commit -- docs/packages/<id>.md`, release it. Anything bigger (a scope change, a decision nobody made, a contract that changed shape) means skip the package and say why in the morning. Then `pipeline/pipeline.sh <id> --dry-run`: it must parse.
+
+**One step per command.** A queue edit, its commit, a test run, a diff (of the goldens or anything else) and a log line each go in a Bash call of their own, never chained with `&&`, `;` or a pipe into the next step: on 2026-11-02 a queue update chained with a diff of the goldens was denied.
 
 **Running.** One package at a time: `systemd-inhibit --what=sleep:idle:handle-lid-switch --why="coach night (faraday)" pipeline/pipeline.sh <id>` with the Bash tool's `run_in_background`, so its exit wakes you. Log your choice first, one line: `- HH:MM faraday: next <id> (<why it is ready>)`; skipped rows get a line too (`faraday: skipped <id> (<why>)`). While a run is alive, the heartbeat only checks `tail -n 20 .coord/log.md` and that the run's process exists; a run with its worker and two fix rounds may take 4 hours.
 
