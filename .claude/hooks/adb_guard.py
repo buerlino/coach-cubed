@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """PreToolUse hook for Bash (.claude/settings.json): coach's phone is 4d42e62f and nothing else.
 
 Blocks, with exit code 2 and the reason on stderr (Claude Code shows it to the model):

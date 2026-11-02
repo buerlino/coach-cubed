@@ -14,12 +14,14 @@ from these are in [rules-core.md](rules-core.md).
 | 6 | How long the restructuring window lasts | Noah | Step 2.8 (the history rewrite) has to finish before Noah resumes. It is scheduled at Phase 5's checkpoint A (D8); if Noah comes back earlier, the queue drains early for it. |
 | 9 | Branch protection on `main` of `noahsta/coach`, so one push from an old clone can't undo step 2.8 | Noah (repo owner) | Turn it on. |
 | 10 | **The app's name.** nordmu's pick (2026-11-02): coach³, "Coach Cubed". | Noah | Clean where checked ([branding.md](branding.md)); then Noah, a trademark search, the package ID, before testers get an APK. |
+| 11 | **AGPL-3.0-or-later instead of GPL** ([Licence](#licence)) | Noah, then all four authors | Switch. |
+| 12 | May YOLOv8 (`ultralytics`, AGPL-3.0) ever ship in the app? The licence no longer rules it out; its size and a Python runtime may. | Noah | Open. |
 
 **What went to Noah, and when:** nordmu's message of 2026-10-31 asked
-questions 1 (the licence, now decided), 2 and 5 (as "is it a real
+questions 1 (the licence, reopened as 11), 2 and 5 (as "is it a real
 password?"), and said "no pushes to `main`" and that a history rewrite is
 coming. nordmu's next message (drafted 2026-11-02) asks for his one-line OK
-to GPL-3.0-or-later, again about 2 and 5, then 6, 9 and 10, whether his
+to AGPL-3.0-or-later (11), again about 2 and 5, then 6, 9, 10 and 12, whether his
 tailnet hostname and IP addresses may stay public ([backlog.md](backlog.md)),
 and for a look at `origin/phase-0` before `main` moves.
 
@@ -130,6 +132,10 @@ Newest first within each group.
 
 ### Licence
 
+- **2026-11-02, nordmu, pending Noah and the four authors' OK: coach is
+  AGPL-3.0-or-later** (question 11), superseding the entry below. Stricter:
+  whoever runs a modified coach as a network service publishes its source
+  too. The written OKs asked for are OKs to this.
 - **2026-10-31, Noah: coach is GPL-3.0-or-later** (question 1; reported by
   nordmu, who picked "-or-later"). All four authors agreed ([authors.md](authors.md));
   nordmu collects a one-line written OK from each before the LICENSE commit

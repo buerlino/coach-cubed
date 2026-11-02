@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Tests for pipeline/gc.sh: a finished run whose branch is gone moves to the archive; a live run and a run whose branch exists stay;
 # a dry run moves nothing. Touches nothing outside its temp dir.   Run: pipeline/gc.test.sh
 set -euo pipefail

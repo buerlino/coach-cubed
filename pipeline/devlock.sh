@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Exclusive locks for shared resources (the merge queue, heavy host CPU use, the phone). Ported from pascaline's tools/devlock.sh.
 #
 #   pipeline/devlock.sh acquire <resource> <owner> [wait_seconds]   # exit 0 = you hold it, 1 = busy

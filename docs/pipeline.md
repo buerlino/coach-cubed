@@ -178,7 +178,8 @@ Besides the package's "Done when" lines, hillbert looks for what a review tends 
 - **Invented values:** a golden, a threshold or an expected number without a named source.
 - **Offline and privacy:** anything fetched at run time (a CDN, a font, a model URL), anything sent anywhere, analytics.
 - **Paths:** an absolute asset path or a machine path (`tests/paths.test.js` catches most, not all).
-- **Licences:** a shipped dependency that is AGPL, closed or missing from `THIRD_PARTY.md`.
+- **Licences:** a shipped dependency that isn't AGPL-3.0-compatible, is closed or is missing from `THIRD_PARTY.md`; YOLOv8
+  in the app while decisions.md's question 12 is open.
 - **One keypoint format:** a pose model that hands anything but COCO-17 `[y, x, conf]` to `diagnostics.js`.
 - **Scope:** files outside the package, the frozen old page edited, shared files edited that belong in the report.
 - **Tests that pass for the wrong reason:** a test that would pass on the old code, a skipped or weakened assertion.
