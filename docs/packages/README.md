@@ -50,7 +50,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 15 | `s12` | The analysis job and its queue | schrödinger, opus | `s9`, `s10`, `s11`, `c8`, `s32` | merged `e4bbb8b`; FIX `s12f1` (the Analyse test's cut comparison, flaky) merged `d214912` |
 | 16 | `s35` | Four contract changes (contracts 1, 2, 4, 5) | schrödinger, opus | `s9`, `s10`, `s11`, `s12` | merged `b972daf` |
 | 17 | `s36` | A lift without a lift window says so | schrödinger, opus | `s35` | merged `f926b4f` |
-| 18 | `s37` | batch_extract_tracks.py writes the diagnostics set | schrödinger, sonnet | — | waits |
+| 18 | `s37` | batch_extract_tracks.py writes the diagnostics set | schrödinger, sonnet | — | merged `e8b2a92` |
 | 19 | `s38` | One-frame steps from a cache | schrödinger, opus | `s35`, `c34` | waits |
 | 20 | `d13` | H and importing a video | dirac, sonnet | `d3`, `c8`, `s12` | waits |
 | 21 | `d14` | M1–M3, marking a lift | dirac, sonnet | `s9`, `s12`, `s35`, `s38` | waits |
