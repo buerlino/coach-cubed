@@ -9,7 +9,6 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../html.mjs';
 import { openFrameSource } from '../../media/frame-source.mjs';
 import { getDiagnostics, scoreLift } from '../../scoring/score.mjs';
-import { smoothKeypoints } from '../../track/smoothing.mjs';
 import { overlayStyle, trackSamples } from '../../draw/index.mjs';
 import { fitSize } from '../mark-model.mjs';
 import { createPlayer } from '../player.mjs';
@@ -53,8 +52,8 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
       if (!rec || !view || !track) { if (current) setProblem(NOT_READY); return; }
       const { sigmaMs, keepVelocity } = view.smoothing;
       // computeResults()'s output for the stored track, with the view's own smoothing: what drawCue() takes
-      const { computed } = scoreLift(track, rec.lift, { Diagnostics: diagnostics || getDiagnostics(), sigmaMs, keepVelocity });
-      const keypoints = smoothKeypoints(track.keypoints, track.meta, sigmaMs / 1000, keepVelocity);
+      // computed and keypoints are what scoreLift() scored, so the skeleton and the cues sit on the same samples
+      const { computed, keypoints } = scoreLift(track, rec.lift, { Diagnostics: diagnostics || getDiagnostics(), sigmaMs, keepVelocity });
       const blob = await store.readVideo(liftId);
       const src = await openSource(blob);
       p.src = src;

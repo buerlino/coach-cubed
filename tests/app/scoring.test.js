@@ -468,3 +468,41 @@ test('scoring: the adapter is a plain module: no DOM, nothing from the UI, nothi
     }
   }
 });
+
+test('scoring: scoreLift returns the keypoints it scored: smoothKeypoints() on the same track, the raw ones at σ 0 (s44)', async () => {
+  const { scoreLift, DEFAULT_SIGMA_MS, DEFAULT_KEEP_VELOCITY } = await scoring;
+  const { smoothKeypoints } = await smoothing;
+  const slug = SLUGS.find(s => manifest[s].diagnostics === 'snatch');
+  const set = 'snatch';
+  const cases = [
+    [{}, DEFAULT_SIGMA_MS, DEFAULT_KEEP_VELOCITY],
+    [{ sigmaMs: 100, keepVelocity: false }, 100, false],
+    [{ sigmaMs: 25 }, 25, DEFAULT_KEEP_VELOCITY],
+  ];
+  for (const [opts, sigma, keepVelocity] of cases) {
+    const track = loadTrack(slug);
+    const before = JSON.stringify(track);
+    const out = scoreLift(track, set, { Diagnostics: loadDiagnostics(), ...opts });
+    assert.deepStrictEqual(json(out.keypoints), json(smoothKeypoints(track.keypoints, track.meta, sigma / 1000, keepVelocity)), JSON.stringify(opts));
+    assert.equal(JSON.stringify(track), before, 'the track passed in stays unchanged');
+    assert.notStrictEqual(out.keypoints, track.keypoints, 'above σ 0 keypoints is a new object');
+    assert.deepStrictEqual(Object.keys(out).sort(), ['computed', 'keypoints', 'personId', 'view']);
+  }
+  // σ 0: the raw keypoints
+  const track = loadTrack(slug);
+  const raw = scoreLift(track, set, { Diagnostics: loadDiagnostics(), sigmaMs: 0 });
+  assert.deepStrictEqual(json(raw.keypoints), json(track.keypoints));
+  assert.strictEqual(raw.keypoints, track.keypoints, 'σ 0: keypoints is track.keypoints itself (as the doc says)');
+  // and not vacuous: the default smoothing changes them
+  const sm = scoreLift(track, set, { Diagnostics: loadDiagnostics() });
+  assert.notDeepStrictEqual(json(sm.keypoints), json(track.keypoints));
+});
+
+test('scoring: A1 and A2 draw from scoreLift()\'s keypoints and no longer smooth the track themselves (s44)', () => {
+  for (const f of ['A1.mjs', 'A2.mjs']) {
+    const src = fs.readFileSync(path.join(ROOT, 'app', 'src', 'ui', 'screens', f), 'utf8');
+    assert.doesNotMatch(src, /smoothKeypoints|track\/smoothing/, `${f} smooths nothing`);
+    assert.match(src, /scoreLift\(/, f);
+    assert.match(src, /keypoints/, f);
+  }
+});

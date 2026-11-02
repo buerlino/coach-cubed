@@ -141,8 +141,12 @@ function liftWindowOf(lift) {
  * @param {boolean} [opts.keepVelocity] the smoothing's velocity option (default DEFAULT_KEEP_VELOCITY)
  * @param {string} [opts.personId] the lifter; default the track's kept person, else the one with most frames
  * @returns {{view: import('../contracts/cue-view.mjs').ResultView,
- *   computed: Object, personId: string}} the view carries the smoothing it was
- *   scored with (view.smoothing); computed is computeResults()'s output (what drawCue() takes)
+ *   computed: Object, personId: string, keypoints: Object}} the view carries the smoothing it was
+ *   scored with (view.smoothing); computed is computeResults()'s output (what drawCue() takes);
+ *   keypoints is the track's keypoints as scored: smoothKeypoints() with the same σ and velocity
+ *   option (the raw ones for σ 0), what the skeleton is drawn from. A new object when σ
+ *   is above 0; at σ 0 it is track.keypoints itself (smoothKeypoints() returns its input then).
+ *   The track passed in is never changed; callers must not change keypoints
  * @throws {Error} for a lift diagnostics.js has no set for
  */
 export function scoreLift(track, lift, opts = {}) {
@@ -168,5 +172,6 @@ export function scoreLift(track, lift, opts = {}) {
     view: { lift, hasLiftWindow, liftWindow, liftWindowReason, cues, notes, smoothing: { sigmaMs, keepVelocity } },
     computed,
     personId,
+    keypoints,
   };
 }
