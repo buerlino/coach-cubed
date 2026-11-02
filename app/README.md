@@ -140,9 +140,16 @@ needs no UI change.
 
 ```js
 import { scoreLift } from './scoring/score.mjs';
-const { view, computed, personId } = scoreLift(track, 'snatch', { sigmaMs: 50 });
+const { view, computed, personId, keypoints } = scoreLift(track, 'snatch', { sigmaMs: 50 });
 // view: a ResultView (passes validateResultView), view.smoothing included; computed: computeResults()'s output, for drawCue()
+// keypoints: the track's keypoints as scored (smoothed with the same σ and velocity option; raw for σ 0), for the skeleton
 ```
+
+- **`keypoints`** (`s44`) is the smoothed keypoints the verdicts were scored on,
+  so A1 and A2 draw the skeleton from them and do not smooth the track a second
+  time (`grep smoothKeypoints app/src/ui/` finds nothing). It is a new object
+  (the track passed in is unchanged) and equals `smoothKeypoints()` on the same
+  track with the same σ and velocity option. The job stores only `view`.
 
 - **Order:** `src/track/`'s smoothing first (σ 50 ms, velocity kept, the old
   page's defaults and S1's `smoothingSigmaMs`; `sigmaMs: 0` scores the raw

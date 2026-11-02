@@ -8,7 +8,6 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../html.mjs';
 import { openFrameSource } from '../../media/frame-source.mjs';
 import { getDiagnostics, scoreLift } from '../../scoring/score.mjs';
-import { smoothKeypoints } from '../../track/smoothing.mjs';
 import { drawPlot, overlayStyle, paintCue, plotGeometry, plotStyle, timeAtTap, trackSamples } from '../../draw/index.mjs';
 import { detailOf } from '../detail-model.mjs';
 import { valueText } from '../result-model.mjs';
@@ -47,8 +46,8 @@ export function A2({ flow, store, openSource = openFrameSource, diagnostics = nu
       if (!view.cues.some(c => c.id === cueId)) { if (current) setProblem(NO_CUE); return; }
       const D = diagnostics || getDiagnostics();
       const { sigmaMs, keepVelocity } = view.smoothing;
-      const { computed } = scoreLift(track, rec.lift, { Diagnostics: D, sigmaMs, keepVelocity });
-      const keypoints = smoothKeypoints(track.keypoints, track.meta, sigmaMs / 1000, keepVelocity);
+      // computed and keypoints are what scoreLift() scored, so the skeleton and the cues sit on the same samples
+      const { computed, keypoints } = scoreLift(track, rec.lift, { Diagnostics: D, sigmaMs, keepVelocity });
       const detail = detailOf({ Diagnostics: D, view, computed, cueId, range: rec.range });
       let src = null;
       if (detail.scored) {
