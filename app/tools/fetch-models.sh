@@ -15,6 +15,13 @@ CACHE="${XDG_CACHE_HOME:-$HOME/.cache}"
 DL="$CACHE/coach/downloads"
 mkdir -p "$DL"
 
+# The unpacking folder sits in app/models/ (the same filesystem, so the final
+# mv is a rename), which assemble.mjs copies whole into dist/: whatever stops
+# the script (tar or a full disk under set -e, a signal) removes it.
+tmp=""
+trap '[[ -z "$tmp" ]] || rm -rf -- "$tmp"' EXIT
+trap 'exit 1' HUP INT TERM
+
 # name | url | sha256 of the archive
 MODELS=(
   "movenet-thunder-4|https://www.kaggle.com/api/v1/models/google/movenet/tfJs/singlepose-thunder/4/download|9ab8399bc82cd3c5cc0b61ea3b397512b73dde920590ac869872637eff97e522"
@@ -44,11 +51,12 @@ for row in "${MODELS[@]}"; do
   mapfile -t files < <(cd "$tmp" && find . -type f | sed 's|^\./||' | sort)
   for f in "${files[@]}"; do
     [[ "$f" == model.json || "$f" =~ ^group[0-9]+-shard[0-9]+of[0-9]+\.bin$ ]] || {
-      echo "unexpected file in $name.tgz: $f" >&2; rm -r -- "$tmp"; exit 1; }
+      echo "unexpected file in $name.tgz: $f" >&2; exit 1; }
   done
-  [[ -f "$tmp/model.json" ]] || { echo "$name.tgz has no model.json" >&2; rm -r -- "$tmp"; exit 1; }
+  [[ -f "$tmp/model.json" ]] || { echo "$name.tgz has no model.json" >&2; exit 1; }
   if [[ -d "$dest" ]]; then rm -r -- "$dest"; fi
   mv "$tmp" "$dest"
+  tmp=""
   chmod 755 "$dest"; chmod 644 "$dest"/*
   echo "  -> app/models/$name/ ${files[*]}"
 done

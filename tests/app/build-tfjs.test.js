@@ -122,3 +122,59 @@ test('fetch-models.sh refuses an archive whose SHA-256 is wrong, and leaves app/
     assert.deepEqual(after && after.filter(f => f !== '.gitkeep'), before && before.filter(f => f !== '.gitkeep'));
   } finally { fs.rmSync(xdg, { recursive: true, force: true }); }
 });
+
+// The audit of s6, fix round 1: pose-detection 2.1.3's MoveNet load()
+// (movenet/detector.ts:518-526 at the tag) falls back to
+// https://tfhub.dev/google/tfjs-model/movenet/singlepose/thunder/4 when
+// modelUrl is missing. The entry is ours, so its createDetector refuses that.
+// Run here on the entry's own text, its imports swapped for stubs (no cache,
+// no esbuild): load() must never be reached without a modelUrl.
+test("the MoveNet entry's createDetector refuses a config without modelUrl (no tfhub.dev fallback)", async () => {
+  const { MOVENET_ENTRY } = await load();
+  const body = MOVENET_ENTRY.split('\n')
+    .filter(l => !/^import /.test(l) && !/^export (\*|\{[^}]*\}) from /.test(l)).join('\n');
+  const stubs = `globalThis.__coachLoads = [];
+const load = async c => { globalThis.__coachLoads.push(c); return { detector: c }; };
+const SINGLEPOSE_LIGHTNING = 'L', SINGLEPOSE_THUNDER = 'T', MULTIPOSE_LIGHTNING = 'M';
+const SupportedModels = { MoveNet: 'MoveNet', BlazePose: 'BlazePose' };
+`;
+  const entry = await import('data:text/javascript,' + encodeURIComponent(stubs + body));
+  for (const cfg of [undefined, {}, { modelType: 'SinglePose.Thunder' }, { modelUrl: '' }]) {
+    await assert.rejects(entry.createDetector('MoveNet', cfg), /modelUrl is required/, JSON.stringify(cfg));
+  }
+  assert.deepEqual(globalThis.__coachLoads, [], 'load() was never called');
+  await assert.rejects(entry.createDetector('BlazePose', { modelUrl: 'models/x/model.json' }), /MoveNet only/);
+  const cfg = { modelType: 'SinglePose.Thunder', modelUrl: 'models/movenet-thunder-4/model.json' };
+  assert.deepEqual(await entry.createDetector('MoveNet', cfg), { detector: cfg });
+  delete globalThis.__coachLoads;
+});
+
+// The audit of s6, fix round 1: the unpacking folder sits in app/models/,
+// which assemble.mjs copies whole into dist/. When tar fails after the
+// SHA-256 check (a full disk, a broken archive), set -e stops the script and
+// the folder must go with it. A fake sha256sum on PATH lets a broken archive
+// past the check, so the real tar fails on it.
+test('fetch-models.sh leaves no unpacking folder in app/models/ when tar fails', () => {
+  const xdg = tmpdir();
+  const bin = tmpdir();
+  const models = path.join(APP, 'models');
+  const hidden = () => (fs.existsSync(models) ? fs.readdirSync(models) : []).filter(f => f.startsWith('.movenet-thunder-4.'));
+  const before = hidden();
+  try {
+    const sha = fs.readFileSync(path.join(APP, 'tools/fetch-models.sh'), 'utf8')
+      .match(/"movenet-thunder-4\|[^|]+\|([0-9a-f]{64})"/)[1];
+    fs.writeFileSync(path.join(bin, 'sha256sum'), `#!/bin/sh\necho "${sha}  $1"\n`, { mode: 0o755 });
+    fs.mkdirSync(path.join(xdg, 'coach/downloads'), { recursive: true });
+    fs.writeFileSync(path.join(xdg, 'coach/downloads/movenet-thunder-4.tgz'), 'not a gzip archive');
+    const r = spawnSync('bash', [path.join(APP, 'tools/fetch-models.sh')],
+      { env: { ...process.env, XDG_CACHE_HOME: xdg, PATH: bin + path.delimiter + process.env.PATH },
+        encoding: 'utf8', timeout: 30000 });
+    assert.notEqual(r.status, 0, r.stdout + r.stderr);
+    assert.match(r.stdout, /sha256 ok/, 'the fake hash got the archive past the check');
+    assert.deepEqual(hidden().filter(f => !before.includes(f)), [], 'no .movenet-thunder-4.* left in app/models/');
+  } finally {
+    for (const f of hidden().filter(f => !before.includes(f))) fs.rmSync(path.join(models, f), { recursive: true, force: true });
+    fs.rmSync(xdg, { recursive: true, force: true });
+    fs.rmSync(bin, { recursive: true, force: true });
+  }
+});

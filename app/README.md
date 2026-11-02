@@ -139,7 +139,9 @@ from npm's built `dist/`. `tools/build-tfjs.mjs`:
    `app/node_modules/` at the versions tfjs-core's `yarn.lock` pins.
 5. **pose-detection is cut to MoveNet** by an entry of ours, inside the
    script: MoveNet's loader, `SupportedModels`, `movenet.modelType`, and a
-   `createDetector` that refuses any other model. So PoseNet, BlazePose
+   `createDetector` that refuses any other model, and a config without
+   `modelUrl`: MoveNet's `load()` at the tag would fetch the weights from
+   tfhub.dev then, and the app is offline. So PoseNet, BlazePose
    and `@mediapipe/pose` (a closed wasm) never enter the bundle; the stub
    for `@mediapipe/pose` from the spike stays as a guard. pose-detection's
    WebGPU import is PoseNet's, so the WebGL bundle carries no WebGPU.
@@ -171,7 +173,10 @@ Changed files: none.
 Thunder v4 for TF.js from the spike's pinned source (Google's upload on
 Kaggle), checks the archive's SHA-256 (`9ab8399b…`), keeps it in the
 cache's `downloads/` and unpacks `model.json` and its shards into
-`models/movenet-thunder-4/`.
+`models/movenet-thunder-4/`. It unpacks into a hidden folder in `models/`
+and renames it when the files check out; a trap removes that folder if
+anything stops the script first, so a half-unpacked copy never reaches
+`dist/`.
 
 **The check:** `tools/check-tfjs.mjs [--backend webgl|webgpu|cpu]` serves
 `app/` on a free local port, opens it in headless Brave, imports the
@@ -188,8 +193,9 @@ CPU bundle is built for Node and doesn't load in a browser.
 into a temporary folder, the manifest and `index.html`), `serve.test.js` (the
 dev server), `contracts.test.js` (the contracts, against the committed tracks
 and `diagnostics.js`'s headless API), `build-tfjs.test.js` (the TF.js
-build's pins, cache, op lists and patch notices, and `fetch-models.sh`'s
-checks, all without the network). Every test runs in a fresh worktree, which has neither
+build's pins, cache, op lists and patch notices, the MoveNet entry's
+refusal of a config without `modelUrl`, and `fetch-models.sh`'s checks and
+clean-up, all without the network). Every test runs in a fresh worktree, which has neither
 `app/vendor/tfjs/` nor `app/models/`: a test that needs them makes its own
 fake. `tests/paths.test.js` scans `app/` for absolute asset paths (not
 `vendor/`, `dist/`, `android/` or `node_modules/`).

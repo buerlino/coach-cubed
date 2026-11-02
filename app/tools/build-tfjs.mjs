@@ -68,8 +68,10 @@ export const BUNDLES = {
 // pose-detection cut to MoveNet: its index.ts imports every model (PoseNet,
 // BlazePose on TF.js and on MediaPipe, whose @mediapipe/pose is a closed
 // wasm). This entry, ours, takes MoveNet's loader and the public names the
-// app uses from the tag's own files, unchanged.
-const MOVENET_ENTRY = `
+// app uses from the tag's own files, unchanged. Its createDetector refuses a
+// config without modelUrl: MoveNet's load() (movenet/detector.ts at the tag)
+// would otherwise fetch the weights from tfhub.dev, and the app is offline.
+export const MOVENET_ENTRY = `
 import {load} from './movenet/detector';
 import {SINGLEPOSE_LIGHTNING, SINGLEPOSE_THUNDER, MULTIPOSE_LIGHTNING} from './movenet/constants';
 import {SupportedModels} from './types';
@@ -78,6 +80,9 @@ export {TrackerType} from './calculators/types';
 export const movenet = {modelType: {SINGLEPOSE_LIGHTNING, SINGLEPOSE_THUNDER, MULTIPOSE_LIGHTNING}};
 export async function createDetector(model, modelConfig) {
   if (model !== SupportedModels.MoveNet) throw new Error(model + ' is not in this build: MoveNet only');
+  if (!modelConfig || !modelConfig.modelUrl) {
+    throw new Error('createDetector: modelConfig.modelUrl is required (the weights in models/); this build never fetches from tfhub.dev');
+  }
   return load(modelConfig);
 }
 `;
