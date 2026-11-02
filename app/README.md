@@ -46,7 +46,7 @@ It logs each request (`200 /index.html`); a `404` there is a broken path.
 | `src/main.mjs` | Boot: the flow, then the shell. |
 | `sw.js`, `src/updates.mjs` | The service worker (`c19`) and the page's side of it: registration outside the APK, and an update that takes over when the queue is idle. See [Offline](#offline-the-service-worker). |
 | `src/flow/flow.mjs` | The state machine (home, import, mark, queued, result, settings, plus live and replay for milestone B). A plain module with no Preact: `createFlow()`, `go(to, params)`, `can(to)`, `subscribe(fn)`; `TRANSITIONS` says what leads where, `SCREEN_OF` which screen each state shows. An illegal transition throws. |
-| `src/ui/` | `app.mjs` (the shell: draws the screen the flow's state names), `screens/` (one component per screen ID: `H`, `Import`, `M`, `Q1`, `A1`, `S1`, `R2`, `R3`), `components/` (shared pieces), `home-model.mjs` (H's and Import's logic as plain functions, `d13`: `liftState`, `rowOf`, `homeView`, `importStep`, `startLift`, `percentOf`; see [H](#h-home-and-the-import-step)), `analysing-model.mjs` (Q1's, `d15`; see [Q1](#q1-analysing)). Screens call the flow and never each other; the queue and the store reach H as props from `main.mjs`. `settings-model.mjs` (S1's, `d24`; see [S1](#s1-settings-and-about)). `html.mjs` is htm bound to Preact. |
+| `src/ui/` | `app.mjs` (the shell: draws the screen the flow's state names), `screens/` (one component per screen ID: `H`, `Import`, `M`, `Q1`, `A1`, `S1`, `R2`, `R3`), `components/` (shared pieces), `home-model.mjs` (H's and Import's logic as plain functions, `d13`: `liftState`, `rowOf`, `homeView`, `importStep`, `startLift`, `percentOf`; see [H](#h-home-and-the-import-step)), `analysing-model.mjs` (Q1's, `d15`; see [Q1](#q1-analysing)). Screens call the flow and never each other; the queue and the store reach H as props from `main.mjs`. `settings-model.mjs` (S1's, `d24`; see [S1](#s1-settings-and-about)), `mark-model.mjs` (M's, `d14`; see [M](#m1m3-marking-a-lift)). `html.mjs` is htm bound to Preact. |
 | `src/credits.mjs`, `licences/` | S1's credits (`d24`): `CREDITS` lists every component of THIRD_PARTY.md's section for the new app, each with where its licence text is in the assembled app. `licences/` holds the texts that have no home beside a component: Apache-2.0 (apache.org's text byte for byte, no holder filled in), Capacitor's MIT and esbuild's MIT (their npm packages' `LICENSE` files); sources in [THIRD_PARTY.md](../THIRD_PARTY.md#in-the-new-app-app). |
 | `src/styles/` | `tokens.css` (every colour, the status colours with their words, the type, the spacing, the 44 px touch target; dark only) and `base.css` (the `@font-face` rules, the reset and the classes every screen shares). A screen styles itself from tokens, never from literal values. |
 | `src/track/` | One-line stubs, see below. |
@@ -635,6 +635,44 @@ await queue.retry(id); await queue.dismiss(id);    // a failed or cancelled job 
   and `basis` saying so.
 - `busy()` and `idle()` say whether a job runs or waits: the service
   worker's update (`c19`) waits for `idle()`.
+
+## M1–M3, marking a lift
+
+`screens/M.mjs` is one screen in the mockups' three states (start, end, ready:
+`Mark.dc.html`, `MarkEnd`, `MarkReady`); `mark-model.mjs` holds everything it
+decides as plain functions (`tests/app/mark.test.js`). The file and the lift
+arrive in the flow's params from Import (`flow.go('mark', {file, lift})`); the
+queue is injected (`main.mjs`'s `appQueue()`, once, with `warmUp()` after the
+first screen draws), the frame source by `openSource` (default `openFrameSource`).
+
+- **The playhead** is a frame index into the source's `frameTimes` (contract 5),
+  never a time made up from the frame rate. The filmstrip moves under it at 48 px
+  a second (`PX_PER_SECOND`); a drag by `dx` px is `time - dx / 48` seconds, landing on
+  the frame at or before it (`dragTarget`). The marks are frame indexes too.
+- **The frame under the playhead** is s38's stepper (`src.stepper(0, fitSize(…))`:
+  the video fitted into the stage at the pixel ratio, 3 at most, the size the
+  stepper's budget is sized for). `createPlayhead` keeps the input path free: a
+  drag only calls `request(t)`; the stepper's `seek` runs one at a time and the
+  times that pile up while it decodes become one, the latest. A ±1 step is the
+  stepper's `step(±1)` (never `frameAt`, which decodes again from the keyframe),
+  queued behind a seek in flight. The frame is drawn on a canvas; the stepper's
+  bitmap is never closed by M. M closes playhead, stepper and source when it closes.
+- **The filmstrip's thumbnails** are one a second (`thumbSeconds`, `thumbTime`:
+  the second's middle), made in batches of six nearest the playhead by
+  `src.thumbnails` for the strip's window plus three seconds each way, and closed
+  beyond twelve (`dropFarThumbs`), so a long video holds a few dozen bitmaps.
+- **Set start / Set end:** the end must come `MIN_MARK_FRAMES` (3) frames after
+  the start at least, else the mark is refused, the start stays and the hint says
+  so in the mockup's words. Once both are set Set is replaced by Analyse; Redo
+  clears both.
+- **The cost:** `analyseCost` is the queue's `estimate(t1 - t0, {fps})`: the last
+  measured rate, or the first-run default, which the screen says it is
+  (`estimateNote`).
+- **Analyse:** `analyse({flow, queue, lift, file, marks, frameTimes})` calls
+  `queue.analyse(lift, file, {t0, t1})` (the marked frames' own times; the cut is
+  kept first, s32) and then `flow.go('queued', {liftId})` with the new lift's id,
+  which Q1 shows when two are queued. A cut that can't be stored stays on M with
+  the error in the error's words; a second tap while one is working does nothing.
 
 ## Q1, analysing
 
