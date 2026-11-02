@@ -99,6 +99,15 @@ export function createPlayer(o) {
     loopId = null;
   }
 
+  // video.play() was refused (NotAllowedError, a decoder that won't share): no frame will come, so
+  // the screen must not say "playing" over the stepped frame.
+  function playRefused() {
+    stopLoop();
+    state.playing = false;
+    state.live = false;
+    emit();
+  }
+
   function onFrame(mediaTime) {
     if (closed || !state.playing) return;
     lastMedia = mediaTime;
@@ -123,7 +132,16 @@ export function createPlayer(o) {
     if (flags().loop !== false) {
       video.currentTime = firstT;
       lastMedia = firstT;
-      if (video.paused) Promise.resolve(video.play()).catch(fail);   // an ended video has stopped by itself
+      if (video.paused) {   // an ended video has stopped by itself
+        let p;
+        try { p = Promise.resolve(video.play()); } catch (e) { p = Promise.reject(e); }
+        p.catch(e => {
+          if (closed) return;
+          fail(e);
+          // the video stopped on its last frame: show the stepper's frame for it, not "playing"
+          enqueue(() => settleOn(lastT));
+        });
+      }
       schedule();
       return;
     }
@@ -158,7 +176,7 @@ export function createPlayer(o) {
         state.live = false;
         state.playing = true;
         emit();
-        await video.play();
+        try { await video.play(); } catch (e) { playRefused(); throw e; }
         schedule();
       });
     },

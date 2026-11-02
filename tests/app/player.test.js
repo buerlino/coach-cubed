@@ -303,3 +303,34 @@ test('player model: the range\'s frames, steps held at its ends and a drag on th
   assert.equal(m.timeAtPointer(5, { left: 0, width: 0 }, range), 0.4);
   near(m.fractionAt(1.9, range), 0.5);
 });
+
+test('player: a refused video.play() leaves the player paused on the stepped frame and reports one error', async () => {
+  const r = await rig();
+  await r.player.start();
+  await r.player.step(2);
+  const t = r.player.state.t;
+  r.video.play = () => Promise.reject(new Error('NotAllowedError'));
+  await r.player.play();
+  assert.equal(r.player.state.playing, false, 'not "playing" over a frozen frame');
+  assert.equal(r.player.state.live, false, 'the stepped frame stays shown');
+  assert.equal(r.errors.length, 1);
+  near(r.player.state.t, t);
+  assert.equal(r.video.cbs.length, 0, 'no frame callback is left waiting');
+  assert.equal(r.changes.at(-1).playing, false, 'the screen was told');
+  await r.player.step(1);   // and the player still works
+  assert.equal(r.player.state.index, 3);
+});
+
+test('player: a refused video.play() when the loop restarts stops playing, with one error', async () => {
+  const r = await rig();
+  await r.player.start();
+  await r.player.play();
+  r.video.present(0.04);
+  r.video.paused = true;   // an ended video has stopped by itself
+  r.video.play = () => Promise.reject(new Error('NotAllowedError'));
+  r.video.fire('ended');
+  await new Promise(res => setTimeout(res, 10));
+  assert.equal(r.player.state.playing, false);
+  assert.equal(r.player.state.live, false);
+  assert.equal(r.errors.length, 1);
+});
