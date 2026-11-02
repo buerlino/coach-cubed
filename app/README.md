@@ -351,8 +351,11 @@ st.close();                                           // closes every frame it h
   it is. Behind, a decode runs from the keyframe of the group before to the
   frame needed, once that whole group fits in the window, or when the missing
   frame is a quarter of the window away; a group longer than the window behind
-  is decoded again for each window's worth. A step to a frame not held yet
-  waits for it; a step never starts a second decode of a group being decoded.
+  is decoded again for each window's worth, and given up when a step or seek
+  moves the window off it. A frame decoded on the way that is outside the
+  window (from the keyframe to the window's edge) is closed without being
+  turned or made into a bitmap. A step to a frame not held yet waits for it; a
+  step never starts a second decode of a group being decoded.
 - **The budget:** at most `maxFrames` frames and `maxBytes` bytes, a frame
   being width × height × 4 bytes. The default (`STEPPER_BUDGET` in the
   contract) is 90 frames and 128 MiB: three 1 s groups at 30 fps. A new frame
@@ -382,7 +385,20 @@ With a phone camera's groups of 60–150 frames, stepping forwards still
 decodes each group once; stepping backwards at a pixel ratio of 3 decodes a
 group again for every 25 frames, in the background. The check page's
 `stepCached` (`debug/media.mjs`, beside `step`'s `frameAt`) measures it on the
-phone (`c26`); headless Brave's numbers are in `s38`'s report.
+phone (`c26`), and `seekCached` the seeks beside `frameAtRandom`'s
+`frameAt` on the same times; headless Brave's numbers are in `s38`'s report.
+
+**Opening and seeking cost more than a `frameAt`.** The stepper's open and a
+seek to a frame not held decode from the keyframe like `frameAt`, and the
+frames on the way that fall inside the window (up to the side behind the
+playhead: 44 frames with the default budget at a pixel ratio of 1) are made
+into bitmaps before the playhead's frame, so that group isn't decoded again.
+In headless Brave (software decode, c34's 1080p30 clips, 20 seeded seeks,
+medians): with the default budget at 782 × 440 a seek took 265 ms against
+`frameAt`'s 70 ms with a keyframe every second, and 1,016 ms against 202 ms
+with keyframes every 2–5 s; with a budget of 10 frames (1320 px high) 291 ms
+and 421 ms. A step to a held frame stays a lookup (0.1 ms); what a seek costs
+on the phone's hardware decoder is `c26`'s.
 
 ### On the phone
 
