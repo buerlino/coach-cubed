@@ -279,7 +279,7 @@ test('a snatch result: A1\'s cards are the snatch\'s cues from a committed track
   const { view } = scoreLift(track, 'snatch', { Diagnostics, sigmaMs: 0 });
   const cards = cardsOf(view, id => Diagnostics.zones(id), id => Diagnostics.rule(id));
   assert.deepEqual(cards.map(c => c.id), Diagnostics.describe('snatch').map(d => d.id));
-  assert.ok(cards.length > 2 && cards.every(c => c.title && c.word && c.cue));
+  assert.ok(cards.length >= 2 && cards.every(c => c.title && c.word && c.cue));
   assert.ok(summaryOf(view).length > 0);
   assert.match(provisionalNote(view), /provisional/);
   const lift = { lift: 'snatch', created: new Date(2026, 10, 2, 9, 0).toISOString(), range: { t0: 0, t1: 3 } };

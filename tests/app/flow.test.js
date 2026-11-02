@@ -13,7 +13,7 @@ const load = () => import(pathToFileURL(path.join(APP, 'src', 'flow', 'flow.mjs'
 
 test('the states: milestone A\'s six and a result\'s detail, plus live and replay for milestone B', async () => {
   const { STATES } = await load();
-  assert.deepEqual([...STATES].sort(), ['detail', 'home', 'import', 'live', 'mark', 'queued', 'replay', 'result', 'scoring', 'settings']);
+  assert.deepEqual([...STATES].sort(), ['detail', 'home', 'import', 'live', 'mark', 'queued', 'replay', 'result', 'scoring', 'settings', 'welcome']);
 });
 
 test('a flow starts at home and keeps what each step carries', async () => {
@@ -120,10 +120,10 @@ test('the state is already new when listeners are called, and several listeners 
   assert.deepEqual(states, [['a', 'settings'], ['b', 'settings']]);
 });
 
-test('every state is reachable from home and can lead somewhere', async () => {
+test('every state is reachable from home (or the first run, d23) and can lead somewhere', async () => {
   const { STATES, TRANSITIONS } = await load();
-  const reached = new Set(['home']);
-  const todo = ['home'];
+  const reached = new Set(['home', 'welcome']);   // the app starts in one of the two
+  const todo = ['home', 'welcome'];
   while (todo.length) for (const to of TRANSITIONS[todo.pop()]) if (!reached.has(to)) { reached.add(to); todo.push(to); }
   assert.deepEqual([...reached].sort(), [...STATES].sort());
   for (const s of STATES) assert.ok(TRANSITIONS[s].length > 0, `${s} is a dead end`);

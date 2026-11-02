@@ -6,6 +6,7 @@
 // The marks are frame indexes into the source's `frameTimes` (contract 5), never
 // times made up from the frame rate: a variable-rate video has its own spacing.
 import { LIFTS } from '../contracts/common.mjs';
+import { problemOf } from './problem-model.mjs';
 import { LIFT_CHOICES, liftLabel } from './home-model.mjs';
 
 /** The filmstrip's scale: pixels to a second (the mockup's), one thumbnail a second. */
@@ -401,7 +402,8 @@ const analysing = new WeakSet();   // the flows with an Analyse under way: a sec
  * (the store's or the cutter's error) stays on M with the error's words.
  * @param {{flow: {go: Function}, queue: {analyse: Function}, lift: string, file: Blob|null,
  *   marks: Marks, frameTimes: readonly number[]}} args
- * @returns {Promise<{ok: true}|{ok: false, error: string|null}>} error null for a tap that did nothing
+ * @returns {Promise<{ok: true}|{ok: false, error: string|null, problem?: Object}>} error null for a tap that did nothing;
+ *   `problem` (problem-model.mjs's, d23) for an error the store or the cutter raised: M draws it as a screen
  */
 export async function analyse({ flow, queue, lift, file, marks, frameTimes }) {
   const range = markedRange(marks, frameTimes);
@@ -414,7 +416,7 @@ export async function analyse({ flow, queue, lift, file, marks, frameTimes }) {
     flow.go('queued', { liftId: job.liftId });
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: e && e.message ? e.message : 'That did not work.' };
+    return { ok: false, error: e && e.message ? e.message : 'That did not work.', problem: problemOf(e) };
   } finally {
     analysing.delete(flow);
   }

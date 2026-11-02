@@ -332,7 +332,7 @@ test('an engine that fails is replaced once; failing again fails the job in its 
   assert.ok(made[0].closed);
   const end = queue.jobs().find(j => j.id === job.id);
   assert.equal(end.state, 'failed');
-  assert.equal(end.error, 'worker: WebGL context lost');
+  assert.equal(end.error, 'The pose engine failed: worker: WebGL context lost');   // d23: the phrase the error screen reads, then the worker's words
 });
 
 test('a stalled decoder runs the job again on the same engine', async () => {

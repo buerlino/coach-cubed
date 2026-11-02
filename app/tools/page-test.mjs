@@ -202,7 +202,10 @@ try {
   // 3. online first load: the worker and its whole cache (offline mode only)
   let preReload = new Set();
   await send('Page.navigate', { url: `${origin}/${realClip ? '?real' : ''}` });
-  await waitFor(`document.querySelector('[data-screen="H"]')`, 'H on the first load');
+  // d23: the first run shows the intro once; leaving it by "Go to home" keeps that it was shown, so the reloads go straight to H
+  await waitFor(`document.querySelector('[data-screen="Welcome"]')`, 'the intro on the first run');
+  await click('.welcome__skip', 'Go to home');
+  await waitFor(`document.querySelector('[data-screen="H"]')`, 'H after the intro');
   if (breakKind === 'http') await evaluate(`fetch('./no-such-file.txt').then(() => 0, () => 0)`);   // online: the server says 404
   if (!realClip) {
     await waitFor(`(async () => {
@@ -374,6 +377,22 @@ try {
     // M's Close goes home
     if (!await click('[data-screen="M"] button[aria-label="Close"]')) throw new Error('M: no Close button');
     await waitFor(`document.querySelector('[data-screen="H"]')`, 'H after closing M');
+  }
+
+  // 5b. d23: a file that is not a video ends on the error screen, with a way back (the file is outside dist)
+  if (!realClip) {
+    const junk = join(dist, '..', `coach-page-junk-${process.pid}.mp4`);
+    writeFileSync(junk, 'this is not a video\n');
+    try {
+      if (!await click('button', 'Import a video')) throw new Error('H has no "Import a video" button');
+      await waitFor(`document.querySelector('[data-screen="Import"]')`, 'the import screen (junk file)');
+      const input = await evaluate(`document.querySelector('input[type="file"]')`, { objectId: true });
+      await send('DOM.setFileInputFiles', { files: [junk], objectId: input.objectId });
+      await waitFor(`document.querySelector('[data-screen="M"][data-step="problem"] [data-problem="unreadable"]')`, "the error screen for a file that isn't a video");
+      result.unreadableScreen = await evaluate(`document.querySelector('.problem__title')?.textContent ?? null`);
+      if (!await click('[data-screen="M"] button', 'Back to home')) throw new Error('the error screen has no way back');
+      await waitFor(`document.querySelector('[data-screen="H"]')`, 'H after the error screen');
+    } finally { rmSync(junk, { force: true }); }
   }
 
   // 6. what went wrong anywhere: console, exceptions, rejections, failed requests (page, workers, service worker)

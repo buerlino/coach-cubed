@@ -276,7 +276,7 @@ test('player model: header, clock and window label are the mockup\'s ("Today 14:
   const m = await load('ui/player-model.mjs');
   const created = new Date(2026, 10, 2, 14, 27, 5);
   const lift = { lift: 'lateral-raise', created: created.toISOString(), range: { t0: 0.4, t1: 3.4 } };
-  assert.deepEqual(m.headerOf(lift, new Date(2026, 10, 2, 20, 0)), { title: 'Lateral raise', meta: 'Today 14:27 · 3.0 s' });
+  assert.deepEqual(m.headerOf(lift, new Date(2026, 10, 2, 20, 0)), { title: 'Lateral raise', provisional: false, meta: 'Today 14:27 · 3.0 s' });
   assert.equal(m.headerOf(lift, new Date(2026, 10, 3, 9, 0)).meta, 'Mon 2 Nov 14:27 · 3.0 s');
   assert.deepEqual(m.clockOf(2.64, lift.range), { now: '2.24', total: '3.00' });
   assert.equal(m.clockOf(-5, lift.range).now, '0.00');

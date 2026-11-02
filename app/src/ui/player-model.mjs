@@ -3,7 +3,7 @@
 // them as written (tests/app/player.test.js); screens/A1.mjs draws what they give and
 // player.mjs plays. Times are seconds in the cut's timeline, as the track's are; the clock
 // and the bar show the marked range, so they count from its start.
-import { liftLabel, clock, dayKey, dayName } from './home-model.mjs';
+import { liftLabel, isProvisional, clock, dayKey, dayName } from './home-model.mjs';
 
 /** The playback speeds in the order the button cycles them (settings.view.speed's values). */
 export const SPEEDS = Object.freeze([1, 0.5, 0.25]);
@@ -25,7 +25,7 @@ export const nextSpeed = v => { const i = SPEEDS.indexOf(v); return SPEEDS[(i + 
 export function headerOf(lift, now = new Date()) {
   const created = new Date(lift.created);
   const day = dayKey(created) === dayKey(now) ? 'Today' : dayName(created);
-  return { title: liftLabel(lift.lift), meta: `${day} ${clock(created)} · ${(lift.range.t1 - lift.range.t0).toFixed(1)} s` };
+  return { title: liftLabel(lift.lift), provisional: isProvisional(lift.lift), meta: `${day} ${clock(created)} · ${(lift.range.t1 - lift.range.t0).toFixed(1)} s` };
 }
 
 /** The clock: seconds into the marked range with two decimals, and the range's length. */

@@ -25,6 +25,7 @@
 import { JOB_STAGES, createJob, validateAnalysisJob } from '../contracts/analysis-job.mjs';
 import { EngineError, JobCancelled, runJob } from './job.mjs';
 import { estimateCost, rateOf } from './estimate.mjs';
+import { STALLED } from './messages.mjs';
 
 /** No progress for the watchdog's time while visible. */
 export class StallError extends Error {
@@ -135,7 +136,7 @@ export function createQueue({
     if (run.idleTicks * tickMs >= stallMs) {
       const abort = run.abort;
       run.abort = null;
-      abort(new StallError(`The analysis stopped responding: no progress for ${Math.round(stallMs / 1000)} s with the app open.`));
+      abort(new StallError(`${STALLED}: no progress for ${Math.round(stallMs / 1000)} s with the app open.`));
     }
   }
   function startWatchdog() { if (timer === null) timer = timers.setInterval(onTick, tickMs); }

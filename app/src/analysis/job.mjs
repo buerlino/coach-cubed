@@ -15,6 +15,7 @@
 import { validateFrameSource } from '../contracts/frame-source.mjs';
 import { appTrackMeta, trackFromFrames } from '../contracts/track.mjs';
 import { scoreLift } from '../scoring/score.mjs';
+import { ENGINE_FAILED, NO_PERSON } from './messages.mjs';
 
 /** The job was cancelled between two frames. */
 export class JobCancelled extends Error {
@@ -24,9 +25,17 @@ export class JobCancelled extends Error {
 /** The pose engine failed (a frame refused, the worker gone): the queue replaces the engine. */
 export class EngineError extends Error {
   constructor(cause) {
-    super(cause && cause.message ? cause.message : String(cause));
+    super(`${ENGINE_FAILED} ${cause && cause.message ? cause.message : String(cause)}`);
     this.name = 'EngineError';
     this.cause = cause;
+  }
+}
+
+/** Nobody was found in the marked range's frames (d23): the message is NO_PERSON and the engine's reason. */
+export class NoPersonError extends Error {
+  constructor(reason) {
+    super(reason ? `${NO_PERSON} ${reason}` : NO_PERSON);
+    this.name = 'NoPersonError';
   }
 }
 
@@ -124,6 +133,8 @@ export async function runJob(job, ctx) {
     const opts = { sigmaMs: ctx.sigmaMs };
     if (ctx.Diagnostics) opts.Diagnostics = ctx.Diagnostics;
     const { view } = scoreLift(track, job.lift, opts);
+    // nobody in any frame: the cues all say so in the engine's words; the job fails with them rather than store a result of nothing
+    if (track.meta.tracks.kept_frames === 0) throw new NoPersonError((view.cues.find(c => c.reason) || {}).reason);
     const { model, backend, runtime } = engine.info || {};
     await guard(store.updateLift(job.liftId, { track, result: view, engine: { model, backend, runtime } }));
     emit('scoring', { stage: 'scoring', done: 1, total: 1, etaS: 0 });

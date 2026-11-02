@@ -8,9 +8,10 @@ import { createFlow } from './flow/flow.mjs';
 import { createStore } from './store/index.mjs';
 import { appQueue } from './analysis/index.mjs';
 import { createUpdates } from './updates.mjs';
+import { startState } from './ui/welcome-model.mjs';
 
-const flow = createFlow();
 const store = createStore();
+const flow = createFlow(await startState(store));   // the first run starts at the intro, once (d23)
 const queue = appQueue({ store });   // one queue per app: it outlives the screens, H and Q1 subscribe to it
 const updates = createUpdates({ queue });   // the service worker (c19): offline, and an update that waits for the queue to be idle
 render(html`<${App} flow=${flow} queue=${queue} store=${store} updates=${updates} />`, document.getElementById('app'));

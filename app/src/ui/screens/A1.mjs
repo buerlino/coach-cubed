@@ -164,7 +164,7 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
       <header class="bar-header result-header">
         <button type="button" class="icon-button" aria-label="Back" onClick=${() => flow.go('home')}><${BackIcon} /></button>
         <div class="result-header__text">
-          <h1 class="bar-header__title">${head ? head.title : 'Result'}</h1>
+          <h1 class="bar-header__title">${head ? head.title : 'Result'}${head && head.provisional ? html` <span class="tag">provisional</span>` : null}</h1>
           ${head ? html`<span class="quiet">${head.meta}</span>` : null}
         </div>
         <button type="button" class="icon-button result-header__more" aria-label="View options" aria-haspopup="dialog" aria-expanded=${sheet} ref=${moreRef} disabled=${!opts} onClick=${() => setSheet(true)}><${MoreIcon} /></button>

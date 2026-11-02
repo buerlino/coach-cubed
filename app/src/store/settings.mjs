@@ -22,6 +22,7 @@ import { LIFTS, checkFields, isNumber, isObject } from '../contracts/common.mjs'
  * @property {string} quality the capture quality, e.g. '1080p30'
  * @property {'lateral-raise'|'snatch'} defaultLift
  * @property {boolean} keepVideos an analysed lift keeps its cut video
+ * @property {boolean} introSeen the first-run screen has been shown and left (d23); it shows once
  * @property {ViewOptions} view
  */
 
@@ -35,6 +36,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   quality: '1080p30',
   defaultLift: 'lateral-raise',
   keepVideos: true,
+  introSeen: false,
   view: Object.freeze({ skeleton: true, cues: true, unsure: false, loop: true, speed: 1, smoothingSigmaMs: 50 }),
 });
 
@@ -68,6 +70,7 @@ const FIELDS = {
   quality: [v => typeof v === 'string' && v.length > 0, 'must be a non-empty string'],
   defaultLift: [oneOf(LIFTS), `must be one of ${LIFTS.join(', ')}`],
   keepVideos: [bool, 'must be true or false'],
+  introSeen: [bool, 'must be true or false'],
 };
 const VIEW_FIELDS = {
   skeleton: [bool, 'must be true or false'],

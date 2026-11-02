@@ -14,6 +14,9 @@ export const LIFT_CHOICES = Object.freeze([
 /** @param {string} lift */
 export const liftLabel = lift => LIFT_CHOICES.find(c => c.id === lift)?.label ?? lift;
 
+/** Whether a lift's thresholds are still provisional as a whole (the snatch, while step 3.6 is open; d23). */
+export const isProvisional = lift => LIFT_CHOICES.find(c => c.id === lift)?.provisional === true;
+
 /**
  * The stages a running job passes through, and the share of the bar each one
  * has: the mockup's bands (reading to 10 %, the pose to 95 %, scoring to 100 %).
