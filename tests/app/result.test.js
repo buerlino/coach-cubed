@@ -321,3 +321,46 @@ test('result: colours, type and spacing in the screens come from tokens.css only
   assert.ok(cards.length > 5, 'the cards are styled');
   for (const l of cards) assert.ok(!/#[0-9a-fA-F]{3,8}\b|\brgba?\(/.test(l), l);
 });
+
+// ---- the rule sentence on an open card (d18; nordmu, 2026-11-02) ----
+
+test('result: an open card\'s rule line is built from diagnostics.js\'s zones() ("Good from +5%, work on below −5% · Provisional"), not typed on the screen', async () => {
+  const m = await load('ui/result-model.mjs');
+  const { view, D } = await scored(LATERAL);
+  const cards = Object.fromEntries(m.cardsOf(view, id => D.zones(id)).map(c => [c.id, c]));
+  assert.equal(cards['lateral-raise-elbow-lead'].rule, 'Good from +5%, work on below −5% · Provisional');
+  assert.equal(cards['lateral-raise-top-height'].rule, 'Good within 15%, work on beyond 30% · Provisional');
+  assert.equal(cards['lateral-raise-tempo'].rule, 'Good up to 1.5×, work on beyond 2.5× · Provisional');
+  // a cue whose API gives nothing (zones null) or that can't be scored keeps "Provisional" alone
+  assert.equal(D.zones('lateral-raise-torso-lean'), null);
+  assert.equal(cards['lateral-raise-torso-lean'].rule, 'Provisional');
+  assert.equal(cards['lateral-raise-symmetry'].rule, 'Provisional');
+  // a cue that can't be scored shows "Provisional" alone even when zones() has bands for it (README, "The open card's rule line")
+  assert.notEqual(D.zones('lateral-raise-elbow-lead'), null);
+  const cant = { ...view.cues.find(c => c.id === 'lateral-raise-elbow-lead'), status: "can't score", verdict: null, value: null, tiles: [], referenceLine: null, series: [], phase: null, worst: null, reason: 'No valid rep.' };
+  const unscored = m.cardsOf({ ...view, cues: [cant] }, id => D.zones(id))[0];
+  assert.equal(unscored.rule, 'Provisional');
+  // without the API at all (the old call), the card is as d17 left it
+  assert.equal(m.cardsOf(view)[0].rule, 'Provisional');
+});
+
+test('result: the rule line follows what zones() answers: other bands, other sentence; a cue that is no longer provisional says only the rule', async () => {
+  const m = await load('ui/result-model.mjs');
+  const { view } = await scored(LATERAL);
+  const fake = id => (id === 'lateral-raise-elbow-lead'
+    ? [{ status: 'work on', from: null, to: -7 }, { status: 'watch', from: -7, to: 2 }, { status: 'good', from: 2, to: null }]
+    : null);
+  const cards = Object.fromEntries(m.cardsOf(view, fake).map(c => [c.id, c]));
+  assert.equal(cards['lateral-raise-elbow-lead'].rule, 'Good from +2%, work on below −7% · Provisional');
+  const settled = { ...view, cues: view.cues.map(c => ({ ...c, provisional: false })) };
+  const c2 = Object.fromEntries(m.cardsOf(settled, fake).map(c => [c.id, c]));
+  assert.equal(c2['lateral-raise-elbow-lead'].rule, 'Good from +2%, work on below −7%');
+  assert.equal(c2['lateral-raise-torso-lean'].rule, null);
+});
+
+test('result: A1 draws the card\'s rule line and passes the API\'s zones to the model', () => {
+  const src = fs.readFileSync(path.join(APP, 'src', 'ui', 'screens', 'A1.mjs'), 'utf8');
+  assert.match(src, /cardsOf\(data\.view, [^)]*zones/);
+  assert.match(src, /c\.rule/);
+  assert.ok(!src.includes('>Provisional<'), 'the word is not typed on the screen');
+});

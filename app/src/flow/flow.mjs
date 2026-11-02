@@ -8,7 +8,7 @@
 // draws the screen the state names (SCREEN_OF). What a step carries (the
 // picked file, the lift's id) is `flow.params`, replaced by each step.
 
-export const STATES = ['home', 'import', 'mark', 'queued', 'result', 'detail', 'settings', 'live', 'replay'];
+export const STATES = ['home', 'import', 'mark', 'queued', 'result', 'detail', 'settings', 'scoring', 'live', 'replay'];
 
 // The screen ID (docs/ui-design.md, "The screens") each state shows. "import"
 // is H's picker, which v1's mockups don't draw as a screen of its own.
@@ -20,6 +20,7 @@ export const SCREEN_OF = {
   result: 'A1',
   detail: 'A2',
   settings: 'S1',
+  scoring: 'S1b',
   live: 'R2',
   replay: 'R3',
 };
@@ -27,6 +28,7 @@ export const SCREEN_OF = {
 // Where each state may go. Milestone A: H, import, mark, queued, result, and
 // back to H; open a lift from H (still analysing: queued; done: result);
 // leave Q1 without stopping the analysis (home); re-mark from the result (A3).
+// S1's "How the cues are scored" (d18): settings → scoring and back.
 // Milestone B: H, live (R2), replay (R3), mark, then back to live with the
 // lift queued; a session ends at home.
 export const TRANSITIONS = {
@@ -36,7 +38,8 @@ export const TRANSITIONS = {
   queued: ['result', 'home', 'live'],
   result: ['home', 'mark', 'detail'],
   detail: ['result', 'home'],
-  settings: ['home'],
+  settings: ['home', 'scoring'],
+  scoring: ['settings'],
   live: ['replay', 'home', 'queued'],
   replay: ['live', 'mark'],
 };

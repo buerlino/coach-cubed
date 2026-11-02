@@ -159,4 +159,37 @@
   --card-cue-min: 64px;
   --status-icon: 28px;
   --card-indent: 54px;
+
+  /* A2's pieces (the mockup's): the frame at the worst moment, the plot (its box, the washes of the
+     verdict's bands, the two sides' band, the phase) */
+  --detail-stage: 280px;
+  --zone-good: rgba(111, 183, 255, 0.10);
+  --zone-watch: rgba(242, 193, 78, 0.12);
+  --zone-work-on: rgba(255, 138, 76, 0.14);
+  --plot-band: rgba(242, 241, 236, 0.16);
+  --plot-phase: rgba(200, 240, 74, 0.10);
+  --plot-height: 190px;
+  --plot-pad-left: 36px;
+  --plot-pad-right: 12px;
+  --plot-pad-top: 10px;
+  --plot-pad-bottom: 26px;
+  --plot-marker: 5px;
+  --plot-trace: 2.5px;
+  --plot-hairline: 1px;
+  --plot-dash: 4px;
+  /* the plot's text and marks: label gap from the axis, baseline drops and rises, the zone word's
+     first line, the time labels' gap from the bottom, the worst moment's label (gap, below the dot,
+     the top it must clear, the margin at the right edge where it flips), the playhead's and the dot's ring */
+  --plot-label-gap: 6px;
+  --plot-label-drop: 4px;
+  --plot-label-rise: 4px;
+  --plot-label-inset: 4px;
+  --plot-zone-label-top: 16px;
+  --plot-time-gap: 8px;
+  --plot-marker-gap: 8px;
+  --plot-marker-below: 18px;
+  --plot-marker-top: 10px;
+  --plot-flip-margin: 56px;
+  --plot-playhead: 1.5px;
+  --plot-ring: 2px;
 }

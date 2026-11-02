@@ -13,7 +13,7 @@ const load = () => import(pathToFileURL(path.join(APP, 'src', 'flow', 'flow.mjs'
 
 test('the states: milestone A\'s six and a result\'s detail, plus live and replay for milestone B', async () => {
   const { STATES } = await load();
-  assert.deepEqual([...STATES].sort(), ['detail', 'home', 'import', 'live', 'mark', 'queued', 'replay', 'result', 'settings']);
+  assert.deepEqual([...STATES].sort(), ['detail', 'home', 'import', 'live', 'mark', 'queued', 'replay', 'result', 'scoring', 'settings']);
 });
 
 test('a flow starts at home and keeps what each step carries', async () => {
