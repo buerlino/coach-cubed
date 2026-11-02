@@ -493,13 +493,16 @@ await queue.retry(id); await queue.dismiss(id);    // a failed or cancelled job 
 once, so the queue and H share one store, draws the app, and after the first
 paint (`requestAnimationFrame`, then a timeout) calls `queue.warmUp()`, so the
 engine is ready by Analyse. `App` gives `queue` and `store` to every screen as
-props; H follows `queue.subscribe` and reads `store.listByDay()` and the ready
+props; H follows `queue` through `followQueue`, which passes nothing on until
+`queue.load()` has read the kept queue (`subscribe` first calls with `[]`, and
+a queued or failed lift would show as stopped until the load emits), and reads `store.listByDay()` and the ready
 lifts' `readResult` again when a job's state changes, not at every frame.
 
 `src/ui/home-model.mjs` is plain (Node runs it, `tests/app/home.test.js`):
 
 - `liftState(lift, jobs)`: `ready` (the record `isAnalysed`), `waiting` (job
-  `queued`), `analysing` (`reading`, `pose`, `scoring`; `percent`: reading 0,
+  `queued`; `waitingText(ahead)`: "Waiting · starts after the one above" for
+  one job ahead, "…the ones ahead" for more), `analysing` (`reading`, `pose`, `scoring`; `percent`: reading 0,
   pose frames done over frames, scoring 99), `failed` (the job's `error`),
   `stopped` (unanalysed with no job, or a cancelled one: "Not analysed ·
   stopped"; the lift stays stored).

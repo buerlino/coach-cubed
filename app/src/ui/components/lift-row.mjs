@@ -3,6 +3,7 @@
 // A lift that can be opened is a button that asks the flow for `row.open`.
 import { html } from '../html.mjs';
 import { ChevronIcon, LiftIcon } from './icons.mjs';
+import { waitingText } from '../home-model.mjs';
 
 function State({ row }) {
   const s = row.state;
@@ -13,7 +14,7 @@ function State({ row }) {
     </span>`;
   }
   if (s.kind === 'waiting') {
-    return html`<span class="lift-row__state">${s.ahead > 0 ? 'Waiting · starts after the ones ahead' : 'Waiting'}</span>`;
+    return html`<span class="lift-row__state">${waitingText(s.ahead)}</span>`;
   }
   if (s.kind === 'failed') return html`<span class="lift-row__state">Couldn't analyse · ${s.error}</span>`;
   if (s.kind === 'stopped') return html`<span class="lift-row__state">Not analysed · stopped</span>`;

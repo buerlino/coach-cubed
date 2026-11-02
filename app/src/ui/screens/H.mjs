@@ -12,14 +12,15 @@ import { followQueue, homeView } from '../home-model.mjs';
 const signature = jobs => jobs.map(j => `${j.id}:${j.state}`).join(',');
 
 export function H({ flow, queue, store }) {
-  const [jobs, setJobs] = useState([]);
+  const [jobs, setJobs] = useState(null);   // null until the queue has loaded: no state is shown before
   const [shown, setShown] = useState(null);   // { grouped, results } once the store has answered
   const [problem, setProblem] = useState(null);
 
   useEffect(() => followQueue(queue, setJobs), [queue]);
 
-  const sig = signature(jobs);
+  const sig = jobs ? signature(jobs) : null;
   useEffect(() => {
+    if (sig === null) return undefined;
     let current = true;
     (async () => {
       const grouped = await store.listByDay();
@@ -32,7 +33,7 @@ export function H({ flow, queue, store }) {
     return () => { current = false; };
   }, [store, sig]);
 
-  const view = shown ? homeView(shown.grouped, jobs, shown.results) : null;
+  const view = shown && jobs ? homeView(shown.grouped, jobs, shown.results) : null;
 
   return html`
     <main class="screen" data-screen="H">

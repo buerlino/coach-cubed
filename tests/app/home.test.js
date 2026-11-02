@@ -220,6 +220,53 @@ test('H follows the queue through the queue it is given, and stops when it is to
   assert.equal(listeners.size, 0);
 });
 
+test('H shows no state before the queue has loaded: the first [] of subscribe is not passed on', async () => {
+  const { followQueue } = await model();
+  const listeners = new Set();
+  let finish;
+  const kept = [{ id: 'j1', liftId: 'a', state: 'queued' }, { id: 'j2', liftId: 'b', state: 'failed', error: 'x' }];
+  const queue = {
+    subscribe(fn) { listeners.add(fn); fn([]); return () => listeners.delete(fn); },
+    load() { return new Promise(res => { finish = () => { for (const fn of listeners) fn(kept); res(kept); }; }); },
+  };
+  const seen = [];
+  const off = followQueue(queue, jobs => seen.push(jobs.length));
+  await new Promise(r => setTimeout(r, 5));
+  assert.deepEqual(seen, [], 'nothing is passed on while the queue loads');
+  finish();
+  await new Promise(r => setTimeout(r, 5));
+  assert.deepEqual(seen, [2], 'the kept jobs are the first thing H sees');
+  for (const fn of listeners) fn([kept[0]]);
+  assert.deepEqual(seen, [2, 1], 'later changes follow');
+  off();
+  assert.equal(listeners.size, 0);
+});
+
+test('H follows a queue whose load fails: it passes on what the queue has', async () => {
+  const { followQueue } = await model();
+  const queue = { subscribe(fn) { fn([]); return () => {}; }, load: () => Promise.reject(new Error('no store')) };
+  const seen = [];
+  followQueue(queue, jobs => seen.push(jobs.length));
+  await new Promise(r => setTimeout(r, 5));
+  assert.deepEqual(seen, [0]);
+});
+
+test('a waiting lift says "starts after the one above" for one job ahead, the plural for more', async () => {
+  const { waitingText } = await model();
+  assert.equal(waitingText(1), 'Waiting · starts after the one above');
+  assert.equal(waitingText(2), 'Waiting · starts after the ones ahead');
+  assert.equal(waitingText(0), 'Waiting');
+});
+
+test('base.css has no literal spacing or radius: pixel values only in tokens.css', () => {
+  const fs = require('node:fs');
+  const css = fs.readFileSync(path.join(APP, 'src', 'styles', 'base.css'), 'utf8').replace(/@font-face[^}]*}/g, '');
+  for (const m of css.matchAll(/(?:^|[;{\s])(padding|gap|margin|border-radius)[a-z-]*:\s*([^;}]*)/g)) {
+    const bad = m[2].replace(/var\([^)]*\)/g, '').match(/\b[2-9]\d*px|\b1\d+px|\b[2-9]px/g);
+    assert.equal(bad, null, `${m[1]}: ${m[2]}`);
+  }
+});
+
 test('H and Import change the flow\'s state only: no other screen, no queue or store import, no literal colour', () => {
   const fs = require('node:fs');
   for (const f of ['H.mjs', 'Import.mjs']) {

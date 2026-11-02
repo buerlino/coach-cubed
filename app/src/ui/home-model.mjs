@@ -44,6 +44,14 @@ export function liftState(lift, jobs) {
   return { kind: 'analysing', stage: ACTIVE.includes(job.state) ? job.state : 'reading', percent };
 }
 
+/**
+ * The words for a waiting lift: the mockup's "starts after the one above" when
+ * one job is ahead, the plural for more, nothing more when none is.
+ * @param {number} ahead
+ */
+export const waitingText = ahead => (ahead === 1 ? 'Waiting · starts after the one above'
+  : ahead > 1 ? 'Waiting · starts after the ones ahead' : 'Waiting');
+
 // Mockup order: the worst first.
 const SUMMARY = [['work on', 'work-on'], ['watch', 'watch'], ['good', 'good'], ["can't score", 'cant-score']];
 
@@ -134,7 +142,32 @@ export function importStep(flow, file, lift) {
   return { ok: true };
 }
 
-/** H's follow of the queue: fn(jobs) now and at every change; returns the unsubscribe. */
+/**
+ * H's follow of the queue: fn(jobs) at every change, but not before the queue
+ * has read its kept file. `subscribe` calls the listener at once with `[]`, and
+ * after a restart that is not the queue yet: a queued or failed lift would show
+ * as stopped until `load()` emits. So nothing is passed on until `load()` has
+ * answered (a failed load, say no store, passes on what the queue has). A queue
+ * with no `load` is followed from its first call. Returns the unsubscribe.
+ * @param {{subscribe: Function, load?: Function}} queue
+ * @param {(jobs: object[]) => void} fn
+ */
 export function followQueue(queue, fn) {
-  return queue.subscribe(fn);
+  let live = true;
+  let ready = typeof queue.load !== 'function';
+  let latest = [];
+  const off = queue.subscribe(jobs => {
+    latest = jobs;
+    if (ready && live) fn(jobs);
+  });
+  if (!ready) {
+    Promise.resolve().then(() => queue.load()).then(
+      snapshot => (Array.isArray(snapshot) ? snapshot : latest),
+      () => latest,
+    ).then(jobs => {
+      ready = true;
+      if (live) fn(jobs);
+    });
+  }
+  return () => { live = false; off(); };
 }
