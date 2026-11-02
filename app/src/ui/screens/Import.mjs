@@ -1,11 +1,20 @@
 // Import, H's picker: the lift first, then the video. The chosen lift goes into
 // the flow with the file, on the way to marking (home-model.mjs's importStep).
-import { useState } from 'preact/hooks';
+import { useEffect, useState } from 'preact/hooks';
 import { html } from '../html.mjs';
-import { LIFT_CHOICES, importStep } from '../home-model.mjs';
+import { LIFT_CHOICES, importStep, startLift } from '../home-model.mjs';
 
-export function Import({ flow }) {
-  const [lift, setLift] = useState(LIFT_CHOICES[0].id);
+export function Import({ flow, store }) {
+  // The lift starts on S1's default once the settings arrive (the first choice until then, or if
+  // they can't be read); a choice made before that is kept.
+  const [settings, setSettings] = useState(null);
+  const [chosen, setChosen] = useState(null);
+  const lift = chosen ?? startLift(settings);
+  useEffect(() => {
+    let current = true;
+    Promise.resolve().then(() => store.getSettings()).then(s => { if (current) setSettings(s); }, () => {});
+    return () => { current = false; };
+  }, [store]);
   const [error, setError] = useState(null);
 
   const picked = (event) => {
@@ -26,7 +35,7 @@ export function Import({ flow }) {
           <legend class="label">Which lift?</legend>
           ${LIFT_CHOICES.map(c => html`
             <label class="choice__option" key=${c.id}>
-              <input type="radio" name="lift" value=${c.id} checked=${lift === c.id} onChange=${() => setLift(c.id)} />
+              <input type="radio" name="lift" value=${c.id} checked=${lift === c.id} onChange=${() => setChosen(c.id)} />
               <span>${c.label}</span>
               ${c.provisional ? html`<span class="quiet">provisional</span>` : null}
             </label>`)}

@@ -4,19 +4,12 @@
 // written (tests/app/analysing.test.js); screens/Q1.mjs only draws it. The
 // view is rebuilt from the jobs at every change, never kept: leaving Q1 and
 // coming back (the job goes on in the queue) shows the queue as it is.
-import { liftLabel, followQueue } from './home-model.mjs';
+import { liftLabel, followQueue, percentOf, STAGES } from './home-model.mjs';
 import { isAnalysed } from '../contracts/stored-lift.mjs';
 import { estimateCost } from '../analysis/estimate.mjs';
 
-/**
- * The stages Q1 lists, and the share of the bar each one has: the mockup's
- * bands (reading to 10 %, the pose to 95 %, scoring to 100 %).
- */
-export const STAGES = Object.freeze([
-  Object.freeze({ key: 'reading', label: 'Read the video', from: 0, to: 10 }),
-  Object.freeze({ key: 'pose', label: 'Find the pose', from: 10, to: 95 }),
-  Object.freeze({ key: 'scoring', label: 'Score the cues', from: 95, to: 100 }),
-]);
+// The stages and their bands, and a job's percent, are home-model.mjs's: H reads them too.
+export { STAGES };
 
 const RUNNING = ['reading', 'pose', 'scoring'];
 const ENDED = ['done', 'failed', 'cancelled'];
@@ -32,17 +25,6 @@ const length = range => (range.t1 - range.t0).toFixed(1);
 export function aboutTime(seconds) {
   if (seconds >= 120) return `about ${Math.round(seconds / 60)} min`;
   return `about ${Math.max(1, Math.ceil(seconds))} s`;
-}
-
-function percentOf(job) {
-  if (job.state === 'done') return 100;
-  const p = job.progress;
-  if (!p) return 0;
-  const band = STAGES.find(s => s.key === p.stage);
-  if (!band) return 0;
-  const frac = p.total > 0 ? Math.min(1, p.done / p.total) : 0;
-  // a job still running is never 100 %: only done is
-  return Math.min(99, Math.floor(band.from + (band.to - band.from) * frac));
 }
 
 // The stage a job stands in: running (or stopped) at `progress.stage`, done past all of them.

@@ -14,6 +14,44 @@ export const LIFT_CHOICES = Object.freeze([
 /** @param {string} lift */
 export const liftLabel = lift => LIFT_CHOICES.find(c => c.id === lift)?.label ?? lift;
 
+/**
+ * The stages a running job passes through, and the share of the bar each one
+ * has: the mockup's bands (reading to 10 %, the pose to 95 %, scoring to 100 %).
+ * H and Q1 both read a job's percent through these (percentOf).
+ */
+export const STAGES = Object.freeze([
+  Object.freeze({ key: 'reading', label: 'Read the video', from: 0, to: 10 }),
+  Object.freeze({ key: 'pose', label: 'Find the pose', from: 10, to: 95 }),
+  Object.freeze({ key: 'scoring', label: 'Score the cues', from: 95, to: 100 }),
+]);
+
+/**
+ * A job's percent, the one rule H and Q1 share (d41): a done job is 100; a job
+ * with no progress is 0; otherwise the share of its stage's band, floored, and
+ * never 100 while the job runs.
+ * @param {import('../contracts/analysis-job.mjs').AnalysisJob} job
+ */
+export function percentOf(job) {
+  if (job.state === 'done') return 100;
+  const p = job.progress;
+  if (!p) return 0;
+  const band = STAGES.find(s => s.key === p.stage);
+  if (!band) return 0;
+  const frac = p.total > 0 ? Math.min(1, p.done / p.total) : 0;
+  return Math.min(99, Math.floor(band.from + (band.to - band.from) * frac));
+}
+
+/**
+ * The lift Import starts on: the settings' default lift, or the first choice
+ * while the settings load (`null`) or when the setting names a lift the import
+ * step doesn't offer.
+ * @param {{defaultLift?: string}|null|undefined} settings
+ */
+export function startLift(settings) {
+  const id = settings && settings.defaultLift;
+  return (LIFT_CHOICES.find(c => c.id === id) ?? LIFT_CHOICES[0]).id;
+}
+
 const ACTIVE = ['reading', 'pose', 'scoring'];
 const ENDED = ['done', 'failed', 'cancelled'];
 
@@ -23,7 +61,7 @@ const ENDED = ['done', 'failed', 'cancelled'];
  * number of unfinished jobs before it), `analysing` (reading, pose or scoring;
  * `percent`, `stage`), `failed` (`error`, the job's words), `stopped` (the lift
  * is stored and unanalysed: its job was cancelled, or it has none).
- * Progress: reading is 0 %, pose is frames done over frames, scoring is 99 %;
+ * Progress is Q1's (percentOf: reading 0-10 %, pose 10-95 %, scoring 95-100 %);
  * 100 % is the lift becoming ready. A done job whose lift the store hasn't
  * shown as analysed yet is still analysing (scoring), never ready.
  * @param {import('../contracts/stored-lift.mjs').StoredLift} lift
@@ -38,10 +76,7 @@ export function liftState(lift, jobs) {
   if (job.state === 'failed') return { kind: 'failed', error: job.error };
   if (job.state === 'cancelled') return { kind: 'stopped' };
   if (job.state === 'done') return { kind: 'analysing', stage: 'scoring', percent: 99 };
-  const p = job.progress;
-  const percent = job.state === 'pose' && p && p.total > 0 ? Math.min(99, Math.floor((p.done / p.total) * 100))
-    : job.state === 'scoring' ? 99 : 0;
-  return { kind: 'analysing', stage: ACTIVE.includes(job.state) ? job.state : 'reading', percent };
+  return { kind: 'analysing', stage: ACTIVE.includes(job.state) ? job.state : 'reading', percent: percentOf(job) };
 }
 
 /**
