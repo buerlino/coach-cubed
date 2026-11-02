@@ -8,6 +8,7 @@
   --surface: #17191C;
   --surface-raised: #21242A;
   --line: #2E3238;
+  --line-strong: #4A4F57;   /* a step not reached yet */
 
   /* Text, strongest first */
   --text: #F2F1EC;
@@ -21,6 +22,9 @@
 
   /* Recording */
   --record: #FF4D4D;
+
+  /* A quiet destructive action (Q1's cancel) */
+  --danger-text: #FF6B6B;
 
   /* Status: always with an icon and a word, never colour alone. The word is
      in the token, so no screen types its own. */
@@ -37,6 +41,11 @@
   --font-text: Barlow, system-ui, sans-serif;
   --font-display: 'Barlow Condensed', Barlow, sans-serif;
   --size-wordmark: 34px;
+  --size-percent: 56px;
+  --size-heading: 19px;
+  --size-button-big: 19px;
+  --size-button: 17px;
+  --size-mark: 12px;
   --size-title: 22px;
   --size-subtitle: 20px;
   --size-row: 17px;
@@ -69,6 +78,7 @@
   --radius-m: 14px;
   --radius-l: 16px;
   --radius-xl: 20px;
+  --radius-button: 18px;
 
   /* Touch targets are 44 px or more */
   --touch: 44px;
@@ -79,4 +89,11 @@
   --thumb: 56px;
   --row-min: 52px;
   --bar: 6px;
+
+  /* Sizes of Q1's pieces (the mockup's): the big bar, a step's mark, the buttons */
+  --bar-big: 10px;
+  --mark: 22px;
+  --button-big: 60px;
+  --button-wide: 56px;
+  --button-quiet: 48px;
 }

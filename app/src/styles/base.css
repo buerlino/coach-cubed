@@ -131,3 +131,39 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .picker input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .picker:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
 .error { color: var(--status-work-on); font-weight: var(--weight-semibold); }
+
+/* Q1, Analysing (docs/ui-design.md, design/mockups/Analysing.dc.html) */
+.bar-header { height: calc(var(--touch) + var(--space-3)); flex: none; display: flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-2); }
+.bar-header__title { font-size: var(--size-heading); font-weight: var(--weight-bold); }
+.icon-button { display: flex; align-items: center; justify-content: center; width: var(--touch); height: var(--touch); padding: 0; border: 0; border-radius: 50%; background: transparent; }
+.q1 { flex: 1; display: flex; flex-direction: column; gap: var(--space-4); padding: var(--space-2) var(--space-4) var(--space-5); }
+.q1-lift { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3); border-radius: var(--radius-l); background: var(--surface); }
+.q1-lift__thumb { flex: none; width: var(--thumb); height: var(--thumb); border-radius: var(--radius-s); background: var(--surface-raised); color: var(--text-quiet); display: flex; align-items: center; justify-content: center; }
+.q1-lift__text { display: flex; flex-direction: column; gap: var(--space-half); }
+.q1-lift__title { font-size: var(--size-row); font-weight: var(--weight-semibold); }
+.q1-progress { display: flex; flex-direction: column; gap: var(--space-3h); padding: var(--space-5) var(--space-4); border-radius: var(--radius-xl); background: var(--surface); }
+.q1-progress__top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-3); }
+.q1-progress__pct { font-family: var(--font-display); font-weight: var(--weight-bold); font-size: var(--size-percent); line-height: 1; }
+.q1-progress__left { font-size: var(--size-label); color: var(--text-soft); text-align: right; }
+.bar--big, .bar--big .bar__fill { height: var(--bar-big); border-radius: calc(var(--bar-big) / 2); }
+.stages { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--space-2h); }
+.stage { display: flex; align-items: center; gap: var(--space-2h); font-size: var(--size-body); color: var(--text-quiet); }
+.stage__mark { flex: none; width: var(--mark); height: var(--mark); border-radius: 50%; border: 2px solid var(--line-strong); display: flex; align-items: center; justify-content: center; font-size: var(--size-mark); font-weight: var(--weight-bold); color: var(--on-accent); }
+.stage__label { flex: 1; }
+.stage__detail { font-size: var(--size-small); color: var(--text-quiet); }
+.stage--now { color: var(--text); }
+.stage--now .stage__mark { border-color: var(--text); }
+.stage--done { color: var(--text-soft); }
+.stage--done .stage__mark { background: var(--accent); border-color: var(--accent); }
+.q1-note { display: flex; align-items: center; gap: var(--space-2h); padding: 0 var(--space-1); font-size: var(--size-small); line-height: 1.35; color: var(--text-quiet); }
+.q1-reason { padding: var(--space-3) var(--space-3h); border-radius: var(--radius-m); border: 1px solid var(--status-work-on); }
+.q1-queue { display: flex; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-3h); border-radius: var(--radius-m); border: 1px solid var(--line); font-size: var(--size-label); }
+.q1-queue__label { color: var(--text-soft); }
+.q1-queue__item { font-weight: var(--weight-semibold); text-align: right; }
+.q1-actions { margin-top: auto; display: flex; flex-direction: column; gap: var(--space-2); }
+.q1-actions .button-big { min-height: var(--button-big); border-radius: var(--radius-button); font-size: var(--size-button-big); font-weight: var(--weight-bold); }
+.q1-actions .button-wide { min-height: var(--button-wide); border-radius: var(--radius-button); font-size: var(--size-button); font-weight: var(--weight-bold); }
+.button--raised { background: var(--surface-raised); color: var(--text); border-color: var(--surface-raised); }
+.button--light { background: var(--text); color: var(--on-accent); border-color: var(--text); }
+.button--quiet { min-height: var(--button-quiet); border: 0; border-radius: var(--radius-m); background: transparent; color: var(--danger-text); }
+.button--quiet:hover { border: 0; }

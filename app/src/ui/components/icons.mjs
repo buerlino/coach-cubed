@@ -16,3 +16,5 @@ const SNATCH = html`<svg viewBox="0 0 48 48" width="40" height="40" aria-hidden=
 
 /** The lifter drawn for a lift, as the mockup's row thumbnails. */
 export const LiftIcon = ({ lift }) => (lift === 'snatch' ? SNATCH : RAISE);
+
+export const BackIcon = () => html`<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round"><path d="M15 5l-7 7 7 7"></path></svg>`;

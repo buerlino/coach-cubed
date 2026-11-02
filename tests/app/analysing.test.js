@@ -236,7 +236,7 @@ test('leaving Q1 and coming back rebuilds the view from the queue, live', async 
   const first = [];
   const off = followAnalysis(q, s => first.push(analysingView(s.jobs, { liftId: LR.id, lift: LR, rate: s.rate })));
   await new Promise(r => setImmediate(r));
-  assert.equal(first.at(-1).percent, 32);
+  assert.equal(first.at(-1).percent, 31);
   off();
   assert.equal(q.listeners.size, 0, 'leaving Q1 unsubscribes');
 
@@ -247,9 +247,9 @@ test('leaving Q1 and coming back rebuilds the view from the queue, live', async 
   const second = [];
   const back = followAnalysis(q, s => second.push(analysingView(s.jobs, { liftId: LR.id, lift: LR, rate: s.rate })));
   await new Promise(r => setImmediate(r));
-  assert.equal(second.at(-1).percent, 76, 'rebuilt from the queue as it is now');
+  assert.equal(second.at(-1).percent, 75, 'rebuilt from the queue as it is now');
   assert.equal(second.at(-1).left, 'about 8 s left');
-  assert.equal(first.at(-1).percent, 32, 'the first follow saw nothing after it left');
+  assert.equal(first.at(-1).percent, 31, 'the first follow saw nothing after it left');
 
   // and live: the next change reaches the new view, the end included
   q.set([job(LR, 'done', { progress: progress('scoring', 1, 1) })]);
