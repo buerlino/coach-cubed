@@ -25,3 +25,9 @@ export const CloseIcon = () => html`<svg viewBox="0 0 24 24" width="22" height="
 export const ChevronDownIcon = () => html`<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" style=${thick}><path d="M6 9l6 6 6-6"></path></svg>`;
 export const StepBackIcon = () => html`<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style=${thick}><path d="M16 6l-6 6 6 6M8 6v12"></path></svg>`;
 export const StepForwardIcon = () => html`<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style=${thick}><path d="M8 6l6 6-6 6M16 6v12"></path></svg>`;
+
+// A1's (design/mockups/Result.dc.html): play, pause, the options menu
+const solid = 'fill: currentColor';
+export const PlayIcon = () => html`<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style=${solid}><path d="M8 5v14l11-7z"></path></svg>`;
+export const PauseIcon = () => html`<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style=${solid}><rect x="6" y="5" width="4" height="14" rx="1"></rect><rect x="14" y="5" width="4" height="14" rx="1"></rect></svg>`;
+export const MoreIcon = () => html`<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style=${solid}><circle cx="5" cy="12" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="19" cy="12" r="2"></circle></svg>`;
