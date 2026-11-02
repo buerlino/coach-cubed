@@ -13,7 +13,8 @@
 //  - output comes later, never inside decode() (setImmediate);
 //  - decodeQueueSize counts chunks not yet taken, and 'dequeue' fires when one is;
 //  - a frame is { timestamp, duration, displayWidth, displayHeight, close() }, the
-//    size from configure()'s codedWidth/codedHeight; closing twice is harmless.
+//    size from configure()'s codedWidth/codedHeight; closing twice is harmless;
+//  - a bitmap records the frame it was drawn from (`source`: its size, its turn).
 // `log` records what the frame source did, for the assertions: the decoders made,
 // the chunks each was fed (in order), every frame and bitmap made and whether it
 // was closed, the rotations and the configs checked.
@@ -114,7 +115,11 @@ function createFakeWebCodecs({
         swap ? frame.displayHeight : frame.displayWidth, swap ? frame.displayWidth : frame.displayHeight, { rotated: rotation });
     },
     toBitmap(frame, { width, height }) {
-      const b = { width, height, timestamp: frame.timestamp, closed: false, close() { b.closed = true; } };
+      // source: the frame it was drawn from, so a test sees it was upright (and turned, when it was)
+      const b = {
+        width, height, timestamp: frame.timestamp, closed: false, close() { b.closed = true; },
+        source: { width: frame.displayWidth, height: frame.displayHeight, rotated: frame.rotated ?? 0 },
+      };
       log.bitmaps.push(b);
       return b;
     },
