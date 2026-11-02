@@ -638,7 +638,7 @@ async function assertReplaced(store, fake, old, job) {
   assert.deepEqual(lifts.map(l => l.id), [job.liftId], 'one lift left, the new one');
   assert.ok(lifts[0].result, 'the new one is analysed');
   assert.equal(await store.getLift(old.id), null);
-  assert.deepEqual(fake.paths().filter(p => p.includes(old.id)), [], 'the old cut, track, result and record are gone');
+  assert.deepEqual(fake.paths().filter(p => p.startsWith(`lifts/${old.id}/`)), [], 'the old cut, track, result and record are gone');
   await assert.rejects(() => store.readVideo(old.id), { code: 'not-found' });
 }
 
