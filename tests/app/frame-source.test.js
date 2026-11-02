@@ -651,6 +651,26 @@ test('the cache holds at most its budget, evicts the frames farthest from the pl
   src.close();
 });
 
+test('a step to a held frame returns before the refill does any work for it', async () => {
+  // measured in headless Brave (s38's report): a refill started inside the step held a
+  // 1080p step at a 150 ms tap rate for 23 ms while its frame was already held
+  const { src, fake } = await open(H264);
+  const st = await src.stepper(frameTime(45), { height: 36, maxFrames: 10 });
+  await st.settled();
+  // the forward decoder, paused, gets the frames of the chunks it was fed: they wait in its queue
+  for (let k = 0; k < 10; k++) await new Promise(r => setImmediate(r));
+  const made = fake.log.bitmaps.length, fed = fake.log.chunks.length;
+  const r = await st.step(4);
+  assert.equal(r.cached, true);
+  // the caller's own continuation (drawing the frame) runs in microtasks: the refill waits for the next task
+  for (let k = 0; k < 50; k++) await null;
+  assert.equal(fake.log.bitmaps.length, made, 'no frame turned into a bitmap before the step returned');
+  assert.equal(fake.log.chunks.length, fed, 'no chunk fed before the step returned');
+  await st.settled();
+  assert.ok(fake.log.bitmaps.length > made, 'the refill ran after it');
+  st.close(); src.close();
+});
+
 test('close() closes every frame and stops the refill; the source\'s close() closes its steppers', async () => {
   const { src, fake, base } = await open(H264);
   const { MediaError } = await media();

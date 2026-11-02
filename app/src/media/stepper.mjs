@@ -78,7 +78,7 @@ export async function openStepper(ctx, t, options = {}) {
   let cur = table.indexAt(t);  // the playhead: where the last step asked to go
   let shown = -1;              // where the last step landed
   let dir = 0;                 // the last step's direction
-  let closed = false, stream = null, running = null, pendingError = null, chain = Promise.resolve();
+  let closed = false, stream = null, running = null, pendingError = null, chain = Promise.resolve(), soon = null;
 
   // a frame's keyframe group: the decode index of its key packet
   const groupOf = i => table.plan(i, i).startDec;
@@ -214,6 +214,10 @@ export async function openStepper(ctx, t, options = {}) {
     });
   }
 
+  // the refill on the next task: a step to a held frame returns before any refill
+  // work (turning a decoded frame into a bitmap can hold the main thread for ms)
+  const kickSoon = () => { if (!soon && !closed) soon = setTimeout(() => { soon = null; kick(); }, 0); };
+
   const snapshot = cached => ({ index: shown, time: table.times[shown], frame: held.get(shown), cached });
 
   async function goTo(i, seeking = false) {
@@ -223,7 +227,7 @@ export async function openStepper(ctx, t, options = {}) {
     else if (shown >= 0 && i !== shown) dir = Math.sign(i - shown);
     cur = i;
     const cached = held.has(i);
-    kick();
+    if (cached) kickSoon(); else kick();
     if (!cached) {
       try {
         await new Promise((resolve, reject) => {
@@ -260,10 +264,11 @@ export async function openStepper(ctx, t, options = {}) {
       if (!isTime(s)) return Promise.reject(new MediaError('range', `seek needs a time in seconds, not ${s}.`));
       return serial(() => goTo(table.indexAt(s), true));
     },
-    async settled() { while (running) await running; },
+    async settled() { while (running || soon) await (running || new Promise(r => setTimeout(r, 1))); },
     close() {
       if (closed) return;
       closed = true;
+      if (soon) { clearTimeout(soon); soon = null; }
       controller.abort();
       dropStream();
       failWaiters(closedError());
