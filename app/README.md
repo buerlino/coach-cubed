@@ -17,6 +17,10 @@ node app/tools/assemble.mjs                  # app/ + diagnostics.js + src/track
 node app/tools/serve.mjs --port 8090         # app/dist/ on http://127.0.0.1:8090/ (no COOP/COEP)
 npm --prefix app test                        # the app's tests: tests/app/*.test.js (the root `npm test` runs them too)
 node app/tools/make-icon.mjs                 # rewrites the placeholder icons in app/icons/
+npm --prefix app ci                          # esbuild, long, seedrandom: the TF.js build's inputs (app/node_modules/)
+node app/tools/build-tfjs.mjs                # TF.js and pose-detection from source into app/vendor/tfjs/
+app/tools/fetch-models.sh                    # MoveNet Thunder's weights into app/models/, SHA-256 checked
+pipeline/devlock.sh slice check-tfjs node app/tools/check-tfjs.mjs   # the WebGL bundle in headless Brave
 ```
 
 `serve.mjs` serves what `assemble.mjs` made: assemble again after a change.
@@ -34,10 +38,10 @@ It logs each request (`200 /index.html`); a `404` there is a broken path.
 | `src/styles/` | `tokens.css` (every colour, the status colours with their words, the type, the spacing, the 44 px touch target; dark only) and `base.css` (the `@font-face` rules, the reset and the classes every screen shares). A screen styles itself from tokens, never from literal values. |
 | `src/track/` | One-line stubs, see below. |
 | `src/contracts/` | The shapes the app's parts agree on: JSDoc types, validators, examples. See [Contracts](#contracts). |
-| `vendor/` | Third-party files, each with its licence text, byte for byte from its npm package ([THIRD_PARTY.md](../THIRD_PARTY.md#in-the-new-app-app)): `preact/` (Preact 11.1.1 and its hooks), `htm/` (htm 3.1.1), `fonts/` (Barlow and Barlow Condensed, woff2, with `OFL.txt`). `vendor/tfjs/` is built later (gitignored). |
-| `tools/` | `assemble.mjs`, `serve.mjs`, `make-icon.mjs`. Node only, no dependencies; not copied into `dist/`. |
+| `vendor/` | Third-party files, each with its licence text, byte for byte from its npm package ([THIRD_PARTY.md](../THIRD_PARTY.md#in-the-new-app-app)): `preact/` (Preact 11.1.1 and its hooks), `htm/` (htm 3.1.1), `fonts/` (Barlow and Barlow Condensed, woff2, with `OFL.txt`). `vendor/tfjs/` is built by `tools/build-tfjs.mjs` (gitignored). |
+| `tools/` | `assemble.mjs`, `serve.mjs`, `make-icon.mjs`, and the TF.js build: `build-tfjs.mjs`, `fetch-models.sh`, `check-tfjs.mjs`, `patches/` ([below](#tfjs-from-source)). Node only; only `build-tfjs.mjs` needs `app/node_modules/` (esbuild). Not copied into `dist/`. |
 | `dist/` | The assembled app (gitignored): what the PWA host and Capacitor get. `files.json` lists every file in it, with a version hash, for the service worker. |
-| `models/` | MoveNet's weights, fetched later (gitignored). |
+| `models/` | MoveNet SinglePose Thunder v4's weights, `movenet-thunder-4/` (`model.json` and three shards), fetched by `tools/fetch-models.sh` (gitignored). |
 
 ## Preact and htm: which build, and why the import map
 
@@ -103,13 +107,95 @@ A change to a contract is a package of its own: both sides build on it, so
 it is agreed first, with its tests, and then each side follows in its own
 package.
 
+## TF.js from source
+
+The pose runtime ships built from source
+([rules-core.md](../docs/rules-core.md), "Licence-compatible dependencies";
+[pose-spike.md](../docs/pose-spike.md#maintaining-tfjs-ourselves)), not
+from npm's built `dist/`. `tools/build-tfjs.mjs`:
+
+1. **Clones** tensorflow/tfjs at `tfjs-v4.22.0` (commit `e5d5e93`) and
+   tensorflow/tfjs-models at `pose-detection-v2.1.3` (`f588523`), shallow,
+   and refuses a clone whose HEAD isn't the pinned commit.
+2. **The cache** is outside the repo: `$XDG_CACHE_HOME/coach/`, by default
+   `~/.cache/coach/` (`tfjs-v4.22.0/`, `pose-detection-v2.1.3/`, and
+   `downloads/` for `fetch-models.sh`). The root `npm test` runs test files
+   anywhere in the tree, so a clone inside it would run tfjs's own tests;
+   the script refuses a cache inside the repo. A second run reuses the
+   clones (a marker file records the commit and the patches); to start
+   over, delete the folder.
+3. **Generates** the converter's op lists (`tfjs-converter/src/operations/op_list/*.ts`)
+   from the tag's JSON as tfjs's Bazel rule does (`scripts/gen_op.ts`),
+   with the year npm's 4.22.0 carries in the header, so a rebuild is the
+   same. These are the only generated sources.
+4. **Bundles** with esbuild 0.28.2 (pinned in `package.json` and
+   `package-lock.json`) from the TypeScript, through the tag's root
+   `tsconfig.json`, whose path map sends each `@tensorflow/*` package to
+   its `src/index.ts`. Two of the build's choices matter:
+   `ignoreAnnotations`, because the packages' `sideEffects` lists name
+   `dist/*.js`, not the `.ts` sources, and honoured they would drop the
+   kernel registrations; and `long` 4.0.0 and `seedrandom` 3.0.5, the two
+   plain-JS dependencies of tfjs-core and the CPU backend, from
+   `app/node_modules/` at the versions tfjs-core's `yarn.lock` pins.
+5. **pose-detection is cut to MoveNet** by an entry of ours, inside the
+   script: MoveNet's loader, `SupportedModels`, `movenet.modelType`, and a
+   `createDetector` that refuses any other model, and a config without
+   `modelUrl`: MoveNet's `load()` at the tag would fetch the weights from
+   tfhub.dev then, and the app is offline. So PoseNet, BlazePose
+   and `@mediapipe/pose` (a closed wasm) never enter the bundle; the stub
+   for `@mediapipe/pose` from the spike stays as a guard. pose-detection's
+   WebGPU import is PoseNet's, so the WebGL bundle carries no WebGPU.
+
+Out, in `vendor/tfjs/`: `tfjs-webgl.mjs` and `tfjs-webgpu.mjs` (browser),
+`tfjs-cpu.mjs` (Node, for `s7`: tfjs-core's Node platform calls
+`require('util')`, so it gets a `require` of its own), each exporting
+`{ tf, converter, poseDetection }`; `build-info.json` (the commits, each
+bundle's size and SHA-256); and the licences: `LICENSE-tfjs.txt`,
+`LICENSE-tfjs-models.txt` (Apache-2.0), `LICENSE-long.txt` (Apache-2.0),
+`LICENSE-seedrandom.txt` (MIT, from its sources: the package has no
+LICENSE file). Each bundle's banner names the sources, the commits, the
+licences and the patched files; the upstream `@license` comments are kept
+at the end.
+
+**Patches** go in `tools/patches/<repo>/NNNN-name.patch` (`<repo>` is
+`tfjs` or `tfjs-models`), a `git apply` patch against the tag with a
+`Reason:` line; the script applies them in name order and names each
+changed file in the bundles' banner. **None are needed at these tags:**
+esbuild takes every construct the bundled packages use (the `const enum`
+the spike feared doesn't occur in them). Apache-2.0 §4(b) asks for a
+notice on each changed file: when a patch is added, its files are listed
+here, as `tfjs/<path>` or `tfjs-models/<path>`
+(`tests/app/build-tfjs.test.js` checks it).
+
+Changed files: none.
+
+**The weights:** `tools/fetch-models.sh` fetches MoveNet SinglePose
+Thunder v4 for TF.js from the spike's pinned source (Google's upload on
+Kaggle), checks the archive's SHA-256 (`9ab8399b…`), keeps it in the
+cache's `downloads/` and unpacks `model.json` and its shards into
+`models/movenet-thunder-4/`. It unpacks into a hidden folder in `models/`
+and renames it when the files check out; a trap removes that folder if
+anything stops the script first, so a half-unpacked copy never reaches
+`dist/`.
+
+**The check:** `tools/check-tfjs.mjs [--backend webgl|webgpu|cpu]` serves
+`app/` on a free local port, opens it in headless Brave, imports the
+bundle, sets the backend, creates a Thunder detector from `models/` and
+runs one fixed random image through it. Headless Brave's WebGL is
+SwiftShader, software: it shows the bundle works, not how fast. With
+`--backend cpu` the check runs in Node, against the same local server: the
+CPU bundle is built for Node and doesn't load in a browser.
+
 ## The tests
 
 `tests/app/` holds them, because the pipeline's red-first check reads only
 `tests/`: `flow.test.js` (the state machine), `assemble.test.js` (assemble
 into a temporary folder, the manifest and `index.html`), `serve.test.js` (the
 dev server), `contracts.test.js` (the contracts, against the committed tracks
-and `diagnostics.js`'s headless API). Every test runs in a fresh worktree, which has neither
+and `diagnostics.js`'s headless API), `build-tfjs.test.js` (the TF.js
+build's pins, cache, op lists and patch notices, the MoveNet entry's
+refusal of a config without `modelUrl`, and `fetch-models.sh`'s checks and
+clean-up, all without the network). Every test runs in a fresh worktree, which has neither
 `app/vendor/tfjs/` nor `app/models/`: a test that needs them makes its own
 fake. `tests/paths.test.js` scans `app/` for absolute asset paths (not
 `vendor/`, `dist/`, `android/` or `node_modules/`).

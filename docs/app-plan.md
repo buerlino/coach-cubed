@@ -328,10 +328,10 @@ build for our own code, the lifter choice hidden.
 
 ## Risks
 
-- **TF.js from source** may trip esbuild (`const enum` across files is
-  the known suspect, [pose-spike.md](pose-spike.md)); `s6` may need a
-  small patch at the tag. If it stalls, the npm bundle can stand in for
-  dev builds only, never for a release.
+- **TF.js from source:** `s6` built it with no patch (esbuild takes every
+  construct; the feared `const enum` doesn't occur in the bundled
+  packages), and the WebGL bundle runs MoveNet Thunder in headless Brave.
+  Whether it gives npm's numbers is `s7`'s; real hardware is `c20`'s.
 - **Imported videos vary:** HEVC, rotation, variable frame rates, 60 fps.
   `s9` reports what the WebView decodes; what it can't read gets `d23`'s
   error, not a crash.
