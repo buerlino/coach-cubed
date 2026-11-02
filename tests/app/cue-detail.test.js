@@ -40,6 +40,9 @@ const TOKENS = {
   '--plot-band': 'BAND', '--plot-phase': 'PHASE',
   '--plot-pad-left': '36px', '--plot-pad-right': '12px', '--plot-pad-top': '10px', '--plot-pad-bottom': '26px',
   '--plot-marker': '5px', '--plot-trace': '2.5px', '--plot-hairline': '1px', '--plot-dash': '4px',
+  '--plot-height': '190px', '--plot-label-gap': '6px', '--plot-label-drop': '4px', '--plot-label-rise': '4px', '--plot-label-inset': '4px',
+  '--plot-zone-label-top': '16px', '--plot-time-gap': '8px', '--plot-marker-gap': '8px', '--plot-marker-below': '18px',
+  '--plot-marker-top': '10px', '--plot-flip-margin': '56px', '--plot-playhead': '1.5px', '--plot-ring': '2px',
 };
 const read_ = n => TOKENS[n] ?? '';
 
@@ -217,6 +220,41 @@ test('plot: plotStyle reads the tokens, never a literal; drawPlot paints the ban
   // every colour set on the context came from the style
   const allowed = new Set([...Object.values(style.zone), ...Object.values(style.status), style.trace, style.text, style.textSoft, style.ground, style.band, style.phase, style.line, style.marker, style.reference, style.playhead, null]);
   for (const c of ctx.calls) for (const col of [c.fill, c.stroke]) assert.ok(allowed.has(col), `a colour that is not a token's: ${col}`);
+});
+
+test('plot: the text offsets, the flip margin and the line widths are tokens: changing one moves the drawing, and drawPlot types no spacing literal', async () => {
+  const p = await load('draw/plot.mjs');
+  const { view } = await scored(LATERAL);
+  const cue = view.cues.find(c => c.id === 'lateral-raise-elbow-lead');
+  const base = p.plotStyle(read_, cue.status);
+  const g = p.plotGeometry(cue, D.zones(cue.id), { ...SIZE, pad: base.pad, format: v => String(v) });
+  const texts = style => { const ctx = fakeCtx(); p.drawPlot(ctx, g, style, { at: cue.worst.t }); return ctx.calls; };
+  const at = (calls, label) => calls.find(c => c.name === 'fillText' && c.args[0] === label).args;
+  const before = texts(base);
+  const moved = (name, value, check) => {
+    const style = p.plotStyle(n => (n === name ? value : read_(n)), cue.status);
+    check(texts(style), before);
+  };
+  const edge = String(+g.edges[0].v.toFixed(2));
+  moved('--plot-label-gap', '10px', (c, b) => near(at(c, edge)[1] - at(b, edge)[1], -4, 'offset'));
+  moved('--plot-label-drop', '9px', (c, b) => near(at(c, edge)[2] - at(b, edge)[2], 5, 'offset'));
+  moved('--plot-time-gap', '12px', (c, b) => { const l = g.ticks.time[0].label; assert.equal(at(c, l)[2] - at(b, l)[2], -4); });
+  moved('--plot-zone-label-top', '20px', (c, b) => { const w = 'Work on'; assert.notEqual(at(c, w)[2], at(b, w)[2]); });
+  if (cue.referenceLine) {
+    moved('--plot-label-inset', '9px', (c, b) => near(at(c, cue.referenceLine.label)[1] - at(b, cue.referenceLine.label)[1], 5, 'offset'));
+    moved('--plot-label-rise', '9px', (c, b) => near(at(c, cue.referenceLine.label)[2] - at(b, cue.referenceLine.label)[2], -5, 'offset'));
+  }
+  moved('--plot-marker-gap', '12px', (c, b) => assert.notEqual(at(c, g.worst.label)[1], at(b, g.worst.label)[1]));
+  moved('--plot-ring', '3px', c => assert.ok(c.some(x => x.name === 'stroke')));
+  // the flip: a margin wider than the box always flips the label to the dot's left
+  moved('--plot-flip-margin', '5000px', (c, b) => near(at(c, g.worst.label)[1] - g.worst.x, -8, 'offset'));
+  // the source: drawPlot has no numeric literal besides 0, 1, 2π and the empty dash
+  const src = read('app', 'src', 'draw', 'plot.mjs');
+  const body = src.slice(src.indexOf('export function drawPlot'));
+  const lits = (body.replace(/\/\/.*$/gm, '').replace(/'[^']*'/g, '').match(/(?<![\w.])\d+(\.\d+)?/g) || []).filter(n => !['0', '1', '2'].includes(n));
+  assert.deepStrictEqual(lits, []);
+  const a2 = read('app', 'src', 'ui', 'screens', 'A2.mjs');
+  assert.ok(!/\|\|\s*\d{2,}/.test(a2), 'A2 has no size fallback typed');
 });
 
 test('plot: a cue with no zones draws no bands and no status words', async () => {

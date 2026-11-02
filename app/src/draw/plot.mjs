@@ -148,6 +148,19 @@ export function plotStyle(read, status) {
     traceWidth: px(v('--plot-trace')),
     hairline: px(v('--plot-hairline')),
     dash: px(v('--plot-dash')),
+    height: px(v('--plot-height')),
+    labelGap: px(v('--plot-label-gap')),
+    labelDrop: px(v('--plot-label-drop')),
+    labelRise: px(v('--plot-label-rise')),
+    labelInset: px(v('--plot-label-inset')),
+    zoneLabelTop: px(v('--plot-zone-label-top')),
+    timeGap: px(v('--plot-time-gap')),
+    markerGap: px(v('--plot-marker-gap')),
+    markerBelow: px(v('--plot-marker-below')),
+    markerTop: px(v('--plot-marker-top')),
+    flipMargin: px(v('--plot-flip-margin')),
+    playheadWidth: px(v('--plot-playhead')),
+    ring: px(v('--plot-ring')),
   };
 }
 
@@ -183,20 +196,20 @@ export function drawPlot(ctx, g, s, { at = null } = {}) {
     ctx.strokeStyle = s.line;
     ctx.beginPath(); ctx.moveTo(box.left, e.y); ctx.lineTo(right, e.y); ctx.stroke();
     ctx.fillStyle = s.text;
-    ctx.fillText(String(+e.v.toFixed(2)), box.left - 6, e.y + 4);
+    ctx.fillText(String(+e.v.toFixed(2)), box.left - s.labelGap, e.y + s.labelDrop);
   }
   ctx.setLineDash([]);
   ctx.font = s.fontStrong;
   for (const b of g.zones) {
     ctx.fillStyle = s.status[b.status];
-    ctx.fillText(s.words[b.status], right - 6, b.top + 16 > b.bottom ? b.bottom - 4 : b.top + 16);
+    ctx.fillText(s.words[b.status], right - s.labelGap, b.top + s.zoneLabelTop > b.bottom ? b.bottom - s.labelRise : b.top + s.zoneLabelTop);
   }
 
   // time axis labels
   ctx.font = s.font;
   ctx.textAlign = 'center';
   ctx.fillStyle = s.text;
-  for (const k of g.ticks.time) ctx.fillText(k.label, k.x, g.size.height - 8);
+  for (const k of g.ticks.time) ctx.fillText(k.label, k.x, g.size.height - s.timeGap);
 
   // the two sides' band, behind the trace
   if (g.band && g.band.length) {
@@ -216,7 +229,7 @@ export function drawPlot(ctx, g, s, { at = null } = {}) {
     ctx.setLineDash([]);
     ctx.fillStyle = s.textSoft;
     ctx.textAlign = 'left';
-    ctx.fillText(g.reference.label, box.left + 4, g.reference.y - 4);
+    ctx.fillText(g.reference.label, box.left + s.labelInset, g.reference.y - s.labelRise);
   }
 
   // the trace
@@ -234,7 +247,7 @@ export function drawPlot(ctx, g, s, { at = null } = {}) {
   if (at !== null && at >= g.domain.t0 && at <= g.domain.t1) {
     const x = g.x(at);
     ctx.strokeStyle = s.playhead;
-    ctx.lineWidth = s.hairline * 1.5;
+    ctx.lineWidth = s.playheadWidth;
     ctx.beginPath(); ctx.moveTo(x, box.top); ctx.lineTo(x, bottom); ctx.stroke();
   }
 
@@ -242,12 +255,12 @@ export function drawPlot(ctx, g, s, { at = null } = {}) {
   if (g.worst) {
     ctx.fillStyle = s.marker;
     ctx.strokeStyle = s.ground;
-    ctx.lineWidth = s.hairline * 2;
+    ctx.lineWidth = s.ring;
     ctx.beginPath(); ctx.arc(g.worst.x, g.worst.y, s.markerRadius, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
     ctx.font = s.fontStrong;
     ctx.fillStyle = s.marker;
-    const flip = g.worst.x > right - 56;
+    const flip = g.worst.x > right - s.flipMargin;
     ctx.textAlign = flip ? 'right' : 'left';
-    ctx.fillText(g.worst.label, g.worst.x + (flip ? -8 : 8), g.worst.y - 8 < box.top + 10 ? g.worst.y + 18 : g.worst.y - 8);
+    ctx.fillText(g.worst.label, g.worst.x + (flip ? -s.markerGap : s.markerGap), g.worst.y - s.markerGap < box.top + s.markerTop ? g.worst.y + s.markerBelow : g.worst.y - s.markerGap);
   }
 }

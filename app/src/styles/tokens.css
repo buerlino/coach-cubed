@@ -177,4 +177,19 @@
   --plot-trace: 2.5px;
   --plot-hairline: 1px;
   --plot-dash: 4px;
+  /* the plot's text and marks: label gap from the axis, baseline drops and rises, the zone word's
+     first line, the time labels' gap from the bottom, the worst moment's label (gap, below the dot,
+     the top it must clear, the margin at the right edge where it flips), the playhead's and the dot's ring */
+  --plot-label-gap: 6px;
+  --plot-label-drop: 4px;
+  --plot-label-rise: 4px;
+  --plot-label-inset: 4px;
+  --plot-zone-label-top: 16px;
+  --plot-time-gap: 8px;
+  --plot-marker-gap: 8px;
+  --plot-marker-below: 18px;
+  --plot-marker-top: 10px;
+  --plot-flip-margin: 56px;
+  --plot-playhead: 1.5px;
+  --plot-ring: 2px;
 }

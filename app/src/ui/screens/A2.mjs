@@ -91,8 +91,9 @@ export function A2({ flow, store, openSource = openFrameSource, diagnostics = nu
     const draw = () => {
       const ratio = pixelRatio();
       const style = plotStyle(readToken, data.detail.status);
-      const width = cv.clientWidth || 358;
-      const height = parseFloat(globalThis.getComputedStyle(cv).height) || 190;
+      const width = cv.clientWidth;
+      if (!(width > 0)) return;   // not laid out yet: the ResizeObserver draws it when it is
+      const height = parseFloat(globalThis.getComputedStyle(cv).height) || style.height;
       cv.width = Math.round(width * ratio);
       cv.height = Math.round(height * ratio);
       const ctx = cv.getContext('2d');
