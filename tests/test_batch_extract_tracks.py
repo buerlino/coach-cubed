@@ -16,7 +16,10 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 # run_name is not '__main__', so main() does not run.
-bet = runpy.run_path(str(ROOT / 'scripts' / 'batch_extract_tracks.py'), run_name='batch_extract_tracks')
+# The script imports requests at the top; process_clip is run with the server calls
+# faked, so a stub stands in and the tests need no HTTP client installed.
+with mock.patch.dict(sys.modules, {'requests': mock.Mock()}):
+    bet = runpy.run_path(str(ROOT / 'scripts' / 'batch_extract_tracks.py'), run_name='batch_extract_tracks')
 process_clip = bet['process_clip']
 FAKE_RESULT = {'keypoints': [], 'meta': {'frame_count': 3, 'frames_processed': 3, 'tracks': {'kept': 0}}}
 
