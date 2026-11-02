@@ -128,4 +128,27 @@
   --stage-ground: #000000;
   --scrim: rgba(14, 15, 17, 0.8);
   --accent-wash: rgba(200, 240, 74, 0.22);
+
+  /* A1's pieces (the mockup's): the video stage, the skeleton (bones in the accent, joints in the
+     text colour with a ring in the ground colour), the timeline, the speed button, the chip */
+  --result-stage: 360px;
+  --result-stage-min: 200px;
+  --bone-width: 3px;
+  --joint-size: 7px;
+  --joint-ring: 1.5px;
+  --accent-bone: rgba(200, 240, 74, 0.95);
+  --accent-span: rgba(200, 240, 74, 0.55);
+  --timeline: 44px;
+  --timeline-bar: 8px;
+  --timeline-bar-top: 18px;
+  --timeline-knob-w: 4px;
+  --timeline-knob-h: 20px;
+  --timeline-knob-top: 12px;
+  --timeline-moment: 10px;
+  --timeline-moment-top: 6px;
+  --timeline-label-top: 30px;
+  --toggle-h: 36px;
+  --speed-w: 56px;
+  --speed-h: 40px;
+  --play-icon: 20px;
 }
