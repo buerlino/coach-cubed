@@ -379,11 +379,17 @@ try {
 } catch (e) {
   problems.push(`the run stopped: ${e.message}`);
 } finally {
-  if (browser) browser.kill();
+  if (browser) {
+    // wait for the browser to be gone: it writes to its profile until it exits, and rmSync then hits ENOTEMPTY
+    const gone = browser.exitCode !== null || browser.signalCode !== null ? Promise.resolve() : new Promise(r => browser.once('exit', r));
+    browser.kill();
+    await Promise.race([gone, sleep(5000)]);
+  }
   if (server) server.close();
   await sleep(300);
-  rmSync(profile, { recursive: true, force: true });
-  rmSync(dist, { recursive: true, force: true });
+  // retries: a helper process of the browser may still hold a file for a moment
+  rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  rmSync(dist, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   console.log = realLog;
 }
 
