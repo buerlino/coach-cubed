@@ -77,8 +77,8 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 41 | `c26` | Milestone A on the Fairphone | curie, sonnet | `d13`, `d14`, `d18`, `c19`, `c20`, `c34`, `c43` | waits; phone: by day, nordmu told (airplane mode); its numbers set s12's stall time and time left (nordmu, 2026-11-02) |
 | 42 | `d51` | Q1's "Pick another video", and smoothing capped at 300 ms | dirac, sonnet | `d22`, `d23` | merged `d37d6f6`; its two follow-ups are `d56` and `d57` |
 | 43 | `s50` | A re-marked lift replaces the old one once its analysis is done | schrödinger, opus | `d22` | merged `8d03665`; its four answers accepted as built (nordmu, 2026-11-02); FIX `s50f1` (its tests' path check matched the new lift's id; run 45's checks read an uncommitted tree, now refused) merged `4687875` |
-| 44 | `c52` | The tools' browser leaves no org.chromium.Chromium folders in /tmp | curie, sonnet | `c47`, `c48` | ready; laptop only (nordmu, 2026-11-02, on c48's report) |
-| 45 | `s49` | One lift registry, and the guide to adding a lift or a cue (Noah's handover of the lift side) | schrödinger, opus | `d25` | ready (nordmu, 2026-11-02) |
+| 44 | `c52` | The tools' browser leaves no org.chromium.Chromium folders in /tmp | curie, sonnet | `c47`, `c48` | NOT MERGED in run 47 (two fix rounds; branch `wp/curie-chromium-tmp` kept at `3b0c477`); laptop only (nordmu, 2026-11-02, on c48's report) |
+| 45 | `s49` | One lift registry, and the guide to adding a lift or a cue (Noah's handover of the lift side) | schrödinger, opus | `d25` | merged `b18ac7b` |
 | 46 | `d53` | Pick the video, then "Which lift?" (L1); M's lift switch goes | dirac, sonnet | `d51`, `s50`, `s49` | waits (checkpoint A round 1, approved by nordmu 2026-11-02; to run tonight); laptop only |
 | 47 | `d54` | M1–M3: the steps are the buttons, and nothing moves | dirac, opus | `d53` | waits (as `d53`); laptop only; B's `d29` comes after it |
 | 48 | `d55` | Fewer words, symbols, and a cue where a screen goes on below | dirac, sonnet | `d54` | waits (as `d53`); laptop only |
