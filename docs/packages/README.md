@@ -67,7 +67,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 31 | `d18` | A2, a cue's detail | dirac, sonnet | `d17`, `s4`, `s39` | merged `b37cda9` (by day, nordmu told; two fix rounds; adds flow state `scoring`, screen S1b) |
 | 32 | `s44` | scoreLift() returns the smoothed keypoints (A1 smooths only once) | schrödinger, sonnet | `d18` | merged `54f53fa` |
 | 33 | `s45` | The API gives each cue's unit noun and how its verdict is decided | schrödinger, opus | `d18`, `s44` | waits (nordmu, 2026-11-02) |
-| 34 | `d46` | A2's "Play the rep at ½×" opens A1 at the cue's phase | dirac, sonnet | `d18` | waits (nordmu, 2026-11-02) |
+| 34 | `d46` | A2's "Play the rep at ½×" opens A1 at the cue's phase | dirac, sonnet | `d18` | merged `908e96d` |
 | 35 | `d22` | A3, view options | dirac, sonnet | `d17`, `c8`, `d14`, `s35` | waits |
 | 36 | `d23` | The screens v1 doesn't draw | dirac, sonnet | `d17`, `s12`, `c8` | waits |
 | 37 | `d24` | S1, settings and about | dirac, sonnet | `c8` | merged `5d33a32` |
