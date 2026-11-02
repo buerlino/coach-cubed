@@ -266,6 +266,13 @@ them.
   the signing key, a stock Android phone, the privacy text, the credits.
   LICENSE and the SPDX headers come earlier, at checkpoint A (D8).
 - An F-Droid recipe trial (3.8's follow-up). Off the critical path.
+- `c40`, **the handover** (nordmu, 2026-11-02): 0.1.0 is where coach goes
+  back to Noah, so the pipeline has to run for him. Nothing in `pipeline/`,
+  `.claude/` or the phone scripts may assume nordmu's laptop, the
+  Fairphone's serial or pascaline's nights: they come from settings. A
+  short guide shows Noah how to write and run a package, and how to add a
+  lift to the new app. Written after checkpoint B, once the pipeline stops
+  changing.
 
 ## The size, roughly
 

@@ -75,6 +75,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 38 | `c30` | Recording and analysis together | curie | `d29`, `s12` | id only |
 | 39 | `c31` | A session on the Fairphone | curie | `c30` | id only; phone: by day |
 | | | **Checkpoint B:** nordmu runs a real gym session | | `c31` | |
+| 40 | `c40` | The handover: the pipeline runnable for Noah | curie | checkpoint B | id only; laptop only |
 
 Gates outside the queue ([../app-plan.md](../app-plan.md#gates-outside-the-sessions)): no APK goes to testers before
 `c33`, which needs the name and the package ID (question 10) and the signing key's holder.

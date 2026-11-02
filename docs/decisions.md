@@ -30,6 +30,9 @@ Newest first within each group.
 
 ### What 0.1.0 is
 
+- **2026-11-02, nordmu: 0.1.0 is the handover.** It ships as planned, then
+  coach goes back to Noah, who builds on with the pipeline (`c40`).
+
 - **2026-11-02, nordmu, later:** s12's stall time, restart, tick and time
   left are set from `c26`'s phone numbers, in a package after it. Question
   8: the squat, image and clean & jerk tabs are parked; the new UI offers
