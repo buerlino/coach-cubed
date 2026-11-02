@@ -9,7 +9,8 @@
 //   2. serves it on 127.0.0.1:$COACH_PORT (any free port without it), opens headless Brave or Chromium
 //      over the DevTools protocol, loads the app, waits for the service worker's full cache, then takes
 //      the network away (emulation, and the server shut down) and reloads;
-//   3. per lift: H → Import (the lift, a clip of tests/app/clips/, decoded for real) → M (set start,
+//   3. per lift with a fixture (app/tools/lift-fixtures.mjs; a lift of the registry without one is listed in
+//      the output, `untested`, and in a line after it): H → Import (the lift, a clip of tests/app/clips/, decoded for real) → M (set start,
 //      drag to the end, set end, Analyse) → Q1 (waits for the job) → A1; reads the cue cards and
 //      compares each with the view model of s11's adapter (scoreLift) computed in Node from the same
 //      fixture track: per cue its id, status class, verdict line, value and the card's label (with the
@@ -39,6 +40,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { assemble, TEST_TRACKS } from './assemble.mjs';
+import { fixtureCoverage } from './lift-fixtures.mjs';
 import { createApp } from './serve.mjs';
 import { BROWSERS, findBrowser, launchBrowser } from './browser.mjs';
 
@@ -46,10 +48,9 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const APP = resolve(HERE, '..');
 const ROOT = resolve(APP, '..');
 const CLIPS = join(ROOT, 'tests', 'app', 'clips');
-const LIFTS = [
-  { lift: 'lateral-raise', clip: 'testsrc2-lateral-raise-25fps-75f.mp4', track: TEST_TRACKS[0] },
-  { lift: 'snatch', clip: 'testsrc2-snatch-30fps-107f.mp4', track: TEST_TRACKS[1] },
-];
+// One walk per lift in the registry with a fixture (lift-fixtures.mjs); a lift with none is listed, not skipped quietly.
+const COVERAGE = fixtureCoverage();
+const LIFTS = COVERAGE.walked.map(f => ({ lift: f.lift, clip: f.clip, track: TEST_TRACKS.find(t => t.id === f.track.id) }));
 
 const arg = (name, dflt = null) => { const i = process.argv.indexOf(name); return i > 0 && i + 1 < process.argv.length ? process.argv[i + 1] : dflt; };
 const say = s => process.stdout.write(`${s}\n`);
@@ -107,7 +108,7 @@ const READ_CARDS = `[...document.querySelectorAll('[data-screen="A1"] .cue-card'
 
 const dist = mkdtempSync(join(tmpdir(), 'coach-page-dist-'));
 const profile = mkdtempSync(join(tmpdir(), 'coach-page-profile-'));
-const result = { ok: false, mode: realClip ? `real engine on ${realClip}` : 'replay engine', break: breakKind ?? undefined, lifts: [] };
+const result = { ok: false, mode: realClip ? `real engine on ${realClip}` : 'replay engine', break: breakKind ?? undefined, lifts: [], untested: realClip ? undefined : COVERAGE.untested };
 const problems = [];   // everything that fails the run, in words
 const t0 = Date.now();
 const stamp = () => `${((Date.now() - t0) / 1000).toFixed(1)} s`;
@@ -429,5 +430,7 @@ result.problems = [...new Set(problems)];
 result.seconds = Number(((Date.now() - t0) / 1000).toFixed(1));
 result.ok = result.problems.length === 0 && result.lifts.length > 0 && result.lifts.every(l => l.ok);
 say(JSON.stringify(result, null, 2));
+// a lift the app offers with no fixture: listed every run, so a lift isn't left out of the walk unnoticed
+if (!realClip && COVERAGE.untested.length) say(`page-test: not walked, no fixture in app/tools/lift-fixtures.mjs: ${COVERAGE.untested.join(', ')}`);
 say(result.ok ? `page-test: PASSED in ${result.seconds} s` : `page-test: FAILED: ${result.problems[0] ?? 'a lift did not complete'}`);
 process.exit(result.ok ? 0 : 1);

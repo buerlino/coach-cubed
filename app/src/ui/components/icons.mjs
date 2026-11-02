@@ -1,6 +1,7 @@
 // The icons H draws, from the mockups (design/mockups/Main.dc.html): inline
 // SVG in currentColor, so a colour comes from the CSS around it.
 import { html } from '../html.mjs';
+import { liftOf } from '../../contracts/lifts.mjs';
 
 const line = 'fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round';
 const lineThick = 'fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round';
@@ -11,11 +12,19 @@ export const ImportIcon = () => html`<svg viewBox="0 0 24 24" width="26" height=
 export const ChevronIcon = () => html`<svg class="lift-row__chevron" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style=${line}><path d="M9 5l7 7-7 7"></path></svg>`;
 export const LockIcon = () => html`<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="flex: none; ${line}"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>`;
 
-const RAISE = html`<svg viewBox="0 0 48 48" width="40" height="40" aria-hidden="true" style=${lineThick}><circle cx="24" cy="11" r="4"></circle><path d="M24 17v15M24 19H10M24 19h14M10 15.5v7M38 15.5v7M24 32l-5 12M24 32l5 12"></path></svg>`;
-const SNATCH = html`<svg viewBox="0 0 48 48" width="40" height="40" aria-hidden="true" style=${lineThick}><circle cx="24" cy="17" r="4"></circle><path d="M5 7h38M8 3v8M40 3v8M24 23l-8-16M24 23l8-16M24 21v13M24 34l-8 4 2 6M24 34l8 4-2 6"></path></svg>`;
+// A lift's figure (contracts/lifts.mjs's LiftFigure): a head and one path in a 48 x 48 box.
+const figure = ({ head, path }) => html`<svg viewBox="0 0 48 48" width="40" height="40" aria-hidden="true" style=${lineThick}><circle cx=${head.cx} cy=${head.cy} r="4"></circle><path d=${path}></path></svg>`;
+// The lateral raise's, the mockup's, and the figure of every lift whose registry entry has no icon.
+const RAISE = figure({ head: { cx: 24, cy: 11 }, path: 'M24 17v15M24 19H10M24 19h14M10 15.5v7M38 15.5v7M24 32l-5 12M24 32l5 12' });
+const drawn = new WeakMap();   // entry's icon -> its svg, drawn once
 
-/** The lifter drawn for a lift, as the mockup's row thumbnails. */
-export const LiftIcon = ({ lift }) => (lift === 'snatch' ? SNATCH : RAISE);
+/** The lifter drawn for a lift, as the mockup's row thumbnails: the registry entry's icon, else the raise's. */
+export const LiftIcon = ({ lift }) => {
+  const icon = liftOf(lift)?.icon;
+  if (!icon) return RAISE;
+  if (!drawn.has(icon)) drawn.set(icon, figure(icon));
+  return drawn.get(icon);
+};
 
 export const BackIcon = () => html`<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round"><path d="M15 5l-7 7 7 7"></path></svg>`;
 

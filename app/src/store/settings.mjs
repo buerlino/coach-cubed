@@ -3,6 +3,7 @@
 // store reads and writes it. Defaults are v1's (docs/decisions.md, D2): a
 // 20 s replay, a 60 s buffer, an analysed lift keeps its video.
 import { LIFTS, checkFields, isNumber, isObject } from '../contracts/common.mjs';
+import { isLift } from '../contracts/lifts.mjs';
 
 /**
  * @typedef {Object} ViewOptions A3's choices.
@@ -20,7 +21,7 @@ import { LIFTS, checkFields, isNumber, isObject } from '../contracts/common.mjs'
  * @property {number} bufferS how much of the camera is kept in memory, in seconds
  * @property {'back'|'front'} camera
  * @property {string} quality the capture quality, e.g. '1080p30'
- * @property {'lateral-raise'|'snatch'} defaultLift
+ * @property {import('../contracts/lifts.mjs').LiftId} defaultLift
  * @property {boolean} keepVideos an analysed lift keeps its cut video
  * @property {boolean} introSeen the first-run screen has been shown and left (d23); it shows once
  * @property {ViewOptions} view
@@ -71,7 +72,8 @@ const FIELDS = {
   bufferS: rangeCheck(['bufferS', 'seconds']),
   camera: [oneOf(['back', 'front']), "must be 'back' or 'front'"],
   quality: [v => typeof v === 'string' && v.length > 0, 'must be a non-empty string'],
-  defaultLift: [oneOf(LIFTS), `must be one of ${LIFTS.join(', ')}`],
+  // read at each check, not once: LIFTS is the registry's live list (lifts.mjs)
+  defaultLift: [isLift, () => `must be one of ${LIFTS.join(', ')}`],
   keepVideos: [bool, 'must be true or false'],
   introSeen: [bool, 'must be true or false'],
 };
@@ -92,7 +94,7 @@ function checkTable(errors, base, obj, table, { partial }) {
     const path = base ? `${base}.${k}` : k;
     if (k === 'view' && !base) continue;
     if (!(k in table)) errors.push(`${path}: unknown field`);
-    else if (!table[k][0](v)) errors.push(`${path}: ${table[k][1]}`);
+    else if (!table[k][0](v)) errors.push(`${path}: ${typeof table[k][1] === 'function' ? table[k][1]() : table[k][1]}`);
   }
   if (!partial) for (const k of Object.keys(table)) if (!(k in obj)) errors.push(`${base ? `${base}.` : ''}${k}: missing`);
 }

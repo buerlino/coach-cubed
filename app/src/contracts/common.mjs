@@ -1,4 +1,4 @@
-// What the contracts share: the lifts, ids, store paths, time ranges, and the
+// What the contracts share: the lifts (lifts.mjs's registry), ids, store paths, time ranges, and the
 // small checks every validator is built from. Plain module, no dependencies,
 // no DOM: a worker can import it.
 //
@@ -8,8 +8,14 @@
 // Unknown fields are errors too: a contract changes in a package of its own,
 // never by a field one side starts sending.
 
-/** The lifts the app offers (DIAGNOSTIC_SETS keys in src/diagnostics.js). */
-export const LIFTS = Object.freeze(['lateral-raise', 'snatch']);
+import { LIFTS, isLift } from './lifts.mjs';
+
+/**
+ * The lifts the app offers, their ids in order (DIAGNOSTIC_SETS keys in
+ * src/diagnostics.js): lifts.mjs's registry, re-exported for the callers that
+ * had it here. A live binding: a lift registered there is in it.
+ */
+export { LIFTS };
 
 /** An id, a lift's or a job's: also a folder name in the store. */
 export const ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -64,7 +70,7 @@ export function checkInteger(errors, path, v, min = 0) {
 }
 
 export function checkLift(errors, path, v) {
-  if (!LIFTS.includes(v)) errors.push(`${path}: must be one of ${LIFTS.join(', ')}`);
+  if (!isLift(v)) errors.push(`${path}: must be one of ${LIFTS.join(', ')}`);
 }
 
 export function checkStrings(errors, path, v) {

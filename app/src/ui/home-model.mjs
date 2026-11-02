@@ -2,20 +2,22 @@
 // lifts and the queue's jobs, and what the import step hands the flow. No
 // Preact and no DOM, so Node runs it as written (tests/app/home.test.js); the
 // screens (screens/H.mjs, screens/Import.mjs) only draw what these give.
-import { LIFTS } from '../contracts/common.mjs';
 import { isAnalysed } from '../contracts/stored-lift.mjs';
+import { isLift, isProvisionalLift, liftEntries, liftLabel } from '../contracts/lifts.mjs';
 
-/** The lifts the import step offers (v1). The snatch is provisional while step 3.6 is open. */
-export const LIFT_CHOICES = Object.freeze([
-  Object.freeze({ id: 'lateral-raise', label: 'Lateral raise', provisional: false }),
-  Object.freeze({ id: 'snatch', label: 'Snatch', provisional: true }),
-]);
+/**
+ * The lifts the import step offers, in the registry's order (contracts/lifts.mjs): each one's id, label and
+ * whether it is provisional as a whole (the snatch, while step 3.6 is open). A function, so a lift registered
+ * after this module loaded is offered too.
+ * @returns {Array<{id: string, label: string, provisional: boolean}>}
+ */
+export const liftChoices = () => liftEntries().map(({ id, label, provisional }) => ({ id, label, provisional }));
 
-/** @param {string} lift */
-export const liftLabel = lift => LIFT_CHOICES.find(c => c.id === lift)?.label ?? lift;
+/** A lift's label (the registry's); an unknown id as it is. */
+export { liftLabel };
 
 /** Whether a lift's thresholds are still provisional as a whole (the snatch, while step 3.6 is open; d23). */
-export const isProvisional = lift => LIFT_CHOICES.find(c => c.id === lift)?.provisional === true;
+export const isProvisional = isProvisionalLift;
 
 /**
  * The stages a running job passes through, and the share of the bar each one
@@ -52,7 +54,8 @@ export function percentOf(job) {
  */
 export function startLift(settings) {
   const id = settings && settings.defaultLift;
-  return (LIFT_CHOICES.find(c => c.id === id) ?? LIFT_CHOICES[0]).id;
+  const choices = liftChoices();
+  return (choices.find(c => c.id === id) ?? choices[0]).id;
 }
 
 const ACTIVE = ['reading', 'pose', 'scoring'];
@@ -169,11 +172,11 @@ export function homeView(grouped, jobs, results = {}) {
 /**
  * The import step: the chosen lift goes into the flow with the file, on the way
  * to marking. Nothing changes for no file, a file that is not a video (a missing
- * type is let through: some Android pickers give none), or a lift v1 doesn't have.
+ * type is let through: some Android pickers give none), or a lift the registry doesn't have.
  * @returns {{ok: true}|{ok: false, error: string}}
  */
 export function importStep(flow, file, lift) {
-  if (!LIFTS.includes(lift)) return { ok: false, error: 'Choose the lift first.' };
+  if (!isLift(lift)) return { ok: false, error: 'Choose the lift first.' };
   if (!file) return { ok: false, error: 'Pick a video from this phone.' };
   if (file.type && !file.type.startsWith('video/')) return { ok: false, error: 'That file is not a video.' };
   flow.go('mark', { file, lift });

@@ -117,7 +117,7 @@ export const CUE_VIEW_SOURCES = Object.freeze({
  * A scored lift: the cues in diagnostics.js's order, the lift window, the notes,
  * and the smoothing the verdicts were scored with.
  * @typedef {Object} ResultView
- * @property {'lateral-raise'|'snatch'} lift
+ * @property {import('./lifts.mjs').LiftId} lift
  * @property {boolean} hasLiftWindow whether the lift has a lift window at all
  *   (computeResults().lift.hasLiftWindow, the set's in diagnostics.js; s36): the
  *   window is the barbell's (the bar below knee height, then a held lockout), so

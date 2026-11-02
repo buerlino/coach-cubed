@@ -102,7 +102,8 @@ test('only a lift the store holds as analysed shows 100 %: a running job stays u
 });
 
 test('Import starts on the default lift from the settings: the first choice while they load, or for a lift not offered', async () => {
-  const { startLift, LIFT_CHOICES } = await model();
+  const { startLift, liftChoices } = await model();
+  const LIFT_CHOICES = liftChoices();
   assert.equal(startLift(null), LIFT_CHOICES[0].id);
   assert.equal(startLift(undefined), LIFT_CHOICES[0].id);
   assert.equal(startLift({ defaultLift: 'snatch' }), 'snatch');
@@ -208,7 +209,7 @@ test('home: a ready lift\'s summary comes from the results given; none given, no
 });
 
 test('the import choices: lateral raise, and the snatch marked provisional while step 3.6 is open', async () => {
-  const { LIFT_CHOICES } = await model();
+  const LIFT_CHOICES = (await model()).liftChoices();
   assert.deepEqual(LIFT_CHOICES, [
     { id: 'lateral-raise', label: 'Lateral raise', provisional: false },
     { id: 'snatch', label: 'Snatch', provisional: true },

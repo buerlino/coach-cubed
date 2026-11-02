@@ -7,7 +7,7 @@
 //   cut.range      { t0, t1 } in the cut's own timeline (0 is the cut's first frame)
 //   cut.start      the source time of the cut's first frame: the keyframe at or before t0
 //   cut.duration   the cut's length in seconds
-//   const kept = await keepVideo(store, 'snatch', blob, { t0, t1 });   // c8's saveLift
+//   const kept = await keepVideo(store, lift, blob, { t0, t1 });   // c8's saveLift
 //   kept.lift      the StoredLift (contract 3), kept.range its range in the cut's timeline
 //
 // A stream copy: mediabunny reads the packets of the range and writes them again,
@@ -113,7 +113,7 @@ export async function cutVideo(blob, range) {
  * timeline. A full disk comes through as the store's `storage-full` StoreError
  * (d23 shows it); a video that can't be cut as a MediaError.
  * @param {{saveLift: Function}} store from createStore()
- * @param {'lateral-raise'|'snatch'} lift
+ * @param {import('../contracts/lifts.mjs').LiftId} lift
  * @param {Blob} source the picked File
  * @param {{t0: number, t1: number}} range the marked range, seconds in the source
  * @returns {Promise<{lift: import('../contracts/stored-lift.mjs').StoredLift, range: {t0: number, t1: number}, start: number, duration: number}>}

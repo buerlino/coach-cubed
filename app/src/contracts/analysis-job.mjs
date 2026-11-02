@@ -20,7 +20,7 @@ export const JOB_STAGES = Object.freeze(['reading', 'pose', 'scoring']);
  * @typedef {Object} AnalysisJob
  * @property {string} id the job's id (ID_RE)
  * @property {string} liftId the stored lift it analyses
- * @property {'lateral-raise'|'snatch'} lift the lift's kind, as stored
+ * @property {import('./lifts.mjs').LiftId} lift the lift's kind, as stored
  * @property {string} source the stored cut's path: the lift's `video` (D6, s32)
  * @property {{t0: number, t1: number}} range seconds in the cut's timeline: the lift's `range`
  * @property {'queued'|'reading'|'pose'|'scoring'|'done'|'failed'|'cancelled'} state
