@@ -48,7 +48,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 13 | `s11` | The scoring adapter | schrödinger, sonnet | `s4`, `s5` | merged `d65e3ed` |
 | 14 | `s32` | Keep the lift's video: the marked range cut to MP4 | schrödinger, sonnet | `s9`, `c8` | merged `7dcb70b` |
 | 15 | `s12` | The analysis job and its queue | schrödinger, opus | `s9`, `s10`, `s11`, `c8`, `s32` | merged `e4bbb8b`; FIX `s12f1` (the Analyse test's cut comparison, flaky) merged `d214912` |
-| 16 | `s35` | Four contract changes (contracts 1, 2, 4, 5) | schrödinger, opus | `s9`, `s10`, `s11`, `s12` | waits |
+| 16 | `s35` | Four contract changes (contracts 1, 2, 4, 5) | schrödinger, opus | `s9`, `s10`, `s11`, `s12` | merged `b972daf` |
 | 17 | `s36` | A lift without a lift window says so | schrödinger, opus | `s35` | waits |
 | 18 | `s37` | batch_extract_tracks.py writes the diagnostics set | schrödinger, sonnet | — | waits |
 | 19 | `s38` | One-frame steps from a cache | schrödinger, opus | `s35`, `c34` | waits |
