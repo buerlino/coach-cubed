@@ -73,7 +73,7 @@ export function H({ flow, queue, store }) {
           ${view.today.rows.map(row => html`<${LiftRow} key=${row.id} row=${row} flow=${flow} />`)}
         </section>` : null}
       ${view && view.earlier.length ? html`
-        <section class="section" aria-labelledby="earlier-h">
+        <section class="section section--earlier" aria-labelledby="earlier-h">
           <h2 class="section__title" id="earlier-h">Earlier</h2>
           ${view.earlier.map(day => html`
             <details class="session" key=${day.day}>

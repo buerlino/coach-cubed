@@ -267,6 +267,20 @@ test('base.css has no literal spacing or radius: pixel values only in tokens.css
   }
 });
 
+test('H\'s sections sit 16 px from the sides and 24 px (Earlier 20 px) below the cards, as in the mockup', () => {
+  const fs = require('node:fs');
+  const css = fs.readFileSync(path.join(APP, 'src', 'styles', 'base.css'), 'utf8');
+  const tokens = fs.readFileSync(path.join(APP, 'src', 'styles', 'tokens.css'), 'utf8');
+  const space = n => Number(tokens.match(new RegExp(`--space-${n}:\\s*(\\d+)px`))[1]);
+  const rule = sel => css.match(new RegExp(`^${sel.replace('.', '\\.')}\\s*{([^}]*)}`, 'm'))[1];
+  const pad = sel => rule(sel).match(/padding(-top)?:\s*([^;]*)/);
+  const px = v => v.match(/var\(--space-(\d)\)|\b0\b/g).map(t => (t === '0' ? 0 : space(t.match(/\d/)[0])));
+  assert.deepEqual(px(pad('.section')[2]), [24, 16, 0]);
+  assert.deepEqual(px(pad('.section--earlier')[2]), [20]);
+  const h = fs.readFileSync(path.join(APP, 'src', 'ui', 'screens', 'H.mjs'), 'utf8');
+  assert.match(h, /class="section section--earlier"/);
+});
+
 test('H and Import change the flow\'s state only: no other screen, no queue or store import, no literal colour', () => {
   const fs = require('node:fs');
   for (const f of ['H.mjs', 'Import.mjs']) {
