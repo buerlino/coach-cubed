@@ -8,6 +8,7 @@ coach films a lift and gives technique feedback cue by cue: pose keypoints (COCO
 ```sh
 npm test                                              # the JS tests and the docs checks (node:test, no dependencies)
 python3 -m unittest discover -s tests -p 'test_*.py'  # the Python tests
+npm --prefix app test                                 # the new app's tests (app/); node app/tools/assemble.mjs builds app/dist/
 python3 launchers/run_original.py                     # the local preview, pose in the browser: http://127.0.0.1:8785/
 ./scripts/coach_launch.sh local                       # the full app, ViTPose on the server: http://127.0.0.1:8080
 ```

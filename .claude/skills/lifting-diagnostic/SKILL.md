@@ -117,6 +117,9 @@ Add a diagnostic by writing one object and listing it under its lift's key in
   phaseLabel: 'first pull',        // short label for the chart heading and overlay
   cue: 'Keep the back angle to the floor constant until the bar passes the knee.',
   unit: '°',
+  provisional: true,               // its thresholds aren't checked on real lifts yet
+  worstRule: 'farthest-from-mean', // which sample is the worst moment: summary-worst,
+                                   // summary-last, farthest-from-mean or phase-end (WORST_RULES)
   phase(track, scale, axis)  -> { startIdx, endIdx, notes[], ... }  | { error }
   measure(track, phase, axis)-> { series[], summary{}, notes[] }    | { error }
   verdict(summary)           -> { label, status }         // status: good|warning|critical
@@ -135,6 +138,11 @@ instant inside the phase, `view.dt` the mean spacing of processed frames, and
 has to be continuous because the marks sit on top of `src/app.py`'s wireframe,
 which is itself interpolated — marks pinned to the nearest sampled frame
 visibly trail the body they claim to measure.
+
+The new app reads the same objects through the headless API documented
+above the `Diagnostics` object: `describe(set)`, `tiles`, `referenceLine`,
+`worstMoment` and `drawCue(ctx, id, t, computed)`. A new cue needs
+`provisional` and a `worstRule`, or the app shows no worst moment for it.
 
 The first four functions (`phase`/`measure`/`verdict`/`overlay`) are the
 three-part structure itself and are documented in detail below.
