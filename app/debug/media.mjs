@@ -8,6 +8,8 @@
 //   window.c34.decodeRate(name, {t0, t1, consumerMs})   frames(t0, t1), each closed after consumerMs
 //   window.c34.frameAtRandom(name, {n, seed})           frameAt at n seeded random times
 //   window.c34.step(name, {n, seed})    frameAt on n+1 consecutive frames from a seeded start (M1–M3's step)
+//   window.c34.stepCached(name, {n, seed, dir, gapMs, settle, height})   the same steps with the stepper (s38)
+//   window.c34.add(name, blob)          a clip given directly (check-media.mjs), not through #media
 //   window.c34.rotateCost(name, {t0, t1, rotation})     the canvas turn on each decoded frame, timed alone
 //   window.c34.cut(name, {t0, t1, keep})                cutVideo, the store's write (saveLift), the cut read back,
 //                                                       opened and decoded end to end, then the lift deleted
@@ -91,6 +93,7 @@ async function withSource(name, fn) {
 export const c34 = {
   ready,
   names: () => [...files.keys()],
+  add: (name, blob) => { files.set(name, blob); resolveReady([...files.keys()]); return name; },
 
   open: name => measured(async () => {
     const f = file(name);
@@ -161,6 +164,44 @@ export const c34 = {
       f.close();
     }
     return { n, seed, startFrame: start, startS: r3(ft[start]), consecutive, ms: stats(ms), each: ms.map(r1) };
+  })),
+
+  // The same steps with the stepper (s38), the frames kept at M1–M3's size (the
+  // 440 px high video, times the pixel ratio, unless `height` says otherwise):
+  // forwards from the seeded start (dir 1) or backwards to it from n frames on
+  // (dir -1). gapMs is the pause before each step (0: as fast as the steps come,
+  // the refill's worst case); settle waits for the refill before the first step.
+  // cached: how many steps found their frame held.
+  stepCached: (name, { n = 30, seed = 1, dir = 1, gapMs = 0, settle = false, height = null } = {}) => measured(() => withSource(name, async src => {
+    const ft = src.frameTimes;
+    const start = Math.floor(prng(seed)() * (ft.length - n - 1));
+    const pixelRatio = (typeof devicePixelRatio === 'number' && devicePixelRatio) || 1;
+    const h = height ?? Math.round(440 * pixelRatio);
+    const from = dir > 0 ? start : start + n;
+    let t = now();
+    const st = await src.stepper(ft[from], { height: h });
+    const openMs = now() - t;
+    let settledMs = null;
+    if (settle) { t = now(); await st.settled(); settledMs = now() - t; }
+    const ms = [];
+    let consecutive = true, cached = 0;
+    try {
+      for (let k = 1; k <= n; k++) {
+        if (gapMs > 0) await sleep(gapMs);
+        const s = now();
+        const r = await st.step(dir > 0 ? 1 : -1);
+        ms.push(now() - s);
+        if (r.cached) cached++;
+        const want = from + (dir > 0 ? k : -k);
+        if (r.index !== want || Math.abs(r.time - ft[want]) > 1e-9) consecutive = false;
+      }
+      return {
+        n, seed, dir, gapMs, settle, pixelRatio, startFrame: from, startS: r3(ft[from]), consecutive, cached,
+        size: `${st.width}x${st.height}`, frame: `${st.frame.width}x${st.frame.height}`,
+        budget: st.budget, held: st.held, heldMb: r1(st.bytes / MB),
+        openMs: r1(openMs), settledMs: r1(settledMs), ms: stats(ms), each: ms.map(r1),
+      };
+    } finally { st.close(); }
   })),
 
   // The canvas turn alone (webcodecs.rotate, what the frame source does for a rotated
