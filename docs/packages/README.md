@@ -53,7 +53,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 18 | `s37` | batch_extract_tracks.py writes the diagnostics set | schrödinger, sonnet | — | merged `e8b2a92` |
 | 19 | `s38` | One-frame steps from a cache | schrödinger, opus | `s35`, `c34` | NOT MERGED in run 20 (two fix rounds); FIX `s38f1` (nordmu, 2026-11-02) merged `4af1286` |
 | 20 | `d41` | Import starts on the default lift; H and Q1 agree on a job's percent | dirac, sonnet | `d13`, `d15`, `d24` | merged `8b797a6` |
-| 21 | `s42` | The tempo and symmetry cues say their time smoothing | schrödinger, sonnet | `s39` | ready (nordmu, 2026-11-02, from s39's report) |
+| 21 | `s42` | The tempo and symmetry cues say their time smoothing | schrödinger, sonnet | `s39` | merged `5550b77` |
 | 22 | `c43` | No Android backup, so the privacy text holds | curie, sonnet | `d24`, `c20` | ready; laptop only (nordmu, 2026-11-02: backup off, the privacy text approved) |
 | 23 | `d13` | H and importing a video | dirac, sonnet | `d3`, `c8`, `s12` | merged `109eaeb` |
 | 24 | `d14` | M1–M3, marking a lift | dirac, sonnet | `s9`, `s12`, `s35`, `s38` | waits |
