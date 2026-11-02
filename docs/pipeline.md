@@ -47,6 +47,9 @@ A package is one concern a fresh session finishes in one run: a few hours of age
   on `phase-0`'s code. It copies those test files and the files the branch adds under `tests/`; every other file,
   helpers, fixtures and goldens included, stays `phase-0`'s version, so a fix made inside `tests/` shows red too. A
   branch whose tests all pass there is refused.
+- **The bundle's files:** every repo path anywhere in the package counts, in alphabetical order until the 2000 lines,
+  not only "Read". Name each file the worker needs (never a folder: it isn't bundled); mention a big file it needn't
+  read without its full path (`src/`'s app.py), or it crowds out the rest; paths under `.claude/` aren't bundled.
 - **Scope:** only what the file names. A package that needs a decision nobody made yet is not ready to run.
 
 ## The pipeline
