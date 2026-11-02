@@ -42,7 +42,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 7 | `s7` | The from-source bundle gives npm's numbers | schrödinger, sonnet | `s6` | merged `e44db95` |
 | 8 | `c8` | The store | curie, sonnet | `s5` | merged `86265ea` |
 | 9 | `s9` | The frame source (mediabunny) | schrödinger, sonnet | `s5` | merged `9d491e0` |
-| 10 | `s10` | The pose engine | schrödinger, sonnet | `s5`, `s6`, `s7` | waits |
+| 10 | `s10` | The pose engine | schrödinger, sonnet | `s5`, `s6`, `s7` | merged `13f7f78` |
 | 11 | `c20` | The Capacitor shell, and the engine on the phone | curie, sonnet | `d3`, `s9`, `s10` | waits; phone: by day, nordmu told |
 | 12 | `s11` | The scoring adapter | schrödinger, sonnet | `s4`, `s5` | waits |
 | 13 | `s32` | Keep the lift's video: the marked range cut to MP4 | schrödinger, sonnet | `s9`, `c8` | waits; new (D6) |
