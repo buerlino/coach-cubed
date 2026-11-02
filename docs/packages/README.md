@@ -73,7 +73,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 37 | `d22` | A3, view options | dirac, sonnet | `d17`, `c8`, `d14`, `s35`, `c47` | merged `47abc6c` (resumed after run 38's OOM; one fix round: the unsure-joints switch) |
 | 38 | `d23` | The screens v1 doesn't draw | dirac, sonnet | `d17`, `s12`, `c8`, `c47` | merged `2ec0c35` (one fix round: the report hidden behind the queue's merge of phase-0) |
 | 39 | `d24` | S1, settings and about | dirac, sonnet | `c8` | merged `5d33a32` |
-| 40 | `d25` | A4 and the responsive check | dirac, sonnet | `d18`, `c21`, `c47` | waits |
+| 40 | `d25` | A4 and the responsive check | dirac, sonnet | `d18`, `c21`, `c47` | merged `ee43c27` (two fix rounds: the app tests, then A4's video column in a wide window) |
 | 41 | `c26` | Milestone A on the Fairphone | curie, sonnet | `d13`, `d14`, `d18`, `c19`, `c20`, `c34`, `c43` | waits; phone: by day, nordmu told (airplane mode); its numbers set s12's stall time and time left (nordmu, 2026-11-02) |
 | | | **Checkpoint A:** nordmu uses milestone A on the Fairphone; feedback by screen ID. Then **2.7 and 2.8** with the queue empty (D8) | | `c26` | |
 | 42 | `c33` | The tester APK: the real name and ID, release signing | curie | checkpoint A, 2.8, question 10, the key's holder | id only: written after checkpoint A |
