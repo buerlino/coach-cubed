@@ -802,6 +802,14 @@ and draws what `detail-model.mjs`'s `detailOf` gives:
 - **"How it's scored"** is the rule sentence and `Diagnostics.scoringLines(id, computed, { smoothingMs:
   view.smoothing.sigmaMs })`, so "Time smoothing" says the σ the verdicts were scored with.
 - A cue that can't be scored shows its reason and the cue's words, no frame, plot or tiles.
+- **"Play the rep at ½×"** (`d46`; nordmu, 2026-11-02: no second player in A2) is a button under the header, drawn
+  for a cue with a phase (`detailOf(...).playHalf`; none for a cue that can't be scored). It goes to `result` with
+  `{ liftId, cue, from, speed: 0.5 }`: the cue, the start of its phase and `HALF_SPEED`. A1 reads those params once,
+  in its load (`playRequest(flow.params, view, range)` in `player-model.mjs`: null for params that name no cue of the
+  result, no start time or a speed the button doesn't have, so A1 then opens as before): that cue's card is open,
+  the player starts at the phase's start (held inside the range) and plays (`player.playFrom(t)`) at ½×. The ½× is
+  the player's speed only: `settings.view.speed` is written by the speed button alone, so it stays the user's.
+  Back from A1 goes home as always.
 
 **S1b, "How the cues are scored"** (`screens/S1b.mjs`; the flow's `scoring` state, `settings → scoring → settings`):
 `scoringText` lists the cues of the newest analysed lift (else the default lift) with the cue, the rule from `zones`

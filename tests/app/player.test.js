@@ -334,3 +334,21 @@ test('player: a refused video.play() when the loop restarts stops playing, with 
   assert.equal(r.player.state.live, false);
   assert.equal(r.errors.length, 1);
 });
+
+test('d46 player: playFrom(t) shows the frame at t and plays from there at the speed the player was given', async () => {
+  const r = await rig();
+  r.player.setSpeed(0.5);
+  await r.player.playFrom(1.16);
+  assert.equal(r.player.state.playing, true);
+  assert.equal(r.player.state.speed, 0.5);
+  assert.equal(r.video.playbackRate, 0.5);
+  near(r.video.currentTime, 29 / 25, 'the frame at 1.16 s is frame 29 of the 25 fps source');
+  assert.equal(r.video.plays, 1);
+});
+
+test('d46 player model: ½× is the speed list\'s second entry, and the request\'s speed does not move the list', async () => {
+  const m = await load('ui/player-model.mjs');
+  assert.equal(m.HALF_SPEED, 0.5);
+  assert.equal(m.SPEEDS[1], m.HALF_SPEED);
+  assert.equal(m.speedLabel(m.HALF_SPEED), '½×');
+});

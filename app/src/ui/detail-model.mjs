@@ -3,6 +3,7 @@
 // runs them as written (tests/app/cue-detail.test.js). Every word and number comes from the view or
 // from s4's and s39's API (`tiles`, `zones`, `scoringLines`); the screen's own words are its headings.
 // `computed` is scoreLift()'s: computeResults() on the stored track with the view's own smoothing.
+import { HALF_SPEED } from './player-model.mjs';
 import { lookOf, shortTitle } from './result-model.mjs';
 import { ruleSentence } from './rule-model.mjs';
 
@@ -15,6 +16,18 @@ export const tileClass = status => (typeof status === 'string' && Object.prototy
 
 /** The label of the chip over the frame, and the time it shows counted from the marked range's start (A1's clock). */
 export const WORST_LABEL = 'Worst moment';
+
+/** The button that goes back to A1 and plays the rep slowly (the mockup's string). */
+export const PLAY_HALF_LABEL = 'Play the rep at \u00bd\u00d7';
+
+/**
+ * What the button hands A1 through the flow's params: the cue, the start of its phase and speed ½×. A cue with
+ * no phase (one that can't be scored) has no rep to play: no button. (Where the worst moment is the only time a
+ * cue has, a second either side would be the other choice; the phase is what the mockup means by "the rep".)
+ * @param {import('../contracts/cue-view.mjs').CueView} cue
+ * @returns {{cue: string, from: number, speed: number}|null}
+ */
+export const playHalfOf = cue => (cue.phase ? { cue: cue.id, from: cue.phase.t0, speed: HALF_SPEED } : null);
 
 /**
  * Everything A2 shows for one cue.
@@ -53,6 +66,7 @@ export function detailOf({ Diagnostics, view, computed, cueId, range }) {
     rule: ruleSentence(cue.unit, zones),
     lines,
     worst: cue.worst,
+    playHalf: playHalfOf(cue),
     origin: range.t0,
     moment: cue.worst ? { label: WORST_LABEL, time: (cue.worst.t - range.t0).toFixed(2) } : null,
     plot: cue,
