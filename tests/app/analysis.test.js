@@ -69,6 +69,7 @@ function fakeSource({ fps = 30, width = 640, height = 480, frameTimes }) {
       for (let i = 0; i < times.length; i++) if (times[i] >= t0 - 1e-6 && times[i] <= t1 + 1e-6) yield frame(i);
     },
     async thumbnails() { return []; },
+    async stepper() { throw new Error('the job never steps'); },   // contract 5 has it since s38; the job reads ranges
     close() { src.closed = true; },
   };
   return src;

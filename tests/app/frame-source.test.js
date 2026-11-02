@@ -618,7 +618,7 @@ test('the cache holds at most its budget, evicts the frames farthest from the pl
   assert.deepEqual(heldIndices(fake), range(41, 50), 'the ten frames around frame 45');
   assert.equal(st.held, 10);
   assert.equal(st.bytes, 10 * 64 * 36 * 4);
-  const before = fake.log.bitmaps.slice();
+  const before = openBitmaps(fake);
   assert.equal((await st.step(4)).index, 49);
   await st.settled();
   assert.deepEqual(heldIndices(fake), range(47, 56), 'stepping on: the frames farthest behind made room for the frames ahead');
