@@ -22,7 +22,6 @@
 // (spike/pose-bench/build-tfjs.mjs) plus the converter:
 //   tfjs-webgl.mjs, tfjs-webgpu.mjs  for the browser and the WebView;
 //   tfjs-cpu.mjs                     for Node (s7 compares it with npm's).
-import { build, version as esbuildVersion } from 'esbuild';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
@@ -201,7 +200,7 @@ export function patchNotice(patchSets) {
     : ' * Modified files (Apache-2.0 §4(b)): none; built from the tags unchanged.';
 }
 
-function banner(name, info, patchSets) {
+function banner(name, info, patchSets, esbuildVersion) {
   const s = SOURCES;
   return `/**
  * coach's TF.js bundle, ${name} backend: tfjs-core, tfjs-converter, tfjs-backend-${name} ${info.tfjsVersion}
@@ -227,6 +226,9 @@ function seedrandomLicence(dir) {
 
 export async function buildTfjs({ out = join(APP, 'vendor/tfjs'), cache = cacheDir(), log = console.log } = {}) {
   if (isInside(cache, REPO)) throw new Error(`the cache ${cache} is inside the repo: set XDG_CACHE_HOME elsewhere`);
+  // Imported here, not at the top: the tests import this module's helpers
+  // in a worktree that may have no app/node_modules.
+  const { build, version: esbuildVersion } = await import('esbuild');
   mkdirSync(cache, { recursive: true });
   const tfjs = prepare('tfjs', SOURCES.tfjs, cache, log);
   const models = prepare('tfjs-models', SOURCES['tfjs-models'], cache, log);
@@ -268,7 +270,7 @@ import '${b.backend}';
       platform: b.platform, mainFields: node ? ['module', 'main'] : undefined,
       external: node ? ['node-fetch'] : [],
       outfile, legalComments: 'eof', logLevel: 'warning', metafile: true,
-      banner: { js: banner(name, info, patchSets) + (node
+      banner: { js: banner(name, info, patchSets, esbuildVersion) + (node
         ? "\nimport { createRequire as __coachCreateRequire } from 'node:module'; const require = __coachCreateRequire(import.meta.url);"
         : '') },
       plugins: [{

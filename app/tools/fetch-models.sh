@@ -13,7 +13,7 @@ APP="$(cd "$(dirname "$0")/.." && pwd)"
 CACHE="${XDG_CACHE_HOME:-$HOME/.cache}"
 [[ "$CACHE" = /* ]] || CACHE="$HOME/.cache"
 DL="$CACHE/coach/downloads"
-mkdir -p "$DL" "$APP/models"
+mkdir -p "$DL"
 
 # name | url | sha256 of the archive
 MODELS=(
@@ -38,6 +38,7 @@ for row in "${MODELS[@]}"; do
   # Unpacked again on every run (12 MB, under a second), so app/models/
   # always matches the checked archive: into a new empty folder first, and
   # only model.json and its .bin shards, flat, are taken.
+  mkdir -p "$APP/models"
   tmp="$(mktemp -d "$APP/models/.$name.XXXXXX")"
   tar -xzf "$tgz" --no-same-owner --no-same-permissions -C "$tmp"
   mapfile -t files < <(cd "$tmp" && find . -type f | sed 's|^\./||' | sort)
