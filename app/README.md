@@ -28,6 +28,8 @@ node app/tools/assemble.mjs --debug          # the same, plus the check page (ap
 pipeline/devlock.sh slice apk-web app/tools/build-apk.sh web      # the debug APK, first half: npm ci, bundle, weights, assemble --debug, cap sync
 pipeline/devlock.sh slice apk-gradle app/tools/build-apk.sh apk   # second half: Gradle into app/out/coach-debug.apk (all: both, in one go)
 node app/tools/check-apk.mjs --serial 4d42e62f   # curie only, with the phone's lock: install, the shell, the check page, the engine; uninstall
+pipeline/devlock.sh slice clips app/tools/make-phone-clips.sh ~/.cache/coach/c34-clips k1   # c34's 1080p clips, outside the repo (one clip per slice)
+node app/tools/check-media-apk.mjs --serial 4d42e62f --clips ~/.cache/coach/c34-clips   # curie only: the frame source and the cut on the phone, 5 runs each
 ```
 
 `serve.mjs` serves what `assemble.mjs` made: assemble again after a change.
@@ -51,7 +53,7 @@ It logs each request (`200 /index.html`); a `404` there is a broken path.
 | `src/analysis/` | The analysis job and its queue (`s12`): `appQueue()` is the app's one queue; Analyse keeps the cut (`s32`), then queues the job, which poses every frame of the range, builds the track and scores it. See [The analysis](#the-analysis). |
 | `src/pose/` | The pose engine (`s10`): `PoseEngine.create()` gives one async `estimate(frame, tMs)` over a worker running MoveNet Thunder on TF.js. See [The pose engine](#the-pose-engine). |
 | `vendor/` | Third-party files, each with its licence text, byte for byte from its npm package ([THIRD_PARTY.md](../THIRD_PARTY.md#in-the-new-app-app)): `preact/` (Preact 11.1.1 and its hooks), `htm/` (htm 3.1.1), `mediabunny/` (mediabunny 1.61.6, MPL-2.0, the frame source's one demuxer), `fonts/` (Barlow and Barlow Condensed, woff2, with `OFL.txt`). `vendor/tfjs/` is built by `tools/build-tfjs.mjs` (gitignored). |
-| `tools/` | `assemble.mjs`, `serve.mjs`, `make-icon.mjs`, and the TF.js build: `build-tfjs.mjs`, `fetch-models.sh`, `check-tfjs.mjs`, `patches/` ([below](#tfjs-from-source)), `check-media.mjs` (the frame source on a real decoder, [above](#the-frame-source)), and the debug APK's `build-apk.sh` and `check-apk.mjs` ([The Android shell](#the-android-shell)). Node only; only `build-tfjs.mjs` needs `app/node_modules/` (esbuild). Not copied into `dist/`. |
+| `tools/` | `assemble.mjs`, `serve.mjs`, `make-icon.mjs`, and the TF.js build: `build-tfjs.mjs`, `fetch-models.sh`, `check-tfjs.mjs`, `patches/` ([below](#tfjs-from-source)), `check-media.mjs` (the frame source on a real decoder, [above](#the-frame-source)), and the debug APK's `build-apk.sh` and `check-apk.mjs` ([The Android shell](#the-android-shell)), and `make-phone-clips.sh` and `check-media-apk.mjs`, the frame source and the cut on the phone ([On the phone](#on-the-phone)). Node only; only `build-tfjs.mjs` needs `app/node_modules/` (esbuild). Not copied into `dist/`. |
 | `dist/` | The assembled app (gitignored): what the PWA host and Capacitor get. `files.json` lists every file in it, with a version hash, for the service worker. |
 | `android/`, `capacitor.config.json` | The Capacitor shell (`c20`): the Android project `npx cap add android` generated, committed; Gradle's outputs and the copied web assets are gitignored. See [The Android shell](#the-android-shell). |
 | `debug/` | The check page (`c20`), assembled only into the debug APK (`assemble.mjs --debug`), never into the shipped `dist/`. |
@@ -298,13 +300,45 @@ few decoded frames wait, so a slow consumer (the pose model) keeps the
 decoder a few frames ahead instead of filling memory; a hardware decoder's
 last frames come out while the loop is still draining, not after the flush.
 
-**Not here, measured on the phone (`c26`):** a range's decode rate on the
-Fairphone's hardware decoder, the time to one frame at a random time (a
-keyframe's worth of decoding: up to a second of video), the cost of the
-canvas turn for a rotated clip at 30 and 60 fps, and an HEVC file's behaviour
-in the APK's WebView. `frameAt` decodes from the keyframe every time, with no
-cache of the last group of pictures, so stepping frame by frame in M1–M3 is
-the first thing to measure.
+### On the phone
+
+Measured by `c34` on the Fairphone 6 (Android 16, LineageOS build
+BP2A.250805.005, WebView 153.0.8010.36, Android's decoder
+`c2.qti.avc.decoder`, the hardware one), in the debug APK (18,016,846 bytes,
+built from `c34`'s tree) by the check page's `debug/media.mjs`, driven by
+`tools/check-media-apk.mjs`: the clips (`tools/make-phone-clips.sh`: testsrc2
+with noise, 1080p H.264 at about 10 Mbit/s, B-frames on) copied into the app's
+own `files/` and set on the page's input. Each number is the median of five
+runs, interleaved (run 1 of every measurement, then run 2 …), on USB power at
+22–25 °C; wall time from `performance.now()` in the page.
+
+| What | Clip | On the phone |
+| --- | --- | --- |
+| `frames(0, 60)`, each frame closed at once | 1080p30, a keyframe every 1 s | **192 frames/s** (1,800 in 9.4 s); 115 ms to the first frame |
+| the same | keyframes every 2–5 s | 196 frames/s |
+| the same | 1080p60 | 208 frames/s (3,600 in 17.3 s) |
+| the same | 1080p30 at 13.5 Mbit/s (102 MB) | 170 frames/s |
+| the same | variable rate (1,543 frames) | 180 frames/s |
+| the same, a consumer taking 100 ms a frame | 1080p30 | 9.8 frames/s (100 ms + 2 ms); the wait for each next frame 0.1 ms (median), 15 ms at most: the decoder stays ahead |
+| `frameAt(t)` at 20 random times | keyframe every 1 s | **151 ms** (90th percentile of the 100 calls 223 ms, at most 243 ms) |
+| the same | keyframes every 2–5 s | **374 ms** (90th 623 ms, at most 802 ms) |
+| +1 frame with `frameAt`, 30 times from a random frame | keyframe every 1 s | **166 ms** a step (90th 228 ms, at most 247 ms; 47 of 150 over 200 ms) |
+| the same | keyframes every 2–5 s | **416 ms** a step (90th 578 ms, at most 828 ms; 117 of 150 over 200 ms) |
+| the canvas turn (rotation 90) | 1080p30 and 1080p60 | 1.3 ms a frame for the call; 25.6 ms when the turned frame's pixels are read back at once (a 1×1 `getImageData`, which waits for the GPU). In a range's decode it costs nothing measurable: 191.9 against 192.3 frames/s at 30 fps, 200 against 208 at 60 fps (0.2 ms a frame) |
+| `openFrameSource` (the packet listing and the first frame) | 102 MB | 113 ms, the same as the 75 MB file (113 ms) and the 60 fps one (121 ms): it lists packets, it doesn't read them. The first open after the app starts: 204 ms |
+| HEVC (1080p30, 10 s) | | **decodes**: it opens (86 ms, codec `hev1.1.6.L120.90`) and `frames()` gives all 300 frames, at 309 frames/s, on `c2.qti.hevc.decoder` |
+| `info.fps` and `frameTimes` | 1080p60 | 60; every gap 16.7 ms |
+| the same | variable rate | 25.7 (frames over duration); gaps 27.3–74.6 ms, median 35.2 ms, 195 distinct: `frameTimes` are the file's own times |
+| memory with the decoder running (VmRSS of the app's process and its WebView renderer, every 200 ms) | 1080p30 | about 490 MB before; +24 to +46 MB while a range decodes; +5 MB with the 100 ms consumer |
+
+What it means for the screens: the decode is about six times real time, and
+backpressure holds memory flat under a slow consumer. A frame at a random time
+is a keyframe's worth of decoding (about 5 ms a frame plus 115 ms to start), so
+it grows with the distance to the keyframe: with a phone camera's 2–5 s
+between keyframes, M1–M3's one-frame step takes 0.4 s, and up to 0.8 s. The
+JS heap (`performance.memory`) stayed at 12 MB in every run: the WebView rounds
+it, and frames and buffers live outside it. The decoder's own process (Android's
+codec service) isn't in the memory numbers.
 
 ## Keeping the video
 
@@ -338,10 +372,33 @@ kept.lift;                                        // the StoredLift (contract 3)
   with code `range`.
 - **Errors:** a file that can't be read is a `MediaError`; a full disk is the
   store's `StoreError` with code `storage-full`, passed through unchanged for
-  d23. The cut is built in memory before it is saved (a minute of phone video
-  is a few tens of MB).
+  d23. The cut is built in memory before it is saved (a minute of 1080p phone
+  video is 75–130 MB; what that costs on the phone is below).
 - **Size:** as big as the range's share of the file plus the extra seconds from
   the keyframe; see the numbers in the package's report.
+
+### On the phone
+
+Measured by `c34` on the Fairphone 6 like [the frame source's
+numbers](#on-the-phone) (the same device, WebView, APK, clips and driver;
+medians of five runs): `cutVideo` of 0–60 s of a 60 s 1080p30 file, then the
+store's `saveLift` of the cut into OPFS, the cut read back with `readVideo`,
+opened with `openFrameSource` and decoded end to end; the lift deleted after.
+
+| | 75.5 MB file (10 Mbit/s) | 102 MB file (13.5 Mbit/s) |
+| --- | --- | --- |
+| `cutVideo` | 352 ms | 447 ms |
+| `saveLift` (the write into OPFS) | 529 ms | 645 ms |
+| `keepVideo` (both, in one call) | 871 ms | |
+| the cut | 75,507,860 bytes (the source + 856) | 101,937,877 bytes |
+| memory at its peak (VmRSS, app and renderer, over the 490 MB before) | +198 MB | +289 MB |
+| the cut read back, opened, decoded | 9 ms, 93 ms, all 1,800 frames in order at 192 frames/s | 8 ms, 96 ms, 1,800 frames at 170 frames/s |
+
+So a real decoder opens a cut (s32's open question): the WebView's hardware
+decoder reads every frame of it, in order. The cut's peak memory is about 2.6
+to 2.8 times its size (the packets read, the MP4 built in a growing buffer,
+then the `Blob`); a minute of 1080p fits easily in a phone with 8 GB, and a
+marked lift of a few seconds is a few tens of MB.
 
 ## The analysis
 
@@ -635,6 +692,10 @@ button, s10's engine on every frame of the clip, N times: `create()`,
 opens the check page, clicks the file input with a user gesture (Android's
 picker opens, then Back), sets the input to the clip copied into the app's
 own `files/` (`run-as`), runs the engine, prints the JSON and uninstalls.
+`debug/media.mjs` (`c34`) adds the frame source's and the cut's measurements
+(`window.c34`) on clips set on the page's second input, `#media`;
+`tools/check-media-apk.mjs` drives them the same way, five runs each, with the
+memory sampled on the phone ([On the phone](#on-the-phone)).
 
 **On the Fairphone 6** (Android 16, LineageOS 4.4.1, WebView 153.0.8010.36,
 Adreno 810; the debug APK of 2026-11-02, `c20`'s report has every number):
@@ -660,7 +721,7 @@ app imports nothing of it).
 `tests/`: `flow.test.js` (the state machine), `assemble.test.js` (assemble
 into a temporary folder, the manifest and `index.html`), `serve.test.js` (the
 dev server), `contracts.test.js` (the contracts, against the committed tracks
-and `diagnostics.js`'s headless API), `store.test.js` (the store, on `fake-opfs.js`, an in-memory OPFS), `frame-source.test.js` (the frame source, on our own clips in `tests/app/clips/` and a fake decoder), `pose-engine.test.js` (the pose engine's client and worker handler, against fakes), `android-shell.test.js` (the Capacitor config, the committed Android project, the pins and `build-apk.sh`), `build-tfjs.test.js` (the TF.js
+and `diagnostics.js`'s headless API), `store.test.js` (the store, on `fake-opfs.js`, an in-memory OPFS), `frame-source.test.js` (the frame source, on our own clips in `tests/app/clips/` and a fake decoder), `pose-engine.test.js` (the pose engine's client and worker handler, against fakes), `media-phone.test.js` (the check page's media measurements, their driver and the clips' script; the shipped `dist/` without them), `android-shell.test.js` (the Capacitor config, the committed Android project, the pins and `build-apk.sh`), `build-tfjs.test.js` (the TF.js
 build's pins, cache, op lists and patch notices, the MoveNet entry's
 refusal of a config without `modelUrl`, and `fetch-models.sh`'s checks and
 clean-up, all without the network). Every test runs in a fresh worktree, which has neither
