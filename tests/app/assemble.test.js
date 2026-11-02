@@ -1,5 +1,6 @@
 'use strict';
-// app/tools/assemble.mjs: app/ (without tools/, android/, dist/, node_modules/),
+// app/tools/assemble.mjs: app/ (without tools/, android/, dist/, debug/, node_modules/,
+// capacitor.config.json; debug/ and the test clip only with --debug),
 // plus src/diagnostics.js and src/track/, into one folder, with files.json for
 // the service worker. Every run goes into a temporary folder. The tests need
 // neither of the gitignored folders (app/vendor/tfjs/, app/models/): a fresh
@@ -42,6 +43,11 @@ function fakeTree({ tfjs = false, models = false } = {}) {
   put(app, 'android/build.gradle', 'no');
   put(app, 'dist/old.txt', 'no');
   put(app, 'node_modules/x/index.js', 'no');
+  put(app, 'capacitor.config.json', '{}');
+  put(app, 'out/coach-debug.apk', 'the last APK');
+  put(app, 'debug/check.html', 'check page');
+  put(app, 'debug/check.mjs', 'export {};');
+  put(root, 'tests/app/clips/testsrc2-h264-30fps.mp4', 'clip');
   if (tfjs) put(app, 'vendor/tfjs/tf.js', 'tf');
   if (models) put(app, 'models/movenet/model.json', '{}');
   put(src, 'diagnostics.js', '// diagnostics');
@@ -64,7 +70,41 @@ test('the real app assembles into a temporary folder: shell, manifest, vendored 
     'vendor/fonts/barlow/OFL.txt', 'vendor/fonts/barlow-condensed/OFL.txt',
     'vendor/fonts/barlow/barlow-latin-400-normal.woff2', 'vendor/fonts/barlow-condensed/barlow-condensed-latin-700-normal.woff2',
   ]) assert.ok(files.includes(f), `${f} is missing from the assembled app`);
-  for (const f of files) assert.ok(!/^(tools|android|dist|node_modules)\//.test(f), `${f} must not be copied`);
+  for (const f of files) assert.ok(!/^(tools|android|dist|debug|node_modules)\//.test(f), `${f} must not be copied`);
+  assert.ok(!files.includes('capacitor.config.json'));
+});
+
+test('the shipped dist/ has no check page; --debug adds it and its clip (the debug APK, c20)', () => {
+  const plain = tmp('shipped');
+  assemble(['--out', plain]);
+  const shipped = walk(plain);
+  assert.ok(!shipped.some((f) => f.startsWith('debug/')), 'the check page must never reach the shipped dist/');
+  assert.ok(!shipped.includes('capacitor.config.json'));
+  const dbg = tmp('debug');
+  const stdout = assemble(['--debug', '--out', dbg]);
+  assert.match(stdout, /debug: with the check page/);
+  const files = walk(dbg);
+  for (const f of ['debug/check.html', 'debug/check.mjs', 'debug/clips/testsrc2-h264-30fps.mp4']) {
+    assert.ok(files.includes(f), `${f} is missing from the debug build`);
+  }
+  assert.deepEqual(read(dbg, 'debug/clips/testsrc2-h264-30fps.mp4'), fs.readFileSync(path.join(ROOT, 'tests/app/clips/testsrc2-h264-30fps.mp4')));
+  assert.deepEqual(manifestOf(dbg).files, files.filter((f) => f !== 'files.json'));
+  // Everything else is the shipped build's, byte for byte.
+  for (const f of shipped.filter((f) => f !== 'files.json')) assert.deepEqual(read(dbg, f), read(plain, f), f);
+});
+
+test('--debug on a fake tree: app/debug/ and the clip are listed, and nothing else changes', () => {
+  const t = fakeTree();
+  const out = tmp('fake-debug');
+  assemble(['--app', t.app, '--src', t.src, '--out', out, '--debug']);
+  assert.deepEqual(walk(out), [
+    'debug/check.html', 'debug/check.mjs', 'debug/clips/testsrc2-h264-30fps.mp4',
+    'files.json', 'index.html', 'package.json', 'src/diagnostics.js', 'src/main.mjs', 'src/track/lift-window.mjs',
+    'src/track/smoothing.mjs', 'vendor/preact/preact.mjs',
+  ]);
+  // A second run without --debug leaves no check page behind.
+  assemble(['--app', t.app, '--src', t.src, '--out', out]);
+  assert.ok(!walk(out).some((f) => f.startsWith('debug/')));
 });
 
 test('diagnostics.js and src/track/ are copied from src/, byte for byte, into src/ of the assembled app', () => {
@@ -163,12 +203,12 @@ test('with them present they are copied and listed', () => {
   assert.deepEqual(m.files, walk(out).filter((f) => f !== 'files.json'));
 });
 
-test('only src/diagnostics.js and src/track/ come from src/; tools/, android/, dist/ and node_modules/ never', () => {
+test('only src/diagnostics.js and src/track/ come from src/; tools/, android/, dist/, out/ and node_modules/ never', () => {
   const t = fakeTree({ tfjs: true, models: true });
   const out = tmp('only');
-  assemble(['--app', t.app, '--src', t.src, '--out', out]);
+  assemble(['--app', t.app, '--src', t.src, '--out', out, '--debug']);
   const files = walk(out);
-  assert.ok(!files.some((f) => /^(tools|android|dist|node_modules)\//.test(f)));
+  assert.ok(!files.some((f) => /^(tools|android|dist|out|node_modules)\//.test(f)), 'the last APK must never land in the next one');
   assert.ok(!files.includes('src/app.py') && !files.includes('src/vendor/three.module.js'));
 });
 

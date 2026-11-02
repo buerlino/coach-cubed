@@ -1,0 +1,6 @@
+{
+  "appId": "org.coach.placeholder",
+  "appName": "coach",
+  "webDir": "dist",
+  "server": { "androidScheme": "https" }
+}

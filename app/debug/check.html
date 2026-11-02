@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>coach: debug check</title>
+<!-- The debug APK's check page (package c20). assemble.mjs copies app/debug/
+     only with --debug (tools/build-apk.sh), so the shipped dist/ never has it.
+     Not linked from the app: open it over DevTools (tools/check-apk.mjs) or
+     by URL, debug/check.html; ?engine=5 also runs the pose engine five times. -->
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 16px; background: #0E0F11; color: #E8E6E1; font: 14px/1.4 system-ui, sans-serif; }
+  h1 { font-size: 18px; margin: 0 0 12px; }
+  label { display: block; margin: 12px 0; }
+  input, button { font: inherit; min-height: 44px; }
+  pre { white-space: pre-wrap; word-break: break-word; font-size: 12px; background: #1A1C20; padding: 8px; }
+</style>
+</head>
+<body>
+<h1>coach debug check</h1>
+<p><a href="../index.html" style="color:#9FC5E8">Back to the app</a></p>
+<label>Import a video: <input id="file" type="file" accept="video/*"></label>
+<button id="engine" type="button">Run the pose engine (5 runs)</button>
+<pre id="out">running…</pre>
+<script type="module" src="./check.mjs"></script>
+</body>
+</html>
