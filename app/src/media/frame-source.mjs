@@ -41,7 +41,7 @@ const isTime = t => typeof t === 'number' && Number.isFinite(t);
  * @param {Object} [options]
  * @param {Object} [options.webcodecs] the browser's WebCodecs calls (see webcodecs.mjs); tests pass a fake
  * @param {number} [options.stallMs] a decoder that makes no progress for this long is given up on (15 s)
- * @returns {Promise<import('../contracts/frame-source.mjs').FrameSource & {frameTimes: readonly number[]}>}
+ * @returns {Promise<import('../contracts/frame-source.mjs').FrameSource>} contract 5's source, frameTimes included
  */
 export async function openFrameSource(blob, options = {}) {
   if (!(blob instanceof Blob)) throw new TypeError('openFrameSource needs a Blob or File');

@@ -8,8 +8,8 @@
 //      diagnostics.js was written for smoothed ones (its comments say so).
 //      σ and the velocity option are the caller's, defaulting to the app's
 //      (50 ms, velocity kept: the old page's, and S1's smoothingSigmaMs).
-//      They come back next to the view as `smoothing`, since the ResultView
-//      has no field for them (see the report of s11).
+//      They are on the view as `smoothing` (contract 4, s35), so a stored
+//      result.json says what its verdicts were scored with.
 //   2. Diagnostics.setPage(lift), then Diagnostics.computeResults().
 //   3. The view, through s4's headless API: describe() for each cue's words
 //      and provisional flag, tiles(), referenceLine() and worstMoment() for
@@ -113,8 +113,8 @@ function head(d) {
   return { id: d.id, title: d.title, cue: d.cue, unit: d.unit, phaseLabel: d.phaseLabel, provisional: d.provisional };
 }
 
-// The lift window, as seconds, or null with diagnostics.js's reason. The contract's window has both ends,
-// so a start with no end (the engine found the pull but no held finish) is no window: its reason is the
+// The lift window, as seconds, or null with diagnostics.js's reason. A start with no end (the engine
+// found the pull but no held finish) keeps its start, {t0, t1: null} (contract 4, s35): its reason is the
 // engine's last note, which says why the lift has no end marker, and the other notes stay notes.
 function liftWindowOf(lift) {
   const notes = [...(lift.notes || [])];
@@ -123,7 +123,8 @@ function liftWindowOf(lift) {
     return { liftWindow: { t0: lift.t0, t1: lift.t1 }, liftWindowReason: null, notes };
   }
   const reason = notes.pop();
-  return { liftWindow: null, liftWindowReason: reason === undefined ? null : reason, notes };
+  const liftWindow = typeof lift.t0 === 'number' ? { t0: lift.t0, t1: null } : null;
+  return { liftWindow, liftWindowReason: reason === undefined ? null : reason, notes };
 }
 
 /**
@@ -136,9 +137,8 @@ function liftWindowOf(lift) {
  * @param {boolean} [opts.keepVelocity] the smoothing's velocity option (default DEFAULT_KEEP_VELOCITY)
  * @param {string} [opts.personId] the lifter; default the track's kept person, else the one with most frames
  * @returns {{view: import('../contracts/cue-view.mjs').ResultView,
- *   computed: Object, personId: string,
- *   smoothing: {sigmaMs: number, keepVelocity: boolean}}} computed is computeResults()'s output
- *   (what drawCue() takes)
+ *   computed: Object, personId: string}} the view carries the smoothing it was
+ *   scored with (view.smoothing); computed is computeResults()'s output (what drawCue() takes)
  * @throws {Error} for a lift diagnostics.js has no set for
  */
 export function scoreLift(track, lift, opts = {}) {
@@ -161,9 +161,8 @@ export function scoreLift(track, lift, opts = {}) {
   });
   const { liftWindow, liftWindowReason, notes } = liftWindowOf(computed.lift);
   return {
-    view: { lift, liftWindow, liftWindowReason, cues, notes },
+    view: { lift, liftWindow, liftWindowReason, cues, notes, smoothing: { sigmaMs, keepVelocity } },
     computed,
     personId,
-    smoothing: { sigmaMs, keepVelocity },
   };
 }

@@ -114,14 +114,23 @@ export const CUE_VIEW_SOURCES = Object.freeze({
  */
 
 /**
- * A scored lift: the cues in diagnostics.js's order, the lift window, the notes.
+ * A scored lift: the cues in diagnostics.js's order, the lift window, the notes,
+ * and the smoothing the verdicts were scored with.
  * @typedef {Object} ResultView
  * @property {'lateral-raise'|'snatch'} lift
- * @property {{t0: number, t1: number}|null} liftWindow the lift found inside the
- *   marked range, in seconds (computeResults().lift t0, t1); null when none was found
- * @property {string|null} liftWindowReason why none was found (computeResults().lift.error); null when found
+ * @property {{t0: number, t1: number|null}|null} liftWindow the lift found inside the
+ *   marked range, in seconds (computeResults().lift t0, t1); t1 null when
+ *   diagnostics.js found the start and no held finish (s35); null when no lift was found
+ * @property {string|null} liftWindowReason why there is no window
+ *   (computeResults().lift.error), or why it has no end (diagnostics.js's own
+ *   note, the last of computeResults().lift.notes, never a new string); null
+ *   when both ends were found
  * @property {CueView[]} cues
- * @property {string[]} notes the lift window's notes (computeResults().lift.notes)
+ * @property {string[]} notes the lift window's notes (computeResults().lift.notes,
+ *   less the one that is liftWindowReason)
+ * @property {{sigmaMs: number, keepVelocity: boolean}} smoothing src/track/'s
+ *   smoothing the track went through before computeResults(): σ in ms (0: the
+ *   raw track) and the velocity option; a result.json keeps it with its verdicts
  */
 
 const CANT = "can't score";
@@ -219,13 +228,20 @@ export function validateCueView(cue, path = '') {
 export function validateResultView(view) {
   if (!isObject(view)) return ['result: must be an object'];
   const errors = [];
-  checkFields(errors, '', view, ['lift', 'liftWindow', 'liftWindowReason', 'cues', 'notes']);
+  checkFields(errors, '', view, ['lift', 'liftWindow', 'liftWindowReason', 'cues', 'notes', 'smoothing']);
   checkLift(errors, 'lift', view.lift);
-  if (view.liftWindow === null) {
+  const w = view.liftWindow;
+  if (w === null) {
     if (!isString(view.liftWindowReason)) errors.push('liftWindowReason: says why no lift was found (a non-empty string)');
+  } else if (isObject(w) && w.t1 === null) {
+    // the start found, no held finish
+    if (checkFields(errors, 'liftWindow', w, ['t0'], ['t1']) && !isNumber(w.t0)) {
+      errors.push('liftWindow.t0: must be a finite number (seconds)');
+    }
+    if (!isString(view.liftWindowReason)) errors.push('liftWindowReason: says why the lift has no end (a non-empty string)');
   } else {
-    if (view.liftWindow !== undefined) checkSeconds(errors, 'liftWindow', view.liftWindow);
-    if (view.liftWindowReason !== null) errors.push('liftWindowReason: must be null when the lift was found');
+    if (w !== undefined) checkSeconds(errors, 'liftWindow', w);
+    if (view.liftWindowReason !== null) errors.push('liftWindowReason: must be null when both ends were found');
   }
   if (!Array.isArray(view.cues)) errors.push('cues: must be an array');
   else {
@@ -237,6 +253,11 @@ export function validateResultView(view) {
     });
   }
   if ('notes' in view) checkStrings(errors, 'notes', view.notes);
+  if (view.smoothing !== undefined && checkFields(errors, 'smoothing', view.smoothing, ['sigmaMs', 'keepVelocity'])) {
+    const { sigmaMs, keepVelocity } = view.smoothing;
+    if (sigmaMs !== undefined && (!isNumber(sigmaMs) || sigmaMs < 0)) errors.push('smoothing.sigmaMs: must be ms (0 or more; 0 is the raw track)');
+    if (keepVelocity !== undefined && typeof keepVelocity !== 'boolean') errors.push('smoothing.keepVelocity: must be true or false');
+  }
   return errors;
 }
 
@@ -294,6 +315,8 @@ export const CUE_VIEW_EXAMPLES = [
  * The same lift as a ResultView, with the two example cues only. Its lift
  * window is what computeResults() gives this clip today: none, with the
  * barbell trigger's reason (s11 decides what a lateral raise shows there).
+ * The cues are computeResults() on the committed track as it is, so its
+ * smoothing is none: σ 0 (keepVelocity is then moot; true is the app's default).
  * @type {ResultView}
  */
 export const RESULT_VIEW_EXAMPLE = {
@@ -302,4 +325,5 @@ export const RESULT_VIEW_EXAMPLE = {
   liftWindowReason: 'The bar never sits below knee height in this clip, so there is no start of the lift to mark.',
   cues: CUE_VIEW_EXAMPLES,
   notes: [],
+  smoothing: { sigmaMs: 0, keepVelocity: true },
 };

@@ -30,8 +30,10 @@ export const JOB_STAGES = Object.freeze(['reading', 'pose', 'scoring']);
 /**
  * @typedef {Object} JobProgress
  * @property {'reading'|'pose'|'scoring'} stage
- * @property {number} done units done in this stage (frames read, frames posed; 0 or 1 for scoring)
- * @property {number} total units in this stage
+ * @property {number} done units done in this stage: reading 0 or 1 (one unit, the
+ *   stored cut read and opened), pose the frames posed, scoring 0 or 1
+ * @property {number} total units in this stage: 1 for reading and scoring, the
+ *   range's frames for pose
  * @property {number|null} etaS the time left for the whole job in seconds,
  *   from the measured ms per frame; null until there is a measurement
  */

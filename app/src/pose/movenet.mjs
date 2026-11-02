@@ -7,8 +7,10 @@
 //   weights (app/models/, fetched by tools/fetch-models.sh) are read by URLs
 //   relative to this file, so the same code runs from app/ and from dist/.
 // - MoveNet crops each frame from the last pose (pose-detection's own state in
-//   the detector); the engine has no other state. Its keypoint smoothing is
-//   off: src/track/ smooths, and the raw track should be the model's.
+//   the detector); the engine has no other state. reset() clears it
+//   (detector.reset()), so a new clip's first frame starts from no previous
+//   pose, with the model and its compiled shaders kept. Its keypoint smoothing
+//   is off: src/track/ smooths, and the raw track should be the model's.
 // - A blank frame is run once at init, so the first real frames don't pay for
 //   compiling the model's shaders.
 import { toCoco17 } from './coco17.mjs';
@@ -29,7 +31,8 @@ const ESTIMATION = Object.freeze({ maxPoses: 1, flipHorizontal: false });
 /**
  * @param {string} backend 'webgl'
  * @returns {Promise<{info: {model: string, backend: string, runtime: string},
- *   estimate: (frame: VideoFrame, tMs: number) => Promise<Array<[number, number, number]>|null>}>}
+ *   estimate: (frame: VideoFrame, tMs: number) => Promise<Array<[number, number, number]>|null>,
+ *   reset: () => void}>}
  */
 export async function loadMoveNet(backend) {
   const bundle = BUNDLES[backend];
@@ -68,5 +71,6 @@ export async function loadMoveNet(backend) {
   return {
     info: { model: 'movenet-thunder', backend: tf.getBackend(), runtime: `tfjs ${tf.version_core}` },
     estimate: poseOf,
+    reset: () => detector.reset(),
   };
 }

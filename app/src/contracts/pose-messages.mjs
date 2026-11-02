@@ -6,10 +6,13 @@
 //
 //   client → worker   init     { backend }            → ready { info } | error { error }
 //   client → worker   estimate { id, frame, tMs }      → result { id, keypoints, ms } | result { id, error }
+//   client → worker   reset    { id }                  → cleared { id } | cleared { id, error }
 //
 // The frame is a VideoFrame, transferred (postMessage(msg, [frame])); the
-// worker closes it. One frame at a time: the client sends the next estimate
-// after the last result.
+// worker closes it. One message at a time: the client sends the next estimate
+// or reset after the last answer. A reset (s35) clears MoveNet's crop between
+// clips, so the next estimate starts from no previous pose; the worker keeps
+// its model (no weights or warm-up again).
 import { checkFields, checkFrame, checkInteger, checkNumber, checkString } from './common.mjs';
 import { KEYPOINTS_EXAMPLE, validateKeypoints } from './keypoints.mjs';
 
@@ -17,9 +20,9 @@ import { KEYPOINTS_EXAMPLE, validateKeypoints } from './keypoints.mjs';
 export const BACKENDS = Object.freeze(['webgl', 'webgpu', 'wasm', 'cpu']);
 
 /** The messages the client sends. */
-export const TO_WORKER = Object.freeze(['init', 'estimate']);
+export const TO_WORKER = Object.freeze(['init', 'estimate', 'reset']);
 /** The messages the worker sends. */
-export const FROM_WORKER = Object.freeze(['ready', 'error', 'result']);
+export const FROM_WORKER = Object.freeze(['ready', 'error', 'result', 'cleared']);
 
 /**
  * Start the engine on a backend: load the model, warm it up.
@@ -69,11 +72,31 @@ export const FROM_WORKER = Object.freeze(['ready', 'error', 'result']);
  * @property {string} [error]
  */
 
-/** @typedef {InitMessage|EstimateMessage} ToWorkerMessage */
-/** @typedef {ReadyMessage|ErrorMessage|ResultMessage} FromWorkerMessage */
+/**
+ * Between clips: forget the last pose (pose-detection's detector.reset(), which
+ * clears MoveNet's crop), keep the model. The worker answers it after any
+ * estimate sent before it, and the next estimate starts from no previous pose.
+ * @typedef {Object} ResetMessage
+ * @property {'reset'} type
+ * @property {number} id the client's number for it (an integer, 0 or more; the
+ *   same count as the estimates'), echoed in the answer
+ */
 
 /**
- * Any of the five messages, told apart by `type`.
+ * The reset is done: the crop is cleared. A reset that failed (no engine, the
+ * detector threw) carries `error`, in the engine's words; the worker goes on,
+ * as after a failed estimate.
+ * @typedef {Object} ClearedMessage
+ * @property {'cleared'} type
+ * @property {number} id the reset's id
+ * @property {string} [error]
+ */
+
+/** @typedef {InitMessage|EstimateMessage|ResetMessage} ToWorkerMessage */
+/** @typedef {ReadyMessage|ErrorMessage|ResultMessage|ClearedMessage} FromWorkerMessage */
+
+/**
+ * Any of the seven messages, told apart by `type`.
  * @param {unknown} msg
  * @returns {string[]} the errors, empty when valid
  */
@@ -118,6 +141,15 @@ export function validatePoseMessage(msg) {
         if ('ms' in msg) checkNumber(errors, 'ms', msg.ms, { min: 0 });
       }
       break;
+    case 'reset':
+      checkFields(errors, '', msg, ['type', 'id']);
+      checkInteger(errors, 'id', msg.id, 0);
+      break;
+    case 'cleared':
+      checkFields(errors, '', msg, ['type', 'id'], ['error']);
+      checkInteger(errors, 'id', msg.id, 0);
+      if ('error' in msg) checkString(errors, 'error', msg.error);
+      break;
     default:
       return [`type: must be one of ${[...TO_WORKER, ...FROM_WORKER].join(', ')}`];
   }
@@ -145,4 +177,6 @@ export const POSE_MESSAGE_EXAMPLES = [
   { type: 'error', error: 'TF.js backend webgl unavailable' },
   { type: 'estimate', id: 0, frame: exampleFrame(), tMs: 0 },
   { type: 'result', id: 0, keypoints: KEYPOINTS_EXAMPLE, ms: 97 },
+  { type: 'reset', id: 1 },
+  { type: 'cleared', id: 1 },
 ];

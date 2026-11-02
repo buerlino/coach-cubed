@@ -3,8 +3,10 @@
 // to `self`; the tests drive it with a fake engine. Plain module, no DOM.
 //
 // Messages are handled one after the other, whatever the order they arrive in:
-// MoveNet's crop follows the last pose, so two estimates must never overlap.
-// The frame of an estimate is closed here, once, whatever happens to it.
+// MoveNet's crop follows the last pose, so two estimates must never overlap, and
+// a reset is answered after any estimate that came before it. A reset clears
+// the crop (the engine's reset(), pose-detection's detector.reset()) and keeps
+// the model. The frame of an estimate is closed here, once, whatever happens to it.
 import { validatePoseMessage } from '../contracts/pose-messages.mjs';
 import { checkResultKeypoints } from './check.mjs';
 
@@ -13,7 +15,8 @@ const words = e => String((e && e.message) || e);
 /**
  * @param {Object} o
  * @param {(backend: string) => Promise<{info: {model: string, backend: string, runtime: string},
- *   estimate: (frame: VideoFrame, tMs: number) => Promise<Array|null>}>} o.load
+ *   estimate: (frame: VideoFrame, tMs: number) => Promise<Array|null>,
+ *   reset: () => void|Promise<void>}>} o.load
  *   starts the engine (loads, warms up); rejects with the reason it can't
  * @param {(msg: object) => void} o.post
  * @param {() => number} [o.now] ms, for initMs and ms
@@ -57,6 +60,16 @@ export function createWorkerHandler({ load, post, now = () => performance.now() 
     }
   }
 
+  async function reset(msg) {
+    try {
+      if (!engine) throw new Error(initError);
+      await engine.reset();
+      post({ type: 'cleared', id: msg.id });
+    } catch (e) {
+      post({ type: 'cleared', id: msg.id, error: words(e) });
+    }
+  }
+
   async function handle(msg) {
     if (!msg || typeof msg !== 'object') return;
     if (msg.type === 'init') {
@@ -68,6 +81,10 @@ export function createWorkerHandler({ load, post, now = () => performance.now() 
       const errors = validatePoseMessage(msg);
       if (errors.length) { try { msg.frame && msg.frame.close(); } catch { /* not a frame */ } return; }
       await estimate(msg);
+    } else if (msg.type === 'reset') {
+      // the same: an id we can't answer gets no answer
+      if (validatePoseMessage(msg).length) return;
+      await reset(msg);
     }
   }
 
