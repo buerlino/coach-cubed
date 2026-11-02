@@ -170,6 +170,23 @@ const { view, computed, personId } = scoreLift(track, 'snatch', { sigmaMs: 50 })
 - **The smoothing** is on the view, as numbers (`view.smoothing`, `{sigmaMs,
   keepVelocity}`, `s35`), so `result.json` says what its verdicts were scored
   with; the adapter writes no sentence about it.
+- **A2's plot and "How it's scored"** (`s39`) come from diagnostics.js's
+  headless API, not from the view, and the adapter doesn't change. d18 calls
+  `Diagnostics.scoringLines(id, computed, { smoothingMs: view.smoothing.sigmaMs })`
+  with the lift's `computed` (scoreLift's, or `computeResults()` again on the
+  stored track): each cue's transparency lines, the bullets the old panel
+  lists under its plot (the phase, the measurement, the bar axis, the time
+  smoothing, the caveat with the provisional bands, the notes), as plain text,
+  `[{label, text}]`; `[]` for a cue that can't be scored. The smoothing is the
+  view's, so the "Time smoothing" line says what the verdicts were scored with
+  (the tempo and the symmetry have no such line). A line with markup besides
+  its label throws, so no HTML reaches the screen. For the plot,
+  `Diagnostics.zones(id)` gives the verdict's bands in the cue's unit, lowest
+  first, `[{status, from, to}]` with contract 4's status words and `null` for
+  an open end: the elbow lead and the tempo, and the top height mirrored about
+  shoulder height (its verdict reads the worst rep's size). It is `null` for a
+  cue scored on something its series doesn't plot (an SD, a decline, a
+  deficit: `VERDICT_VALUE`): draw no bands then.
 - **What the tests pin** (`tests/app/scoring.test.js`): with smoothing off,
   every committed fixture's verdicts, values, series, tiles, notes and
   reasons are its golden's. The goldens score **raw** tracks; with the
