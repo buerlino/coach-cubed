@@ -186,20 +186,18 @@ test('draw: interpolation never invents a peak: the curve stays inside the sampl
 test('draw: the bones and joints drawn are the old drawOverlay\'s, at every playhead time (the gate, unsure joints, two people)', async () => {
   const D = await draw();
   const style = D.overlayStyle(() => '1px');
+  let drawn = 0;
   for (const [name, keypoints, meta] of await cases()) {
     const track = D.trackSamples(keypoints, meta);
     for (const t of sweep(track.times)) {
       const want = geometry(oldDraws(keypoints, meta, t));
+      drawn += want.length;
       const ctx = recordingContext();
       D.drawSkeleton(ctx, D.poseAtTime(track, t), D.bonesOf(meta), style);
       assert.deepStrictEqual(geometry(ctx.calls), want, `${name} t=${t}`);
     }
   }
-});
-
-test('draw: the old page draws something on these tracks (the comparison is not empty)', async () => {
-  const [, keypoints, meta] = (await cases())[0];
-  assert.ok(geometry(oldDraws(keypoints, meta, 2.24)).length > 30);
+  assert.ok(drawn > 1000, 'the old page draws plenty on these tracks: the comparison is not empty');
 });
 
 test('draw: the confidence gate is 0.3 and keeps a joint exactly on it; a bone needs both ends sure', async () => {
@@ -383,6 +381,7 @@ test('draw: no colour literal in app/src/ui/ or app/src/draw/ (colours come from
       else if (/\.(mjs|js|css)$/.test(e.name)) fs.readFileSync(p, 'utf8').split('\n').forEach((l, i) => { if (/#[0-9a-fA-F]{3,8}\b/.test(l) || /\brgba?\(/.test(l)) hits.push(`${p}:${i + 1}`); });
     }
   };
+  assert.ok(fs.readdirSync(path.join(APP, 'src', 'draw')).some(f => f.endsWith('.mjs')), 'the draw module is there');
   walk(path.join(APP, 'src', 'draw'));
   walk(path.join(APP, 'src', 'ui'));
   assert.deepStrictEqual(hits, []);

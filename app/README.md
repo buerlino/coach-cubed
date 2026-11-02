@@ -54,6 +54,7 @@ It logs each request (`200 /index.html`); a `404` there is a broken path.
 | `src/store/` | The store (`c8`): lifts, their cut videos, tracks and results, the index and the settings, in OPFS. See [The store](#the-store). |
 | `src/media/` | The frame source (`s9`): `openFrameSource(blob)` gives contract 5's source over mediabunny and WebCodecs. See [The frame source](#the-frame-source). The cut (`s32`): `cutVideo` and `keepVideo` keep the marked range as an MP4. See [Keeping the video](#keeping-the-video). |
 | `src/scoring/` | The scoring adapter (`s11`): `scoreLift(track, lift, opts)` gives contract 4's `ResultView` from a raw track. See [Scoring](#scoring). |
+| `src/draw/` | The skeleton overlay (`d16`): the pose at a playhead time, the bones and the confidence gate, each cue's drawing through `drawCue`, the timeline's marks. A plain canvas module, ported from the old page and pinned to it. See [A1, the player](#a1-the-player-and-the-overlay). |
 | `src/analysis/` | The analysis job and its queue (`s12`): `appQueue()` is the app's one queue; Analyse keeps the cut (`s32`), then queues the job, which poses every frame of the range, builds the track and scores it. See [The analysis](#the-analysis). |
 | `src/pose/` | The pose engine (`s10`): `PoseEngine.create()` gives one async `estimate(frame, tMs)` over a worker running MoveNet Thunder on TF.js. See [The pose engine](#the-pose-engine). |
 | `vendor/` | Third-party files, each with its licence text, byte for byte from its npm package ([THIRD_PARTY.md](../THIRD_PARTY.md#in-the-new-app-app)): `preact/` (Preact 11.1.1 and its hooks), `htm/` (htm 3.1.1), `mediabunny/` (mediabunny 1.61.6, MPL-2.0, the frame source's one demuxer), `fonts/` (Barlow and Barlow Condensed, woff2, with `OFL.txt`). `vendor/tfjs/` is built by `tools/build-tfjs.mjs` (gitignored). |
@@ -674,6 +675,66 @@ first screen draws), the frame source by `openSource` (default `openFrameSource`
   which Q1 shows when two are queued. A cut that can't be stored stays on M with
   the error in the error's words; a second tap while one is working does nothing.
 
+## A1, the player and the overlay
+
+`d16`. The cards under the player are a later package's; this is the video, the
+overlay and the controls (`screens/A1.mjs`, the mockup's `Result.dc.html`).
+`A1({flow, store, openSource, diagnostics})` takes the lift's id from the flow's
+params (`liftId`, as H and Q1 hand it) and reads from the store the record
+(`getLift`), the result (`readResult`), the track (`readTrack`), the cut
+(`readVideo`) and the view options (`getSettings().view`: `skeleton`, `cues`,
+`loop`, `speed`; the Skeleton button and the speed button save theirs).
+
+**What plays and steps, and why** (`ui/player.mjs`, a plain module on injected
+elements, `tests/app/player.test.js` on fakes):
+
+- **Play** runs a `<video>` on the stored cut (an object URL of the blob), the
+  overlay painted from `requestVideoFrameCallback`: its `mediaTime` names the
+  frame the compositor shows, so the skeleton is on exactly that frame. Without
+  the callback an `requestAnimationFrame` reading `currentTime` is the fallback
+  (it can be a frame off). The video's frames are the ones the stepper's
+  `frameTimes` list; the frame source itself is not used to play, since a
+  `<video>` plays and decoding every frame ourselves would cost more than it gives.
+- **Pause and the one-frame steps** go through s38's stepper, opened on the cut
+  at the size the stage needs: a step to a held frame is a lookup, forwards and
+  back (a `<video>` cannot step back). The stepped frame is an `ImageBitmap` on
+  a canvas that covers the `<video>` until the video shows its first moving frame
+  and again whenever it is not playing. Pause shows the frame the video presented
+  last, from the stepper; a step while playing pauses first.
+- **The marked range** (the stored record's `range`, in the cut's timeline) is the
+  timeline: the clock and the bar count from its start, playing wraps at its end
+  (`view.loop`) or stops on its last frame, steps are held at its first and last
+  frame (the frames the job posed). The cut starts at the keyframe before the mark;
+  those frames before `range.t0` are never shown (no pose for them).
+- **A drag on the timeline** seeks through the stepper, the newest request wins.
+
+**The overlay** (`src/draw/`, a plain canvas module, no Preact; each part pinned to
+the old page's code in `tests/app/draw.test.js` through `tests/loadOldCode.js`):
+
+| File | What | The old page's |
+| --- | --- | --- |
+| `interpolate.mjs` | `poseAtTime(track, t)`: the pose at a time, cubic and monotone between the two bracketing samples, an unsure joint snapped at the halfway point, never faded; `cubicAt`, the interpolator `drawCue` takes | `poseAtTime`, `cubicAt`, `monoTangent`, `slotForTime` |
+| `skeleton.mjs` | `skeletonShapes`: the bones whose two ends are both sure and the sure joints (confidence 0.3 or more; `CONF_THRESHOLD`); `drawSkeleton`; `overlayStyle(read, scale)` reads the look from the tokens | `drawOverlay`'s bone and joint loops |
+| `cues.mjs` | `drawCues`: each scored cue through `Diagnostics.drawCue(ctx, id, t, computed, {smooth: true, cubic: cubicAt, labelRow})`, so the marks sit on the skeleton; labels stack | `Diagnostics.overlay` |
+| `marks.mjs` | `timelineMarks(view, range)`: the lift window's span and ends (a window with `t1: null` marks its start only, none marks none) and the worst moments of the cues that went wrong | `liftMarkHtml`, `renderLiftMarks` |
+| `overlay.mjs` | `paintOverlay`: clear, skeleton, cues, for one instant | `drawOverlay` |
+
+- **Missing and unsure joints:** a joint below the gate, or `null`, is not drawn,
+  and no bone that ends in it. The old page's joint loop throws on a `null` joint;
+  the port skips it (the test says so).
+- **`computed`** is `scoreLift(track, lift, {sigmaMs, keepVelocity})`'s, with the
+  *view's own* `smoothing` (`result.json` holds the view, not `computeResults()`'s
+  samples), and the skeleton is drawn from the same smoothed keypoints, so the marks
+  sit on the joints they measure. `scoreLift` doesn't return the smoothed keypoints,
+  so A1 smooths again with `smoothKeypoints` (cheap; the same numbers).
+- **Colours, sizes and spacing** come from `styles/tokens.css`, the canvas code too:
+  `overlayStyle` reads `--accent-bone`, `--text`, `--ground`, `--bone-width`,
+  `--joint-size` and `--joint-ring` with `getComputedStyle`, and scales them to the
+  frame's pixels (the overlay canvas is the track's frame size, shown scaled).
+  `tests/app/draw.test.js` scans `app/src/ui/` and `app/src/draw/` for colour literals.
+- **Not drawn yet:** A3's "unsure joints" option (`view.unsure`), the lifter picker,
+  the "Rep 1" chip (the view holds no rep count), the cue cards.
+
 ## Q1, analysing
 
 `d15`. `screens/Q1.mjs` follows the app's one queue (injected as a prop; the
@@ -1066,7 +1127,7 @@ loads and the engine answers, not how fast. The worker itself is tested in
 ## The tests
 
 `tests/app/` holds them, because the pipeline's red-first check reads only
-`tests/`: `flow.test.js` (the state machine), `home.test.js` (H's logic: a lift's state, the lists, the import step, `main.mjs`'s boot), `assemble.test.js` (assemble
+`tests/`: `flow.test.js` (the state machine), `draw.test.js` (the overlay, pinned to the old page) and `player.test.js` (A1's player on fakes), `home.test.js` (H's logic: a lift's state, the lists, the import step, `main.mjs`'s boot), `assemble.test.js` (assemble
 into a temporary folder, the manifest and `index.html`), `serve.test.js` (the
 dev server), `contracts.test.js` (the contracts, against the committed tracks
 and `diagnostics.js`'s headless API), `store.test.js` (the store, on `fake-opfs.js`, an in-memory OPFS), `frame-source.test.js` (the frame source and its stepper, on our own clips in `tests/app/clips/` and a fake decoder), `pose-engine.test.js` (the pose engine's client and worker handler, against fakes), `media-phone.test.js` (the check page's media measurements, their driver and the clips' script; the shipped `dist/` without them), `android-shell.test.js` (the Capacitor config, the committed Android project, the pins and `build-apk.sh`), `sw.test.js` (the service worker run as a script on a fake Cache Storage and fetch, the registration module on a fake browser and queue, assemble's version stamp), `build-tfjs.test.js` (the TF.js
