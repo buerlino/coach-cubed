@@ -11,12 +11,14 @@ import { followQueue, homeView } from '../home-model.mjs';
 // The store is read again when a job starts, ends or changes state, not at every frame.
 const signature = jobs => jobs.map(j => `${j.id}:${j.state}`).join(',');
 
-export function H({ flow, queue, store }) {
+export function H({ flow, queue, store, updates }) {
   const [jobs, setJobs] = useState(null);   // null until the queue has loaded: no state is shown before
   const [shown, setShown] = useState(null);   // { grouped, results } once the store has answered
   const [problem, setProblem] = useState(null);
 
   useEffect(() => followQueue(queue, setJobs), [queue]);
+  const [update, setUpdate] = useState('current');   // the service worker's state; only 'ready' shows
+  useEffect(() => (updates ? updates.subscribe(setUpdate) : undefined), [updates]);
 
   const sig = jobs ? signature(jobs) : null;
   useEffect(() => {
@@ -58,6 +60,7 @@ export function H({ flow, queue, store }) {
           </span>
         </button>
       </div>
+      ${update === 'ready' ? html`<p class="update" role="status">Update ready. Reload the app to use the new version.</p>` : null}
       ${problem ? html`<p class="error screen__body" role="alert">${problem}</p>` : null}
       ${view && view.empty ? html`
         <div class="empty">
