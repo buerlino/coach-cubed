@@ -30,6 +30,11 @@ restructuring window, merged packages' details) are in [decisions-archive.md](de
 
 ### What 0.1.0 is
 
+- **2026-11-02, nordmu, on milestone B's packages** (`c27` to `c31`,
+  [packages/](packages/README.md)): R1–R3b are built from v1's mockups with
+  checkpoint A's rules (fewer words, symbols, nothing moves) and reviewed in
+  the app at checkpoint B; R1's framing tip per lift lives in `s49`'s
+  registry; in `c31` the phone films the laptop playing an example clip.
 - **2026-11-02, nordmu, checkpoint A** (on the Fairphone, the PWA; more
   feedback to come): keep the look and the green accent; less text, more
   symbols; the lift is chosen once, in its own step after the video is

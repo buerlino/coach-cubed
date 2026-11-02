@@ -239,16 +239,20 @@ Cut now, written after checkpoint A. Testers get an APK only from it.
 
 ### Milestone B, the gym session
 
-Cut now, written in full after checkpoint A, whose feedback may change
-them.
+Written in full on 2026-11-02, after checkpoint A's pass for laptop
+packages: `d29` and `c30` are split (`d29b`, `c30b`), and `c27` runs on the
+laptop alone, so its first real camera is `c30`'s (nordmu). R1–R3b follow
+v1 with checkpoint A's rules ([decisions.md](decisions.md#what-010-is)).
 
 | Id | What | Size | After |
 | --- | --- | --- | --- |
-| `c27` | **Capture and the rolling buffer** in `app/src/media/`: the back camera at 30 fps and its real rate, H.264 with a keyframe a second, a 60 s ring, a range cut to MP4 by `s32`'s cut, the wake lock; tests with fakes. | L | checkpoint A |
-| `d28` | **R1 and R2:** setup (the framing guide, the lift) and recording (REC, the session time, the real rate, the queue, Replay, End). | M | `c27` |
-| `d29` | **R3 and R3b:** the last 20 s at once, pause, scrub, ½×; keep and mark through M1–M3, then back to R2 with the lift queued; R3b, the delayed view, as a setting. | L | `d28`, `d14` |
-| `c30` | **Recording and analysis together:** the queue runs while recording goes on; the camera permission in the WebView; the screen kept on; what Android's freeze of a backgrounded WebView does to a running job. | M | `d29`, `s12` |
-| `c31` | **A session on the Fairphone,** 30–60 minutes, recording and analysing: heat, battery, storage; in the APK and in Brave. | M | `c30` |
+| `c27` | **Capture and the rolling buffer** in `app/src/media/`: the camera and its real rate, H.264 with a keyframe a second, a 60 s ring, snapshots as MP4 (from which `s32`'s cut keeps a range), `follow()` for the delayed view, the wake lock; tests with fakes and headless Brave's fake camera. Its file names a split point, `c27b`. | L | checkpoint A |
+| `d28` | **R1 and R2:** setup (the framing guide, the lift with its framing tip from `s49`'s registry) and recording (REC, the session time, the real rate, the queue, Replay, End); the session; H's gym card and S1's gym rows. | M | `c27`, `s49`, `d53`, `d55` |
+| `d29` | **R3:** the last 20 s at once, pause, scrub, ½×; keep and mark through `d54`'s M1–M3, then back to R2 with the lift queued. | M | `d28`, `d14`, `d54` |
+| `d29b` | **R3b, the delayed view,** as a setting: the camera 5–20 s late, decoded from the ring; R1's replay mode. | M | `d29` |
+| `c30` | **The camera on the Fairphone:** the camera permission in the APK, the real rate, rotation, the encoder, the ring's memory (the settings' ranges), snapshots on the phone. | M | `d28`, `c26` |
+| `c30b` | **Recording and analysis together:** the queue runs while recording goes on; the screen kept on; what Android's freeze of a backgrounded WebView does to the capture and a running job. | M | `c30`, `d29b` |
+| `c31` | **A session on the Fairphone,** 30–60 minutes, recording and analysing: heat, battery, storage; in the APK and in Brave; the phone films the laptop playing an example clip. | M | `c30b` |
 
 **Checkpoint B:** nordmu runs a real gym session with it.
 
@@ -277,7 +281,7 @@ them.
 ## The size, roughly
 
 Step 6.3's estimate: milestone A is 25 packages, about 54 hours of agent
-work; milestone B 5 packages, about 12 more; `c33` about an M, before
+work; milestone B 7 packages after its splits, about 15 more; `c33` about an M, before
 testers. Not counted: fix rounds, resumes after the worker's 3-hour limit,
 and the coordinating session's re-check before each run. Sizes, not
 dates: re-estimate once `d3` and `s6` have run. Phone packages run by day
@@ -356,9 +360,10 @@ build for our own code, the lifter choice hidden.
   is away and resumes after; Q1 says so.
 - **One test phone,** shared with pascaline's nights: phone packages queue
   on its lock and run by day, with nordmu told.
-- **Six L packages sit at the worker's 3-hour hard limit** (`timeout -k
-  60 10800` in `pipeline/pipeline.sh`): `s6`, `s9`, `s12`, `d14`, `d16` and
-  `d18`. `s6` and `d16` name split points (`s6b`, `d16b`); a run cut off
+- **Seven L packages sit at the worker's 3-hour hard limit** (`timeout -k
+  60 10800` in `pipeline/pipeline.sh`): `s6`, `s9`, `s12`, `d14`, `d16`,
+  `d18` and `c27`. `s6`, `d16` and `c27` name split points (`s6b`, `d16b`,
+  `c27b`); a run cut off
   resumes and isn't counted in the estimate.
 - **The from-source engine on real hardware:** `c20` ran it on the
   Fairphone (WebView 153, Adreno 810): it loads, answers 17 keypoints or
