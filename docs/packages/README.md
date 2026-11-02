@@ -40,7 +40,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 5 | `s5` | The app's contracts | schrödinger, opus | `d3`, `s4` | merged `4d5d093` |
 | 6 | `s6` | TF.js and pose-detection from source | schrödinger, opus | `d3` | merged `27732d8` |
 | 7 | `s7` | The from-source bundle gives npm's numbers | schrödinger, sonnet | `s6` | merged `e44db95` |
-| 8 | `c8` | The store | curie, sonnet | `s5` | waits |
+| 8 | `c8` | The store | curie, sonnet | `s5` | merged `86265ea` |
 | 9 | `s9` | The frame source (mediabunny) | schrödinger, sonnet | `s5` | waits |
 | 10 | `s10` | The pose engine | schrödinger, sonnet | `s5`, `s6`, `s7` | waits |
 | 11 | `c20` | The Capacitor shell, and the engine on the phone | curie, sonnet | `d3`, `s9`, `s10` | waits; phone: by day, nordmu told |
