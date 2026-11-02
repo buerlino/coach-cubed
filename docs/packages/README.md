@@ -59,7 +59,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 24 | `d14` | M1–M3, marking a lift | dirac, sonnet | `s9`, `s12`, `s35`, `s38` | merged `ca8b583` |
 | 25 | `d15` | Q1, analysing | dirac, sonnet | `s12` | merged `ea03e35` |
 | 26 | `d16` | A1's player with the skeleton overlay | dirac, sonnet | `s9`, `s11`, `s32`, `s35`, `s38` | merged `50f40bc` (no split) |
-| 27 | `d17` | A1's timeline and cue cards | dirac, sonnet | `d16`, `s36` | waits |
+| 27 | `d17` | A1's timeline and cue cards | dirac, sonnet | `d16`, `s36` | merged `821593f` |
 | | | **Look A0** (D7): nordmu, about 15 minutes on the Fairphone | | `d13`, `d14`, `d15`, `d17`, `c20` | not a gate |
 | 28 | `c19` | The service worker, the app offline | curie, sonnet | `d3`, `s6`, `s12` | merged `5ccc0a0` |
 | 29 | `c21` | The page test, offline | curie, sonnet | `d13`, `d14`, `d15`, `d17`, `c19` | waits |
