@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # pipeline/gc.sh: tidies the pipeline's bookkeeping; pipeline.sh runs it after every third run, or run it by hand. Without --apply it
 # only lists what it would do. It moves, never deletes, and never touches a tracked file, a branch or a worktree.
 #
