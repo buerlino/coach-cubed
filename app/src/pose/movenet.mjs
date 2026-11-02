@@ -57,7 +57,12 @@ export async function loadMoveNet(backend) {
     }
   }
 
-  await poseOf(new OffscreenCanvas(WARMUP_SIDE, WARMUP_SIDE), 0);
+  // A canvas with no context has no bitmap to give: draw the blank (black) frame.
+  const blank = new OffscreenCanvas(WARMUP_SIDE, WARMUP_SIDE);
+  const ctx = blank.getContext('2d');
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, WARMUP_SIDE, WARMUP_SIDE);
+  await poseOf(blank, 0);
   detector.reset();   // the blank frame's crop must not be the first real frame's
 
   return {

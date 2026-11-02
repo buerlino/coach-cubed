@@ -3,11 +3,12 @@
 // The pose engine (app/src/pose/) at work in a real page: serves app/ on
 // 127.0.0.1 (a free port), opens headless Brave, starts PoseEngine over its
 // module worker on the WebGL bundle, and runs a few synthetic frames through
-// estimate(): a figure drawn on a canvas, wrapped in a VideoFrame, moved a
-// little each frame. Then reset(), and one frame again. It reports, as JSON,
+// estimate(): fixed hash noise on a canvas (MoveNet scores a pose in it, as in
+// check-tfjs.mjs), wrapped in a VideoFrame; one frame with a drawn figure,
+// which may come back as null (nobody); then reset(), and a noise frame again. It reports, as JSON,
 // the engine's info, the init time (warm-up included), each estimate's
 // keypoint count and ms, and the first point of the first pose; exits 1 unless
-// every estimate answered with 17 keypoints [y, x, conf] inside a plausible
+// every noise estimate answered with 17 keypoints [y, x, conf] inside a plausible
 // range of the frame's pixels.
 // Needs build-tfjs.mjs's bundle and fetch-models.sh's weights. Headless Brave's
 // WebGL is SwiftShader (software): this checks that the engine loads and
@@ -27,17 +28,25 @@ const BROWSER = arg('--browser', '/usr/bin/brave-browser');
 const FRAMES = Number(arg('--frames', 3));
 const W = 640, H = 480;
 
-// Run in the page. A figure on a gradient: a head, a trunk, arms and legs as
-// thick lines, shifted by `step` pixels per frame.
+// Run in the page. A gradient, with noise or without; a figure on it: a head,
+// a trunk, arms and legs as thick lines, shifted 4 px per frame.
 async function runCheck(frames, W, H) {
   const out = { frames: [] };
   try {
     const { PoseEngine } = await import('./src/pose/pose-client.mjs');
     const canvas = new OffscreenCanvas(W, H), ctx = canvas.getContext('2d');
-    const frameAt = i => {
+    const frameAt = (i, noise) => {
       const g = ctx.createLinearGradient(0, 0, W, H);
       g.addColorStop(0, '#3a4a5a'); g.addColorStop(1, '#a89c8a');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      if (noise) {   // hash noise, the same every run: MoveNet scores a pose in it (check-tfjs.mjs's input is noise too)
+        const img = ctx.getImageData(0, 0, W, H), d = img.data;
+        let a = 12345;
+        for (let k = 0; k < d.length; k += 4) {
+          for (let c = 0; c < 3; c++) { a = (Math.imul(a, 1664525) + 1013904223) >>> 0; d[k + c] = a >>> 24; }
+        }
+        ctx.putImageData(img, 0, 0);
+      }
       const x = 320 + 4 * i;
       ctx.strokeStyle = '#e8d0b8'; ctx.fillStyle = '#e8d0b8'; ctx.lineWidth = 22; ctx.lineCap = 'round';
       ctx.beginPath(); ctx.arc(x, 110, 26, 0, 7); ctx.fill();
@@ -51,21 +60,22 @@ async function runCheck(frames, W, H) {
     const engine = await PoseEngine.create({ backend: 'webgl' });
     out.initMs = Math.round(performance.now() - t0);
     out.info = engine.info;
-    const run = async (i, label) => {
+    const run = async (i, label, noise) => {
       const t = performance.now();
-      const r = await engine.estimate(frameAt(i), i * 33.333);
+      const r = await engine.estimate(frameAt(i, noise), i * 33.333);
       const kp = r.keypoints;
       out.frames.push({ label, wallMs: Math.round(performance.now() - t), workerMs: Math.round(r.ms),
         keypoints: kp ? kp.length : 0, first: kp ? kp[0].map(v => Math.round(v * 100) / 100) : null,
         inFrame: kp ? kp.every(([y, x]) => y > -H && y < 2 * H && x > -W && x < 2 * W) : null });
     };
-    for (let i = 0; i < frames; i++) await run(i, 'frame ' + i);
+    for (let i = 0; i < frames; i++) await run(i, 'noise frame ' + i, true);
+    await run(frames, 'figure frame', false);   // reported, not required: a drawn figure may be "nobody"
     const t1 = performance.now();
     await engine.reset();
     out.resetMs = Math.round(performance.now() - t1);
-    await run(0, 'after reset');
+    await run(0, 'noise after reset', true);
     engine.close();
-    out.ok = out.info.backend === 'webgl' && out.frames.every(f => f.keypoints === 17 && f.inFrame);
+    out.ok = out.info.backend === 'webgl' && out.frames.filter(f => /noise/.test(f.label)).every(f => f.keypoints === 17 && f.inFrame);
   } catch (e) { out.error = String((e && e.stack) || e); }
   return out;
 }
