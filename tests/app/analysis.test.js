@@ -273,9 +273,10 @@ test('a queued job is cancelled before it runs; cancel of an ended job changes n
 });
 
 test('a failed job says why, and the queue goes on with the next', async () => {
+  let calls = 0;
   const { store, queue } = await setup({
-    sources: (blob, k) => {
-      if (k === 0) { const e = new Error("This video's format (hvc1) can't be decoded on this device."); e.code = 'unsupported-codec'; throw e; }
+    sources: () => {
+      if (calls++ === 0) { const e = new Error("This video's format (hvc1) can't be decoded on this device."); e.code = 'unsupported-codec'; throw e; }
       return fakeSource({});
     },
   });
@@ -311,7 +312,7 @@ test('the track and the result are saved through the store, the track in the fix
   const { scoreLift } = await load('src/scoring/score.mjs');
   const { validateStoredLift } = await load('src/contracts/stored-lift.mjs');
   const times = Array.from({ length: 40 }, (_, i) => 0.0331 * i);   // not a round rate: the times are the authority
-  const nobody = new Set([3, 7]);
+  const nobody = new Set([4, 7]);   // frames in the range where the model found nobody
   const { store, queue } = await setup({
     sources: () => fakeSource({ fps: 30.2, width: 360, height: 640, frameTimes: times }),
     engines: (k, clock) => fakeEngine({ clock, keypoints: f => (nobody.has(f.index) ? null : standing()) }),
@@ -332,7 +333,8 @@ test('the track and the result are saved through the store, the track in the fix
   assert.deepEqual([track.meta.width, track.meta.height], [360, 640]);
   assert.equal(track.meta.tracks.kept, APP_PERSON_ID);
   assert.equal(track.meta.tracks.kept_frames, want.filter(([, i]) => !nobody.has(i)).length);
-  assert.deepEqual(track.keypoints['3'], {});
+  assert.deepEqual(track.keypoints['7'], {});
+  assert.equal(track.keypoints['3'], undefined, 'a frame before the range is not posed');
   const result = await store.readResult(lift.id);
   assert.deepEqual(validateResultView(result), []);
   assert.deepEqual(result, JSON.parse(JSON.stringify(scoreLift(track, 'lateral-raise', { Diagnostics }).view)));
@@ -379,9 +381,14 @@ test('the WebView frozen: hidden time is no stall, and the job resumes where it 
 });
 
 test('a hang while visible: the engine is replaced and the job restarts; a second hang fails it', async () => {
-  const hangOn = new Set([0]);   // which engines hang on their 3rd frame
+  // first the first engine hangs on its 3rd frame; then every 3rd frame sent hangs, whichever engine
+  let phase = 1, calls = 0;
+  const never = () => new Promise(() => {});
   const { store, queue, made, timers } = await setup({
-    engines: (k, clock) => fakeEngine({ clock, hold: n => (hangOn.has(k) && n === 3 ? new Promise(() => {}) : null) }),
+    engines: (k, clock) => fakeEngine({ clock, hold: n => {
+      if (phase === 1) return k === 0 && n === 3 ? never() : null;
+      return ++calls % 3 === 0 ? never() : null;
+    } }),
   });
   const lift = await storeLift(store);
   const rec = record(queue);
@@ -397,17 +404,20 @@ test('a hang while visible: the engine is replaced and the job restarts; a secon
   assert.equal(queue.jobs().find(j => j.id === job.id).state, 'done');
   assert.deepEqual(rec.states(job.id), ['queued', 'reading', 'pose', 'reading', 'pose', 'scoring', 'done'], 'restarted from the start');
 
-  hangOn.add(2); hangOn.add(3);
+  phase = 2;
   const other = await storeLift(store);
   const j2 = await queue.enqueue(other);
-  await until(() => made[2] && made[2].frames.length === 3, 'the second job hangs');
+  await until(() => calls === 3, 'the second job hangs');
+  assert.equal(made[1].resets, 1, 'the kept engine was reset for the new clip');
   timers.tick(30);
-  await until(() => made[3] && made[3].frames.length === 3, 'and hangs again on a new engine');
+  await until(() => calls === 6, 'and hangs again on a new engine');
+  assert.equal(made.length, 3);
   timers.tick(30);
   await queue.idle();
   const end = queue.jobs().find(j => j.id === j2.id);
   assert.equal(end.state, 'failed');
   assert.match(end.error, /stopped responding/);
+  assert.ok(made[2].closed);
   assert.equal(timers.active, 0, 'no watchdog left running');
 });
 

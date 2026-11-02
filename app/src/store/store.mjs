@@ -7,6 +7,8 @@
 //   index.json            the lifts' records, newest first: a cache of the folders
 //   settings.json         S1's choices and A3's view options (settings.mjs)
 //   meta.json             the answer persist() gave, kept so it is asked once
+//   queue.json            the analysis queue's jobs (contract 2) and the last
+//                         measured rate, for the job queue (app/src/analysis/)
 //   lifts/<id>/cut.mp4    the cut video (D6)
 //   lifts/<id>/track.json the track, once analysed (contract: track.mjs)
 //   lifts/<id>/result.json the ResultView, once analysed (cue-view.mjs)
@@ -14,12 +16,13 @@
 //                         save, so a folder with it is a complete lift and the
 //                         index can be rebuilt from the folders alone.
 // Every file is written whole (a writable commits on close). index.json,
-// settings.json and meta.json are written atomically: a temporary file, then
+// settings.json, meta.json and queue.json are written atomically: a temporary file, then
 // a move over the real one.
 import { LIFTS_DIR, ID_RE } from '../contracts/common.mjs';
 import { liftPaths, validateStoredLift } from '../contracts/stored-lift.mjs';
 import { validateTrack } from '../contracts/track.mjs';
 import { validateResultView } from '../contracts/cue-view.mjs';
+import { validateAnalysisJob } from '../contracts/analysis-job.mjs';
 import { applySettings, readSettings, validateSettings, validateSettingsPatch } from './settings.mjs';
 
 /** The app's version, stored with each lift (the manifest carries none yet). */
@@ -28,6 +31,8 @@ export const APP_VERSION = '0.1.0';
 const INDEX = 'index.json';
 const SETTINGS = 'settings.json';
 const META = 'meta.json';
+const QUEUE = 'queue.json';
+const QUEUE_VERSION = 1;
 const LIFT_RECORD = 'lift.json';
 const INDEX_VERSION = 1;
 const LIFT_ABBR = { 'lateral-raise': 'lr', snatch: 'sn' };
@@ -90,6 +95,37 @@ const pad = (n, w = 2) => String(n).padStart(w, '0');
 function idBase(created, lift) {
   const d = new Date(created);
   return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}-${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}-${LIFT_ABBR[lift] || 'x'}`;
+}
+
+const positive = v => typeof v === 'number' && Number.isFinite(v) && v > 0;
+
+/**
+ * The errors of the analysis queue's kept state: its jobs (contract 2, ids
+ * unique) and the last measured rate, null before the first job is done.
+ * @param {{jobs: import('../contracts/analysis-job.mjs').AnalysisJob[], rate: {msPerFrame: number, fps: number, sPerS: number}|null}} q
+ */
+export function validateQueueState(q) {
+  if (!q || typeof q !== 'object' || Array.isArray(q)) return ['queue: must be an object { jobs, rate }'];
+  const errors = [];
+  for (const k of Object.keys(q)) if (k !== 'jobs' && k !== 'rate') errors.push(`${k}: unknown field`);
+  if (!Array.isArray(q.jobs)) errors.push('jobs: must be a list of jobs');
+  else {
+    const ids = new Set();
+    q.jobs.forEach((j, i) => {
+      errors.push(...validateAnalysisJob(j).map(e => `jobs[${i}].${e}`));
+      if (j && ids.has(j.id)) errors.push(`jobs[${i}].id: ${j.id} is there twice`);
+      if (j) ids.add(j.id);
+    });
+  }
+  const r = q.rate;
+  if (r !== null) {
+    if (!r || typeof r !== 'object' || Array.isArray(r)) errors.push('rate: must be { msPerFrame, fps, sPerS } or null');
+    else {
+      for (const k of Object.keys(r)) if (!['msPerFrame', 'fps', 'sPerS'].includes(k)) errors.push(`rate.${k}: unknown field`);
+      for (const k of ['msPerFrame', 'fps', 'sPerS']) if (!positive(r[k])) errors.push(`rate.${k}: must be a number above 0`);
+    }
+  }
+  return errors;
 }
 
 function asBlob(v) {
@@ -377,6 +413,25 @@ export function createStore({ storage = globalThis.navigator && globalThis.navig
     });
   }
 
+  // ---- the analysis queue ----
+  /** The kept queue; a missing or broken file is an empty queue, and a job that breaks contract 2 is left out. */
+  async function readQueue() {
+    return exclusive(async () => {
+      const j = await readJson(await root(), QUEUE);
+      if (!j || j.version !== QUEUE_VERSION) return { jobs: [], rate: null };
+      const jobs = Array.isArray(j.jobs) ? j.jobs.filter(job => validateAnalysisJob(job).length === 0) : [];
+      const rate = validateQueueState({ jobs: [], rate: j.rate ?? null }).length ? null : (j.rate ?? null);
+      return { jobs, rate };
+    });
+  }
+  /** Keeps the queue's jobs and rate, whole: refused (invalid) when anything breaks its contract. */
+  async function saveQueue(q) {
+    const errors = validateQueueState(q);
+    if (errors.length) throw invalid('queue', errors);
+    const text = JSON.stringify({ version: QUEUE_VERSION, jobs: q.jobs, rate: q.rate });
+    return exclusive(async () => { await writeAtomic(await root(), QUEUE, text); });
+  }
+
   // ---- usage ----
   async function folderBytes(dir) {
     let n = 0;
@@ -404,6 +459,8 @@ export function createStore({ storage = globalThis.navigator && globalThis.navig
     readResult: id => exclusive(() => readJsonOf(id, 'result')),
     getSettings,
     saveSettings,
+    readQueue,
+    saveQueue,
     /** What persist() answered the first time, `{asked, granted}`, or null before the first save. */
     persistAnswer: () => exclusive(async () => ((await readJson(await root(), META)) || {}).persist || null),
     /** S1's numbers: the origin's usage and quota from estimate(), the room left, and whether it is persistent. */
