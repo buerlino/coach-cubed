@@ -17,16 +17,15 @@
 // answers, not its speed or whether a drawn figure is "found" the way a lifter
 // is. The phone's numbers are c20's and c26's. Heavy: run it through
 // pipeline/devlock.sh slice.
-import { spawn } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { launchBrowser } from './browser.mjs';
 
 const APP = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const arg = (name, dflt) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : dflt; };
-const BROWSER = arg('--browser', '/usr/bin/brave-browser');
 const FRAMES = Number(arg('--frames', 3));
 const RESETS = Number(arg('--resets', 3));
 const W = 640, H = 480;
@@ -123,22 +122,13 @@ const url = `${base}/check-pose.html`;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const profile = mkdtempSync(join(tmpdir(), 'coach-check-pose-'));
-const browser = spawn(BROWSER, ['--headless=new', `--user-data-dir=${profile}`, '--remote-debugging-port=0',
-  '--no-first-run', '--no-default-browser-check', '--enable-unsafe-swiftshader', '--use-angle=swiftshader',
-  'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
+let browser = null;
 
 let result;
 try {
-  const port = await new Promise((res, rej) => {
-    let err = '';
-    const timer = setTimeout(() => rej(new Error('no DevTools port from the browser: ' + err.slice(-500))), 30000);
-    browser.stderr.on('data', d => {
-      err += d;
-      const m = err.match(/DevTools listening on ws:\/\/127\.0\.0\.1:(\d+)\//);
-      if (m) { clearTimeout(timer); res(m[1]); }
-    });
-    browser.on('exit', code => rej(new Error(`the browser exited (${code}): ${err.slice(-500)}`)));
-  });
+  browser = await launchBrowser(profile, ['--headless=new', '--enable-unsafe-swiftshader', '--use-angle=swiftshader',
+  'about:blank']);
+  const port = browser.port;
   const target = await (await fetch(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(url)}`, { method: 'PUT' })).json();
   const ws = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });
@@ -158,7 +148,7 @@ try {
 } catch (e) {
   result = { error: String(e.message || e) };
 } finally {
-  browser.kill();
+  if (browser) await browser.close();
   server.close();
   await sleep(500);
   rmSync(profile, { recursive: true, force: true });

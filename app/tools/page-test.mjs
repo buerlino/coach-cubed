@@ -32,20 +32,20 @@
 //                model); it fails on an error, on a job that does not finish ($COACH_PAGE_TEST_JOB_S,
 //                540 s here) or on an empty cue list. Run it through
 //                `pipeline/devlock.sh slice page-real node app/tools/page-test.mjs --real <clip>`.
-import { spawn, execFileSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { delimiter, dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { assemble, TEST_TRACKS } from './assemble.mjs';
 import { createApp } from './serve.mjs';
+import { BROWSERS, findBrowser, launchBrowser } from './browser.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const APP = resolve(HERE, '..');
 const ROOT = resolve(APP, '..');
 const CLIPS = join(ROOT, 'tests', 'app', 'clips');
-const BROWSERS = ['brave-browser', 'brave', 'chromium', 'chromium-browser', 'google-chrome', 'google-chrome-stable'];
 const LIFTS = [
   { lift: 'lateral-raise', clip: 'testsrc2-lateral-raise-25fps-75f.mp4', track: TEST_TRACKS[0] },
   { lift: 'snatch', clip: 'testsrc2-snatch-30fps-107f.mp4', track: TEST_TRACKS[1] },
@@ -55,16 +55,7 @@ const arg = (name, dflt = null) => { const i = process.argv.indexOf(name); retur
 const say = s => process.stdout.write(`${s}\n`);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// ---- the browser ----
-function findBrowser() {
-  const given = arg('--browser') ?? process.env.COACH_BROWSER;
-  if (given) return existsSync(given) ? given : null;
-  for (const dir of (process.env.PATH ?? '').split(delimiter)) {
-    for (const name of BROWSERS) if (dir && existsSync(join(dir, name))) return join(dir, name);
-  }
-  return null;
-}
-
+// ---- the browser: found and launched by browser.mjs, which also ends its whole process tree ----
 const breakKind = arg('--break');
 if (breakKind && !['console', 'http', 'rejection', 'stall', 'hang', 'cards'].includes(breakKind)) { console.error(`page-test: --break wants console, http, rejection, stall, hang or cards (got ${breakKind})`); process.exit(2); }
 const browserPath = findBrowser();
@@ -162,19 +153,9 @@ try {
   await new Promise(r => server.listen(Number(process.env.COACH_PORT) || 0, '127.0.0.1', r));
   const origin = `http://127.0.0.1:${server.address().port}`;
 
-  browser = spawn(browserPath, ['--headless=new', `--user-data-dir=${profile}`, '--remote-debugging-port=0',
-    '--no-first-run', '--no-default-browser-check', '--enable-unsafe-swiftshader', '--use-angle=swiftshader',
-    '--window-size=390,844', 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
-  const port = await new Promise((res, rej) => {
-    let err = '';
-    const timer = setTimeout(() => rej(new Error('no DevTools port from the browser: ' + err.slice(-500))), 30000);
-    browser.stderr.on('data', d => {
-      err += d;
-      const m = err.match(/DevTools listening on ws:\/\/127\.0\.0\.1:(\d+)\//);
-      if (m) { clearTimeout(timer); res(m[1]); }
-    });
-    browser.on('exit', code => rej(new Error(`the browser exited (${code}): ${err.slice(-500)}`)));
-  });
+  browser = await launchBrowser(profile, ['--headless=new', '--enable-unsafe-swiftshader', '--use-angle=swiftshader',
+    '--window-size=390,844', 'about:blank'], { browser: browserPath });
+  const port = browser.port;
   const target = await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT' })).json();
   const ws = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((res, rej) => { ws.onopen = res; ws.onerror = () => rej(new Error('DevTools socket')); });
@@ -387,12 +368,7 @@ try {
 } catch (e) {
   problems.push(`the run stopped: ${e.message}`);
 } finally {
-  if (browser) {
-    // wait for the browser to be gone: it writes to its profile until it exits, and rmSync then hits ENOTEMPTY
-    const gone = browser.exitCode !== null || browser.signalCode !== null ? Promise.resolve() : new Promise(r => browser.once('exit', r));
-    browser.kill();
-    await Promise.race([gone, sleep(5000)]);
-  }
+  if (browser) await browser.close();   // the whole tree is gone before the profile is removed
   if (server) server.close();
   await sleep(300);
   // retries: a helper process of the browser may still hold a file for a moment
