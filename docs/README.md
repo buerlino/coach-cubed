@@ -24,6 +24,7 @@ the size budgets ([tests/docs.test.js](../tests/docs.test.js)).
 | Doc | Holds |
 | --- | --- |
 | [decisions.md](decisions.md) | Every decision with who and when; the open questions and who answers them. |
+| [decisions-archive.md](decisions-archive.md) | Decisions about finished work: the restructuring window (Phases 0–2), merged packages' details. |
 | [backlog.md](backlog.md) | Open bugs, unverified assumptions and stale text in code that stays. |
 | [../THIRD_PARTY.md](../THIRD_PARTY.md) | Every third-party component, in the app and around it: name, version, licence, source. |
 | [authors.md](authors.md) | Who wrote how much of the code, for the licence consent (question 1). |

@@ -26,9 +26,29 @@ and for a look at `origin/phase-0` before `main` moves.
 
 ## Decided
 
-Newest first within each group.
+Newest first within each group. Decisions about finished work (the
+restructuring window, merged packages' details) are in [decisions-archive.md](decisions-archive.md).
 
 ### What 0.1.0 is
+
+- **2026-11-02, nordmu, checkpoint A** (on the Fairphone, the PWA; more
+  feedback to come): keep the look and the green accent; less text, more
+  symbols; the lift is chosen once, in its own step after the video is
+  picked; M1–M3 reworked (the numbered steps are the controls, undo is a
+  symbol, nothing moves, the controls stay on screen). The design goes
+  through the canvas first. Checkpoint A counts as passed for milestone B's
+  laptop packages; `c26` still runs by day. `c27` runs on the laptop alone,
+  `c30` and `c31` on the phone. Tonight's order: the fixes, `s49`, then B.
+- **2026-11-02, nordmu, on d22, d23 and d25:** a re-marked lift replaces
+  the old one once its analysis succeeds (`s50`); unsure-joint rings stay,
+  judged on the phone later; A3's smoothing becomes the default for later
+  analyses, capped at 300 ms in settings (`d51`); Q1's "No person found"
+  gets "Pick another video" (`d51`); the first-run text goes into the
+  wording pass; `introSeen` stays in settings. A4's 980 px breakpoint, phone
+  landscape scrolling to its buttons and A2's single column on a laptop
+  stay; no "Rep 1" before cues are scored per rep. The tools' browser
+  leaves no `org.chromium.Chromium.*` folders (`c52`). Noah takes the lift
+  side after 2.8 (`s49`). Settled entries moved to the archive.
 
 - **2026-11-02, nordmu: 0.1.0 is the handover.** It ships as planned, then
   coach goes back to Noah, who builds on with the pipeline (`c40`).
@@ -40,18 +60,6 @@ Newest first within each group.
   Question 3: the test phones are the Fairphone 6, an old Samsung Galaxy
   S8+ (Google's Chrome and WebView) and an old iPhone XS Max (the PWA in
   Safari); nordmu has no others. Question 10: nordmu picks "Coach Cubed".
-- **2026-11-02, nordmu, on the first night's reports:** one contract
-  package (`s35`): `frameTimes` in contract 5, a `reset` message in
-  contract 1, contract 4's window may lack its end and the view records
-  its smoothing, contract 2's reading reworded. Each set in diagnostics.js
-  says whether it has a lift window; the lateral raise has none (`s36`).
-  `athlete-a-trim` is a snatch (seen on the clip). S1 hides keepVideos
-  until contract 3 allows a lift without its cut; c8's setting ranges are
-  provisional until c27. mediabunny ships unminified. s9's and s32's phone
-  measurements move from c26 to `c34`, after c20. After c20 and c34: a
-  frame cache for M1–M3's steps before d14 (`s38`); the placeholder app ID
-  until question 10; persist() false is shown, not an error; the media code
-  stays; c34's clips stay cached for c26.
 - **2026-11-01, nordmu, after the plan's review**
   ([app-plan.md](app-plan.md#decided-2026-11-01)): D5, the raw keypoint
   plots aren't ported (A2's per-cue plots replace them). D6, an analysed
@@ -127,11 +135,6 @@ Newest first within each group.
   now needs `$CLIPPER_OUT` or `--clipper-dir`.
 - **2026-10-31, nordmu: offline is a hard requirement, so no server compute.**
 
-- **2026-10-31, nordmu: bar detection is parked backend and UI together.**
-  The detectors, their download path and skill go to `parked/bar-detection/`;
-  the page loses its equipment controls and box drawing. 3D keeps reading the
-  boxes cached in older tracks until 3D is parked.
-
 ### Licence
 
 - **2026-11-02, nordmu, pending Noah and the four authors' OK: coach is
@@ -187,18 +190,6 @@ Newest first within each group.
   relative link or its anchor doesn't resolve, or a path named in
   [README.md](README.md) is gone. Raising a budget is a decision recorded
   here.
-- **2026-10-31, nordmu: one doc per fact, so two docs went** (step 2.6).
-  `docs/deploy.md` is deleted after its true facts moved to
-  [server.md](server.md). `START_HERE.md` is split: the launch commands into
-  the root README, the anatomy guide into `src/anatomy/README.md`. The repo
-  `Caddyfile` stays, with its stale comments fixed (comments only, so the
-  deploy can't break).
-- **2026-10-31, nordmu: no notes about Noah's deploy box in the repo** (step
-  2.6). The deploy map in `train-data-todo.md` (sibling services, units,
-  addresses) is removed, as [server.md](server.md) already required; the
-  sibling notes live on that machine.
-- **2026-10-31, nordmu: athlete names in OCR samples become `<name>`** (step
-  2.6), as under "Data and privacy".
 
 - **2026-10-31, nordmu: the goal and the four principles** in
   [rules-core.md](rules-core.md) are confirmed (again when asked about
@@ -209,27 +200,3 @@ Newest first within each group.
   [rules-core.md](rules-core.md)** (in AGENTS.md until step 2.9); the
   server-only rules (Caddy, the live CA, restarts, sibling notes) live in
   [server.md](server.md), with a pointer from rules-core.md.
-
-### The restructuring window
-
-- **2026-10-31, nordmu: where things go.** The core's in-browser pose lives in
-  `src/pose/`. Parked areas go to `parked/<area>/` at the root, moved with
-  `git mv` and unwired from the app. Their tests move with them and leave
-  `npm test`, which then guards only the core; each parking commit records
-  the new count.
-- **2026-10-31, nordmu: until the pipeline exists, one Claude Code session
-  does the writing work, one step per commit, in order.** Read-only research
-  may fan out to parallel agents. Steps that touch `src/app.py` never run in
-  parallel: the areas being parked are tangled into it (map.md, "Hidden
-  couplings"). Independent work in its own folder, such as the Phase 3 spike
-  in `spike/`, may run as a second session alongside.
-- **2026-10-31, nordmu: restructuring happens on branch `phase-0`** (worktree
-  `.claude/worktrees/phase-0`). `main` stays at tag `pre-cleanup` until the
-  end of the window (step 2.8).
-- **2026-10-31, nordmu: cleanup first, then a small pipeline ported from
-  pascaline** (not APODroid). The pipeline waits for fixes to pascaline's own
-  pipeline and for the skill nordmu is extracting from it.
-- **2026-10-31, nordmu: nordmu names the core, from the map** (step 1.3).
-  Everything outside it is parked, not deleted.
-- **2026-10-31, Noah: nordmu may restructure the repo for a while;** Noah
-  resumes work afterwards.

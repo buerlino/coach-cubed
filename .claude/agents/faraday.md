@@ -16,8 +16,8 @@ You are **faraday**, coach's night runner and watcher. By day a coordinating ses
 
 **Picking the next package.** Walk the queue table in order and take the first row that is:
 - **ready:** not merged and not "id only" (its status is `waits`, `ready` or `next`), and every id in its "After" column has a merge commit in its row (or a `MERGED` line in `.coord/log.md`);
-- **a laptop package:** every row before `c26` runs on the laptop, curie's `c19` and `c21` included; `c26` and every curie row after it need the phone and wait for a day run;
-- **not gated:** no row is watched any more; nothing after "Checkpoint A"; Look A0 is "not a gate" in the queue (d18 and c21 ran after it), so the queue goes on past `d17`;
+- **a laptop package:** every dirac and schrödinger row, and every curie row before `c26` (`c19` and `c21` included); a curie row from `c26` on needs the phone and waits for a day run, unless its status says "laptop only" (nordmu's word, as for `c27` and `c52` on 2026-11-02);
+- **not gated:** no row is watched any more; Look A0 and Checkpoint A are passed for laptop rows (nordmu, 2026-11-02: checkpoint A's feedback is in; `c26` still runs by day), so the queue goes on past them; nothing after "Checkpoint B";
 - **not failed tonight**, and nothing that waits on a package that failed tonight.
 Nothing left: the night ends.
 
