@@ -445,6 +445,32 @@ test('close() stops what is running, frees the decoder, and the source refuses f
   assert.deepEqual(openFrames(fake), []);
 });
 
+test('close() while a packet read is pending is `closed`, not "unreadable" (the disposed input rejects the read)', async () => {
+  const { MediaError } = await media();
+  const { decodeFrames } = await load(MEDIA, 'decode.mjs');
+  const fake = createFakeWebCodecs();
+  const controller = new AbortController();
+  // chunks whose read waits on a gate; close() = abort, then the file is
+  // disposed under the read, which rejects it (as mediabunny's Input does)
+  let rejectRead;
+  const chunks = { [Symbol.asyncIterator]: () => ({
+    next: () => new Promise((_, reject) => { rejectRead = reject; }),
+    return: async () => ({ done: true }),
+  }) };
+  const it = decodeFrames({ webcodecs: fake, config: { codec: 'avc1.64001f', codedWidth: 96, codedHeight: 54 },
+    chunks, wants: () => true, signal: controller.signal, stallMs: 400 })[Symbol.asyncIterator]();
+  const pending = it.next();
+  await new Promise(r => setImmediate(r));
+  assert.ok(rejectRead, 'the loop is waiting on a read');
+  controller.abort();
+  rejectRead(new Error('Input has been disposed.'));
+  await assert.rejects(pending, e => e instanceof MediaError && e.code === 'closed');
+  // a read that fails with no close is still the file's fault
+  const chunks2 = { [Symbol.asyncIterator]: () => ({ next: async () => { throw new Error('boom'); }, return: async () => ({ done: true }) }) };
+  await assert.rejects(decodeFrames({ webcodecs: createFakeWebCodecs(), config: { codec: 'avc1.64001f', codedWidth: 96, codedHeight: 54 },
+    chunks: chunks2, wants: () => true })[Symbol.asyncIterator]().next(), e => e.code === 'unreadable');
+});
+
 // ---- the frame source as the contract describes it --------------------------
 
 test('the frames it hands out have the shape the contract says, in microseconds', async () => {

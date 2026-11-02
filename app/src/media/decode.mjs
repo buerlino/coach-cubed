@@ -62,7 +62,11 @@ export async function* decodeFrames({ webcodecs, config, chunks, wants, signal, 
       if (error) throw error;
       while (feeding && decoder.decodeQueueSize < maxQueueSize && ready.length < maxQueued) {
         let next;
-        try { next = await iterator.next(); } catch (e) { throw asMediaError(e, 'unreadable', "The video file couldn't be read"); }
+        try { next = await iterator.next(); } catch (e) {
+          // a close() that disposed the file under this read already said why
+          if (error) throw error;
+          throw asMediaError(e, 'unreadable', "The video file couldn't be read");
+        }
         if (error) throw error;
         if (next.done) {
           feeding = false;
