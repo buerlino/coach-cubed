@@ -59,7 +59,7 @@ function Credits({ onBack }) {
                 <${LicenceText} url=${creditUrl(c)} />
               </div>
             <//>`)}
-          <${Disclosure} title="The full list" meta="THIRD_PARTY.md">
+          <${Disclosure} title="The full list" meta="THIRD_PARTY.md, the new app">
             <div class="credit__body"><${LicenceText} url=${thirdPartyUrl()} /></div>
           <//>
         </div>

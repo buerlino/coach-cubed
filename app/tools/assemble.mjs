@@ -12,8 +12,10 @@
 // - src/diagnostics.js and src/track/ from the repo's src/ (the old page
 //   serves them, so they stay there), into src/ of the output: the same
 //   relative imports work in the repo and here (app/README.md);
-// - THIRD_PARTY.md from the repo's root, as licences/THIRD_PARTY.md: S1's credits
-//   offer the whole list (d24). The licence texts the credits name sit next to
+// - THIRD_PARTY.md's section "In the new app (`app/`)" only (from its heading to the
+//   next `## `), as licences/THIRD_PARTY.md: S1's credits offer that list (d24);
+//   the old page's, the dev server's, the spike's and the other sections don't
+//   ship in the app, so they stay out. The licence texts the credits name sit next to
 //   their components in app/ (vendor/, licences/) and are copied with it;
 //   checkLicences() says which one is missing (the CLI runs it after assembling);
 // - app/vendor/tfjs/ and app/models/ when present (gitignored, made by s6);
@@ -88,6 +90,17 @@ export function stampWorker(text, version) {
   return text.replace(stamp, () => `const BUILT_VERSION = ${JSON.stringify(version)};`);
 }
 
+const NEW_APP_HEADING = '## In the new app (`app/`)';
+
+/** THIRD_PARTY.md's section for the new app: its heading to the next `## ` (or the end). */
+export function newAppSection(text) {
+  const start = text.indexOf(`\n${NEW_APP_HEADING}\n`);
+  if (start < 0) throw new Error(`THIRD_PARTY.md has no section "${NEW_APP_HEADING}"`);
+  const from = start + 1;
+  const next = text.indexOf('\n## ', from + NEW_APP_HEADING.length);
+  return `${text.slice(from, next < 0 ? text.length : next).trimEnd()}\n`;
+}
+
 function copy(from, to) {
   mkdirSync(dirname(to), { recursive: true });
   copyFileSync(from, to);
@@ -114,7 +127,8 @@ export function assemble({ out, app, src, debug = false, log = console.log }) {
   }
   const thirdParty = join(src, '..', 'THIRD_PARTY.md');
   if (existsSync(thirdParty)) {
-    copy(thirdParty, join(out, 'licences', 'THIRD_PARTY.md'));
+    mkdirSync(join(out, 'licences'), { recursive: true });
+    writeFileSync(join(out, 'licences', 'THIRD_PARTY.md'), newAppSection(readFileSync(thirdParty, 'utf8')));
     copied.add('licences/THIRD_PARTY.md');
   }
   if (debug) {

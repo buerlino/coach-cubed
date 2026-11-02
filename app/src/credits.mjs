@@ -42,6 +42,6 @@ export const CREDITS = Object.freeze([
 /** The licence text's URL: next to this module's app, so it works from the page, the service worker's cache and Node. */
 export const creditUrl = credit => new URL(`../${credit.text}`, import.meta.url);
 
-/** Where the whole of THIRD_PARTY.md is in the assembled app (assemble.mjs copies it), and its URL. */
+/** Where THIRD_PARTY.md's section for the new app is in the assembled app (assemble.mjs cuts it out), and its URL. */
 export const THIRD_PARTY_TEXT = 'licences/THIRD_PARTY.md';
 export const thirdPartyUrl = () => new URL(`../${THIRD_PARTY_TEXT}`, import.meta.url);

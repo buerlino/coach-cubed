@@ -238,7 +238,13 @@ test('assemble ships the licence texts and THIRD_PARTY.md, so the credits read o
   const have = fs.existsSync(path.join(out, 'vendor', 'tfjs'));
   for (const c of CREDITS) if (!c.built || have) assert.ok(files.includes(c.text), `${c.text} is in files.json, so the service worker caches it`);
   assert.ok(files.includes('licences/THIRD_PARTY.md'));
-  assert.equal(fs.readFileSync(path.join(out, 'licences', 'THIRD_PARTY.md'), 'utf8'), read('THIRD_PARTY.md'));
+  const shipped = fs.readFileSync(path.join(out, 'licences', 'THIRD_PARTY.md'), 'utf8');
+  assert.ok(shipped.startsWith('## In the new app (`app/`)'));
+  assert.ok(shipped.includes('| Preact') && shipped.includes('mediabunny'));
+  assert.equal(shipped.split('\n').filter(l => l.startsWith('## ')).length, 1, 'one section only');
+  for (const old of ['In the old page', 'MediaPipe', 'BodyParts3D', 'three.js', 'In the dev server', 'Phase 3 spike', 'ultralytics']) {
+    assert.ok(!shipped.includes(old), `the shipped list has no "${old}"`);
+  }
   fs.rmSync(out, { recursive: true, force: true });
 });
 
