@@ -43,10 +43,10 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 8 | `c8` | The store | curie, sonnet | `s5` | merged `86265ea` |
 | 9 | `s9` | The frame source (mediabunny) | schrödinger, sonnet | `s5` | merged `9d491e0` |
 | 10 | `s10` | The pose engine | schrödinger, sonnet | `s5`, `s6`, `s7` | merged `13f7f78` |
-| 11 | `c20` | The Capacitor shell, and the engine on the phone | curie, sonnet | `d3`, `s9`, `s10` | waits; phone: by day, nordmu told |
+| 11 | `c20` | The Capacitor shell, and the engine on the phone | curie, sonnet | `d3`, `s9`, `s10` | running 2026-11-02 by day, nordmu told; on Opus |
 | 12 | `s11` | The scoring adapter | schrödinger, sonnet | `s4`, `s5` | merged `d65e3ed` |
 | 13 | `s32` | Keep the lift's video: the marked range cut to MP4 | schrödinger, sonnet | `s9`, `c8` | merged `7dcb70b` |
-| 14 | `s12` | The analysis job and its queue | schrödinger, opus | `s9`, `s10`, `s11`, `c8`, `s32` | merged `e4bbb8b` |
+| 14 | `s12` | The analysis job and its queue | schrödinger, opus | `s9`, `s10`, `s11`, `c8`, `s32` | merged `e4bbb8b`; FIX `s12f1` (the Analyse test's cut comparison, flaky) running |
 | 15 | `d13` | H and importing a video | dirac, sonnet | `d3`, `c8` | waits |
 | 16 | `d14` | M1–M3, marking a lift | dirac, sonnet | `s9`, `s12` | waits |
 | 17 | `d15` | Q1, analysing | dirac, sonnet | `s12` | waits |
