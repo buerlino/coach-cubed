@@ -45,6 +45,7 @@ test('the other steps milestone A needs: leave and come back to a lift, settings
   step('import', 'home');   // the picker cancelled
   step('mark', 'home');     // marking given up
   step('queued', 'home');   // leaving doesn't stop the analysis
+  step('queued', 'import'); // d51: "Pick another video" on Q1's "No person found"
   step('result', 'mark');   // re-mark (A3)
 });
 

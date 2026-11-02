@@ -262,6 +262,21 @@ test('a damaged settings record reads as the defaults, and fields it lacks take 
   assert.equal(s.bufferS, 60);
 });
 
+test('d51: smoothing is capped at 300 ms (A3\'s slider): the store refuses more, and an older record above it reads as 300', async () => {
+  const { store, fake, lib } = await setup();
+  assert.deepEqual(lib.validateSettingsPatch({ view: { smoothingSigmaMs: 300 } }), []);
+  assert.match(lib.validateSettingsPatch({ view: { smoothingSigmaMs: 301 } })[0], /view\.smoothingSigmaMs: .*300/);
+  await assert.rejects(() => store.saveSettings({ view: { smoothingSigmaMs: 1000 } }), { code: 'invalid' });
+  // a record stored when the cap was 1000: it still reads, clamped, and the other fields stay
+  fake.put('settings.json', JSON.stringify({ replayS: 15, view: { smoothingSigmaMs: 800, speed: 0.5 } }));
+  const s = await store.getSettings();
+  assert.equal(s.view.smoothingSigmaMs, 300);
+  assert.equal(s.view.speed, 0.5);
+  assert.equal(s.replayS, 15);
+  assert.equal(lib.readSettings({ view: { smoothingSigmaMs: 300 } }).view.smoothingSigmaMs, 300);
+  assert.equal(lib.readSettings({ view: { smoothingSigmaMs: -5 } }).view.smoothingSigmaMs, lib.DEFAULT_SETTINGS.view.smoothingSigmaMs, 'a negative or non-number value is still damaged, not clamped');
+});
+
 test('persist() is asked at the first save, once, and the answer is kept', async () => {
   const { store, make, fake } = await setup();
   assert.equal(fake.calls.persist, 0, 'not asked before a save');
