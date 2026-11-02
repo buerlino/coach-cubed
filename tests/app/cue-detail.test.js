@@ -183,7 +183,7 @@ test('plot: a tap on it seeks: the time under the finger, inside the plot\'s own
   assert.equal(p.timeAtTap(-1000, rect, g), g.domain.t0, 'left of the plot');
   assert.equal(p.timeAtTap(9000, rect, g), g.domain.t1, 'right of the plot');
   // the canvas shown smaller than its CSS size still maps the tap right: a half-width rect, a tap at its middle
-  assert.equal(p.timeAtTap(100 + 179, { left: 100, width: 179 }, g), p.timeAtTap(100 + 358 / 2, { left: 100, width: 358 }, g));
+  assert.equal(p.timeAtTap(100 + 179 / 2, { left: 100, width: 179 }, g), p.timeAtTap(100 + 358 / 2, { left: 100, width: 358 }, g));
 });
 
 // ---- the plot drawn ----
@@ -269,7 +269,8 @@ test('detail: "How it\'s scored" is s39\'s scoringLines(id, computed, {smoothing
       assert.deepStrictEqual(d.lines, D.scoringLines(cue.id, computed, { smoothingMs: sigma }), cue.id);
       const smooth = d.lines.filter(l => l.label === 'Time smoothing');
       assert.equal(smooth.length, 1, `${cue.id}: exactly one Time smoothing line`);
-      assert.ok(smooth[0].text.includes(`${sigma} ms`), `${cue.id}: says ${sigma} ms`);
+      if (sigma > 0) assert.ok(smooth[0].text.includes(`σ = ${sigma} ms`), `${cue.id}: says ${sigma} ms`);
+      else assert.ok(!/σ =/.test(smooth[0].text), `${cue.id}: raw track says no σ`);
     }
   }
 });

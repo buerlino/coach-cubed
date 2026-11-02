@@ -7,6 +7,7 @@
 import { timelineMarks } from '../draw/marks.mjs';
 import { summariseResult } from './home-model.mjs';
 import { windowLabel } from './player-model.mjs';
+import { ruleLine, ruleSentence } from './rule-model.mjs';
 
 // Per status word of contract 4: the word as tokens.css spells it (--status-*-word; the screen shows
 // that word through base.css's `.status`, this one is for the model's callers and the tests), the
@@ -54,12 +55,15 @@ export function provisionalNote(view) {
 /**
  * The cards, one per cue of the view, in its order.
  * @param {import('../contracts/cue-view.mjs').ResultView} view
+ * @param {(id: string) => Array|null} [zonesOf] diagnostics.js's zones(id) (s39): the bands the open card's rule
+ *   sentence is built from; without it the card's `rule` is "Provisional" alone, as d17 had it
  * @returns {Array<{id: string, title: string, fullTitle: string, status: string, cls: string, word: string, icon: string,
- *   verdict: string|null, line: string|null, value: string, provisional: boolean, cue: string,
+ *   verdict: string|null, line: string|null, value: string, provisional: boolean, rule: string|null, cue: string,
  *   notes: string[], reason: string|null, scored: boolean}>}
- *   `line` is what follows the status word: the verdict, or the engine's reason when it can't score.
+ *   `line` is what follows the status word: the verdict, or the engine's reason when it can't score. `rule` is
+ *   the open card's line: the sentence from the zones and "Provisional" while the thresholds are.
  */
-export function cardsOf(view) {
+export function cardsOf(view, zonesOf = null) {
   return view.cues.map(c => {
     const look = lookOf(c.status);
     return {
@@ -74,6 +78,7 @@ export function cardsOf(view) {
       line: c.reason === null ? c.verdict : c.reason,
       value: valueText(c),
       provisional: c.provisional,
+      rule: ruleLine(zonesOf ? ruleSentence(c.unit, zonesOf(c.id)) : null, c.provisional),
       cue: c.cue,
       notes: [...c.notes],
       reason: c.reason,
