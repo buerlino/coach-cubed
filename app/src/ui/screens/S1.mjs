@@ -7,7 +7,7 @@
 // settings-model.mjs; this draws it. The store and the queue are injected.
 import { useEffect, useState } from 'preact/hooks';
 import { html } from '../html.mjs';
-import { BackIcon, ChevronIcon, LockIcon } from '../components/icons.mjs';
+import { BackIcon, ChevronIcon } from '../components/icons.mjs';
 import { followQueue } from '../home-model.mjs';
 import { APP_VERSION } from '../../store/index.mjs';
 import { CREDITS, creditUrl, thirdPartyUrl } from '../../credits.mjs';
@@ -157,7 +157,6 @@ export function S1({ flow, store, queue }) {
           <div class="about">
             <div class="about__head"><span class="about__name">coach</span><span class="soft">${APP_VERSION}</span></div>
             <p><strong>${PRIVACY.lead}</strong> ${PRIVACY.body}</p>
-            <p class="tag"><${LockIcon} />${PRIVACY.draft}</p>
           </div>
           <div class="group">
             <button type="button" class="row row--action" onClick=${() => setView('credits')}>

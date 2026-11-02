@@ -127,9 +127,8 @@ export async function deleteAllLifts(store) {
   return n;
 }
 
-/** The privacy text. A DRAFT: nordmu approves the wording before 0.1.0 (docs/ui-design.md, S1). */
+/** The privacy text. nordmu approved it on 2026-11-02, once it is true: the APK has no Android backup (c43). */
 export const PRIVACY = Object.freeze({
   lead: 'Nothing leaves this phone.',
   body: "The app keeps your analysed lifts (each lift's cut video, its pose track and its results) and these settings in its own private storage on this phone, and nowhere else. It sends nothing: no account, no analytics, no uploads, and it works in airplane mode.",
-  draft: 'Draft text, for nordmu to approve.',
 });
