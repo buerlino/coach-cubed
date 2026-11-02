@@ -45,7 +45,8 @@ It logs each request (`200 /index.html`); a `404` there is a broken path.
 | `src/main.mjs` | Boot: the flow, then the shell. |
 | `sw.js`, `src/updates.mjs` | The service worker (`c19`) and the page's side of it: registration outside the APK, and an update that takes over when the queue is idle. See [Offline](#offline-the-service-worker). |
 | `src/flow/flow.mjs` | The state machine (home, import, mark, queued, result, settings, plus live and replay for milestone B). A plain module with no Preact: `createFlow()`, `go(to, params)`, `can(to)`, `subscribe(fn)`; `TRANSITIONS` says what leads where, `SCREEN_OF` which screen each state shows. An illegal transition throws. |
-| `src/ui/` | `app.mjs` (the shell: draws the screen the flow's state names), `screens/` (one component per screen ID: `H`, `Import`, `M`, `Q1`, `A1`, `S1`, `R2`, `R3`), `components/` (shared pieces), `home-model.mjs` (H's and Import's logic as plain functions, `d13`: `liftState`, `rowOf`, `homeView`, `importStep`; see [H](#h-home-and-the-import-step)), `analysing-model.mjs` (Q1's, `d15`; see [Q1](#q1-analysing)). Screens call the flow and never each other; the queue and the store reach H as props from `main.mjs`. `html.mjs` is htm bound to Preact. |
+| `src/ui/` | `app.mjs` (the shell: draws the screen the flow's state names), `screens/` (one component per screen ID: `H`, `Import`, `M`, `Q1`, `A1`, `S1`, `R2`, `R3`), `components/` (shared pieces), `home-model.mjs` (H's and Import's logic as plain functions, `d13`: `liftState`, `rowOf`, `homeView`, `importStep`; see [H](#h-home-and-the-import-step)), `analysing-model.mjs` (Q1's, `d15`; see [Q1](#q1-analysing)). Screens call the flow and never each other; the queue and the store reach H as props from `main.mjs`. `settings-model.mjs` (S1's, `d24`; see [S1](#s1-settings-and-about)). `html.mjs` is htm bound to Preact. |
+| `src/credits.mjs`, `licences/` | S1's credits (`d24`): `CREDITS` lists every component of THIRD_PARTY.md's section for the new app, each with where its licence text is in the assembled app. `licences/` holds the texts that have no home beside a component: Apache-2.0 (the standard text, no holder filled in), Capacitor's MIT, esbuild's MIT. |
 | `src/styles/` | `tokens.css` (every colour, the status colours with their words, the type, the spacing, the 44 px touch target; dark only) and `base.css` (the `@font-face` rules, the reset and the classes every screen shares). A screen styles itself from tokens, never from literal values. |
 | `src/track/` | One-line stubs, see below. |
 | `src/contracts/` | The shapes the app's parts agree on: JSDoc types, validators, examples. See [Contracts](#contracts). |
@@ -268,6 +269,16 @@ lifts/<id>/lift.json    the lift's record: contract 3, a StoredLift
 
 Not here: dropping the video after Analyse (`keepVideos` is only stored;
 nothing acts on it yet, see `s12`'s report).
+
+## S1, settings and about
+
+`screens/S1.mjs` draws `settings-model.mjs`'s view (design/mockups/Settings.dc.html); the store and the queue come in as props.
+
+- **Gym session:** the replay mode, the replay's length or the delay, the buffer, the camera and the quality are **shown disabled** until milestone B (as H's "Start gym session"); their values are the stored ones (v1's defaults). The default lift works now and is saved (`defaultLift`); Import does not read it yet. Every value S1 offers lies inside `RANGES` (provisional until `c27`, [The store](#the-store)).
+- **Videos are always kept** (nordmu, 2026-11-02): the mockup's "Keep the video of each analysed lift" switch is not drawn, since contract 3 needs every lift's cut and A1 plays it. `keepVideos` stays in the store; the switch comes back with a contract-3 change that allows a lift without its cut.
+- **Storage** is information: what the lifts hold, what the app uses, the room left (the store's `estimate()`), and whether the system promised to keep the files. `persisted: false` (the APK's WebView, `c20`) shows "No" with a plain sentence, never as an error. "Delete all lifts…" asks first and is held back while the queue has work.
+- **About:** the version, the privacy text (a **draft** for nordmu: it says what the app keeps, where, and that it sends nothing), "Credits and licences", "How the cues are scored" (disabled until A2 builds it) and the source licence.
+- **Credits and licences** list `CREDITS`, one `<details>` each; opening one reads its licence text from the app's own files (`fetch`, so the service worker's cache serves it offline), and "The full list" shows `THIRD_PARTY.md`, which `assemble.mjs` copies to `licences/THIRD_PARTY.md`. `assemble.mjs` also runs `checkLicences()` after assembling and fails when a text the credits name is missing; the TF.js texts are copied by `build-tfjs.mjs` into the gitignored `vendor/tfjs/`, so they are expected only when that bundle is in `dist/`. A row added to THIRD_PARTY.md's section needs its entry in `credits.mjs`: `tests/app/settings.test.js` compares the two.
 
 ## The frame source
 

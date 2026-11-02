@@ -42,7 +42,8 @@ new app's components are in the section after this one.
 
 The new app, built fresh as static files ([docs/app-plan.md](docs/app-plan.md)).
 Every package that ships something third-party adds its rows here; S1's
-credits read this section. Checked 2026-11-02. Each committed file is copied
+credits list this section (`app/src/credits.mjs`: a new row needs its entry
+there, and `tests/app/settings.test.js` checks it). Checked 2026-11-02. Each committed file is copied
 byte for byte from the package named in the Source column (`npm pack`), next
 to its licence text. The pose runtime and its weights aren't committed: they
 are built from source or fetched, into gitignored folders, by the scripts the

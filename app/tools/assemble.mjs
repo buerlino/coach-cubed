@@ -12,6 +12,10 @@
 // - src/diagnostics.js and src/track/ from the repo's src/ (the old page
 //   serves them, so they stay there), into src/ of the output: the same
 //   relative imports work in the repo and here (app/README.md);
+// - THIRD_PARTY.md from the repo's root, as licences/THIRD_PARTY.md: S1's credits
+//   offer the whole list (d24). The licence texts the credits name sit next to
+//   their components in app/ (vendor/, licences/) and are copied with it;
+//   checkLicences() says which one is missing (the CLI runs it after assembling);
 // - app/vendor/tfjs/ and app/models/ when present (gitignored, made by s6);
 //   absent, it says so and goes on;
 // - files.json for the service worker (c19): every file copied, sorted, and a
@@ -25,7 +29,7 @@
 import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SKIP_TOP = new Set(['tools', 'android', 'dist', 'debug', 'out', 'node_modules', 'capacitor.config.json']);
@@ -108,6 +112,11 @@ export function assemble({ out, app, src, debug = false, log = console.log }) {
     copy(join(src, 'track', f), join(out, 'src', 'track', f));
     copied.add(`src/track/${f}`);
   }
+  const thirdParty = join(src, '..', 'THIRD_PARTY.md');
+  if (existsSync(thirdParty)) {
+    copy(thirdParty, join(out, 'licences', 'THIRD_PARTY.md'));
+    copied.add('licences/THIRD_PARTY.md');
+  }
   if (debug) {
     if (!existsSync(join(app, 'debug'))) throw new Error(`--debug: ${join(app, 'debug')} not found`);
     for (const f of listFiles(join(app, 'debug'))) {
@@ -133,11 +142,28 @@ export function assemble({ out, app, src, debug = false, log = console.log }) {
   return { version, files };
 }
 
+/**
+ * The licence texts S1's credits name (app/src/credits.mjs) that are not in `out`. A text the
+ * TF.js build copies (`built`) is only expected when that build is in `out`.
+ * @returns {Promise<string[]>}
+ */
+export async function checkLicences(out, app) {
+  const file = join(resolve(app), 'src', 'credits.mjs');
+  if (!existsSync(file)) return [];
+  const { CREDITS } = await import(pathToFileURL(file).href);
+  const built = existsSync(join(out, 'vendor', 'tfjs'));
+  return CREDITS.filter((c) => (!c.built || built) && !existsSync(join(out, c.text))).map((c) => c.text);
+}
+
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const o = parseArgs(process.argv.slice(2));
     const app = o.app ?? resolve(HERE, '..');
-    assemble({ out: o.out ?? join(app, 'dist'), app, src: o.src ?? resolve(app, '..', 'src'), debug: !!o.debug });
+    const out = o.out ?? join(app, 'dist');
+    assemble({ out, app, src: o.src ?? resolve(app, '..', 'src'), debug: !!o.debug });
+    const missing = await checkLicences(out, app);
+    if (missing.length) throw new Error(`licence texts the credits name are missing from ${out}: ${missing.join(', ')}`);
+    if (!existsSync(join(out, 'vendor', 'tfjs'))) console.log("TF.js's licence texts absent with the bundle: they are copied when it is built");
   } catch (e) {
     console.error(`assemble: ${e.message}`);
     process.exit(1);
