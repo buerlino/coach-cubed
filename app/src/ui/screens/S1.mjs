@@ -162,8 +162,8 @@ export function S1({ flow, store, queue }) {
             <button type="button" class="row row--action" onClick=${() => setView('credits')}>
               <span>Credits and licences</span><${ChevronIcon} />
             </button>
-            <button type="button" class="row row--action" disabled aria-disabled="true">
-              <span>How the cues are scored</span><span class="quiet">Coming in a later version</span>
+            <button type="button" class="row row--action" onClick=${() => flow.go('scoring')}>
+              <span>How the cues are scored</span><${ChevronIcon} />
             </button>
             <div class="row"><span>Source code</span><span class="row__value">AGPL-3.0-or-later</span></div>
           </div>

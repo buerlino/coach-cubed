@@ -294,3 +294,39 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .cue-card__rule { font-size: var(--size-small); color: var(--text-quiet); }
 .cue-card__more { align-self: flex-start; min-height: var(--touch); padding: 0 var(--space-4); border: 0; border-radius: var(--radius-s); background: var(--surface-raised); color: var(--text); display: flex; align-items: center; gap: var(--space-1h); font-size: var(--size-label); font-weight: var(--weight-semibold); }
 .cues-window { margin: 0 var(--space-1); font-size: var(--size-small); line-height: 1.35; color: var(--text-soft); }
+
+/* A2, a cue's detail (docs/ui-design.md, design/mockups/CueDetail.dc.html) */
+.detail { height: 100dvh; }
+.detail-header .bar-header__title { flex: 1; min-width: 0; }
+.detail-badge { margin-right: var(--space-2); height: calc(var(--touch) - var(--space-3)); padding: 0 var(--space-3); border-radius: var(--radius-xl); background: var(--surface-raised); display: flex; align-items: center; gap: var(--space-1h); }
+.detail-badge svg { width: var(--space-4); height: var(--space-4); }
+.detail-problem { padding: var(--space-4) var(--space-5); }
+.detail-body { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+.detail-stage { flex: none; height: var(--detail-stage); position: relative; display: flex; align-items: center; justify-content: center; background: var(--stage-ground); }
+.detail-frame { position: relative; height: 100%; max-width: 100%; overflow: hidden; background: var(--surface-raised); }
+.detail-chip { position: absolute; bottom: var(--space-2h); max-width: 40%; padding: var(--space-1h) var(--space-2h); border-radius: var(--radius-s); background: var(--scrim); font-size: var(--size-small); line-height: 1.3; }
+.detail-chip strong { font-size: var(--size-body); }
+.detail-chip--when { left: var(--space-2h); }
+.detail-chip--verdict { right: var(--space-2h); font-weight: var(--weight-semibold); }
+.detail-content { padding: var(--space-3) var(--space-4) var(--space-6); display: flex; flex-direction: column; gap: var(--space-3h); }
+.detail-reason { margin: 0; font-size: var(--size-body); line-height: 1.45; color: var(--text-soft); }
+.detail-plot { border-radius: var(--radius-l); background: var(--surface); padding: var(--space-3) 0 var(--space-2); }
+.detail-plot h2 { margin: 0 var(--space-4) var(--space-half); font-size: var(--size-body); font-weight: var(--weight-semibold); }
+.detail-plot .quiet { margin: 0 var(--space-4) var(--space-1h); }
+.detail-plot__canvas { display: block; width: 100%; height: var(--plot-height); touch-action: manipulation; cursor: pointer; }
+.detail-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.detail-tile { padding: var(--space-3); border-radius: var(--radius-m); background: var(--surface); display: flex; flex-direction: column; gap: var(--space-half); }
+.detail-tile__label { font-size: var(--size-small); color: var(--text-soft); }
+.detail-tile__value { font-family: var(--font-display); font-size: var(--size-title); font-weight: var(--weight-bold); color: var(--text); }
+.detail-tile__sub { font-size: var(--size-small); color: var(--text-quiet); }
+.detail-cue { margin: var(--space-1h) 0 0; font-size: var(--size-body); line-height: 1.45; }
+.detail-rule { padding: var(--space-3) var(--space-3h); border-radius: var(--radius-m); border: 1px solid var(--line); display: flex; flex-direction: column; gap: var(--space-1h); }
+.detail-rule h2 { margin: 0; font-size: var(--size-label); font-weight: var(--weight-semibold); }
+.detail-rule__sentence { margin: 0; font-size: var(--size-label); line-height: 1.4; color: var(--text); }
+.detail-lines { margin: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.detail-line dt { font-size: var(--size-small); font-weight: var(--weight-semibold); color: var(--text-soft); }
+.detail-line dd { margin: 0; font-size: var(--size-small); line-height: 1.4; color: var(--text-quiet); }
+.scoring-cue { display: flex; flex-direction: column; gap: var(--space-1h); padding: var(--space-3) var(--space-3h); border-radius: var(--radius-m); background: var(--surface); }
+.scoring-cue__title { margin: 0; font-size: var(--size-row); font-weight: var(--weight-semibold); }
+.scoring-cue .soft { margin: 0; }
+.scoring-cue__rule { margin: 0; font-size: var(--size-label); }

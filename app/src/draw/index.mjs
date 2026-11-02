@@ -5,4 +5,5 @@ export { CONF_THRESHOLD, cubicAt, monoTangent, poseAtTime, slotForTime, trackSam
 export { bonesOf, drawSkeleton, overlayStyle, skeletonShapes } from './skeleton.mjs';
 export { drawCues } from './cues.mjs';
 export { timelineMarks } from './marks.mjs';
-export { paintOverlay } from './overlay.mjs';
+export { paintCue, paintOverlay } from './overlay.mjs';
+export { drawPlot, plotGeometry, plotStyle, timeAtTap } from './plot.mjs';

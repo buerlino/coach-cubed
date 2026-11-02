@@ -69,7 +69,7 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
       flags.current = { skeleton: view_.skeleton, cues: view_.cues, loop: view_.loop };
       setSkeleton(view_.skeleton);
       setSpeed(view_.speed);
-      setOpen(defaultOpen(cardsOf(view)));
+      setOpen(defaultOpen(cardsOf(view)));   // the ids and statuses only
       setData({ rec, view, computed, diagnostics: diagnostics || getDiagnostics(), meta: track.meta, track: trackSamples(keypoints, track.meta), src, stepper, url: p.url, speed: view_.speed });
     })().catch(e => { if (current) setProblem(e && e.message ? e.message : CANT_SHOW); });
     return () => {
@@ -139,7 +139,7 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
   const head = data ? headerOf(data.rec) : null;
   const range = data ? data.rec.range : null;
   const tl = data ? timelineOf(data.view, range) : null;
-  const cards = data ? cardsOf(data.view) : [];
+  const cards = data ? cardsOf(data.view, id => data.diagnostics.zones(id)) : [];
   const counts = data ? summaryOf(data.view) : [];
   const note = data ? provisionalNote(data.view) : null;
   const opened = tl ? tl.cues.find(c => c.id === open) : null;
@@ -207,7 +207,7 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
                 <div class="cue-card__body">
                   <p class="cue-card__cue">${c.cue}</p>
                   ${c.notes.map(n => html`<p class="cue-card__note">${n}</p>`)}
-                  ${c.provisional ? html`<span class="cue-card__rule">Provisional</span>` : null}
+                  ${c.rule ? html`<span class="cue-card__rule">${c.rule}</span>` : null}
                   ${c.scored ? html`<button type="button" class="cue-card__more" onClick=${() => flow.go('detail', { liftId, cue: c.id })}>Plot and details<${ChevronIcon} /></button>` : null}
                 </div>` : null}
             </div>`)}
