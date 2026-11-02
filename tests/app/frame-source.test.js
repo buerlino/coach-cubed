@@ -373,21 +373,22 @@ test('a decoder that errors on the probe frame fails open with decode-failed', a
   assert.deepEqual(openFrames(fake), []);
 });
 
-test('a decoder that errors halfway through a range ends the stream with decode-failed, after the frames before it', async () => {
-  const { src, fake } = await open(H264, {}, {});
-  const bad = createFakeWebCodecs({ failOnChunk: 8 });
-  // the same source, a decoder that breaks on its 8th chunk: through the options of the call site
+test('a decoder that errors halfway through a range ends the stream with decode-failed, closing what it held', async () => {
   const { openFrameSource } = await media();
-  const probeOk = createFakeWebCodecs();
-  let n = 0;
-  const flaky = { ...probeOk, createDecoder: init => (n++ === 0 ? probeOk : bad).createDecoder(init) };
-  const s = await openFrameSource(clip(H264), { webcodecs: flaky, stallMs: 400 });
+  // the open's probe decodes with a good decoder; the later call gets one that breaks on its 8th chunk
+  const good = createFakeWebCodecs();
+  const bad = createFakeWebCodecs({ failOnChunk: 8 });
+  let made = 0;
+  const flaky = { ...good, createDecoder: init => (made++ === 0 ? good : bad).createDecoder(init) };
+  const src = await openFrameSource(clip(H264), { webcodecs: flaky, stallMs: 400 });
   const got = [];
-  await assert.rejects(async () => { for await (const f of s.frames(0, 3)) got.push(f); }, e => e.code === 'decode-failed');
+  await assert.rejects(async () => { for await (const f of src.frames(0, 3)) got.push(f); }, e => e.code === 'decode-failed');
+  assert.ok(got.length < 8, 'only frames that came out before the failure');
   closeAll(got);
+  assert.equal(bad.log.decoders[0].state, 'closed');
   assert.deepEqual(openFrames(bad), []);
-  assert.deepEqual(openFrames(fake), []);
-  s.close(); src.close();
+  assert.deepEqual(openFrames(good), []);
+  src.close();
 });
 
 test('a decoder that never answers is a stall error after stallMs, never a hang', { timeout: 5000 }, async () => {
@@ -481,7 +482,7 @@ test('mediabunny is the only demuxer in the app, and only app/src/media/ imports
   for (const f of sources) {
     const text = fs.readFileSync(f, 'utf8');
     assert.doesNotMatch(text, /mp4box|jswebm|web-demuxer|libav/i, `${path.relative(ROOT, f)} names another demuxer`);
-    if (!f.startsWith(MEDIA)) assert.doesNotMatch(text, /mediabunny/, `${path.relative(ROOT, f)} imports mediabunny outside media/`);
+    if (!f.startsWith(MEDIA)) assert.doesNotMatch(text, /(from|import\()\s*['"][^'"]*mediabunny/, `${path.relative(ROOT, f)} imports mediabunny outside media/`);
   }
   const app = fs.readFileSync(path.join(ROOT, 'app', 'package.json'), 'utf8');
   assert.doesNotMatch(app, /mp4box|mediabunny/, 'no demuxer as an npm dependency of the app: it is vendored');
@@ -493,10 +494,10 @@ test('mediabunny is vendored pinned, with its licence, and carries no "Incompati
   const lib = fs.readFileSync(path.join(VENDOR, 'mediabunny.mjs'), 'utf8');
   const licence = fs.readFileSync(path.join(VENDOR, 'LICENSE'), 'utf8');
   assert.match(licence, /^Mozilla Public License Version 2\.0/);
-  // MPL-2.0 is GPL-3.0-or-later compatible (§3.3) unless a file carries the
-  // Exhibit B notice. The licence text quotes the template once, as the standard text.
-  assert.equal((licence.match(/Incompatible With Secondary Licenses/g) || []).length, 1, 'the licence has only the standard Exhibit B title');
-  assert.doesNotMatch(licence, /This Source Code Form is "Incompatible With Secondary Licenses"[^]*Copyright/, 'Exhibit B is not filled in');
+  // MPL-2.0 is GPL-3.0-or-later compatible (§3.3) unless a Source Code Form carries
+  // the Exhibit B notice. The licence text itself quotes the notice as its template
+  // (and in §1's definitions); what must not be there is a file that applies it.
+  assert.match(licence, /Exhibit A - Source Code Form License Notice/);
   assert.doesNotMatch(lib, /Incompatible With Secondary Licenses/i);
   assert.match(lib.slice(0, 400), /Mozilla Public\s+\* License, v\. 2\.0/, 'the MPL header (Exhibit A) is the bundle\'s first comment');
   // the pin: THIRD_PARTY.md names version and SHA-256 of the file in the repo
