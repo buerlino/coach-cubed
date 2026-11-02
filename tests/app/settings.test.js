@@ -233,10 +233,11 @@ test('the URLs the screen fetches point at the files assemble ships', async () =
   assert.equal(fileURLToPath(thirdPartyUrl()), path.join(APP, 'licences', 'THIRD_PARTY.md'));
 });
 
-test('assemble ships the licence texts and THIRD_PARTY.md, so the credits read offline', async () => {
+test('assemble ships the licence texts and THIRD_PARTY.md, so the credits read offline', async (t) => {
   const { assemble, checkLicences } = await load('tools', 'assemble.mjs');
   const { CREDITS } = await load('src', 'credits.mjs');
   const out = fs.mkdtempSync(path.join(os.tmpdir(), 'coach-d24-'));
+  t.after(() => fs.rmSync(out, { recursive: true, force: true }));
   const { files } = assemble({ out, app: APP, src: path.join(ROOT, 'src'), log: () => {} });
   assert.deepEqual(await checkLicences(out, APP), []);
   const have = fs.existsSync(path.join(out, 'vendor', 'tfjs'));
@@ -249,16 +250,15 @@ test('assemble ships the licence texts and THIRD_PARTY.md, so the credits read o
   for (const old of ['In the old page', 'MediaPipe', 'BodyParts3D', 'three.js', 'In the dev server', 'Phase 3 spike', 'ultralytics']) {
     assert.ok(!shipped.includes(old), `the shipped list has no "${old}"`);
   }
-  fs.rmSync(out, { recursive: true, force: true });
 });
 
-test('checkLicences names a text the credits need and the output lacks', async () => {
+test('checkLicences names a text the credits need and the output lacks', async (t) => {
   const { assemble, checkLicences } = await load('tools', 'assemble.mjs');
   const out = fs.mkdtempSync(path.join(os.tmpdir(), 'coach-d24-'));
+  t.after(() => fs.rmSync(out, { recursive: true, force: true }));
   assemble({ out, app: APP, src: path.join(ROOT, 'src'), log: () => {} });
   fs.rmSync(path.join(out, 'vendor', 'htm', 'LICENSE'));
   assert.deepEqual(await checkLicences(out, APP), ['vendor/htm/LICENSE']);
-  fs.rmSync(out, { recursive: true, force: true });
 });
 
 // ---- the look ----

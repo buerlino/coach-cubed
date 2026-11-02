@@ -43,7 +43,7 @@ async function withServer(fn) {
       child.on('exit', () => reject(new Error(`serve exited: ${buf}`)));
     });
     await fn(port, dir);
-  } finally { child.kill(); }
+  } finally { child.kill(); fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
 test('serves the right content types for .mjs, .webmanifest, .woff2 and .wasm', async () => {

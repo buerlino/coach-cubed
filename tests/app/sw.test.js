@@ -240,28 +240,30 @@ test('sw.js names no host and no absolute path: its scope is where it is served 
 // ---- assemble stamps the version into the copy in dist/ ----
 test('assemble stamps sw.js in dist/ with files.json\'s version; the hash covers sw.js as it is in app/', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'coach-swstamp-'));
-  const put = (rel, text) => { fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true }); fs.writeFileSync(path.join(root, rel), text); };
-  put('app/index.html', '<!doctype html>');
-  put('app/sw.js', SW);
-  put('src/diagnostics.js', '//');
-  put('src/track/x.mjs', 'export {};');
-  const run = (out) => execFileSync(process.execPath, [path.join(APP, 'tools', 'assemble.mjs'), '--app', path.join(root, 'app'), '--src', path.join(root, 'src'), '--out', out], { encoding: 'utf8' });
-  const out = path.join(root, 'dist');
-  run(out);
-  const m = JSON.parse(fs.readFileSync(path.join(out, 'files.json'), 'utf8'));
-  assert.ok(m.files.includes('sw.js'), 'sw.js is in the list');
-  const stamped = fs.readFileSync(path.join(out, 'sw.js'), 'utf8');
-  assert.ok(stamped.includes(`const BUILT_VERSION = ${JSON.stringify(m.version)};`));
-  assert.equal(fs.readFileSync(path.join(root, 'app', 'sw.js'), 'utf8'), SW, 'app/sw.js itself is untouched');
-  // a change to sw.js changes the version, and so the stamped bytes the browser compares
-  put('app/sw.js', `${SW}\n// changed`);
-  const out2 = path.join(root, 'dist2');
-  run(out2);
-  const m2 = JSON.parse(fs.readFileSync(path.join(out2, 'files.json'), 'utf8'));
-  assert.notEqual(m2.version, m.version);
-  // a sw.js that lost its stamp point is an error, not a worker that cannot install
-  put('app/sw.js', '// no stamp point');
-  assert.throws(() => run(path.join(root, 'dist3')), /BUILT_VERSION|stamp/i);
+  try {
+    const put = (rel, text) => { fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true }); fs.writeFileSync(path.join(root, rel), text); };
+    put('app/index.html', '<!doctype html>');
+    put('app/sw.js', SW);
+    put('src/diagnostics.js', '//');
+    put('src/track/x.mjs', 'export {};');
+    const run = (out) => execFileSync(process.execPath, [path.join(APP, 'tools', 'assemble.mjs'), '--app', path.join(root, 'app'), '--src', path.join(root, 'src'), '--out', out], { encoding: 'utf8' });
+    const out = path.join(root, 'dist');
+    run(out);
+    const m = JSON.parse(fs.readFileSync(path.join(out, 'files.json'), 'utf8'));
+    assert.ok(m.files.includes('sw.js'), 'sw.js is in the list');
+    const stamped = fs.readFileSync(path.join(out, 'sw.js'), 'utf8');
+    assert.ok(stamped.includes(`const BUILT_VERSION = ${JSON.stringify(m.version)};`));
+    assert.equal(fs.readFileSync(path.join(root, 'app', 'sw.js'), 'utf8'), SW, 'app/sw.js itself is untouched');
+    // a change to sw.js changes the version, and so the stamped bytes the browser compares
+    put('app/sw.js', `${SW}\n// changed`);
+    const out2 = path.join(root, 'dist2');
+    run(out2);
+    const m2 = JSON.parse(fs.readFileSync(path.join(out2, 'files.json'), 'utf8'));
+    assert.notEqual(m2.version, m.version);
+    // a sw.js that lost its stamp point is an error, not a worker that cannot install
+    put('app/sw.js', '// no stamp point');
+    assert.throws(() => run(path.join(root, 'dist3')), /BUILT_VERSION|stamp/i);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
 // ---- the page's side: register outside the APK, take over when idle ----
