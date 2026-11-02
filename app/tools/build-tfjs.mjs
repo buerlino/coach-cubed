@@ -101,6 +101,17 @@ export function isInside(dir, root) {
   return r === '' || (!r.startsWith('..') && !isAbsolute(r));
 }
 
+// npm's @tensorflow packages must never reach the from-source bundle: they
+// are devDependencies (for s7's parity check) and sit in app/node_modules/,
+// which the build searches (nodePaths) for long and seedrandom. Only the
+// tsconfig path map keeps the build off them; a specifier that missed the map
+// would bundle npm's code quietly, and the parity check would compare npm
+// with npm. The metafile names every input: none may be npm's.
+export const NPM_TENSORFLOW = /node_modules\/@tensorflow(-models)?\//;
+export function npmTensorflowInputs(inputPaths) {
+  return inputPaths.filter(p => NPM_TENSORFLOW.test(p.replace(/\\/g, '/')));
+}
+
 function git(args, opts = {}) {
   return execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts }).trim();
 }
@@ -289,9 +300,14 @@ import '${b.backend}';
       }],
     });
     const inputs = Object.keys(res.metafile.inputs);
+    const npmInputs = npmTensorflowInputs(inputs);
+    if (npmInputs.length) {
+      throw new Error(`tfjs-${name}.mjs: ${npmInputs.length} inputs come from npm's @tensorflow packages, not the source (${npmInputs.slice(0, 3).join(', ')}): the tsconfig path map missed a specifier`);
+    }
     const bytes = statSync(outfile).size;
     result.bundles[`tfjs-${name}.mjs`] = {
       bytes, sha256: sha256(readFileSync(outfile)), ms: Math.round(performance.now() - t0), inputs: inputs.length,
+      npmTensorflowInputs: npmInputs.length, // checked above: always 0, or the build failed
       packages: [...new Set(inputs.map(i => (i.match(/(tfjs-[a-z-]+|pose-detection|long|seedrandom|mediapipe-stub)\//) || [])[1]).filter(Boolean))].sort(),
     };
     log(`tfjs-${name}.mjs  ${(bytes / 1e6).toFixed(2)} MB  (${inputs.length} sources, ${result.bundles[`tfjs-${name}.mjs`].ms} ms)`);

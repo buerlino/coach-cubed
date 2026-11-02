@@ -178,3 +178,17 @@ test('fetch-models.sh leaves no unpacking folder in app/models/ when tar fails',
     fs.rmSync(bin, { recursive: true, force: true });
   }
 });
+
+test("npm's @tensorflow packages among a bundle's inputs are found, the tag's sources are not", async () => {
+  const { npmTensorflowInputs } = await load();
+  const fromSource = ['../../.cache/coach/tfjs-v4.22.0/tfjs-core/src/index.ts', 'node_modules/long/src/long.js',
+    'node_modules/seedrandom/seedrandom.js', '../../.cache/coach/pose-detection-v2.1.3/pose-detection/src/movenet/detector.ts'];
+  assert.deepEqual(npmTensorflowInputs(fromSource), []);
+  const npm = ['node_modules/@tensorflow/tfjs-core/dist/index.js', 'app/node_modules/@tensorflow-models/pose-detection/dist/index.js',
+    'C:\\x\\node_modules\\@tensorflow\\tfjs-converter\\dist\\index.js'];
+  assert.deepEqual(npmTensorflowInputs([...fromSource, ...npm]), npm);
+  // build-info.json records the count, and the parity script reads the same key
+  const src = fs.readFileSync(path.join(APP, 'tools/build-tfjs.mjs'), 'utf8');
+  assert.match(src, /npmTensorflowInputs: npmInputs\.length/);
+  assert.match(fs.readFileSync(path.join(APP, 'tools/parity-tfjs.mjs'), 'utf8'), /\.npmTensorflowInputs/);
+});
