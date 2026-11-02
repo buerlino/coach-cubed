@@ -13,8 +13,7 @@ from these are in [rules-core.md](rules-core.md).
 | 5 | `.auth_password` is an unsalted SHA-256 hash of the old login password, with a scheme "identical to tecna". Is that password used anywhere else? | Noah | Change it wherever it's used. The file leaves the history in step 2.8 either way. |
 | 6 | How long the restructuring window lasts | Noah | Step 2.8 (the history rewrite) has to finish before Noah resumes. It is scheduled at Phase 5's checkpoint A (D8); if Noah comes back earlier, the queue drains early for it. |
 | 9 | Branch protection on `main` of `noahsta/coach`, so one push from an old clone can't undo step 2.8 | Noah (repo owner) | Turn it on. |
-| 10 | **The app's name.** nordmu's pick (2026-11-02): coach³, "Coach Cubed". | Noah | Clean where checked ([branding.md](branding.md)); then Noah, a trademark search, the package ID, before testers get an APK. |
-| 11 | **AGPL-3.0-or-later instead of GPL** ([Licence](#licence)) | Noah, then all four authors | Switch. |
+| 10 | **The app's name and the PWA's domain.** nordmu's pick (2026-11-02): coach³, "Coach Cubed". The public PWA waits for the domain: a PWA's installs and stored data belong to its origin, so moving it later costs users their data. | Noah | Clean where checked ([branding.md](branding.md)); then Noah, a trademark search, the domain. The package ID doesn't wait ([What 0.1.0 is](#what-010-is)). |
 
 **What went to Noah, and when:** nordmu's message of 2026-10-31 asked
 questions 1 (the licence, reopened as 11), 2 and 5 (as "is it a real
@@ -57,6 +56,12 @@ restructuring window, merged packages' details) are in [decisions-archive.md](de
   leaves no `org.chromium.Chromium.*` folders (`c52`). Noah takes the lift
   side after 2.8 (`s49`). Settled entries moved to the archive.
 
+- **2026-11-02, nordmu: the Android package ID is
+  `io.github.noahsta.coach`**, from the GitHub repo, not from the domain
+  (replaces `org.coach.placeholder`; it can't change once published).
+- **2026-11-02, nordmu: the validation set isn't part of the handover.**
+  0.1.0 ships MoveNet Thunder; checking the analysis against real clips
+  (3.0, 3.6) is Noah's work after the handover, so nothing waits on it.
 - **2026-11-02, nordmu: 0.1.0 is the handover.** It ships as planned, then
   coach goes back to Noah, who builds on with the pipeline (`c40`).
 
@@ -135,17 +140,18 @@ restructuring window, merged packages' details) are in [decisions-archive.md](de
 - **2026-10-31, nordmu: 0.1.0 analyses the lateral raise, plus the snatch if
   the Phase 3 spike passes** (otherwise the snatch moves to 0.2).
 - **2026-10-31, nordmu: `clipper/` goes back to its own repo; `report/` stays
-  here as a parked research folder.** The repo is `weightlifting-clipper`
-  a local sibling of coach with no remote; nordmu puts
-  it in a private GitHub repo before step 2.8. coach
+  here as a parked research folder.** It lives in `../weightlifting-clipper`,
+  a plain folder beside coach. 2026-11-02, nordmu: clipper's history isn't
+  kept, so step 2.8 doesn't wait for it. coach
   keeps its side of the link: `scripts/sync_clipper_fixtures.py`, which
   now needs `$CLIPPER_OUT` or `--clipper-dir`.
 - **2026-10-31, nordmu: offline is a hard requirement, so no server compute.**
 
 ### Licence
 
-- **2026-11-02, nordmu, pending Noah and the four authors' OK: coach is
-  AGPL-3.0-or-later** (question 11), superseding the entry below. The goal:
+- **2026-11-02, nordmu: coach is AGPL-3.0-or-later** (question 11),
+  superseding the entry below; Noah, Nicola Walker and JMLuner (Josh) agreed
+  (reported by nordmu, 2026-11-02). The goal:
   open source, but nobody sells a closed copy. No open licence bans selling;
   the AGPL makes every copy publish its source, also one run as a network
   service. The written OKs asked for are OKs to this.

@@ -13,12 +13,11 @@ finish (git keeps the history). Decisions and open questions are in
   (commits since `a0a9499`), apart from two steps that run at Phase 5's
   checkpoint A, with the queue empty
   (D8, [app-plan.md](app-plan.md#decided-2026-11-01)):
-  - 2.7's LICENSE and SPDX headers (AGPL-3.0-or-later, pending Noah:
-    question 11), once the authors' written OKs are in
-    ([decisions.md](decisions.md#licence));
-  - 2.8, the history rewrite, with nordmu's explicit OK, once the clipper
-    repo has its home; if Noah comes back earlier, the queue drains early
-    for it (question 6).
+  - 2.7's LICENSE and SPDX headers (AGPL-3.0-or-later, all four authors
+    agreed, 2026-11-02: [decisions.md](decisions.md#licence));
+  - 2.8, the history rewrite, with nordmu's explicit OK (clipper's history
+    isn't kept, so nothing else waits); if Noah comes back earlier, the
+    queue drains early for it (question 6).
 
   **Phase 3** ran on branch `p3/spike`, merged into `phase-0`; its branch
   and worktree went on 2026-11-02, its gitignored results, models and
@@ -30,8 +29,9 @@ finish (git keeps the history). Decisions and open questions are in
   from source (nordmu, 2026-11-01), which drops MediaPipe Tasks. **3.7,
   the working pick (nordmu, 2026-11-01):** MoveNet SinglePose Thunder on
   TensorFlow.js, WebGL, every frame, as a PWA and in Capacitor, built from
-  the TF.js tags' sources in 5.3; final once 3.6 passes on the validation
-  set ([pose-spike.md](pose-spike.md)). Open, all waiting on the validation
+  the TF.js tags' sources in 5.3 ([pose-spike.md](pose-spike.md)); it ships
+  in 0.1.0. **2026-11-02, nordmu: the validation set isn't part of the
+  handover;** what follows is Noah's after 0.1.0. Open, all waiting on the validation
   set (not in by 2026-11-01, 21:00: neither the clips nor the friend's
   written OK; the YouTube clips can't stand in: no lateral raises, mostly
   front views, on Noah's machine):
@@ -68,12 +68,6 @@ finish (git keeps the history). Decisions and open questions are in
   2026-11-02, nordmu's OK). `main` stays at `62b2cee` until Noah has looked
   at `phase-0` and agreed; every later push needs nordmu's OK too.
 - **Start now, outside a session** (to-dos, not session work):
-  - nordmu: a one-line written OK to AGPL-3.0-or-later (question 11) from
-    Noah, Nicola Walker and JMLuner (a chat message each is enough);
-  - nordmu: a private GitHub repo for `../weightlifting-clipper`, pushed
-    (2.8's precondition);
-  - nordmu: the validation set (3.0), filmed by a friend, with the
-    friend's written OK to use the footage;
   - nordmu, then Noah: the next message, with branch protection on `main`
     and the other open questions ([decisions.md](decisions.md#needs-an-answer));
   - Noah, then nordmu: the app's name (question 10; nordmu picked coach³,
@@ -220,15 +214,14 @@ Finished steps keep one line each; the details are in their commits.
 - [x] 2.5 `.auth_password` and two `.DS_Store` files untracked (`d0d98cc`).
 - [x] 2.6 The docs describe the repo as it is now (`e5d3d60`).
 - [~] 2.7 [THIRD_PARTY.md](../THIRD_PARTY.md) and [authors.md](authors.md)
-      (`cc72cc8`); LICENSE and the SPDX headers wait for the authors' written
-      OKs ([decisions.md](decisions.md#licence)), and run at checkpoint A
-      (D8). The proposed licence is AGPL-3.0-or-later (question 11), so
-      LICENSE would be <https://www.gnu.org/licenses/agpl-3.0.txt>.
+      (`cc72cc8`); LICENSE and the SPDX headers run at checkpoint A (D8).
+      The licence is AGPL-3.0-or-later, all four authors agreed
+      ([decisions.md](decisions.md#licence)), so LICENSE is
+      <https://www.gnu.org/licenses/agpl-3.0.txt>.
 - [ ] 2.8 One history rewrite at the end of the window, at checkpoint A
       (D8) with the queue empty, before Noah resumes, with nordmu's
-      explicit OK. **Precondition:** `../weightlifting-clipper`
-      is in nordmu's private GitHub repo ([decisions.md](decisions.md));
-      after the rewrite it is the only copy of clipper. It removes the
+      explicit OK. Clipper's history goes with it: nordmu doesn't keep it
+      (2026-11-02), and `../weightlifting-clipper` keeps the files. It removes the
       videos, the password and the removed bloat, and the athletes' real
       names: they are in old file paths, in old file contents
       (`athlete-a`/`athlete-b` since step 2.4) **and** in commit messages
