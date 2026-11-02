@@ -3,7 +3,7 @@
 //
 //   node app/tools/assemble.mjs [--debug] [--out DIR] [--app DIR] [--src DIR]
 //
-// - app/ without tools/, android/, dist/, debug/, capacitor.config.json and
+// - app/ without tools/, android/, dist/, debug/, out/ (the APK), capacitor.config.json and
 //   node_modules/ (any node_modules);
 // - with --debug only (the debug APK, tools/build-apk.sh): app/debug/, the
 //   check page (c20), and the test clip it poses, tests/app/clips/
@@ -24,7 +24,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SKIP_TOP = new Set(['tools', 'android', 'dist', 'debug', 'node_modules', 'capacitor.config.json']);
+const SKIP_TOP = new Set(['tools', 'android', 'dist', 'debug', 'out', 'node_modules', 'capacitor.config.json']);
 // What --debug adds: the check page's clip, from the repo's tests/ (relative to src/'s parent).
 export const DEBUG_CLIPS = ['testsrc2-h264-30fps.mp4'];
 const OPTIONAL = [

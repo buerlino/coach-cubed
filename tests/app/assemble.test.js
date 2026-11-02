@@ -44,6 +44,7 @@ function fakeTree({ tfjs = false, models = false } = {}) {
   put(app, 'dist/old.txt', 'no');
   put(app, 'node_modules/x/index.js', 'no');
   put(app, 'capacitor.config.json', '{}');
+  put(app, 'out/coach-debug.apk', 'the last APK');
   put(app, 'debug/check.html', 'check page');
   put(app, 'debug/check.mjs', 'export {};');
   put(root, 'tests/app/clips/testsrc2-h264-30fps.mp4', 'clip');
@@ -202,12 +203,12 @@ test('with them present they are copied and listed', () => {
   assert.deepEqual(m.files, walk(out).filter((f) => f !== 'files.json'));
 });
 
-test('only src/diagnostics.js and src/track/ come from src/; tools/, android/, dist/ and node_modules/ never', () => {
+test('only src/diagnostics.js and src/track/ come from src/; tools/, android/, dist/, out/ and node_modules/ never', () => {
   const t = fakeTree({ tfjs: true, models: true });
   const out = tmp('only');
-  assemble(['--app', t.app, '--src', t.src, '--out', out]);
+  assemble(['--app', t.app, '--src', t.src, '--out', out, '--debug']);
   const files = walk(out);
-  assert.ok(!files.some((f) => /^(tools|android|dist|node_modules)\//.test(f)));
+  assert.ok(!files.some((f) => /^(tools|android|dist|out|node_modules)\//.test(f)), 'the last APK must never land in the next one');
   assert.ok(!files.includes('src/app.py') && !files.includes('src/vendor/three.module.js'));
 });
 
