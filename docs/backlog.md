@@ -33,7 +33,10 @@ During the restructuring window, the order of work and its status are in
 - Whether `diagnostics.js`'s 0.3 confidence gate fits MediaPipe's
   "visibility" values (map areas 2 and 3). Phase 3 should settle it.
 - The goldens score raw tracks; the UI scores smoothed ones, so the tests
-  don't cover what the user sees (map area 2).
+  don't cover what the user sees (map area 2). The scoring adapter's tests
+  (`tests/app/scoring.test.js`) pin the smoothed path to `src/track/` followed
+  by `computeResults()`, not to a golden: no expected verdict for a smoothed
+  track exists until real lifts are labelled.
 - Where the deploy's live CA lives: [server.md](server.md) says `.caddy/` in
   the repo folder on Noah's machine; the old `deploy.md` said the gateway's
   own storage. Only that machine can tell.
