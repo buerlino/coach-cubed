@@ -112,11 +112,11 @@ the screens and the tests.
 
 | Module | For | Produced by | Consumed by |
 | --- | --- | --- | --- |
-| `pose-messages.mjs` | 1. The pose worker's messages: `init {backend}` → `ready {info}` or `error {error}`; `estimate {id, frame, tMs}` → `result {id, keypoints, ms}` or `result {id, error}`. pose-bench's, trimmed to MoveNet: no model choice, no detector, no box. | the pose client and its worker (`s10`) | the analysis job (`s12`), through the client |
-| `analysis-job.mjs` | 2. An analysis job: the lift, its `source` (the stored cut's path, D6, never a `File`), its range in the cut's timeline, the state, progress by stage with the time left, the error. `createJob(id, lift)` makes a queued one; a job read back after a restart is the same job. | Analyse in M3 (`d14`), through the queue (`s12`) | the queue (`s12`), Q1 (`d15`), H (`d13`) |
+| `pose-messages.mjs` | 1. The pose worker's messages: `init {backend}` → `ready {info}` or `error {error}`; `estimate {id, frame, tMs}` → `result {id, keypoints, ms}` or `result {id, error}`; `reset {id}` → `cleared {id}` or `cleared {id, error}` (`s35`: between clips, the worker clears MoveNet's crop after any estimate before it and keeps its model). pose-bench's, trimmed to MoveNet: no model choice, no detector, no box. | the pose client and its worker (`s10`) | the analysis job (`s12`), through the client |
+| `analysis-job.mjs` | 2. An analysis job: the lift, its `source` (the stored cut's path, D6, never a `File`), its range in the cut's timeline, the state, progress by stage with the time left (reading is one unit, the cut read and opened; pose one a frame; scoring one), the error. `createJob(id, lift)` makes a queued one; a job read back after a restart is the same job. | Analyse in M3 (`d14`), through the queue (`s12`) | the queue (`s12`), Q1 (`d15`), H (`d13`) |
 | `stored-lift.mjs` | 3. A stored lift: id, created, lift, the cut's path, the range, the track's and the result's paths, the app version, the engine. `liftPaths(id)` is the folder's layout: `lifts/<id>/cut.mp4`, `track.json`, `result.json`. | the store (`c8`) at Analyse, with `s32`'s cut; completed by the job (`s12`) | H (`d13`), A1 and A3 (`d16`, `d17`, `d22`), the job (`s12`) |
-| `cue-view.mjs` | 4. The cue view model: per cue its id, title, cue, status word (good, watch, work on, can't score), verdict, value, tiles, reference line, series, phase, worst moment, provisional flag and, when it can't be scored, the engine's reason; plus the lift window and the notes. `CUE_VIEW_SOURCES` names where each field comes from (`computeResults()`, `s4`'s API, or the adapter); `VERDICT_VALUE` names, per cue rule, the summary field the verdict is scored on, which is the card's value (the SD for a cue scored on its spread, not the worst moment's sample). A lift's `result.json` holds one `ResultView`. | the scoring adapter (`s11`), in the job's scoring stage | A1, A2, A4 (`d17`, `d18`, `d25`), the page test (`c21`) |
-| `frame-source.mjs` | 5. A frame source: an opened video's info (duration, frame rate, upright size, rotation), a frame at a time, a range as a stream of `VideoFrame`s, thumbnails. `exampleFrameSource()` is a stand-in with no video behind it, for tests. | the media module (`s9`) | marking (`d14`), A1's player (`d16`), the job (`s12`) |
+| `cue-view.mjs` | 4. The cue view model: per cue its id, title, cue, status word (good, watch, work on, can't score), verdict, value, tiles, reference line, series, phase, worst moment, provisional flag and, when it can't be scored, the engine's reason; plus the lift window (`{t0, t1: null}` when diagnostics.js found the start and no held finish, its reason then the engine's note; `s35`), the notes and the `smoothing` (`{sigmaMs, keepVelocity}`) the verdicts were scored with. `CUE_VIEW_SOURCES` names where each field comes from (`computeResults()`, `s4`'s API, or the adapter); `VERDICT_VALUE` names, per cue rule, the summary field the verdict is scored on, which is the card's value (the SD for a cue scored on its spread, not the worst moment's sample). A lift's `result.json` holds one `ResultView`. | the scoring adapter (`s11`), in the job's scoring stage | A1, A2, A4 (`d17`, `d18`, `d25`), the page test (`c21`) |
+| `frame-source.mjs` | 5. A frame source: an opened video's info (duration, frame rate, upright size, rotation), `frameTimes` (every frame's start in seconds, presentation order, from the first frame at 0; required since `s35`: M1–M3's one-frame steps and the job's frame count), a frame at a time, a range as a stream of `VideoFrame`s, thumbnails. `exampleFrameSource()` is a stand-in with no video behind it, for tests. | the media module (`s9`) | marking (`d14`), A1's player (`d16`), the job (`s12`) |
 | `track.mjs` | The track, `track.json`, in the fixture format ([fixture-data-contract.md](../docs/fixture-data-contract.md)), so the app's tracks and the committed fixtures read the same. `trackFromFrames()` builds one from the worker's results, `framesFromTrack()` reads one back. | the job (`s12`) | the scoring adapter (`s11`), A1's skeleton (`d16`), the page test (`c21`) |
 | `keypoints.mjs` | COCO-17 `[y, x, conf]` in the frame's pixels, or `null` ([rules-core.md](../docs/rules-core.md), principle 4). | the pose worker | the track, `diagnostics.js` |
 | `common.mjs` | What they share: the lifts, ids, store paths, ranges, the checks. | | the modules above |
@@ -133,8 +133,8 @@ needs no UI change.
 
 ```js
 import { scoreLift } from './scoring/score.mjs';
-const { view, computed, personId, smoothing } = scoreLift(track, 'snatch', { sigmaMs: 50 });
-// view: a ResultView (passes validateResultView); computed: computeResults()'s output, for drawCue()
+const { view, computed, personId } = scoreLift(track, 'snatch', { sigmaMs: 50 });
+// view: a ResultView (passes validateResultView), view.smoothing included; computed: computeResults()'s output, for drawCue()
 ```
 
 - **Order:** `src/track/`'s smoothing first (σ 50 ms, velocity kept, the old
@@ -153,12 +153,13 @@ const { view, computed, personId, smoothing } = scoreLift(track, 'snatch', { sig
   it too. Each cue carries `describe()`'s `provisional` flag. A verdict level
   the contract has no word for throws instead of showing as another word.
 - **Seconds:** the lift window, the phase, the series and the worst moment
-  are in seconds (the track's `frame_times_ms`). A lift window needs both
-  ends: a start with no end is `liftWindow: null` and its reason is the
-  engine's last note ("…the lift has no end marker"); the other notes stay in
-  `notes`.
-- **The smoothing's σ** is returned beside the view, as numbers (`smoothing`):
-  the ResultView has no field for it, and the adapter writes no sentence.
+  are in seconds (the track's `frame_times_ms`). A start with no end keeps
+  its start: `liftWindow: {t0, t1: null}`, and its reason is the engine's
+  last note ("…the lift has no end marker"); the other notes stay in
+  `notes` (`s35`; before, the whole window was dropped).
+- **The smoothing** is on the view, as numbers (`view.smoothing`, `{sigmaMs,
+  keepVelocity}`, `s35`), so `result.json` says what its verdicts were scored
+  with; the adapter writes no sentence about it.
 - **What the tests pin** (`tests/app/scoring.test.js`): with smoothing off,
   every committed fixture's verdicts, values, series, tiles, notes and
   reasons are its golden's. The goldens score **raw** tracks; with the
@@ -434,9 +435,11 @@ await queue.retry(id); await queue.dismiss(id);    // a failed or cancelled job 
   extra pictures past `t1` aren't), builds the track with
   `trackFromFrames` and `appTrackMeta` (frame indices are the cut's, times
   the decoder's timestamps, size and rate the source's), scores it with
-  `scoreLift` (σ from the settings' `view.smoothingSigmaMs`) and saves the
-  track, the result and the engine (`model`, `backend`, `runtime`) with
-  `updateLift`.
+  `scoreLift` (σ from the settings' `view.smoothingSigmaMs`, kept in the
+  result as `smoothing`) and saves the track, the result and the engine
+  (`model`, `backend`, `runtime`) with `updateLift`. The frame count and the
+  frames' indices come from the source's `frameTimes`; a source that breaks
+  contract 5 (no `frameTimes`) fails the job in the contract's words.
 - **Stages and progress** (Q1): `reading` is one unit (the cut read and
   opened), `pose` one unit a frame of the range, `scoring` one unit
   (scored and saved). The time left (`etaS`) is the frames left times the
@@ -444,9 +447,11 @@ await queue.retry(id); await queue.dismiss(id);    // a failed or cancelled job 
   model); before the job's first frame, the last job's median; on a first
   run, null.
 - **One at a time, in order, on one engine,** created on first use
-  (`warmUp()` creates it early). `reset()` respawns the worker (4.4 s on
-  the laptop, `s10`), so it runs once per clip: before a job when the
-  engine has posed another clip, and after a cancel.
+  (`warmUp()` creates it early). `reset()` (contract 1's `reset`, `s35`)
+  runs once per clip: before a job when the engine has posed another clip,
+  and after a cancel. It clears MoveNet's crop and keeps the worker: 0–1 ms
+  on the laptop, where the old reset, a new worker, took 4.75 s (`s10`
+  measured 4.4 s; numbers in [The pose engine](#the-pose-engine)).
 - **Cancel** stops between frames: the frame in flight finishes, no next
   one is sent, the stream and the source are closed, the engine is reset;
   the lift stays stored, unanalysed. A job the queue has taken but not yet
@@ -563,16 +568,16 @@ WebGL bundle. Nothing is imported from `spike/`.
 import { PoseEngine } from './pose/pose-client.mjs';
 const engine = await PoseEngine.create({ backend: 'webgl' });  // loads the weights, warms up; engine.info is the lift's `engine`
 const { keypoints, ms } = await engine.estimate(videoFrame, tMs); // COCO-17 [y, x, conf] in pixels, or null
-await engine.reset();    // between clips
+await engine.reset();    // between clips: the crop cleared, the worker and its model kept
 engine.close();
 ```
 
 | File | What |
 | --- | --- |
-| `pose-client.mjs` | `PoseEngine`: owns the worker, sends `init` and `estimate`, matches `result` to its call by `id`. Calls made together wait in order and go out one at a time (contract 1: the next after the last result), since MoveNet's crop follows the previous pose. A frame is transferred; the worker closes it. A frame that never reaches the worker (a refused call, a failed transfer, a closed engine) is closed by the client, so the caller never closes a frame it passed in. |
+| `pose-client.mjs` | `PoseEngine`: owns the worker, sends `init`, `estimate` and `reset`, matches `result` and `cleared` to their call by `id`. Calls made together wait in order and go out one at a time (contract 1: the next after the last answer), since MoveNet's crop follows the previous pose. A frame is transferred; the worker closes it. A frame that never reaches the worker (a refused call, a failed transfer, a closed engine) is closed by the client, so the caller never closes a frame it passed in. |
 | `pose-worker.mjs` | The module worker's wiring: `self.onmessage` to the handler, `self.postMessage` out. |
-| `worker-core.mjs` | `createWorkerHandler({load, post})`: init, estimate, the errors. Handles messages one at a time, closes every frame once, turns an engine's exception into `result {id, error}` and a failed load into `error`. No worker or TF.js in it, so Node tests drive it with a fake engine. |
-| `movenet.mjs` | `loadMoveNet(backend)`: imports `../../vendor/tfjs/tfjs-webgl.mjs`, sets the backend, creates the Thunder detector from `../../models/movenet-thunder-4/model.json` (relative URLs, no network), smoothing off (`src/track/` smooths), runs one blank 256 × 256 frame to compile the shaders, then resets the detector's crop. Only `webgl` for now; WebGPU and one-thread WASM come later. |
+| `worker-core.mjs` | `createWorkerHandler({load, post})`: init, estimate, reset, the errors. Handles messages one at a time (a reset after the estimates before it), closes every frame once, turns an engine's exception into `result {id, error}` or `cleared {id, error}` and a failed load into `error`. No worker or TF.js in it, so Node tests drive it with a fake engine. |
+| `movenet.mjs` | `loadMoveNet(backend)`: imports `../../vendor/tfjs/tfjs-webgl.mjs`, sets the backend, creates the Thunder detector from `../../models/movenet-thunder-4/model.json` (relative URLs, no network), smoothing off (`src/track/` smooths), runs one blank 256 × 256 frame to compile the shaders, then resets the detector's crop; the engine's `reset()` is that `detector.reset()`. Only `webgl` for now; WebGPU and one-thread WASM come later. |
 | `coco17.mjs` | pose-detection's keypoint objects to `[y, x, conf]`; refuses a count other than 17 and a name out of COCO-17's order. |
 | `check.mjs` | What a result must be before the worker posts it and the client believes it: contract 1's shape, and in the frame's pixels (a pose whose every coordinate is within 0..1 on a frame of hundreds of pixels is normalised, and refused). |
 
@@ -580,18 +585,29 @@ engine.close();
   the engine goes on. A failed `init`, a worker that dies (`onerror`) or
   `close()` ends the engine: what is waiting or in flight rejects, later calls
   reject with the same words.
-- **`reset()`** ends the worker and starts a fresh one (weights and warm-up
-  again, seconds on the phone): contract 1 has no message that clears MoveNet's
-  crop, and a new clip must not start from the last clip's pose. It waits for
-  the estimate in flight. A `reset` message in contract 1 would make it
-  cheap: a package of its own (see the report of `s10`).
+- **`reset()`** sends contract 1's `reset {id}` (`s35`): the worker, after
+  the estimate in flight, calls pose-detection's `detector.reset()`, which
+  clears MoveNet's crop, and answers `cleared {id}`; the next estimate starts
+  from no previous pose, so a new clip never starts from the last clip's.
+  The worker, the weights and the compiled shaders stay. A failed reset
+  (`cleared {id, error}`) rejects that call only and the engine goes on, as
+  after a failed estimate. On the laptop (`tools/check-pose.mjs`, headless
+  Brave on SwiftShader, five resets each, medians, `s35`): 0 ms (0–1 ms)
+  for the reset, against 4.75 s (4.69–5.09 s) for the old one (a new worker: weights and warm-up
+  again; `s10` measured 4.4 s); frame 0 after a reset 560 ms against
+  frame 1's 595 ms, where after the old reset frame 0 took 688 ms against
+  580 ms: a clip's first frame no longer compiles the crop's shaders again
+  (108 ms more before, nothing measurable now). One run each, back to back,
+  the old engine from `phase-0`'s `app/` under the same check script.
 - **`null`** is MoveNet saying nobody is there (its pose score is under its
   own minimum); the confidences of a pose are passed on as they are, and
   nothing here thresholds them: the cues do.
 - **The check:** `tools/check-pose.mjs` runs the engine in headless Brave (a
-  real module worker, software WebGL) on a few synthetic frames and a
-  `reset()`. It shows that the engine loads and answers; the phone's speed is
-  `c20`'s and `c26`'s.
+  real module worker, software WebGL) on a few synthetic frames, then
+  `--resets` times (3) a `reset()` and frames 0 and 1 again, with the
+  reset's time and the two frames' (`resets`, medians in `resetMs` and
+  `afterReset`). It shows that the engine loads and answers; the phone's
+  speed is `c20`'s and `c26`'s.
 - **Tests:** `tests/app/pose-engine.test.js`, against a fake worker and a fake
   engine.
 
@@ -705,7 +721,9 @@ false. s10's engine on the test clip (96 × 54, 90 frames), medians of five:
 freshly installed app, 1.0 s for each later one in the same app; `reset()`
 1.0 s; frame 0 165 ms and frame 1 104 ms (235 ms for the first frame of the
 first engine): the shaders that depend on the crop's size compile on the
-first real frames, again after every `reset()`.
+first real frames, again after every `reset()`. These `reset()` numbers are
+the old, respawning reset's (a new worker each time, `s10`); since `s35` a
+reset keeps the worker and its shaders, and `c26` measures it on the phone.
 
 **The service worker isn't registered in the APK** (`c20`'s choice, for
 `c19`): there the files come from the APK through Capacitor's local server,

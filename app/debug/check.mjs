@@ -117,7 +117,8 @@ async function openBlob(blob) {
 }
 
 // One run: create (weights and warm-up), every frame of the clip, reset
-// (a new worker: weights and warm-up again), frames 0 and 1 again.
+// (contract 1's reset since s35: the crop cleared, the worker and its model
+// kept; before, a new worker, weights and warm-up again), frames 0 and 1 again.
 async function engineRun(blob, k) {
   const src = await openFrameSource(blob);
   let engine = null;

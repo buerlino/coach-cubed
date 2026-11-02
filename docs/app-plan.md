@@ -104,11 +104,14 @@ and the engine are plain modules, so only the screens depend on Preact.
 1. **The pose worker's messages:** `init {backend}` → `ready {info}` or
    `error`; `estimate {id, frame, tMs}` (a `VideoFrame`, transferred) →
    `result {id, keypoints, ms}`, keypoints COCO-17 `[y, x, conf]` in frame
-   pixels or `null`. pose-bench's, trimmed.
+   pixels or `null`; `reset {id}` → `cleared {id}` or `cleared {id, error}`:
+   between clips the worker clears MoveNet's crop, after any estimate before
+   it, and keeps its model (`s35`). pose-bench's, trimmed.
 2. **An analysis job:** id, lift id, lift (`lateral-raise` or `snatch`),
    source (the stored cut's path, D6), range `{t0, t1}` in the cut's own
    timeline, state (queued, reading, pose, scoring, done, failed,
-   cancelled), progress `{stage, done, total, etaS}`, error. A queued job
+   cancelled), progress `{stage, done, total, etaS}` (reading counts one
+   unit, the cut read and opened; pose one a frame; scoring one), error. A queued job
    names only stored files, so it survives a restart.
 3. **A stored lift:** id, created, lift, the video's path (the cut, D6),
    the range, the track's and the result's paths, the app version, the
@@ -117,8 +120,12 @@ and the engine are plain modules, so only the screens depend on Preact.
    status (good, watch, work on, can't score), verdict text, value and
    unit, tiles, series, phase `{t0, t1}`, worst moment, whether its
    thresholds are provisional, and for "can't score" the engine's reason;
-   plus the lift window and the notes.
-5. **A frame source:** open a file → duration, frame rate, size, rotation;
+   plus the lift window (`{t0, t1: null}` when the engine found the start
+   and no held finish, with the engine's note as its reason), the notes and
+   the smoothing `{sigmaMs, keepVelocity}` the verdicts were scored with
+   (`s35`).
+5. **A frame source:** open a file → duration, frame rate, size, rotation,
+   and every frame's start time in presentation order (`frameTimes`, `s35`);
    one frame at a time, a range as a stream of `VideoFrame`s, thumbnails.
 
 ### The pieces
