@@ -8,14 +8,14 @@
 // draws the screen the state names (SCREEN_OF). What a step carries (the
 // picked file, the lift's id) is `flow.params`, replaced by each step.
 
-export const STATES = ['welcome', 'home', 'import', 'mark', 'queued', 'result', 'detail', 'settings', 'scoring', 'live', 'replay'];
+export const STATES = ['welcome', 'home', 'lift', 'mark', 'queued', 'result', 'detail', 'settings', 'scoring', 'live', 'replay'];
 
-// The screen ID (docs/ui-design.md, "The screens") each state shows. "import"
-// is H's picker, which v1's mockups don't draw as a screen of its own.
+// The screen ID (docs/ui-design.md, "The screens") each state shows. "lift" is L1,
+// "Which lift?": the picker is the phone's own, opened from a button on H (d53).
 export const SCREEN_OF = {
   welcome: 'Welcome',
   home: 'H',
-  import: 'Import',
+  lift: 'L1',
   mark: 'M',
   queued: 'Q1',
   result: 'A1',
@@ -26,19 +26,20 @@ export const SCREEN_OF = {
   replay: 'R3',
 };
 
-// Where each state may go. Milestone A: H, import, mark, queued, result, and
+// Where each state may go. Milestone A: H, the picker, lift (L1), mark, queued, result, and
 // back to H; open a lift from H (still analysing: queued; done: result);
-// leave Q1 without stopping the analysis (home); pick another video after "No person found" (d51: queued → import); re-mark from the result (A3).
+// leave Q1 without stopping the analysis (home); pick another video after "No person found" (d51: queued → lift)
+// or when M can't open the video (mark → lift); re-mark from the result (A3). Every newly picked video passes L1 (d53).
 // S1's "How the cues are scored" (d18): settings → scoring and back.
-// The first run (d23): the app starts in `welcome` once, which leads to home or import; nothing leads back to it.
+// The first run (d23): the app starts in `welcome` once, which leads to home or the lift step; nothing leads back to it.
 // Milestone B: H, live (R2), replay (R3), mark, then back to live with the
 // lift queued; a session ends at home.
 export const TRANSITIONS = {
-  welcome: ['home', 'import'],
-  home: ['import', 'settings', 'queued', 'result', 'live'],
-  import: ['mark', 'home'],
-  mark: ['queued', 'home', 'import', 'live'],
-  queued: ['result', 'home', 'live', 'import'],
+  welcome: ['home', 'lift'],
+  home: ['lift', 'settings', 'queued', 'result', 'live'],
+  lift: ['mark', 'home'],
+  mark: ['queued', 'home', 'lift', 'live'],
+  queued: ['result', 'home', 'live', 'lift'],
   result: ['home', 'mark', 'detail'],
   detail: ['result', 'home'],
   settings: ['home', 'scoring'],

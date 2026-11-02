@@ -162,10 +162,11 @@ test('d51: "Pick another video" is offered on "No person found" only; the other 
   }
 });
 
-test('d51: Q1 draws the button on the panel, as a 44 px-class big button that goes to the import step', () => {
+test('d51/d53: Q1 draws the button on the panel, as a big button that opens the picker (PickVideo), and the lift step follows', () => {
   const fs = require('node:fs');
   const q1 = fs.readFileSync(path.join(APP, 'src', 'ui', 'screens', 'Q1.mjs'), 'utf8');
-  assert.match(q1, /view\.actions\.another \? html`<button type="button" class="button--primary button-big" onClick=\$\{\(\) => flow\.go\('import'\)\}>Pick another video<\/button>`/);
+  assert.match(q1, /view\.actions\.another \? html`<\$\{PickVideo\} flow=\$\{flow\} class="button--primary button-big">Pick another video<\/\$\{PickVideo\}>`/);
+  assert.doesNotMatch(q1, /go\(['"]import['"]\)/);
 });
 
 test('a cancelled job: stopped, retry offered, no reason', async () => {

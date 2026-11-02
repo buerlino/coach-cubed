@@ -1,10 +1,11 @@
 // H, home (design/mockups/Main.dc.html): start a gym session (disabled until
-// milestone B), import a video, today's lifts with their state, earlier
+// milestone B), import a video (the card opens the phone's picker; L1 asks the lift next), today's lifts with their state, earlier
 // sessions, and the privacy line. H changes the flow's state only; the queue
 // and the store are injected (main.mjs gives the app's), so tests pass fakes.
 import { useEffect, useState } from 'preact/hooks';
 import { html } from '../html.mjs';
 import { CameraIcon, ChevronIcon, ImportIcon, LockIcon, SettingsIcon } from '../components/icons.mjs';
+import { PickVideo } from '../components/PickVideo.mjs';
 import { LiftRow } from '../components/lift-row.mjs';
 import { followQueue, homeView } from '../home-model.mjs';
 
@@ -52,13 +53,13 @@ export function H({ flow, queue, store, updates }) {
             <span class="tag">Coming in a later version</span>
           </span>
         </button>
-        <button type="button" class="card card--row" onClick=${() => flow.go('import')}>
+        <${PickVideo} flow=${flow} class="card card--row">
           <span class="card__icon"><${ImportIcon} /></span>
           <span class="card__text">
             <span class="card__title">Import a video</span>
             <span class="soft">Pick a clip from this phone and mark the lift.</span>
           </span>
-        </button>
+        <//>
       </div>
       ${update === 'ready' ? html`<p class="update" role="status">Update ready. Reload the app to use the new version.</p>` : null}
       ${problem ? html`<p class="error screen__body" role="alert">${problem}</p>` : null}

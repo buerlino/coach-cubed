@@ -10,7 +10,7 @@
 //      over the DevTools protocol, loads the app, waits for the service worker's full cache, then takes
 //      the network away (emulation, and the server shut down) and reloads;
 //   3. per lift with a fixture (app/tools/lift-fixtures.mjs; a lift of the registry without one is listed in
-//      the output, `untested`, and in a line after it): H → Import (the lift, a clip of tests/app/clips/, decoded for real) → M (set start,
+//      the output, `untested`, and in a line after it): H → the picker (a clip of tests/app/clips/) → L1 (the lift's tile) → M (decoded for real) (set start,
 //      drag to the end, set end, Analyse) → Q1 (waits for the job) → A1; reads the cue cards and
 //      compares each with the view model of s11's adapter (scoreLift) computed in Node from the same
 //      fixture track: per cue its id, status class, verdict line, value and the card's label (with the
@@ -245,13 +245,13 @@ try {
     let at = Date.now();
     const lap = () => { const d = Date.now() - at; at = Date.now(); return d; };
 
-    // H → Import
+    // H → the picker (H's file input is set, as the phone's picker would) → L1 → the lift's tile
     await waitFor(`document.querySelector('[data-screen="H"]')`, 'H');
-    if (!await click('button', 'Import a video')) throw new Error('H has no "Import a video" button');
-    await waitFor(`document.querySelector('[data-screen="Import"]')`, 'the import screen');
-    await evaluate(`document.querySelector('input[name="lift"][value=${JSON.stringify(l.lift)}]').click()`);
-    const input = await evaluate(`document.querySelector('input[type="file"]')`, { objectId: true });
+    if (!await evaluate(`[...document.querySelectorAll('[data-screen="H"] button')].some(b => b.textContent.includes('Import a video'))`)) throw new Error('H has no "Import a video" button');
+    const input = await evaluate(`document.querySelector('[data-screen="H"] input[type="file"]')`, { objectId: true });
     await send('DOM.setFileInputFiles', { files: [l.file], objectId: input.objectId });
+    await waitFor(`document.querySelector('[data-screen="L1"]')`, 'L1 after the picker');
+    if (!await click(`[data-screen="L1"] [data-lift=${JSON.stringify(l.lift)}]`)) throw new Error(`L1 has no tile for ${l.lift}`);
 
     // M: set start at the first frame, drag the filmstrip to the end, set end, Analyse
     await waitFor(`document.querySelector('[data-screen="M"][data-step="start"] .mark-main--set:not([disabled])')`, 'M with the video open (the clip decoded)');
@@ -385,10 +385,11 @@ try {
     const junk = join(dist, '..', `coach-page-junk-${process.pid}.mp4`);
     writeFileSync(junk, 'this is not a video\n');
     try {
-      if (!await click('button', 'Import a video')) throw new Error('H has no "Import a video" button');
-      await waitFor(`document.querySelector('[data-screen="Import"]')`, 'the import screen (junk file)');
-      const input = await evaluate(`document.querySelector('input[type="file"]')`, { objectId: true });
+      await waitFor(`document.querySelector('[data-screen="H"]')`, 'H (junk file)');
+      const input = await evaluate(`document.querySelector('[data-screen="H"] input[type="file"]')`, { objectId: true });
       await send('DOM.setFileInputFiles', { files: [junk], objectId: input.objectId });
+      await waitFor(`document.querySelector('[data-screen="L1"]')`, 'L1 (junk file)');
+      if (!await click('[data-screen="L1"] [data-lift]')) throw new Error('L1 has no tile');
       await waitFor(`document.querySelector('[data-screen="M"][data-step="problem"] [data-problem="unreadable"]')`, "the error screen for a file that isn't a video");
       result.unreadableScreen = await evaluate(`document.querySelector('.problem__title')?.textContent ?? null`);
       if (!await click('[data-screen="M"] button', 'Back to home')) throw new Error('the error screen has no way back');

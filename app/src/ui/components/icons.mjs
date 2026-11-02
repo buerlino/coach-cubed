@@ -26,12 +26,14 @@ export const LiftIcon = ({ lift }) => {
   return drawn.get(icon);
 };
 
+// L1's: the picked clip's film strip
+export const FilmIcon = () => html`<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M7 5v14M17 5v14M3 9.5h4M3 14.5h4M17 9.5h4M17 14.5h4"></path></svg>`;
+
 export const BackIcon = () => html`<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round"><path d="M15 5l-7 7 7 7"></path></svg>`;
 
-// M's (design/mockups/Mark.dc.html): close, the lift menu's chevron, the frame steps
+// M's (design/mockups/Mark.dc.html): close, the frame steps
 const thick = 'fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round';
 export const CloseIcon = () => html`<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style=${thick}><path d="M6 6l12 12M18 6L6 18"></path></svg>`;
-export const ChevronDownIcon = () => html`<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" style=${thick}><path d="M6 9l6 6 6-6"></path></svg>`;
 export const StepBackIcon = () => html`<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style=${thick}><path d="M16 6l-6 6 6 6M8 6v12"></path></svg>`;
 export const StepForwardIcon = () => html`<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style=${thick}><path d="M8 6l6 6-6 6M16 6v12"></path></svg>`;
 

@@ -1,6 +1,6 @@
 // The first run (package d23): one screen, shown once, before home. What it says is data here; the flow's
 // `welcome` state draws it (screens/Welcome.mjs). That it was shown is `introSeen` in the store's settings. Plain
-// module, no Preact, no DOM. The words are the app's own and add no claim: what the app does is H's Import text
+// module, no Preact, no DOM. The words are the app's own and add no claim: what the app does is H's import card
 // and the goal (docs/rules-core.md), "everything stays on this phone" is H's footer, the privacy text in S1.
 
 export const WELCOME = Object.freeze({
@@ -30,13 +30,14 @@ export async function startState(store) {
 }
 
 /**
- * Leaves the intro for `to` (`home` or `import`) and keeps that it was shown. The app goes on even when the
- * choice can't be saved (the intro then shows again next time).
+ * Leaves the intro for `to` (`home`, or `lift` with the picked file as `{ file }`) and keeps that it was shown.
+ * The app goes on even when the choice can't be saved (the intro then shows again next time).
  * @param {{saveSettings: (patch: object) => Promise<unknown>}} store
- * @param {{go: (to: string) => void}} flow
- * @param {'home'|'import'} to
+ * @param {{go: (to: string, params?: object) => void}} flow
+ * @param {'home'|'lift'} to
+ * @param {{file?: File}} [params] what the step carries
  */
-export async function finishWelcome(store, flow, to) {
+export async function finishWelcome(store, flow, to, params) {
   try { await store.saveSettings({ introSeen: true }); } catch { /* shown again next time */ }
-  flow.go(to);
+  flow.go(to, params);
 }

@@ -13,7 +13,7 @@ const load = () => import(pathToFileURL(path.join(APP, 'src', 'flow', 'flow.mjs'
 
 test('the states: milestone A\'s six and a result\'s detail, plus live and replay for milestone B', async () => {
   const { STATES } = await load();
-  assert.deepEqual([...STATES].sort(), ['detail', 'home', 'import', 'live', 'mark', 'queued', 'replay', 'result', 'scoring', 'settings', 'welcome']);
+  assert.deepEqual([...STATES].sort(), ['detail', 'home', 'lift', 'live', 'mark', 'queued', 'replay', 'result', 'scoring', 'settings', 'welcome']);
 });
 
 test('a flow starts at home and keeps what each step carries', async () => {
@@ -21,18 +21,18 @@ test('a flow starts at home and keeps what each step carries', async () => {
   const flow = createFlow();
   assert.equal(flow.state, 'home');
   assert.deepEqual(flow.params, {});
-  flow.go('import');
-  flow.go('mark', { file: 'clip.mp4' });
+  flow.go('lift', { file: 'clip.mp4' });
+  flow.go('mark', { file: 'clip.mp4', lift: 'snatch' });
   assert.equal(flow.state, 'mark');
-  assert.deepEqual(flow.params, { file: 'clip.mp4' });
+  assert.deepEqual(flow.params, { file: 'clip.mp4', lift: 'snatch' });
 });
 
-test('milestone A: H, import, mark, queued, result and back to H', async () => {
+test('milestone A: H, the lift step, mark, queued, result and back to H', async () => {
   const { createFlow } = await load();
   const flow = createFlow();
   const seen = [flow.state];
-  for (const to of ['import', 'mark', 'queued', 'result', 'home']) { flow.go(to); seen.push(flow.state); }
-  assert.deepEqual(seen, ['home', 'import', 'mark', 'queued', 'result', 'home']);
+  for (const to of ['lift', 'mark', 'queued', 'result', 'home']) { flow.go(to); seen.push(flow.state); }
+  assert.deepEqual(seen, ['home', 'lift', 'mark', 'queued', 'result', 'home']);
 });
 
 test('the other steps milestone A needs: leave and come back to a lift, settings, cancel, re-mark', async () => {
@@ -42,10 +42,13 @@ test('the other steps milestone A needs: leave and come back to a lift, settings
   step('settings', 'home');
   step('home', 'queued');   // open a lift that is still analysing
   step('home', 'result');   // open a finished lift
-  step('import', 'home');   // the picker cancelled
+  step('lift', 'home');     // ‹ back from L1 drops the file
+  step('lift', 'mark');     // one tap on a lift
+  step('welcome', 'lift');  // the first run's picker
+  step('mark', 'lift');     // d23: "Pick another video" on M's problem screen
   step('mark', 'home');     // marking given up
   step('queued', 'home');   // leaving doesn't stop the analysis
-  step('queued', 'import'); // d51: "Pick another video" on Q1's "No person found"
+  step('queued', 'lift');   // d51: "Pick another video" on Q1's "No person found"
   step('result', 'mark');   // re-mark (A3)
 });
 
@@ -62,11 +65,11 @@ test('an illegal transition throws, names both states and leaves the state alone
   assert.throws(() => flow.go('mark'), (e) => e instanceof Error && /\bhome\b.*\bmark\b/.test(e.message));
   assert.throws(() => flow.go('replay'), /home/);
   assert.equal(flow.state, 'home');
-  flow.go('import');
-  assert.throws(() => flow.go('queued'), /import/);
-  assert.throws(() => flow.go('result'), /import/);
-  assert.throws(() => flow.go('import'), /import/, 'a state does not lead to itself');
-  assert.equal(flow.state, 'import');
+  flow.go('lift');
+  assert.throws(() => flow.go('queued'), /lift/);
+  assert.throws(() => flow.go('result'), /lift/);
+  assert.throws(() => flow.go('lift'), /lift/, 'a state does not lead to itself');
+  assert.equal(flow.state, 'lift');
 });
 
 test('a state the flow doesn\'t know throws, from go() and as the start', async () => {
@@ -78,7 +81,7 @@ test('a state the flow doesn\'t know throws, from go() and as the start', async 
 test('can() says whether a transition is allowed, without making it', async () => {
   const { createFlow } = await load();
   const flow = createFlow();
-  assert.equal(flow.can('import'), true);
+  assert.equal(flow.can('lift'), true);
   assert.equal(flow.can('mark'), false);
   assert.equal(flow.can('nowhere'), false);
   assert.equal(flow.state, 'home');
@@ -89,11 +92,11 @@ test('listeners hear each change, with the old state, the new one and what it ca
   const flow = createFlow();
   const heard = [];
   flow.subscribe((change) => heard.push(change));
-  flow.go('import');
+  flow.go('lift');
   flow.go('mark', { file: 'a.mp4' });
   assert.deepEqual(heard, [
-    { from: 'home', to: 'import', params: {} },
-    { from: 'import', to: 'mark', params: { file: 'a.mp4' } },
+    { from: 'home', to: 'lift', params: {} },
+    { from: 'lift', to: 'mark', params: { file: 'a.mp4' } },
   ]);
 });
 
@@ -104,7 +107,7 @@ test('an illegal transition is not heard; an unsubscribed listener hears nothing
   const off = flow.subscribe(() => { count++; });
   assert.throws(() => flow.go('mark'));
   assert.equal(count, 0);
-  flow.go('import');
+  flow.go('lift');
   assert.equal(count, 1);
   off();
   flow.go('home');
@@ -136,6 +139,7 @@ test('each state has a screen ID, and a screen module of that name in app/src/ui
   const ids = STATES.map((s) => SCREEN_OF[s]);
   assert.equal(new Set(ids).size, STATES.length, 'one screen per state');
   assert.equal(SCREEN_OF.home, 'H');
+  assert.equal(SCREEN_OF.lift, 'L1');
   assert.equal(SCREEN_OF.settings, 'S1');
   assert.equal(SCREEN_OF.queued, 'Q1');
   assert.equal(SCREEN_OF.result, 'A1');
@@ -154,4 +158,15 @@ test('screens never import each other, and the flow is a plain module', () => {
   }
   const flowText = fs.readFileSync(path.join(APP, 'src', 'flow', 'flow.mjs'), 'utf8');
   assert.ok(!/preact|htm|document|window/.test(flowText.replace(/\/\/.*$/gm, '')), 'the flow is a plain module');
+});
+
+test('d53: the lift step replaces import; the legal moves round it, and home -> mark stays illegal', async () => {
+  const { STATES, SCREEN_OF, TRANSITIONS, createFlow } = await load();
+  assert.ok(!STATES.includes("import") && !("import" in SCREEN_OF) && !("import" in TRANSITIONS));
+  for (const [from, to] of [['home', 'lift'], ['welcome', 'lift'], ['lift', 'mark'], ['lift', 'home'], ['mark', 'lift'], ['queued', 'lift']]) {
+    assert.ok(TRANSITIONS[from].includes(to), `${from} -> ${to}`);
+  }
+  for (const s of STATES) assert.ok(!TRANSITIONS[s].includes("import"), `${s} -> import`);
+  assert.equal(createFlow().can('mark'), false);
+  assert.deepEqual([...TRANSITIONS.lift].sort(), ['home', 'mark']);
 });
