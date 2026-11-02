@@ -535,3 +535,35 @@ test('with two lifts queued, each Analyse hands Q1 its own lift\'s id', async ()
   assert.notEqual(ids[0], ids[1]);
   assert.deepEqual((await store.listLifts()).map(l => l.id).sort(), [...ids].sort());
 });
+
+// ---- the screen's files ----
+
+test('M changes the flow\'s state only through the model and the flow: no other screen, no store, no literal colour; every string of the mockup is in it', () => {
+  const dir = path.join(APP, 'src', 'ui');
+  const screen = fs.readFileSync(path.join(dir, 'screens', 'M.mjs'), 'utf8');
+  const mdl = fs.readFileSync(path.join(dir, 'mark-model.mjs'), 'utf8');
+  assert.doesNotMatch(screen, /from '\.\/(H|Import|Q1|A1|S1|R2|R3)\.mjs'/, 'screens never call each other');
+  assert.doesNotMatch(screen + mdl, /store\/index\.mjs|localStorage|indexedDB/);
+  assert.doesNotMatch(screen + mdl, /#[0-9a-fA-F]{3,8}\b/, 'colours come from tokens.css');
+  assert.doesNotMatch(screen + mdl, /<video|createElement\('video'\)/, 'no <video> element: seeking one costs more than the pose model');
+  // the strings of design/mockups/Mark.dc.html that the screen itself draws (the model's are pinned above)
+  for (const s of ['Mark the lift', 'aria-label="Close"', 'Playhead position, drag the filmstrip', 'aria-label="Steps"',
+    'One frame back', 'One frame forward', 'Redo the marks', '>S<', '>E<']) {
+    assert.ok(screen.includes(s.replace(/^>|<$/g, '')), `M.mjs draws ${s}`);
+  }
+});
+
+test('the app calls the queue once at boot and warms the engine after the first screen draws (s12\'s report, item 6)', () => {
+  const main = fs.readFileSync(path.join(APP, 'src', 'main.mjs'), 'utf8');
+  assert.equal((main.match(/appQueue\(/g) || []).length, 1);
+  assert.match(main, /requestAnimationFrame[\s\S]*queue\.warmUp\(\)/);
+});
+
+test('the tokens M uses exist: every var(--x) in the screen\'s CSS is defined in tokens.css', () => {
+  const css = fs.readFileSync(path.join(APP, 'src', 'styles', 'base.css'), 'utf8');
+  const tokens = fs.readFileSync(path.join(APP, 'src', 'styles', 'tokens.css'), 'utf8');
+  const markCss = css.slice(css.indexOf('M1–M3, Mark the lift'));
+  const used = new Set([...markCss.matchAll(/var\((--[a-z0-9-]+)\)/g)].map(m => m[1]));
+  assert.ok(used.size > 20);
+  for (const t of used) assert.match(tokens, new RegExp(`${t}:`), `${t} is defined`);
+});

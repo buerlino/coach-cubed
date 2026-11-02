@@ -96,4 +96,27 @@
   --button-big: 60px;
   --button-wide: 56px;
   --button-quiet: 48px;
+
+  /* Sizes of M's pieces (the mockup's): the video stage, the filmstrip, a thumbnail,
+     the playhead, a step's mark, the frame-step buttons. The strip's 48 px a second
+     is PX_PER_SECOND in ui/mark-model.mjs. */
+  --stage: 440px;
+  --stage-min: 200px;
+  --strip: 100px;
+  --strip-label: 40px;
+  --strip-thumb-w: 47px;
+  --strip-thumb-h: 64px;
+  --playhead: 2px;
+  --playhead-knob: 12px;
+  --mark-line: 3px;
+  --mark-pole: 4px;
+  --mark-flag-w: 20px;
+  --mark-flag-h: 18px;
+  --step-mark: 24px;
+  --step-button: 56px;
+
+  /* The stage's black, the clock chip's scrim and the marked range's wash */
+  --stage-ground: #000000;
+  --scrim: rgba(14, 15, 17, 0.8);
+  --accent-wash: rgba(200, 240, 74, 0.22);
 }

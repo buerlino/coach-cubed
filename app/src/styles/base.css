@@ -204,3 +204,42 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .credit__name { font-size: var(--size-body); font-weight: var(--weight-medium); }
 .credit__body { display: flex; flex-direction: column; gap: var(--space-2); padding-bottom: var(--space-3); }
 .licence { margin: 0; max-height: 50vh; overflow: auto; padding: var(--space-3); border-radius: var(--radius-s); background: var(--surface-raised); color: var(--text-soft); font-size: var(--size-small); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* M1–M3, Mark the lift (docs/ui-design.md, design/mockups/Mark.dc.html) */
+.mark { height: 100dvh; display: flex; flex-direction: column; }   /* the stage gives way on a short screen */
+.mark-header { height: calc(var(--touch) + var(--space-4)); flex: none; display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-3); }
+.mark-header__title { font-size: var(--size-heading); font-weight: var(--weight-bold); }
+.mark-lift { margin-left: auto; min-height: var(--touch); display: flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-3) 0 var(--space-3h); border-radius: var(--radius-xl); background: transparent; border-color: var(--line-strong); font-size: var(--size-label); }
+.mark-stage { flex: 0 1 var(--stage); min-height: var(--stage-min); position: relative; display: flex; align-items: center; justify-content: center; background: var(--stage-ground); }
+.mark-stage canvas { max-width: 100%; max-height: 100%; }
+.mark-stage__note { padding: 0 var(--space-5); text-align: center; color: var(--text-soft); }
+.mark-clock { position: absolute; left: var(--space-3); top: var(--space-3); padding: var(--space-1) var(--space-2h); border-radius: var(--space-2h); background: var(--scrim); font-family: var(--font-display); font-size: var(--size-heading); font-weight: var(--weight-bold); letter-spacing: var(--tracking-wordmark); }
+.mark-steps { height: var(--touch); flex: none; margin: 0; padding: 0 var(--space-4); list-style: none; display: flex; align-items: center; gap: var(--space-1h); }
+.mark-step { display: flex; align-items: center; gap: var(--space-1h); flex: 1; font-size: var(--size-label); font-weight: var(--weight-semibold); color: var(--text-quiet); }
+.mark-step--now { color: var(--text); }
+.mark-step--done { color: var(--text-soft); }
+.mark-step__num { width: var(--step-mark); height: var(--step-mark); flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: var(--size-small); font-weight: var(--weight-bold); border: 2px solid var(--line-strong); color: var(--text-quiet); }
+.mark-step--now .mark-step__num { border-color: var(--text); color: var(--text); }
+.mark-step--done .mark-step__num { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.strip { height: var(--strip); flex: none; position: relative; overflow: hidden; cursor: grab; touch-action: none; user-select: none; }
+.strip:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.strip__track { position: absolute; top: var(--space-1); height: calc(var(--strip) - var(--space-2)); }
+.strip__tick { position: absolute; top: 14px; width: 1px; background: var(--line-strong); }
+.strip__label { position: absolute; top: 0; width: var(--strip-label); margin-left: calc(var(--strip-label) / -2); text-align: center; font-size: var(--size-mark); font-weight: var(--weight-semibold); color: var(--text-quiet); }
+.strip__thumb { position: absolute; top: 26px; width: var(--strip-thumb-w); height: var(--strip-thumb-h); overflow: hidden; border-radius: var(--radius-xs); background: var(--surface-raised); display: flex; align-items: center; justify-content: center; }
+.strip__thumb canvas { max-width: 100%; max-height: 100%; }
+.strip__region { position: absolute; top: 24px; height: var(--strip-thumb-h); border-top: var(--mark-line) solid var(--accent); border-bottom: var(--mark-line) solid var(--accent); background: var(--accent-wash); }
+.strip__pole { position: absolute; top: 20px; width: var(--mark-pole); height: 72px; margin-left: calc(var(--mark-pole) / -2); border-radius: var(--space-half); background: var(--accent); }
+.strip__flag { position: absolute; top: 0; width: var(--mark-flag-w); height: var(--mark-flag-h); margin-left: calc(var(--mark-flag-w) / -2); border-radius: var(--space-1); background: var(--accent); color: var(--on-accent); font-size: var(--size-mark); font-weight: var(--weight-bold); text-align: center; line-height: var(--mark-flag-h); }
+.strip__playhead { position: absolute; left: 50%; top: 22px; width: var(--playhead); height: 78px; margin-left: calc(var(--playhead) / -2); background: var(--text); }
+.strip__knob { position: absolute; left: 50%; top: 14px; width: var(--playhead-knob); height: var(--playhead-knob); margin-left: calc(var(--playhead-knob) / -2); background: var(--text); transform: rotate(45deg); border-radius: var(--space-half); }
+.mark-hints { flex: 1 0 auto; padding: var(--space-2) var(--space-5) 0; display: flex; flex-direction: column; gap: var(--space-1h); }
+.mark-hint { font-size: var(--size-body); line-height: 1.35; }
+.mark-hint--error { color: var(--status-work-on); }
+.mark-subhint { font-size: var(--size-small); line-height: 1.35; color: var(--text-quiet); }
+.mark-redo { align-self: flex-start; margin-left: calc(var(--space-3h) * -1); padding: 0 var(--space-3h); border: 0; border-radius: var(--radius-s); background: transparent; color: var(--accent); font-size: var(--size-body); }
+.mark-actions { flex: none; padding: 0 var(--space-4) var(--space-5); display: flex; align-items: center; gap: var(--space-2h); }
+.mark-actions button { height: var(--step-button); border-radius: var(--radius-l); }
+.mark-actions .mark-step-button { width: var(--step-button); flex: none; padding: 0; display: flex; align-items: center; justify-content: center; background: var(--surface); border-color: var(--line-strong); }
+.mark-actions .mark-main { flex: 1; font-size: var(--size-button-big); font-weight: var(--weight-bold); }
+.mark-actions .mark-main--set { background: var(--text); color: var(--on-accent); border-color: var(--text); }

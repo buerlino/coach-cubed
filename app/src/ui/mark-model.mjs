@@ -182,7 +182,7 @@ export async function analyseCost(queue, marks, frameTimes, fps) {
 }
 
 const wholeSeconds = s => {
-  const n = Math.max(0, Math.round(s));
+  const n = Math.max(1, Math.round(s));   // never "0 s"
   return n < 60 ? `${n} s` : `${Math.floor(n / 60)} min${n % 60 ? ` ${n % 60} s` : ''}`;
 };
 
