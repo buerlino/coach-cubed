@@ -143,11 +143,15 @@ test('the worker caches only the app\'s own files: other origins, other methods 
     { url: 'https://cdn.example.com/lib.js', method: 'GET' },
     { url: 'http://localhost:9999/index.html', method: 'GET' },
     { url: `${SCOPE}index.html`, method: 'POST' },
-    { url: `${SCOPE}not-listed.txt`, method: 'GET' },
   ]) {
     const r = await w.dispatch('fetch', { request: { mode: 'cors', ...req } });
     assert.equal(r.answered, false, `${req.method} ${req.url} is left to the browser`);
   }
+  // in scope, same origin, but not in files.json: the network answers, the worker stores nothing
+  net.log.length = 0;
+  const extra = await w.get(`${SCOPE}not-listed.txt`);
+  assert.equal(extra.response.status, 404);
+  assert.deepEqual(net.log, [`${SCOPE}not-listed.txt`]);
   assert.deepEqual((await cache.keys()).sort(), before, 'nothing was added to the cache');
   assert.deepEqual(before, [...Object.keys(FILES).map(f => SCOPE + f), `${SCOPE}files.json`].sort());
 });
@@ -220,8 +224,10 @@ test('with its cache gone (evicted) the worker lets the network answer instead o
   const w = await worker({ net });
   await w.dispatch('install');
   await w.caches.delete('coach-aaaa1111');
+  net.log.length = 0;
   const r = await w.get(`${SCOPE}src/main.mjs`);
-  assert.equal(r.answered, false);
+  assert.equal(await r.response.text(), 'aaaa1111:main');
+  assert.deepEqual(net.log, [`${SCOPE}src/main.mjs`]);
 });
 
 test('sw.js names no host and no absolute path: its scope is where it is served from', () => {

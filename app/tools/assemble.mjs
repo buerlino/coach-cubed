@@ -16,6 +16,10 @@
 //   absent, it says so and goes on;
 // - files.json for the service worker (c19): every file copied, sorted, and a
 //   version hash over their names and contents. Not itself in the list.
+//   sw.js is hashed as it is in app/, then stamped with that version in dist/
+//   (`const BUILT_VERSION = null;`): its bytes then change with every version,
+//   which is what makes a browser look for an update, and it knows which
+//   cache is its own.
 //
 // Node only, no dependencies. --app and --src exist for the tests.
 import { createHash } from 'node:crypto';
@@ -73,6 +77,13 @@ function prepareOut(out, app, src) {
   for (const name of entries) rmSync(join(out, name), { recursive: true, force: true });
 }
 
+// sw.js with the version put in at its stamp point; no stamp point is an error.
+export function stampWorker(text, version) {
+  const stamp = 'const BUILT_VERSION = null;';
+  if (!text.includes(stamp)) throw new Error(`sw.js has no stamp point (${stamp})`);
+  return text.replace(stamp, () => `const BUILT_VERSION = ${JSON.stringify(version)};`);
+}
+
 function copy(from, to) {
   mkdirSync(dirname(to), { recursive: true });
   copyFileSync(from, to);
@@ -116,6 +127,7 @@ export function assemble({ out, app, src, debug = false, log = console.log }) {
   const hash = createHash('sha256');
   for (const f of files) { hash.update(f); hash.update('\0'); hash.update(readFileSync(join(out, f))); hash.update('\0'); }
   const version = hash.digest('hex').slice(0, 16);
+  if (copied.has('sw.js')) writeFileSync(join(out, 'sw.js'), stampWorker(readFileSync(join(out, 'sw.js'), 'utf8'), version));
   writeFileSync(join(out, 'files.json'), `${JSON.stringify({ version, files }, null, 2)}\n`);
   log(`assembled ${files.length} files into ${out}, version ${version}${debug ? ' (debug: with the check page)' : ''}`);
   return { version, files };
