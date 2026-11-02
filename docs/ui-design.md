@@ -145,7 +145,9 @@ before recording, no "how to fix it" tips in 0.1.0.
 
 Not drawn in v1, so built in its style and reviewed in the app (nordmu,
 2026-11-01): a snatch result; the errors (no person found, a video that
-can't be read, storage full, the engine failing); the first run. A light
+can't be read, storage full, the engine failing); the first run. Built in `d23` (described in
+[app/README.md](../app/README.md#the-screens-v1-doesnt-draw-d23)), awaiting
+nordmu's review in the app. A light
 theme waits, and phone landscape gets no layout of its own, only 5.7's
 check that nothing breaks.
 

@@ -504,7 +504,9 @@ test('when the cut cannot be stored the error is the user\'s to read, nothing is
   const queue = { analyse: async () => { const e = new Error('There is not enough room on this phone to keep the video.'); e.code = 'storage-full'; throw e; } };
   const ready = m.setMark(m.setMark(m.newMarks(), 4, T30), 40, T30);
   const out = await m.analyse({ flow, queue, lift: 'lateral-raise', file: clip(H264), marks: ready, frameTimes: T30 });
-  assert.deepEqual(out, { ok: false, error: 'There is not enough room on this phone to keep the video.' });
+  assert.equal(out.ok, false);
+  assert.equal(out.error, 'There is not enough room on this phone to keep the video.');
+  assert.equal(out.problem.kind, 'storage-full', 'M draws the error as its own screen (d23)');
   assert.equal(flow.state, 'mark');
 });
 

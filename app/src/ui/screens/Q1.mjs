@@ -7,6 +7,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { html } from '../html.mjs';
 import { BackIcon, LiftIcon, LockIcon } from '../components/icons.mjs';
+import { Problem } from '../components/problem.mjs';
 import { analysingView, followAnalysis } from '../analysing-model.mjs';
 
 const isVisible = () => !globalThis.document || globalThis.document.visibilityState !== 'hidden';
@@ -82,7 +83,7 @@ export function Q1({ flow, queue, store }) {
             <span class="bar bar--big"><span class="bar__fill" style=${`width: ${view.percent}%`}></span></span>
             <ol class="stages">${view.stages.map(s => html`<${Stage} key=${s.key} stage=${s} />`)}</ol>
           </div>` : null}
-        ${view.reason ? html`<p class="q1-reason error" role="alert">${view.reason}</p>` : null}
+        ${view.problem ? html`<${Problem} problem=${view.problem} />` : null}
         ${problem ? html`<p class="error" role="alert">${problem}</p>` : null}
         <p class="q1-note"><${LockIcon} /><span>${view.actions.cancel ? 'Runs on this phone; nothing is uploaded. You can leave this screen: it keeps going.' : 'Runs on this phone; nothing is uploaded.'}</span></p>
         ${view.queue ? html`

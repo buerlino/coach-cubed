@@ -53,7 +53,7 @@ export class StoreError extends Error {
 
 export const isStorageFull = e => e instanceof StoreError && e.code === 'storage-full';
 
-const STORAGE_FULL = 'Storage full: there is no room left on this phone to save. Delete lifts or free some space, then try again.';
+export const STORAGE_FULL = 'Storage full: there is no room left on this phone to save. Delete lifts or free some space, then try again.';
 
 function wrap(e) {
   if (e instanceof StoreError) return e;

@@ -9,7 +9,7 @@ import { keepVideo } from '../media/cut.mjs';
 import { PoseEngine } from '../pose/pose-client.mjs';
 
 export { createQueue, StallError } from './queue.mjs';
-export { runJob, median, framesInRange, JobCancelled, EngineError } from './job.mjs';
+export { runJob, median, framesInRange, JobCancelled, EngineError, NoPersonError } from './job.mjs';
 export { DEFAULT_RATE, estimateCost, rateOf } from './estimate.mjs';
 
 let theQueue = null;

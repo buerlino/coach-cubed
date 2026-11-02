@@ -15,6 +15,8 @@ import {
   PX_PER_SECOND, THUMB, analyse, analyseCost, createLatest, createPlayhead, createThumbPlanner, playheadNote, dragTarget, dropFarThumbs, fitSize, liftLabelOf, markView,
   marksFromRange, newMarks, otherLift, redo, setMark, stripLeft, thumbSeconds, thumbTime,
 } from '../mark-model.mjs';
+import { Problem } from '../components/problem.mjs';
+import { problemOf, waysOn } from '../problem-model.mjs';
 import { ChevronDownIcon, CloseIcon, StepBackIcon, StepForwardIcon } from '../components/icons.mjs';
 
 const THUMB_MARGIN = 3;       // seconds of thumbnails made beyond the strip's edges
@@ -47,6 +49,7 @@ export function M({ flow, queue, openSource = openFrameSource }) {
   const [cost, setCost] = useState(null);
   const [busy, setBusy] = useState(false);
   const [refused, setRefused] = useState(null);   // what Analyse said when it couldn't go on
+  const [failure, setFailure] = useState(null);   // d23: a problem that takes the screen: { problem, atAnalyse }
   const [width, setWidth] = useState(0);          // the strip's width in px: the playhead is at its middle
   const [thumbVersion, setThumbVersion] = useState(0);
   const parts = useRef({});                       // the open video, its stepper and playhead: closed when M closes
@@ -84,7 +87,11 @@ export function M({ flow, queue, openSource = openFrameSource }) {
       paint(stepper.frame);
       if (old.start !== null) { setMarks(old); setIndex(old.start); }
       setSource({ frameTimes: src.frameTimes, info: src.info });
-    })().catch(e => { if (current) setProblem(e && e.message ? e.message : 'This video could not be opened.'); });
+    })().catch(e => {
+      if (!current) return;
+      setProblem(e && e.message ? e.message : 'This video could not be opened.');
+      setFailure({ problem: problemOf(e), atAnalyse: false });   // the video could not be opened: the screen says why and where to go
+    });
     return () => {
       current = false;
       if (p.head) p.head.close();
@@ -183,12 +190,36 @@ export function M({ flow, queue, openSource = openFrameSource }) {
     setBusy(true);
     setRefused(null);
     const out = await analyse({ flow, queue, lift, file, marks, frameTimes });
-    if (!out.ok) { setBusy(false); setRefused(out.error); }
+    if (!out.ok) {
+      setBusy(false);
+      setRefused(out.error);
+      if (out.problem) setFailure({ problem: out.problem, atAnalyse: true });   // the store's or the cutter's error: its own screen
+    }
   };
 
   const view = source ? markView(marks, { index, frameTimes, cost }) : null;
   const left = stripLeft(time, width);
   const px = t => (t * PX_PER_SECOND).toFixed(1);
+
+  if (file && failure) {
+    const { problem: p, atAnalyse } = failure;
+    const ways = waysOn(p, atAnalyse);
+    return html`
+      <main class="screen" data-screen="M" data-step="problem">
+        <header class="mark-header">
+          <button type="button" class="icon-button" aria-label="Close" onClick=${() => flow.go('home')}><${CloseIcon} /></button>
+          <h1 class="mark-header__title">Mark the lift</h1>
+        </header>
+        <div class="screen__body">
+          <${Problem} problem=${p}>
+            ${ways.includes('retry') ? html`<button type="button" class="button--primary button-big" onClick=${() => { setFailure(null); onAnalyse(); }}>Try again</button>` : null}
+            ${ways.includes('marks') ? html`<button type="button" class="button--raised button-wide" onClick=${() => { setFailure(null); setRefused(null); }}>Back to the marks</button>` : null}
+            ${ways.includes('another') ? html`<button type="button" class=${atAnalyse ? 'button-wide' : 'button--primary button-big'} onClick=${() => flow.go('import')}>Pick another video</button>` : null}
+            <button type="button" class="button--raised button-wide" onClick=${() => flow.go('home')}>Back to home</button>
+          <//>
+        </div>
+      </main>`;
+  }
 
   if (!file) {
     return html`

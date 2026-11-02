@@ -161,8 +161,8 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .q1-queue__label { color: var(--text-soft); }
 .q1-queue__item { font-weight: var(--weight-semibold); text-align: right; }
 .q1-actions { margin-top: auto; display: flex; flex-direction: column; gap: var(--space-2); }
-.q1-actions .button-big { min-height: var(--button-big); border-radius: var(--radius-button); font-size: var(--size-button-big); font-weight: var(--weight-bold); }
-.q1-actions .button-wide { min-height: var(--button-wide); border-radius: var(--radius-button); font-size: var(--size-button); font-weight: var(--weight-bold); }
+.q1-actions .button-big, .problem__actions .button-big { min-height: var(--button-big); border-radius: var(--radius-button); font-size: var(--size-button-big); font-weight: var(--weight-bold); }
+.q1-actions .button-wide, .problem__actions .button-wide { min-height: var(--button-wide); border-radius: var(--radius-button); font-size: var(--size-button); font-weight: var(--weight-bold); }
 .button--raised { background: var(--surface-raised); color: var(--text); border-color: var(--surface-raised); }
 .button--light { background: var(--text); color: var(--on-accent); border-color: var(--text); }
 .button--quiet { min-height: var(--button-quiet); border: 0; border-radius: var(--radius-m); background: transparent; color: var(--danger-text); }
@@ -369,3 +369,16 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .vo-ask__buttons { display: flex; gap: var(--space-2); }
 .vo-ask__buttons button { flex: 1; height: var(--button-sheet); border-radius: var(--radius-m); font-weight: var(--weight-semibold); }
 .vo-error { margin: 0; }
+
+/* The errors (package d23, built in v1's style): what happened, the module's own words, what to do, the ways on */
+.problem { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4h); border-radius: var(--radius-l); background: var(--surface); border: 1px solid var(--status-work-on); }
+.problem__icon { color: var(--status-work-on); width: var(--status-icon); height: var(--status-icon); display: flex; align-items: center; justify-content: center; }
+.problem__title { font-size: var(--size-subtitle); font-weight: var(--weight-bold); line-height: 1.15; }
+.problem__what, .problem__can { font-size: var(--size-body); line-height: 1.4; color: var(--text-soft); }
+.problem__engine { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-2h) var(--space-3); border-radius: var(--radius-s); background: var(--surface-raised); font-size: var(--size-small); line-height: 1.4; color: var(--text-soft); overflow-wrap: anywhere; }
+.problem__actions { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-2); }
+
+/* The first run (package d23) */
+.welcome { gap: var(--space-4); }
+.welcome__points { display: flex; flex-direction: column; gap: var(--space-3); margin: 0; padding-left: var(--space-5); font-size: var(--size-row); line-height: 1.4; }
+.welcome__skip { min-height: var(--button-quiet); border: 0; background: transparent; color: var(--text-soft); }

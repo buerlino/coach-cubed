@@ -7,6 +7,7 @@
 import { liftLabel, followQueue, percentOf, STAGES } from './home-model.mjs';
 import { isAnalysed } from '../contracts/stored-lift.mjs';
 import { estimateCost } from '../analysis/estimate.mjs';
+import { problemOf } from './problem-model.mjs';
 
 // The stages and their bands, and a job's percent, are home-model.mjs's: H reads them too.
 export { STAGES };
@@ -74,7 +75,7 @@ const HEADING = { done: 'Ready', failed: "Couldn't analyse", cancelled: 'Stopped
  * @param {import('../analysis/estimate.mjs').Rate|null} [ctx.rate] the queue's measured rate, for the other lifts' times
  * @param {boolean} [ctx.visible] false while the app is in the background: a running job is then paused
  * @returns {Object} kind (running, paused, waiting, done, failed, cancelled, idle), heading, lift, percent,
- *   pctLabel, left, eta, stages, reason, queue, actions {cancel, retry, open}, jobId, liftId
+ *   pctLabel, left, eta, stages, reason, problem (d23: problem-model.mjs's, for a failed job), queue, actions {cancel, retry, open}, jobId, liftId
  */
 export function analysingView(jobs, { liftId, lift = null, rate = null, visible = true } = {}) {
   const job = pick(jobs, liftId);
@@ -98,6 +99,7 @@ export function analysingView(jobs, { liftId, lift = null, rate = null, visible 
   const eta = kind === 'running' && p && typeof p.etaS === 'number' ? p.etaS : null;
   const percent = !job ? (analysed ? 100 : 0) : percentOf(job);
   const statuses = job ? stageStatuses(job) : STAGES.map(() => (analysed ? 'done' : 'todo'));
+  const problem = kind === 'failed' ? problemOf(job.error) : null;
   const ongoing = kind === 'waiting' || kind === 'running' || kind === 'paused';
 
   return {
@@ -115,10 +117,11 @@ export function analysingView(jobs, { liftId, lift = null, rate = null, visible 
       detail: statuses[i] === 'now' && s.key === 'pose' && p ? `frame ${p.done} of ${p.total}` : '',
     })),
     reason: kind === 'failed' ? job.error : null,
+    problem,
     queue: job ? queueOf(jobs, job, rate) : null,
     actions: {
       cancel: ongoing,
-      retry: kind === 'failed' || kind === 'cancelled',
+      retry: (kind === 'failed' && problem.actions.retry) || kind === 'cancelled',
       open: kind === 'done' && id ? { to: 'result', params: { liftId: id } } : null,
     },
     jobId: job ? job.id : null,
