@@ -202,9 +202,10 @@ app/tools/fetch-models.sh                 # the weights
 pipeline/devlock.sh slice parity-tfjs nice node app/tools/parity-tfjs.mjs [--calls N] [--json out.json]
 ```
 
-It takes a few seconds of CPU (two Node processes, one per build: tfjs-core
-keeps its engine on `globalThis`, so two copies in one process would share
-it). The **npm side** is `@tensorflow/tfjs-core`, `-converter`,
+It takes about 3.5 minutes of CPU, so run it through `devlock.sh slice` (two
+Node processes, one per build: tfjs-core keeps its engine on `globalThis`,
+so two copies in one process would share it; the CPU backend runs Thunder at
+several seconds a call). The **npm side** is `@tensorflow/tfjs-core`, `-converter`,
 `-backend-cpu` and `@tensorflow-models/pose-detection` at the spike's
 pinned versions (4.22.0, 2.1.3), bundled in memory the way
 `spike/pose-bench/build-tfjs.mjs` bundles them (esbuild, the packages'
@@ -216,14 +217,18 @@ closed `@mediapipe/pose`, `-wasm`, `-webgl`) are not installed with them
 `vendor/tfjs/tfjs-cpu.mjs`.
 
 Inputs, all drawn by the script (no image from anywhere, no random
-generator): the graph model alone on one fixed `[1,256,256,3]` tensor; a
-640×480 pattern of gradients and hash noise, and a stick figure moved
-a little each frame, each through `estimatePoses()` six times in a row,
-because MoveNet crops each call from the last pose. For each call it keeps
-the model's raw output (`[1,1,17,3]`), the keypoints and the crop region.
+generator): the graph model alone on one fixed `[1,256,256,3]` tensor (and
+the detector's own step from that output to keypoints); a 640×480 pattern of
+gradients and hash noise; a shaded figure moved a little each frame; and the
+same figure frames with the crop set to the figure's box. Each sequence goes
+through `estimatePoses()` six times in a row, because MoveNet crops each call
+from the last pose (the model finds the figure, not the noise). For each
+call it keeps the model's raw output (`[1,1,17,3]`), the keypoints, the pose
+score and the crop region, and it compares the names of the CPU kernels each
+build registers.
 It prints, per output, the maximum and mean absolute difference over all
 calls, and exits 1 if one is beyond float rounding (1e-6 on the raw output,
-1e-4 pixels on keypoints and crops) or a size differs: that is a finding
+1e-4 pixels on keypoints and crops) or a size or the kernel names differ: that is a finding
 (an op, a patch) to settle before the engine builds on the bundle, not a
 tolerance to widen. Exit 2: something it needs is missing.
 

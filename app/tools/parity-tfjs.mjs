@@ -14,19 +14,25 @@
 //
 // The inputs, all drawn here (no third-party image, no random generator):
 //   fixed-tensor   the graph model alone on one [1,256,256,3] int32 tensor;
-//   noise          estimatePoses() on a 640x480 pattern, CALLS times in a row;
-//   figure         estimatePoses() on a stick figure the script draws, moved a
-//                  little each frame, CALLS times in a row.
+//   noise          estimatePoses() on a 640x480 pattern, CALLS times in a row
+//                  (MoveNet finds no person in it: raw outputs only);
+//   figure         estimatePoses() on a shaded figure the script draws, moved a
+//                  little each frame, CALLS times in a row (found, so the crop
+//                  follows the pose);
+//   figure-crop    the same frames with the crop set to the figure's box before
+//                  each call, the same on both sides.
 // MoveNet crops each call from the last pose, so the sequences check that the
 // crop (filtered, carried from call to call) agrees as well. Per call the
 // script keeps the model's raw output ([1,1,17,3], what graph.execute returns
 // inside the detector), the keypoints estimatePoses() hands back and the crop
 // region it used. The comparison: maximum and mean absolute difference per
-// output. Expected zero, or float rounding; anything beyond is a finding (an op,
+// output, and the names of the CPU kernels each build registers. Expected zero, or float rounding; anything beyond is a finding (an op,
 // a patch), not a number to tune: exit 1.
 //
 // Needs `npm --prefix app ci`, build-tfjs.mjs's bundle and fetch-models.sh's
-// weights. A few seconds of CPU; run it niced (it lowers its own priority).
+// weights. About 3.5 minutes of CPU in all (the CPU backend runs MoveNet Thunder at
+// several seconds a call; measured niced on the shared laptop): run it through
+// `pipeline/devlock.sh slice` (one slice is ten minutes at most; it lowers its own priority too).
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { setPriority, tmpdir } from 'node:os';
