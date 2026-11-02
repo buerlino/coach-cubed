@@ -199,5 +199,16 @@ ffmpeg -y $SRC -vf "select='lt(mod(n,5),3)'" -fps_mode vfr $X264 testsrc2-h264-v
 ffmpeg -y $SRC -c:v libx265 -preset veryslow -crf 36 -pix_fmt yuv420p -x265-params "keyint=30:min-keyint=30:scenecut=0:log-level=error" -tag:v hvc1 -movflags +faststart -an -map_metadata -1 testsrc2-hevc-30fps.mp4
 ```
 
+For the page test (c21, `app/tools/page-test.mjs`): portrait 108×192 clips with the frame rate and frame count of the two
+committed fixture tracks they are paired with (`example/lateral-raise-cable-1`: 25 fps, 75 frames; `example/athlete-a-trim`, the
+snatch: 30 fps, 107 frames), a keyframe every second, 10 and 12 kB:
+
+```sh
+cd tests/app/clips
+X264="-c:v libx264 -preset veryslow -crf 48 -pix_fmt yuv420p -bf 2 -sc_threshold 0 -movflags +faststart -an -map_metadata -1 -fflags +bitexact -flags:v +bitexact"
+ffmpeg -y -f lavfi -i "testsrc2=size=108x192:rate=25" -frames:v 75  $X264 -g 25 -keyint_min 25 testsrc2-lateral-raise-25fps-75f.mp4
+ffmpeg -y -f lavfi -i "testsrc2=size=108x192:rate=30" -frames:v 107 $X264 -g 30 -keyint_min 30 testsrc2-snatch-30fps-107f.mp4
+```
+
 The tests take their expected values from these commands (90 frames at n/30 s; which frames the select keeps), never from
 a decode. Regenerating the clips changes their bytes if the encoder changes, not the expectations.

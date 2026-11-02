@@ -26,6 +26,7 @@ pipeline/devlock.sh slice check-pose node app/tools/check-pose.mjs   # the pose 
 node app/tools/check-media.mjs               # the frame source on a real WebCodecs decoder, in headless Brave, on tests/app/clips/
 pipeline/devlock.sh slice check-media node app/tools/check-media.mjs --clips ~/.cache/coach/c34-clips   # the same, plus the step timings on c34's 1080p clips and the decoded frames an idle stepper holds
 pipeline/devlock.sh slice check-offline node app/tools/check-offline.mjs   # the app offline (c19): load, go offline over CDP, reload; needs the TF.js bundle and the weights
+npm --prefix app run test:page               # the page test (c21): the app offline in headless Brave/Chromium, a lateral raise and a snatch, ~5 s; see "The page test"
 node app/tools/assemble.mjs --debug          # the same, plus the check page (app/debug/) and its clip: the debug APK's dist/
 pipeline/devlock.sh slice apk-web app/tools/build-apk.sh web      # the debug APK, first half: npm ci, bundle, weights, assemble --debug, cap sync
 pipeline/devlock.sh slice apk-gradle app/tools/build-apk.sh apk   # second half: Gradle into app/out/coach-debug.apk (all: both, in one go)
@@ -58,10 +59,11 @@ It logs each request (`200 /index.html`); a `404` there is a broken path.
 | `src/analysis/` | The analysis job and its queue (`s12`): `appQueue()` is the app's one queue; Analyse keeps the cut (`s32`), then queues the job, which poses every frame of the range, builds the track and scores it. See [The analysis](#the-analysis). |
 | `src/pose/` | The pose engine (`s10`): `PoseEngine.create()` gives one async `estimate(frame, tMs)` over a worker running MoveNet Thunder on TF.js. See [The pose engine](#the-pose-engine). |
 | `vendor/` | Third-party files, each with its licence text, byte for byte from its npm package ([THIRD_PARTY.md](../THIRD_PARTY.md#in-the-new-app-app)): `preact/` (Preact 11.1.1 and its hooks), `htm/` (htm 3.1.1), `mediabunny/` (mediabunny 1.61.6, MPL-2.0, the frame source's one demuxer), `fonts/` (Barlow and Barlow Condensed, woff2, with `OFL.txt`). `vendor/tfjs/` is built by `tools/build-tfjs.mjs` (gitignored). |
-| `tools/` | `assemble.mjs`, `serve.mjs`, `make-icon.mjs`, and the TF.js build: `build-tfjs.mjs`, `fetch-models.sh`, `check-tfjs.mjs`, `patches/` ([below](#tfjs-from-source)), `check-media.mjs` (the frame source on a real decoder, [above](#the-frame-source)), and the debug APK's `build-apk.sh` and `check-apk.mjs` ([The Android shell](#the-android-shell)), and `make-phone-clips.sh` and `check-media-apk.mjs`, the frame source and the cut on the phone ([On the phone](#on-the-phone)). Node only; only `build-tfjs.mjs` needs `app/node_modules/` (esbuild). Not copied into `dist/`. |
+| `tools/` | `assemble.mjs`, `serve.mjs`, `make-icon.mjs`, and the TF.js build: `build-tfjs.mjs`, `fetch-models.sh`, `check-tfjs.mjs`, `patches/` ([below](#tfjs-from-source)), `check-media.mjs` (the frame source on a real decoder, [above](#the-frame-source)), and the debug APK's `build-apk.sh` and `check-apk.mjs` ([The Android shell](#the-android-shell)), and `make-phone-clips.sh` and `check-media-apk.mjs`, the frame source and the cut on the phone ([On the phone](#on-the-phone)). Node only; only `build-tfjs.mjs` needs `app/node_modules/` (esbuild). Not copied into `dist/`. `page-test.mjs` is the page test ([below](#the-page-test)). |
 | `dist/` | The assembled app (gitignored): what the PWA host and Capacitor get. `files.json` lists every file in it, with a version hash, for the service worker. |
 | `android/`, `capacitor.config.json` | The Capacitor shell (`c20`): the Android project `npx cap add android` generated, committed; Gradle's outputs and the copied web assets are gitignored. See [The Android shell](#the-android-shell). |
 | `debug/` | The check page (`c20`), assembled only into the debug APK (`assemble.mjs --debug`), never into the shipped `dist/`. |
+| `page-test/` | The page test's test build only (`c21`, `assemble.mjs --test`): the replay engine and the boot that installs it. Never in the shipped `dist/`. See [The page test](#the-page-test). |
 | `out/` | `coach-debug.apk`, from `tools/build-apk.sh` (gitignored). |
 | `models/` | MoveNet SinglePose Thunder v4's weights, `movenet-thunder-4/` (`model.json` and three shards), fetched by `tools/fetch-models.sh` (gitignored). |
 
@@ -1185,13 +1187,47 @@ exactly `files.json`'s files. Run it after `build-tfjs.mjs` and
 loads and the engine answers, not how fast. The worker itself is tested in
 `tests/app/sw.test.js` on a fake Cache Storage and fetch.
 
+## The page test
+
+`npm --prefix app run test:page` (`tools/page-test.mjs`, package `c21`, plan step 5.6) walks the app the way a person does, in
+headless Brave or Chromium over the DevTools protocol, offline, for a lateral raise and a snatch. It runs in about 5 s in a pipeline
+worktree: no example clips, no `app/vendor/tfjs/`, no `app/models/`, no GPU.
+
+1. **The test build.** `assemble.mjs --test` (into a temporary folder; `dist/` is not touched) adds `page-test/` to the assembled app:
+   `replay.mjs`, an engine that answers the k-th decoded frame with the k-th frame of a committed fixture track
+   (`tests/fixtures/global/example/lateral-raise-cable-1` and `athlete-a-trim`, `TEST_TRACKS` in `assemble.mjs`), through contract 1's
+   messages (the real `PoseEngine` client and `worker-core.mjs` on a stand-in for the Worker); `boot.mjs`, which `index.html` loads
+   before `main.mjs` and which makes the app's one queue with that engine; and the two tracks, `page-test/tracks.json` listing them.
+   The job takes the fixture's `fps`, `width` and `height` (the clip is 108×192, the keypoints are in the fixture's 1080×1920): the
+   replay wraps the job's frame source, so the pictures are the clip's decoded for real and only the track's meta is the fixture's.
+   The clip picks its track by frame rate and frame count. The shipped `dist/` (assemble without `--test`) has none of this
+   (`tests/app/page-test.test.js`).
+2. **The clips**, `tests/app/clips/testsrc2-lateral-raise-25fps-75f.mp4` and `testsrc2-snatch-30fps-107f.mp4`: ffmpeg `testsrc2`,
+   108×192, H.264, 10–12 kB, the frame rate and frame count of their fixtures ([tests/README.md](../tests/README.md#the-test-clips-testsappclips)).
+3. **The walk.** Serve on `127.0.0.1:$COACH_PORT` (a free port without it); load; wait for the service worker's whole cache; go offline
+   (`Network.emulateNetworkConditions` and the server shut down); reload; then per lift H → Import (the lift, the file) → M (Set start, a
+   drag of the filmstrip to the end, Set end, Analyse) → Q1 (until "Open the result") → A1. The cue cards (`.cue-card`, per `data-cue`)
+   must equal `cardsOf(scoreLift(fixtureTrack).view)`, computed in Node: per cue the status class, the verdict line, the value and the
+   card's label (which carries the status word).
+4. **It fails** on a console error, an exception or unhandled rejection, a failed request or an HTTP error (page, workers and the
+   service worker), a request that reaches the server after it was taken away, a job that does not finish in its time (60 s,
+   `COACH_PAGE_TEST_JOB_S`), an empty cue list, or cards that differ from the adapter's. `--break console|http|rejection|stall|hang|cards`
+   puts each fault in on purpose, to see it fail. No browser (`--browser PATH`, `COACH_BROWSER`, then Brave/Chromium/Chrome on `PATH`):
+   one clear line and exit 1, unless `COACH_PAGE_TEST_SKIP=1` (then it says it skipped, exit 0).
+5. **`--real CLIP`** (off by default): the real engine on one example clip (`lateral-raise-cable-1` or `athlete-a-trim`), read in place
+   from the `phase-0` worktree's `tests/fixtures/local/example/` (found with `git worktree list`), with that worktree's TF.js bundle and
+   weights copied into the temporary folder if this one has none. Online, MoveNet on WebGL, which headless Brave runs in software (the
+   app has no other backend), so a minute a clip: `pipeline/devlock.sh slice page-real node app/tools/page-test.mjs --real athlete-a-trim`.
+   The cards are printed next to the adapter's on the fixture and may differ (ViTPose's track against MoveNet's pose); it fails on an
+   error, a job that does not finish (540 s) or an empty list. Real clips on the phone are `c26`'s.
+
 ## The tests
 
 `tests/app/` holds them, because the pipeline's red-first check reads only
 `tests/`: `flow.test.js` (the state machine), `draw.test.js` (the overlay, pinned to the old page) and `player.test.js` (A1's player on fakes), `home.test.js` (H's logic: a lift's state, the lists, the import step, `main.mjs`'s boot), `assemble.test.js` (assemble
 into a temporary folder, the manifest and `index.html`), `serve.test.js` (the
 dev server), `contracts.test.js` (the contracts, against the committed tracks
-and `diagnostics.js`'s headless API), `store.test.js` (the store, on `fake-opfs.js`, an in-memory OPFS), `frame-source.test.js` (the frame source and its stepper, on our own clips in `tests/app/clips/` and a fake decoder), `pose-engine.test.js` (the pose engine's client and worker handler, against fakes), `media-phone.test.js` (the check page's media measurements, their driver and the clips' script; the shipped `dist/` without them), `android-shell.test.js` (the Capacitor config, the committed Android project, the pins and `build-apk.sh`), `sw.test.js` (the service worker run as a script on a fake Cache Storage and fetch, the registration module on a fake browser and queue, assemble's version stamp), `build-tfjs.test.js` (the TF.js
+and `diagnostics.js`'s headless API), `store.test.js` (the store, on `fake-opfs.js`, an in-memory OPFS), `frame-source.test.js` (the frame source and its stepper, on our own clips in `tests/app/clips/` and a fake decoder), `pose-engine.test.js` (the pose engine's client and worker handler, against fakes), `media-phone.test.js` (the check page's media measurements, their driver and the clips' script; the shipped `dist/` without them), `android-shell.test.js` (the Capacitor config, the committed Android project, the pins and `build-apk.sh`), `sw.test.js` (the service worker run as a script on a fake Cache Storage and fetch, the registration module on a fake browser and queue, assemble's version stamp), `page-test.test.js` (the replay engine behind the real pose client, the test build and the shipped `dist/` without it, the script's no-browser line), `build-tfjs.test.js` (the TF.js
 build's pins, cache, op lists and patch notices, the MoveNet entry's
 refusal of a config without `modelUrl`, and `fetch-models.sh`'s checks and
 clean-up, all without the network). Every test runs in a fresh worktree, which has neither
