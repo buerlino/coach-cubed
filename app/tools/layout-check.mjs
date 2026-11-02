@@ -308,6 +308,31 @@ async function main() {
     await waitFor(`document.querySelector('[data-screen="A1"] .result-header__more:not([disabled])')`, 'A1 ready');
     await sleep(800);
     await check('A1', a4Arrangement);
+    // A4's interaction, in the laptop window: a card in the sidebar selects its cue for the panel (it does not open),
+    // and a tap on the plot moves the player to that time
+    await setViewport(VIEWPORTS[4]);
+    await sleep(500);
+    const picked = await evaluate(`(() => {
+      const heads = [...document.querySelectorAll('.cue-card__head')];
+      const other = heads.find(h => h.getAttribute('aria-pressed') === 'false' && h.closest('.cue-card').querySelector('.cue-card__line:not(.cue-card__line--reason)'));
+      if (!other) return null;
+      other.click();
+      return other.closest('.cue-card').querySelector('.cue-card__title').textContent;
+    })()`);
+    await sleep(500);
+    const after = await evaluate(`({ title: document.querySelector('.result-selected__title')?.textContent, pressed: document.querySelectorAll('.cue-card__head[aria-pressed="true"]').length, open: !!document.querySelector('.cue-card__body') })`);
+    if (!picked || after.title !== picked || after.pressed !== 1 || after.open) problems.push(`A4 @ 1280×800: selecting "${picked}" in the sidebar gave ${JSON.stringify(after)}`);
+    const plot = await evaluate(`(() => { const r = document.querySelector('.result-selected .detail-plot__canvas')?.getBoundingClientRect(); return r ? { x: r.left + r.width * 0.5, y: r.top + r.height / 2 } : null; })()`);
+    if (plot) {
+      const before = await evaluate(`document.querySelector('.timeline').getAttribute('aria-valuenow')`);
+      await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: plot.x, y: plot.y, button: 'left', buttons: 1, clickCount: 1, pointerType: 'mouse' });
+      await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: plot.x, y: plot.y, button: 'left', buttons: 0, clickCount: 1, pointerType: 'mouse' });
+      await sleep(600);
+      const now = await evaluate(`document.querySelector('.timeline').getAttribute('aria-valuenow')`);
+      if (now === before) problems.push(`A4 @ 1280×800: a tap on the plot left the player at ${before} s`);
+    } else problems.push('A4 @ 1280×800: the selected cue has no plot to tap');
+    await setViewport(VIEWPORTS[0]);
+    await sleep(500);
     // A3 over A1
     await click('[data-screen="A1"] .result-header__more');
     await waitFor(`document.querySelector('.vo-sheet')`, 'A3');

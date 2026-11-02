@@ -27,6 +27,7 @@ node app/tools/check-media.mjs               # the frame source on a real WebCod
 pipeline/devlock.sh slice check-media node app/tools/check-media.mjs --clips ~/.cache/coach/c34-clips   # the same, plus the step timings on c34's 1080p clips and the decoded frames an idle stepper holds
 pipeline/devlock.sh slice check-offline node app/tools/check-offline.mjs   # the app offline (c19): load, go offline over CDP, reload; needs the TF.js bundle and the weights
 npm --prefix app run test:page               # the page test (c21): the app offline in headless Brave/Chromium, a lateral raise and a snatch, ~5 s; see "The page test"
+npm --prefix app run check:layout            # the responsive check (d25): every screen at five window sizes in headless Brave/Chromium, ~45 s; see "A4 and the responsive check"
 node app/tools/assemble.mjs --debug          # the same, plus the check page (app/debug/) and its clip: the debug APK's dist/
 pipeline/devlock.sh slice apk-web app/tools/build-apk.sh web      # the debug APK, first half: npm ci, bundle, weights, assemble --debug, cap sync
 pipeline/devlock.sh slice apk-gradle app/tools/build-apk.sh apk   # second half: Gradle into app/out/coach-debug.apk (all: both, in one go)
@@ -47,7 +48,7 @@ It logs each request (`200 /index.html`); a `404` there is a broken path.
 | `src/main.mjs` | Boot: the flow, then the shell. |
 | `sw.js`, `src/updates.mjs` | The service worker (`c19`) and the page's side of it: registration outside the APK, and an update that takes over when the queue is idle. See [Offline](#offline-the-service-worker). |
 | `src/flow/flow.mjs` | The state machine (`welcome` (`d23`: the first run, entered once at boot), home, import, mark, queued, result, detail, settings, scoring, plus live and replay for milestone B; `d17`: `result → detail` opens A2, `detail → result` or `detail → home`; `d18`: `settings → scoring` opens S1's "How the cues are scored", `scoring → settings` returns). A plain module with no Preact: `createFlow()`, `go(to, params)`, `can(to)`, `subscribe(fn)`; `TRANSITIONS` says what leads where, `SCREEN_OF` which screen each state shows. An illegal transition throws. |
-| `src/ui/` | `app.mjs` (the shell: draws the screen the flow's state names), `screens/` (one component per screen ID: `H`, `Import`, `M`, `Q1`, `A1`, `A2` (`d18`), `S1`, `S1b` ("How the cues are scored", `d18`), `R2`, `R3`), `components/` (shared pieces), `home-model.mjs` (H's and Import's logic as plain functions, `d13`: `liftState`, `rowOf`, `homeView`, `importStep`, `startLift`, `percentOf`; see [H](#h-home-and-the-import-step)), `analysing-model.mjs` (Q1's, `d15`; see [Q1](#q1-analysing)). Screens call the flow and never each other; the queue and the store reach H as props from `main.mjs`. `settings-model.mjs` (S1's, `d24`; see [S1](#s1-settings-and-about)), `mark-model.mjs` (M's, `d14`; see [M](#m1m3-marking-a-lift)). `player.mjs` and `player-model.mjs` (A1's player, `d16`; see [A1, the player](#a1-the-player-and-the-overlay)), `result-model.mjs` (A1's cards and timeline, `d17`; see [A1, the timeline and the cue cards](#a1-the-timeline-and-the-cue-cards)). `detail-model.mjs` and `rule-model.mjs` (A2's and S1b's texts, the rule sentence; `d18`; see [A2, a cue's detail](#a2-a-cues-detail)). `view-options-model.mjs` and `components/view-options.mjs` (A3's sheet and its controller; `d22`; see [A3, view options](#a3-view-options)). `html.mjs` is htm bound to Preact. |
+| `src/ui/` | `app.mjs` (the shell: draws the screen the flow's state names), `screens/` (one component per screen ID: `H`, `Import`, `M`, `Q1`, `A1`, `A2` (`d18`), `S1`, `S1b` ("How the cues are scored", `d18`), `R2`, `R3`), `components/` (shared pieces), `home-model.mjs` (H's and Import's logic as plain functions, `d13`: `liftState`, `rowOf`, `homeView`, `importStep`, `startLift`, `percentOf`; see [H](#h-home-and-the-import-step)), `analysing-model.mjs` (Q1's, `d15`; see [Q1](#q1-analysing)). Screens call the flow and never each other; the queue and the store reach H as props from `main.mjs`. `settings-model.mjs` (S1's, `d24`; see [S1](#s1-settings-and-about)), `mark-model.mjs` (M's, `d14`; see [M](#m1m3-marking-a-lift)). `player.mjs` and `player-model.mjs` (A1's player, `d16`; see [A1, the player](#a1-the-player-and-the-overlay)), `result-model.mjs` (A1's cards and timeline, `d17`; see [A1, the timeline and the cue cards](#a1-the-timeline-and-the-cue-cards)). `detail-model.mjs` and `rule-model.mjs` (A2's and S1b's texts, the rule sentence; `d18`; see [A2, a cue's detail](#a2-a-cues-detail)). `view-options-model.mjs` and `components/view-options.mjs` (A3's sheet and its controller; `d22`; see [A3, view options](#a3-view-options)). `wide-model.mjs`, `use-wide.mjs` and `components/cue-plot.mjs` (A4, the wide result; `d25`; see [A4 and the responsive check](#a4-and-the-responsive-check)). `html.mjs` is htm bound to Preact. |
 | `src/credits.mjs`, `licences/` | S1's credits (`d24`): `CREDITS` lists every component of THIRD_PARTY.md's section for the new app, each with where its licence text is in the assembled app. `licences/` holds the texts that have no home beside a component: Apache-2.0 (apache.org's text byte for byte, no holder filled in), Capacitor's MIT and esbuild's MIT (their npm packages' `LICENSE` files); sources in [THIRD_PARTY.md](../THIRD_PARTY.md#in-the-new-app-app). |
 | `src/styles/` | `tokens.css` (every colour, the status colours with their words, the type, the spacing, the 44 px touch target; dark only) and `base.css` (the `@font-face` rules, the reset and the classes every screen shares). A screen styles itself from tokens, never from literal values. |
 | `src/track/` | One-line stubs, see below. |
@@ -59,7 +60,7 @@ It logs each request (`200 /index.html`); a `404` there is a broken path.
 | `src/analysis/` | The analysis job and its queue (`s12`): `appQueue()` is the app's one queue; Analyse keeps the cut (`s32`), then queues the job, which poses every frame of the range, builds the track and scores it. See [The analysis](#the-analysis). |
 | `src/pose/` | The pose engine (`s10`): `PoseEngine.create()` gives one async `estimate(frame, tMs)` over a worker running MoveNet Thunder on TF.js. See [The pose engine](#the-pose-engine). |
 | `vendor/` | Third-party files, each with its licence text, byte for byte from its npm package ([THIRD_PARTY.md](../THIRD_PARTY.md#in-the-new-app-app)): `preact/` (Preact 11.1.1 and its hooks), `htm/` (htm 3.1.1), `mediabunny/` (mediabunny 1.61.6, MPL-2.0, the frame source's one demuxer), `fonts/` (Barlow and Barlow Condensed, woff2, with `OFL.txt`). `vendor/tfjs/` is built by `tools/build-tfjs.mjs` (gitignored). |
-| `tools/` | `assemble.mjs`, `serve.mjs`, `make-icon.mjs`, and the TF.js build: `build-tfjs.mjs`, `fetch-models.sh`, `check-tfjs.mjs`, `patches/` ([below](#tfjs-from-source)), `check-media.mjs` (the frame source on a real decoder, [above](#the-frame-source)), and the debug APK's `build-apk.sh` and `check-apk.mjs` ([The Android shell](#the-android-shell)), and `make-phone-clips.sh` and `check-media-apk.mjs`, the frame source and the cut on the phone ([On the phone](#on-the-phone)). Node only; only `build-tfjs.mjs` needs `app/node_modules/` (esbuild). Not copied into `dist/`. `page-test.mjs` is the page test ([below](#the-page-test)). `browser.mjs` is the one place a tool finds, launches and ends a headless browser (`c47`, [below](#the-tools-browser)). |
+| `tools/` | `assemble.mjs`, `serve.mjs`, `make-icon.mjs`, and the TF.js build: `build-tfjs.mjs`, `fetch-models.sh`, `check-tfjs.mjs`, `patches/` ([below](#tfjs-from-source)), `check-media.mjs` (the frame source on a real decoder, [above](#the-frame-source)), and the debug APK's `build-apk.sh` and `check-apk.mjs` ([The Android shell](#the-android-shell)), and `make-phone-clips.sh` and `check-media-apk.mjs`, the frame source and the cut on the phone ([On the phone](#on-the-phone)). Node only; only `build-tfjs.mjs` needs `app/node_modules/` (esbuild). Not copied into `dist/`. `page-test.mjs` is the page test ([below](#the-page-test)). `browser.mjs` is the one place a tool finds, launches and ends a headless browser (`c47`, [below](#the-tools-browser)). `layout-check.mjs` is the responsive check ([below](#a4-and-the-responsive-check)). |
 | `dist/` | The assembled app (gitignored): what the PWA host and Capacitor get. `files.json` lists every file in it, with a version hash, for the service worker. |
 | `android/`, `capacitor.config.json` | The Capacitor shell (`c20`): the Android project `npx cap add android` generated, committed; Gradle's outputs and the copied web assets are gitignored. See [The Android shell](#the-android-shell). |
 | `debug/` | The check page (`c20`), assembled only into the debug APK (`assemble.mjs --debug`), never into the shipped `dist/`. |
@@ -882,6 +883,53 @@ and draws what `detail-model.mjs`'s `detailOf` gives:
 `scoringText` lists the cues of the newest analysed lift (else the default lift) with the cue, the rule paragraph
 as A2 has it (`rule(id)` and `zones`, `s45`) and, for a stored lift, the "Measurement", "Time smoothing" and "Caveat" lines of `scoringLines`.
 
+## A4 and the responsive check
+
+`d25`. One responsive app (decisions.md, "What 0.1.0 is"): phones first, widening on laptops.
+
+**A4 is A1 in a wide window**, not a screen of its own (design/mockups/Desktop.dc.html). `screens/A1.mjs` draws the same
+elements in the same places of the tree in both arrangements, so the player's canvases and its stepper are never remade when a
+window is resized across the breakpoint; CSS arranges them (a grid), and the JS adds only what the wide arrangement has more
+(`use-wide.mjs` asks `matchMedia`):
+
+- **From `WIDE_MIN_PX` (980, `ui/wide-model.mjs`; `base.css`'s one `@media` repeats it, and `tests/app/wide.test.js` checks that
+  the two agree):** the header is the wordmark, a breadcrumb ("Today's session / Lateral raise · 14:27 · 3.0 s": the lift's day,
+  its name, its time and length) and the buttons "Re-mark" (A3's `remark()`) and "View options"; the video (at most 480 px tall,
+  560 px wide, from its own aspect ratio) and the **selected cue's panel** side by side (the cue's title, the status chip with the
+  verdict, the cue's sentence, its plot, its tiles, the rule's sentence and "Provisional: not yet checked on real lifts.", and "Plot
+  and details" to A2); the player's bar under them (play, steps, the clock, the timeline, the speed); the cues in a 340 px sidebar
+  under "5 cues", the counts, and one button per cue, the selected one with `aria-pressed` and an accent outline. A card there
+  *selects* (it never opens in place: the panel is the open card); the first cue to work on, else to watch, else the first, starts
+  selected. The plot is A2's (`components/cue-plot.mjs`, shared: A2 uses it too), with the player's time as its playhead; a tap on
+  it moves the player.
+- **Below it** (a phone in either orientation and a portrait tablet: 800 px is the widest we check) nothing changes: A1 as `d16`
+  and `d17` drew it, one column. Why 980: the mockup's columns need 560 + 24 + 340 and 2 × 24 of padding, 972 px, and a round number
+  above that keeps 800 and 768 stacked. The page is 1280 px wide at most, centred.
+- The rest of the screens are single columns of at most 640 px, centred in a wide window; A2 is unchanged.
+- `tokens.css` has A4's sizes (`--wide-*`, `--size-tile`, `--chip-h`, ...); A3's slider is `--slider-h: var(--touch)` now (44 px:
+  the check found 32).
+
+**The responsive check** (`tools/layout-check.mjs`, `npm --prefix app run check:layout`): the page test's build (`assemble.mjs
+--test`) served on a free port and opened in headless Brave over CDP, through `browser.mjs`. It walks the app (the first-run intro,
+H, S1, its credits, S1b, Import, M's three steps and its error screen, Q1 while it runs and when it is done, A1, A3, A2; R2 and R3
+are placeholders no flow step reaches in 0.1.0) and sets each of five sizes at each screen: phone portrait 360×800 and 412×915,
+phone landscape 800×360, tablet 768×1024, laptop 1280×800 (the emulation's own width, since a mobile window grows with a wide
+page). It fails on:
+
+- horizontal scrolling (the page wider than the window);
+- cut-off content: an element sticking out at the side with nothing that clips or scrolls it, text clipped by its own box
+  (`overflow` hidden with more inside; a `-webkit-line-clamp` is a choice, not a cut), a scrolling area squeezed to under 44 px;
+- a touch target under 44 px in either direction (buttons, links, inputs, selects, summaries, sliders; a link inside a sentence is
+  exempt, and a control inside a `<label>` counts by the label's box);
+- A1's arrangement: from 980 px the video and the panel in one row, the sidebar beside them, the bar under them, one cue selected, its
+  plot drawn; below, one column and no panel; and in the laptop window a card selects its cue and a tap on the plot moves the player;
+- a console error or exception on the way.
+
+`--shots DIR` writes a PNG per screen and size (keep it out of the repo); `--break scroll|clip|small|cut` puts a fault in on purpose;
+no browser is one line and exit 1, or a skip with `COACH_PAGE_TEST_SKIP=1`, as the page test. **What it does not say:** at phone
+landscape (800×360) the video, M's stage and the like are as tall as the window, so their buttons are under the fold and the page
+scrolls to them; nothing is cut off, but landscape has no layout of its own (5.7).
+
 ## The screens v1 doesn't draw (`d23`)
 
 Not in the mockups (docs/ui-design.md, "Open questions"), so built in v1's tokens and components and reviewed by
@@ -1311,7 +1359,7 @@ loads and the engine answers, not how fast. The worker itself is tested in
 ## The tools' browser
 
 `tools/browser.mjs` (package `c47`) is how `page-test.mjs`, `check-tfjs.mjs`, `check-offline.mjs`, `check-pose.mjs` and
-`check-media.mjs` get their headless Brave or Chromium: `findBrowser()` (`--browser PATH`, then `COACH_BROWSER`, then
+`check-media.mjs` (and, since `d25`, `layout-check.mjs`) get their headless Brave or Chromium: `findBrowser()` (`--browser PATH`, then `COACH_BROWSER`, then
 Brave/Chromium/Chrome on `PATH`) and `launchBrowser(profile, args)`, which returns the child, its DevTools port and
 `close()`. No tool spawns a browser itself (`tests/app/browser.test.js` checks the source).
 

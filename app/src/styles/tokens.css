@@ -223,4 +223,5 @@
   --chip-h: 28px;
   --tile-min: 120px;
   --timeline-min: 240px;
+  --frame-ratio: 0.5625;   /* the video's width over its height; A1 sets it for each video, this is the stand-in */
 }

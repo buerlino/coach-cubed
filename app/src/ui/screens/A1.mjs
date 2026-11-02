@@ -201,7 +201,7 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
       ${problem ? html`<p class="error result-problem" role="alert">${problem}</p>` : null}
       ${data ? html`
         <div class="result-body">
-          <div class="result-stage" style=${`--ratio: ${data.meta.width / data.meta.height}`}>
+          <div class="result-stage" style=${`--frame-ratio: ${data.meta.width / data.meta.height}`}>
             <div class="result-frame" ref=${frameBox} role="img" aria-label=${wide ? frameLabel(t, range) : 'Video with the pose skeleton'} style=${`aspect-ratio: ${data.meta.width} / ${data.meta.height}`}>
               <video class="result-layer" ref=${videoRef} src=${data.url} muted playsinline preload="auto"></video>
               <canvas class="result-layer" ref=${frameRef} hidden=${!!(ps && ps.live)}></canvas>

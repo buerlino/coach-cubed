@@ -413,7 +413,7 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 @media (min-width: 980px) {
   .result { height: auto; min-height: 100dvh; max-width: var(--wide-max); padding: var(--space-4) var(--space-6) var(--space-6); gap: var(--space-4); }
   .result-body { display: grid; grid-template-columns: auto minmax(var(--tile-min), 1fr) var(--wide-aside); grid-template-areas: "stage selected cues" "bar bar cues"; column-gap: var(--space-4); row-gap: var(--space-3); align-items: start; }
-  .result-stage { grid-area: stage; flex: none; min-height: 0; width: min(var(--wide-stage-max), calc(var(--wide-stage) * var(--ratio))); border-radius: var(--radius-s); overflow: hidden; }
+  .result-stage { grid-area: stage; flex: none; min-height: 0; width: min(var(--wide-stage-max), calc(var(--wide-stage) * var(--frame-ratio))); border-radius: var(--radius-s); overflow: hidden; }
   .result-frame { height: auto; width: 100%; }
   .result-selected { grid-area: selected; }
   .result-bar { grid-area: bar; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); min-width: 0; padding: var(--space-3) var(--space-4); border-radius: var(--radius-l); background: var(--surface); }

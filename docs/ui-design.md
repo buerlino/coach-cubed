@@ -42,7 +42,7 @@ mockups and what they propose, and what is still open. What binds is in
 | A1 | Result | The video with the skeleton: play, frame steps, speed; a timeline with the lift found and where a cue went wrong; a card per cue (status, verdict, value) that opens to the cue, a camera note and the provisional thresholds. |
 | A2 | Cue detail | The worst moment with the cue drawn on the video, the cue's plot over time against its zones, its tiles, the cue, how it's scored. |
 | A3 | View options | Overlays (skeleton, cue drawings, unsure joints), loop the lift, speed, the lifter, smoothing (advanced), re-mark, delete. |
-| A4 | Result, wide | One responsive page: the video and the selected cue's plot side by side, the cues in a sidebar; it stacks at phone width. |
+| A4 | Result, wide (built, d25) | One responsive page: the video and the selected cue's plot side by side, the cues in a sidebar; it stacks at phone width. A1 draws it from 980 px up ([app/README.md](../app/README.md#a4-and-the-responsive-check)). |
 | S1 | Settings and about | Replay mode and lengths, camera, quality, default lift, storage and keeping videos, version, the privacy text, credits and licences. |
 | S1b | How the cues are scored (built, d18) | S1's row opens a short text: each cue of a lift, its rule from the cue's zones and, from the newest analysed lift, how it was measured. |
 
