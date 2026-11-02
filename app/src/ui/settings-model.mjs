@@ -3,7 +3,7 @@
 // values it offers, and the delete-all step. No Preact, no DOM, so Node runs it
 // as written (tests/app/settings.test.js); screens/S1.mjs draws what these give.
 import { RANGES } from '../store/settings.mjs';
-import { LIFT_CHOICES } from './home-model.mjs';
+import { liftChoices } from './home-model.mjs';
 
 /**
  * The settings that need the camera, so milestone B: S1 shows them disabled
@@ -68,7 +68,7 @@ export function recordingView(s) {
     row('bufferS', 'Keep in memory', s.bufferS, lengthOptions('bufferS', s.bufferS).map(o => ({ ...o, label: `last ${o.label}` })), off('bufferS')),
     row('camera', 'Camera', s.camera, CAMERAS, off('camera')),
     row('quality', 'Quality', s.quality, [...new Set([s.quality, ...QUALITIES])].map(q => ({ value: q, label: qualityLabel(q) })), off('quality')),
-    row('defaultLift', 'Default lift', s.defaultLift, LIFT_CHOICES.map(c => ({ value: c.id, label: c.label })), off('defaultLift')),
+    row('defaultLift', 'Default lift', s.defaultLift, liftChoices().map(c => ({ value: c.id, label: c.label })), off('defaultLift')),
   ];
   return {
     modes: MODES.map(m => ({ ...m, on: s.replayMode === m.id })),

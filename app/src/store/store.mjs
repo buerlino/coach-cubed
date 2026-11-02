@@ -19,6 +19,7 @@
 // settings.json, meta.json and queue.json are written atomically: a temporary file, then
 // a move over the real one.
 import { LIFTS_DIR, ID_RE } from '../contracts/common.mjs';
+import { liftAbbr } from '../contracts/lifts.mjs';
 import { liftPaths, validateStoredLift } from '../contracts/stored-lift.mjs';
 import { validateTrack } from '../contracts/track.mjs';
 import { validateResultView } from '../contracts/cue-view.mjs';
@@ -35,7 +36,6 @@ const QUEUE = 'queue.json';
 const QUEUE_VERSION = 1;
 const LIFT_RECORD = 'lift.json';
 const INDEX_VERSION = 1;
-const LIFT_ABBR = { 'lateral-raise': 'lr', snatch: 'sn' };
 
 /**
  * An error the UI can show. `code`: 'storage-full' (D3: the disk is full),
@@ -94,7 +94,7 @@ export function groupLifts(lifts, now) {
 const pad = (n, w = 2) => String(n).padStart(w, '0');
 function idBase(created, lift) {
   const d = new Date(created);
-  return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}-${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}-${LIFT_ABBR[lift] || 'x'}`;
+  return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}-${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}-${liftAbbr(lift) || 'x'}`;
 }
 
 const positive = v => typeof v === 'number' && Number.isFinite(v) && v > 0;

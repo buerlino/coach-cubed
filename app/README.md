@@ -60,7 +60,7 @@ It logs each request (`200 /index.html`); a `404` there is a broken path.
 | `src/analysis/` | The analysis job and its queue (`s12`): `appQueue()` is the app's one queue; Analyse keeps the cut (`s32`), then queues the job, which poses every frame of the range, builds the track and scores it. See [The analysis](#the-analysis). |
 | `src/pose/` | The pose engine (`s10`): `PoseEngine.create()` gives one async `estimate(frame, tMs)` over a worker running MoveNet Thunder on TF.js. See [The pose engine](#the-pose-engine). |
 | `vendor/` | Third-party files, each with its licence text, byte for byte from its npm package ([THIRD_PARTY.md](../THIRD_PARTY.md#in-the-new-app-app)): `preact/` (Preact 11.1.1 and its hooks), `htm/` (htm 3.1.1), `mediabunny/` (mediabunny 1.61.6, MPL-2.0, the frame source's one demuxer), `fonts/` (Barlow and Barlow Condensed, woff2, with `OFL.txt`). `vendor/tfjs/` is built by `tools/build-tfjs.mjs` (gitignored). |
-| `tools/` | `assemble.mjs`, `serve.mjs`, `make-icon.mjs`, and the TF.js build: `build-tfjs.mjs`, `fetch-models.sh`, `check-tfjs.mjs`, `patches/` ([below](#tfjs-from-source)), `check-media.mjs` (the frame source on a real decoder, [above](#the-frame-source)), and the debug APK's `build-apk.sh` and `check-apk.mjs` ([The Android shell](#the-android-shell)), and `make-phone-clips.sh` and `check-media-apk.mjs`, the frame source and the cut on the phone ([On the phone](#on-the-phone)). Node only; only `build-tfjs.mjs` needs `app/node_modules/` (esbuild). Not copied into `dist/`. `page-test.mjs` is the page test ([below](#the-page-test)). `browser.mjs` is the one place a tool finds, launches and ends a headless browser (`c47`, [below](#the-tools-browser)). `layout-check.mjs` is the responsive check ([below](#a4-and-the-responsive-check)). |
+| `tools/` | `assemble.mjs`, `serve.mjs`, `make-icon.mjs`, and the TF.js build: `build-tfjs.mjs`, `fetch-models.sh`, `check-tfjs.mjs`, `patches/` ([below](#tfjs-from-source)), `check-media.mjs` (the frame source on a real decoder, [above](#the-frame-source)), and the debug APK's `build-apk.sh` and `check-apk.mjs` ([The Android shell](#the-android-shell)), and `make-phone-clips.sh` and `check-media-apk.mjs`, the frame source and the cut on the phone ([On the phone](#on-the-phone)). Node only; only `build-tfjs.mjs` needs `app/node_modules/` (esbuild). Not copied into `dist/`. `page-test.mjs` is the page test ([below](#the-page-test)), `lift-fixtures.mjs` its fixture per lift (`s49`). `browser.mjs` is the one place a tool finds, launches and ends a headless browser (`c47`, [below](#the-tools-browser)). `layout-check.mjs` is the responsive check ([below](#a4-and-the-responsive-check)). |
 | `dist/` | The assembled app (gitignored): what the PWA host and Capacitor get. `files.json` lists every file in it, with a version hash, for the service worker. |
 | `android/`, `capacitor.config.json` | The Capacitor shell (`c20`): the Android project `npx cap add android` generated, committed; Gradle's outputs and the copied web assets are gitignored. See [The Android shell](#the-android-shell). |
 | `debug/` | The check page (`c20`), assembled only into the debug APK (`assemble.mjs --debug`), never into the shipped `dist/`. |
@@ -127,7 +127,8 @@ the screens and the tests.
 | `frame-source.mjs` | 5. A frame source: an opened video's info (duration, frame rate, upright size, rotation), `frameTimes` (every frame's start in seconds, presentation order, from the first frame at 0; required since `s35`: M1–M3's one-frame steps and the job's frame count), a frame at a time, a range as a stream of `VideoFrame`s, thumbnails, and (`s38`) the `stepper`: the frames around a playhead decoded once and kept, so M1–M3's one-frame step is a lookup, with its default budget `STEPPER_BUDGET`. `exampleFrameSource()` is a stand-in with no video behind it, for tests. | the media module (`s9`) | marking (`d14`), A1's player (`d16`), the job (`s12`) |
 | `track.mjs` | The track, `track.json`, in the fixture format ([fixture-data-contract.md](../docs/fixture-data-contract.md)), so the app's tracks and the committed fixtures read the same. `trackFromFrames()` builds one from the worker's results, `framesFromTrack()` reads one back. | the job (`s12`) | the scoring adapter (`s11`), A1's skeleton (`d16`), the page test (`c21`) |
 | `keypoints.mjs` | COCO-17 `[y, x, conf]` in the frame's pixels, or `null` ([rules-core.md](../docs/rules-core.md), principle 4). | the pose worker | the track, `diagnostics.js` |
-| `common.mjs` | What they share: the lifts, ids, store paths, ranges, the checks. | | the modules above |
+| `lifts.mjs` | The lift registry (`s49`): per lift its id (a `DIAGNOSTIC_SETS` key), label, store abbreviation, `provisional`, an optional `icon` (a figure: a head and a path) and an optional `framing` (how to film it, for milestone B's R1; nothing reads it yet). `SHIPPED_LIFTS` is the lateral raise, then the snatch; `LIFTS` its ids (a live binding); `liftOf`, `isLift`, `liftLabel`, `liftAbbr`; `registerLift(entry)` adds one and returns its undo (tests only). The one place in `app/src` a lift is written out, besides the settings' default and the contracts' examples (`tests/app/lifts.test.js` checks it, and that each shipped id has its set and its `LIFT_WINDOW_SETS` entry). How to add a lift: [docs/lifts.md](../docs/lifts.md). | | every module that names a lift: `common.mjs`'s `checkLift`, the settings, the store's ids, H, M, the icons |
+| `common.mjs` | What they share: the lifts (`LIFTS`, re-exported from `lifts.mjs`), ids, store paths, ranges, the checks. | | the modules above |
 
 A change to a contract is a package of its own: both sides build on it, so
 it is agreed first, with its tests, and then each side follows in its own
@@ -276,7 +277,7 @@ lifts/<id>/lift.json    the lift's record: contract 3, a StoredLift
   again; `not-found` only when neither is left.
 - **Lists:** `listLifts()` newest first; `listByDay()` splits today's (the
   local calendar day) from earlier ones, for H. Ids look like
-  `20261101-174205-lr` (UTC time, lift), with `-2`, `-3` for a clash.
+  `20261101-174205-lr` (UTC time, the lift's `abbr` in `contracts/lifts.mjs`), with `-2`, `-3` for a clash.
 - **Settings:** `getSettings()` reads v1's defaults (a 20 s replay, a 60 s
   buffer, videos kept, D2) over whatever `settings.json` holds; a field that
   is missing or fails its check takes its default. `saveSettings(patch)`
@@ -735,6 +736,10 @@ first screen draws), the frame source by `openSource` (default `openFrameSource`
   kept first, s32; a re-mark adds `{replaces}`, the old lift's id from the flow's params, `s50`) and then `flow.go('queued', {liftId})` with the new lift's id,
   which Q1 shows when two are queued. A cut that can't be stored stays on M with
   the error in the error's words; a second tap while one is working does nothing.
+- **The lift switch** in the corner (`otherLift`, the registry's next lift) is
+  going away: at checkpoint A nordmu asked for the lift to be chosen once, in its
+  own step after the video is picked (2026-11-02, point 5). With no lift in the
+  params M starts on the registry's first.
 
 ## A1, the player and the overlay
 
@@ -1069,6 +1074,11 @@ lifts' `readResult` again when a job's state changes, not at every frame.
 - `importStep(flow, file, lift)`: the lift chosen on Import goes with the file
   to `mark` (`flow.params` is `{ file, lift }`); no file, a non-video or an
   unknown lift changes nothing and says why.
+- `liftChoices()`, `liftLabel`, `isProvisional`, `startLift`: the import step's
+  choices and S1's default-lift row, in the order of the lift registry
+  (`contracts/lifts.mjs`, `s49`), read when called, so a lift added there is
+  offered with no other edit; H's and Q1's figure is the entry's `icon`
+  (`LiftIcon`, the lateral raise's when it has none).
 
 ## TF.js from source
 
@@ -1418,12 +1428,14 @@ still leave a browser behind; `ps -eo args | grep -c '[-]-user-data-dir=/tmp/coa
 ## The page test
 
 `npm --prefix app run test:page` (`tools/page-test.mjs`, package `c21`, plan step 5.6) walks the app the way a person does, in
-headless Brave or Chromium over the DevTools protocol, offline, for a lateral raise and a snatch. It runs in about 5 s in a pipeline
+headless Brave or Chromium over the DevTools protocol, offline, for each lift with a fixture in `tools/lift-fixtures.mjs` (`s49`:
+the lateral raise and the snatch). A lift of the registry with none is not walked and is listed: `untested` in the output's JSON and
+a line `page-test: not walked, no fixture in app/tools/lift-fixtures.mjs: …`. It runs in about 5 s in a pipeline
 worktree: no example clips, no `app/vendor/tfjs/`, no `app/models/`, no GPU.
 
 1. **The test build.** `assemble.mjs --test` (into a temporary folder; `dist/` is not touched) adds `page-test/` to the assembled app:
    `replay.mjs`, an engine that answers the k-th decoded frame with the k-th frame of a committed fixture track
-   (`tests/fixtures/global/example/lateral-raise-cable-1` and `athlete-a-trim`, `TEST_TRACKS` in `assemble.mjs`), through contract 1's
+   (`tests/fixtures/global/example/lateral-raise-cable-1` and `athlete-a-trim`, `TEST_TRACKS` in `assemble.mjs`, from `lift-fixtures.mjs`), through contract 1's
    messages (the real `PoseEngine` client and `worker-core.mjs` on a stand-in for the Worker); `boot.mjs`, which `index.html` loads
    before `main.mjs` and which makes the app's one queue with that engine; and the two tracks, `page-test/tracks.json` listing them.
    The job takes the fixture's `fps`, `width` and `height` (the clip is 108×192, the keypoints are in the fixture's 1080×1920): the
@@ -1458,7 +1470,7 @@ worktree: no example clips, no `app/vendor/tfjs/`, no `app/models/`, no GPU.
 `tests/`: `flow.test.js` (the state machine), `draw.test.js` (the overlay, pinned to the old page) and `player.test.js` (A1's player on fakes), `view-options.test.js` (A3: the options on the player, the re-score, loop, re-mark, delete), `home.test.js` (H's logic: a lift's state, the lists, the import step, `main.mjs`'s boot), `assemble.test.js` (assemble
 into a temporary folder, the manifest and `index.html`), `serve.test.js` (the
 dev server), `contracts.test.js` (the contracts, against the committed tracks
-and `diagnostics.js`'s headless API), `store.test.js` (the store, on `fake-opfs.js`, an in-memory OPFS), `frame-source.test.js` (the frame source and its stepper, on our own clips in `tests/app/clips/` and a fake decoder), `pose-engine.test.js` (the pose engine's client and worker handler, against fakes), `media-phone.test.js` (the check page's media measurements, their driver and the clips' script; the shipped `dist/` without them), `android-shell.test.js` (the Capacitor config, the committed Android project, the pins and `build-apk.sh`), `sw.test.js` (the service worker run as a script on a fake Cache Storage and fetch, the registration module on a fake browser and queue, assemble's version stamp), `page-test.test.js` (the replay engine behind the real pose client, the test build and the shipped `dist/` without it, the script's no-browser line), `build-tfjs.test.js` (the TF.js
+and `diagnostics.js`'s headless API), `lifts.test.js` (the lift registry: a test-only third lift reaches H, the settings, the store and the icons; every shipped lift has its set in `diagnostics.js`; the fixtures per lift; `tests/app/import-map.mjs` gives Node `index.html`'s import map, so it draws `LiftIcon` with Preact), `store.test.js` (the store, on `fake-opfs.js`, an in-memory OPFS), `frame-source.test.js` (the frame source and its stepper, on our own clips in `tests/app/clips/` and a fake decoder), `pose-engine.test.js` (the pose engine's client and worker handler, against fakes), `media-phone.test.js` (the check page's media measurements, their driver and the clips' script; the shipped `dist/` without them), `android-shell.test.js` (the Capacitor config, the committed Android project, the pins and `build-apk.sh`), `sw.test.js` (the service worker run as a script on a fake Cache Storage and fetch, the registration module on a fake browser and queue, assemble's version stamp), `page-test.test.js` (the replay engine behind the real pose client, the test build and the shipped `dist/` without it, the script's no-browser line), `build-tfjs.test.js` (the TF.js
 build's pins, cache, op lists and patch notices, the MoveNet entry's
 refusal of a config without `modelUrl`, and `fetch-models.sh`'s checks and
 clean-up, all without the network). Every test runs in a fresh worktree, which has neither

@@ -7,8 +7,8 @@
 //   const queue = createQueue({ store, createEngine, openFrameSource, keepVideo });
 //   await queue.load();                       // the kept queue back after a restart
 //   const off = queue.subscribe(jobs => …);   // every change: the jobs, copies
-//   const job = await queue.analyse('snatch', file, { t0, t1 });   // the cut kept, then queued
-//   await queue.analyse('snatch', cut, range, { replaces: oldId });   // A3's re-mark: replaces oldId once done (s50)
+//   const job = await queue.analyse(lift, file, { t0, t1 });   // the cut kept, then queued
+//   await queue.analyse(lift, cut, range, { replaces: oldId });   // A3's re-mark: replaces oldId once done (s50)
 //   await queue.cancel(job.id);               // between frames; the engine is reset
 //   await queue.estimate(durationS, { fps }); // M1–M3's cost before Analyse
 //

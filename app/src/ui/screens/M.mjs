@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../html.mjs';
 import { openFrameSource } from '../../media/frame-source.mjs';
+import { LIFTS } from '../../contracts/lifts.mjs';
 import {
   PX_PER_SECOND, THUMB, analyse, analyseCost, createLatest, createPlayhead, createThumbPlanner, playheadNote, dragTarget, dropFarThumbs, fitSize, liftLabelOf, markView,
   marksFromRange, newMarks, otherLift, redo, setMark, stripLeft, thumbSeconds, thumbTime,
@@ -42,7 +43,7 @@ const clockLabel = s => (s % 2 ? '' : `${Math.floor(s / 60)}:${String(s % 60).pa
 
 export function M({ flow, queue, openSource = openFrameSource }) {
   const { file = null, range = null, replaces = null } = flow.params;
-  const [lift, setLift] = useState(flow.params.lift || 'lateral-raise');
+  const [lift, setLift] = useState(flow.params.lift || LIFTS[0]);   // the registry's first lift when none came in
   const [source, setSource] = useState(null);     // { frameTimes, info } once the video is open
   const [problem, setProblem] = useState(null);   // the video could not be opened, or a frame could not be decoded
   const [marks, setMarks] = useState(newMarks);

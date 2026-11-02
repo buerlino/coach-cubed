@@ -2,7 +2,7 @@
 // the flow with the file, on the way to marking (home-model.mjs's importStep).
 import { useEffect, useState } from 'preact/hooks';
 import { html } from '../html.mjs';
-import { LIFT_CHOICES, importStep, startLift } from '../home-model.mjs';
+import { importStep, liftChoices, startLift } from '../home-model.mjs';
 
 export function Import({ flow, store }) {
   // The lift starts on S1's default once the settings arrive (the first choice until then, or if
@@ -33,7 +33,7 @@ export function Import({ flow, store }) {
         <p class="soft">Choose the lift first, then pick a clip from this phone.</p>
         <fieldset class="choice">
           <legend class="label">Which lift?</legend>
-          ${LIFT_CHOICES.map(c => html`
+          ${liftChoices().map(c => html`
             <label class="choice__option" key=${c.id}>
               <input type="radio" name="lift" value=${c.id} checked=${lift === c.id} onChange=${() => setChosen(c.id)} />
               <span>${c.label}</span>

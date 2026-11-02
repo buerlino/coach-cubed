@@ -37,6 +37,7 @@ import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { LIFT_FIXTURES } from './lift-fixtures.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SKIP_TOP = new Set(['tools', 'android', 'dist', 'debug', 'page-test', 'out', 'node_modules', 'capacitor.config.json']);
@@ -44,10 +45,8 @@ const SKIP_TOP = new Set(['tools', 'android', 'dist', 'debug', 'page-test', 'out
 export const DEBUG_CLIPS = ['testsrc2-h264-30fps.mp4'];
 // What --test adds: the committed tracks the replay engine answers with (tests/fixtures/global/, from src/'s
 // parent), each with the lift it is scored as; the page test's clips are matched to them (tests/app/clips/).
-export const TEST_TRACKS = [
-  { id: 'example/lateral-raise-cable-1', lift: 'lateral-raise', file: 'lateral-raise-cable-1.track.json' },
-  { id: 'example/athlete-a-trim', lift: 'snatch', file: 'athlete-a-trim.track.json' },
-];
+// One per lift, from lift-fixtures.mjs (s49), the list the page test walks too.
+export const TEST_TRACKS = LIFT_FIXTURES.map(f => ({ id: f.track.id, lift: f.lift, file: f.track.file }));
 const TEST_BOOT = '<script type="module" src="./page-test/boot.mjs"></script>\n';
 const MAIN_TAG = '<script type="module" src="./src/main.mjs"></script>';
 const OPTIONAL = [

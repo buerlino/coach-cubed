@@ -83,7 +83,7 @@ export function detailOf({ Diagnostics, view, computed, cueId, range }) {
  * (`view` null) only the lift's cues and their rules, which need no result.
  * @param {Object} o
  * @param {Object} o.Diagnostics
- * @param {'lateral-raise'|'snatch'} o.lift
+ * @param {import('../contracts/lifts.mjs').LiftId} o.lift
  * @param {import('../contracts/cue-view.mjs').ResultView|null} o.view
  * @param {Object|null} o.computed
  */
