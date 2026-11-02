@@ -931,7 +931,7 @@ test('mediabunny is vendored pinned, with its licence, and carries no "Incompati
   const lib = fs.readFileSync(path.join(VENDOR, 'mediabunny.mjs'), 'utf8');
   const licence = fs.readFileSync(path.join(VENDOR, 'LICENSE'), 'utf8');
   assert.match(licence, /^Mozilla Public License Version 2\.0/);
-  // MPL-2.0 is GPL-3.0-or-later compatible (§3.3) unless a Source Code Form carries
+  // MPL-2.0 is AGPL-3.0-or-later compatible (§3.3, §1.12) unless a Source Code Form carries
   // the Exhibit B notice. The licence text itself quotes the notice as its template
   // (and in §1's definitions); what must not be there is a file that applies it.
   assert.match(licence, /Exhibit A - Source Code Form License Notice/);

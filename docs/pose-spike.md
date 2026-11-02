@@ -307,7 +307,7 @@ per clip, so it never idled.
 ## The licence gate
 
 [rules-core.md](rules-core.md#licence-compatible-dependencies): every
-dependency that ships is permissive or GPL-3.0-compatible, and (nordmu,
+dependency that ships is permissive or AGPL-3.0-compatible, and (nordmu,
 2026-11-01) the pose runtime is open source and buildable from source. The
 weights ship too, so both are pass/fail gates next to accuracy and time.
 Sources: [THIRD_PARTY.md](../THIRD_PARTY.md#fetched-by-the-phase-3-spike-not-shipped).

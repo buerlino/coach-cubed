@@ -89,8 +89,10 @@ test('the shipped dist/ has no check page; --debug adds it and its clip (the deb
   }
   assert.deepEqual(read(dbg, 'debug/clips/testsrc2-h264-30fps.mp4'), fs.readFileSync(path.join(ROOT, 'tests/app/clips/testsrc2-h264-30fps.mp4')));
   assert.deepEqual(manifestOf(dbg).files, files.filter((f) => f !== 'files.json'));
-  // Everything else is the shipped build's, byte for byte.
-  for (const f of shipped.filter((f) => f !== 'files.json')) assert.deepEqual(read(dbg, f), read(plain, f), f);
+  // Everything else is the shipped build's, byte for byte; sw.js differs by its stamp, the build's own version (c19).
+  const unstamped = (dir) => read(dir, 'sw.js').toString().replace(/const BUILT_VERSION = "[0-9a-f]+";/, 'const BUILT_VERSION = null;');
+  assert.equal(unstamped(dbg), unstamped(plain));
+  for (const f of shipped.filter((f) => f !== 'files.json' && f !== 'sw.js')) assert.deepEqual(read(dbg, f), read(plain, f), f);
 });
 
 test('--debug on a fake tree: app/debug/ and the clip are listed, and nothing else changes', () => {

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Tests for pipeline/pipeline.sh and pipeline/lib.sh. No real agent starts: each case builds a throwaway repo (a main checkout, a
 # phase-0 worktree, a package file) with a stub claude whose behaviour the case picks, runs the real script there and checks its
 # RESULT line, the log and the repo. Touches nothing outside its temp dir.   Run: pipeline/pipeline.test.sh

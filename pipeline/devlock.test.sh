@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Tests for pipeline/devlock.sh: coach's own locks are shared by every worktree, the machine's (host-cpu, a phone) live in the shared
 # directory, stale locks break, and a slice hands host-cpu to a waiter. Touches nothing outside its temp dir.
 #   Run: pipeline/devlock.test.sh

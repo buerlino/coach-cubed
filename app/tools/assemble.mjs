@@ -12,16 +12,26 @@
 // - src/diagnostics.js and src/track/ from the repo's src/ (the old page
 //   serves them, so they stay there), into src/ of the output: the same
 //   relative imports work in the repo and here (app/README.md);
+// - THIRD_PARTY.md's section "In the new app (`app/`)" only (from its heading to the
+//   next `## `), as licences/THIRD_PARTY.md: S1's credits offer that list (d24);
+//   the old page's, the dev server's, the spike's and the other sections don't
+//   ship in the app, so they stay out. The licence texts the credits name sit next to
+//   their components in app/ (vendor/, licences/) and are copied with it;
+//   checkLicences() says which one is missing (the CLI runs it after assembling);
 // - app/vendor/tfjs/ and app/models/ when present (gitignored, made by s6);
 //   absent, it says so and goes on;
 // - files.json for the service worker (c19): every file copied, sorted, and a
 //   version hash over their names and contents. Not itself in the list.
+//   sw.js is hashed as it is in app/, then stamped with that version in dist/
+//   (`const BUILT_VERSION = null;`): its bytes then change with every version,
+//   which is what makes a browser look for an update, and it knows which
+//   cache is its own.
 //
 // Node only, no dependencies. --app and --src exist for the tests.
 import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SKIP_TOP = new Set(['tools', 'android', 'dist', 'debug', 'out', 'node_modules', 'capacitor.config.json']);
@@ -73,6 +83,24 @@ function prepareOut(out, app, src) {
   for (const name of entries) rmSync(join(out, name), { recursive: true, force: true });
 }
 
+// sw.js with the version put in at its stamp point; no stamp point is an error.
+export function stampWorker(text, version) {
+  const stamp = 'const BUILT_VERSION = null;';
+  if (!text.includes(stamp)) throw new Error(`sw.js has no stamp point (${stamp})`);
+  return text.replace(stamp, () => `const BUILT_VERSION = ${JSON.stringify(version)};`);
+}
+
+const NEW_APP_HEADING = '## In the new app (`app/`)';
+
+/** THIRD_PARTY.md's section for the new app: its heading to the next `## ` (or the end). */
+export function newAppSection(text) {
+  const start = text.indexOf(`\n${NEW_APP_HEADING}\n`);
+  if (start < 0) throw new Error(`THIRD_PARTY.md has no section "${NEW_APP_HEADING}"`);
+  const from = start + 1;
+  const next = text.indexOf('\n## ', from + NEW_APP_HEADING.length);
+  return `${text.slice(from, next < 0 ? text.length : next).trimEnd()}\n`;
+}
+
 function copy(from, to) {
   mkdirSync(dirname(to), { recursive: true });
   copyFileSync(from, to);
@@ -97,6 +125,12 @@ export function assemble({ out, app, src, debug = false, log = console.log }) {
     copy(join(src, 'track', f), join(out, 'src', 'track', f));
     copied.add(`src/track/${f}`);
   }
+  const thirdParty = join(src, '..', 'THIRD_PARTY.md');
+  if (existsSync(thirdParty)) {
+    mkdirSync(join(out, 'licences'), { recursive: true });
+    writeFileSync(join(out, 'licences', 'THIRD_PARTY.md'), newAppSection(readFileSync(thirdParty, 'utf8')));
+    copied.add('licences/THIRD_PARTY.md');
+  }
   if (debug) {
     if (!existsSync(join(app, 'debug'))) throw new Error(`--debug: ${join(app, 'debug')} not found`);
     for (const f of listFiles(join(app, 'debug'))) {
@@ -116,16 +150,34 @@ export function assemble({ out, app, src, debug = false, log = console.log }) {
   const hash = createHash('sha256');
   for (const f of files) { hash.update(f); hash.update('\0'); hash.update(readFileSync(join(out, f))); hash.update('\0'); }
   const version = hash.digest('hex').slice(0, 16);
+  if (copied.has('sw.js')) writeFileSync(join(out, 'sw.js'), stampWorker(readFileSync(join(out, 'sw.js'), 'utf8'), version));
   writeFileSync(join(out, 'files.json'), `${JSON.stringify({ version, files }, null, 2)}\n`);
   log(`assembled ${files.length} files into ${out}, version ${version}${debug ? ' (debug: with the check page)' : ''}`);
   return { version, files };
+}
+
+/**
+ * The licence texts S1's credits name (app/src/credits.mjs) that are not in `out`. A text the
+ * TF.js build copies (`built`) is only expected when that build is in `out`.
+ * @returns {Promise<string[]>}
+ */
+export async function checkLicences(out, app) {
+  const file = join(resolve(app), 'src', 'credits.mjs');
+  if (!existsSync(file)) return [];
+  const { CREDITS } = await import(pathToFileURL(file).href);
+  const built = existsSync(join(out, 'vendor', 'tfjs'));
+  return CREDITS.filter((c) => (!c.built || built) && !existsSync(join(out, c.text))).map((c) => c.text);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     const o = parseArgs(process.argv.slice(2));
     const app = o.app ?? resolve(HERE, '..');
-    assemble({ out: o.out ?? join(app, 'dist'), app, src: o.src ?? resolve(app, '..', 'src'), debug: !!o.debug });
+    const out = o.out ?? join(app, 'dist');
+    assemble({ out, app, src: o.src ?? resolve(app, '..', 'src'), debug: !!o.debug });
+    const missing = await checkLicences(out, app);
+    if (missing.length) throw new Error(`licence texts the credits name are missing from ${out}: ${missing.join(', ')}`);
+    if (!existsSync(join(out, 'vendor', 'tfjs'))) console.log("TF.js's licence texts absent with the bundle: they are copied when it is built");
   } catch (e) {
     console.error(`assemble: ${e.message}`);
     process.exit(1);

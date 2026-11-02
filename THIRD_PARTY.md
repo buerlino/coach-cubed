@@ -2,10 +2,13 @@
 
 Everything in this repo, or fetched by its scripts, that someone outside the
 project made: name, version, licence and source. A licence text that has to
-travel with a component sits next to it. coach itself is GPL-3.0-or-later
+travel with a component sits next to it. coach itself is AGPL-3.0-or-later,
+pending Noah and the four authors' OK
 ([docs/decisions.md](docs/decisions.md#licence)); every component
 that ships in the app has to be compatible with it
-([docs/rules-core.md](docs/rules-core.md)).
+([docs/rules-core.md](docs/rules-core.md)). Apache-2.0, MIT and the BSD
+licences are; the fonts' OFL is not a code licence, and the fonts ship
+beside the code as separate files, as they would have under the GPL.
 
 ## In the old page (frozen, not in 0.1.0)
 
@@ -39,7 +42,8 @@ new app's components are in the section after this one.
 
 The new app, built fresh as static files ([docs/app-plan.md](docs/app-plan.md)).
 Every package that ships something third-party adds its rows here; S1's
-credits read this section. Checked 2026-11-02. Each committed file is copied
+credits list this section (`app/src/credits.mjs`: a new row needs its entry
+there, and `tests/app/settings.test.js` checks it). Checked 2026-11-02. Each committed file is copied
 byte for byte from the package named in the Source column (`npm pack`), next
 to its licence text. The pose runtime and its weights aren't committed: they
 are built from source or fetched, into gitignored folders, by the scripts the
@@ -56,12 +60,21 @@ In the repo column names ([app/README.md](app/README.md#tfjs-from-source)).
 | long | 4.0.0 | Apache-2.0; text in `app/vendor/tfjs/LICENSE-long.txt` | Bundled into each TF.js bundle (tfjs-core's dependency, the version its `yarn.lock` pins) | <https://registry.npmjs.org/long/-/long-4.0.0.tgz>, via `app/package-lock.json` |
 | seedrandom | 3.0.5 | MIT, © 2019 David Bau (and alea.js, © 2010 Johannes Baagøe); text in `app/vendor/tfjs/LICENSE-seedrandom.txt`, taken from its sources (the package has no LICENSE file) | Bundled into each TF.js bundle (tfjs-core's and the CPU backend's dependency) | <https://registry.npmjs.org/seedrandom/-/seedrandom-3.0.5.tgz>, via `app/package-lock.json` |
 | MoveNet SinglePose Thunder v4, TF.js weights | 4 | Apache-2.0: the Kaggle instance's `licenseName` is "Apache 2.0", and the model card says "Licensed Under Apache License, Version 2.0" ([card](https://storage.googleapis.com/movenet/MoveNet.SinglePose%20Model%20Card.pdf)) | Not committed: `app/models/movenet-thunder-4/` (`model.json` and three shards, 12.6 MB; gitignored), fetched by `app/tools/fetch-models.sh` | <https://www.kaggle.com/api/v1/models/google/movenet/tfJs/singlepose-thunder/4/download> (Google's upload), archive SHA-256 `9ab8399bc82cd3c5cc0b61ea3b397512b73dde920590ac869872637eff97e522`, the spike's pinned source |
-| mediabunny | 1.61.6 | MPL-2.0, © 2026-present Vanilagy and contributors; text in `app/vendor/mediabunny/LICENSE`. File-level copyleft, GPL-3.0-or-later-compatible (MPL-2.0 §3.3) unless a file carries the "Incompatible With Secondary Licenses" notice: none does (the bundle's header is Exhibit A; the licence text holds only the standard Exhibit B template) | `app/vendor/mediabunny/mediabunny.mjs` (the unminified ES-module bundle, 1,498,041 bytes, SHA-256 `121ec47dd6eedc69c8e8c4f1d1052caac74724e8408fed548213c742c99767dd`) and `LICENSE`, byte for byte from the package. Used only by `app/src/media/` (the frame source, `s9`; later the cut, `s32`, and recordings, milestone B): the one demuxer in the app. Unmodified, so MPL's source-availability duty is met by the file itself | <https://registry.npmjs.org/mediabunny/-/mediabunny-1.61.6.tgz> (`dist/bundles/mediabunny.mjs`, `LICENSE`); upstream <https://github.com/Vanilagy/mediabunny>; the spike's lock file pins the same tarball |
+| mediabunny | 1.61.6 | MPL-2.0, © 2026-present Vanilagy and contributors; text in `app/vendor/mediabunny/LICENSE`. File-level copyleft, AGPL-3.0-or-later-compatible (MPL-2.0 §3.3; §1.12 names the AGPL-3.0 a Secondary License) unless a file carries the "Incompatible With Secondary Licenses" notice: none does (the bundle's header is Exhibit A; the licence text holds only the standard Exhibit B template) | `app/vendor/mediabunny/mediabunny.mjs` (the unminified ES-module bundle, 1,498,041 bytes, SHA-256 `121ec47dd6eedc69c8e8c4f1d1052caac74724e8408fed548213c742c99767dd`) and `LICENSE`, byte for byte from the package. Used only by `app/src/media/` (the frame source, `s9`; later the cut, `s32`, and recordings, milestone B): the one demuxer in the app. Unmodified, so MPL's source-availability duty is met by the file itself | <https://registry.npmjs.org/mediabunny/-/mediabunny-1.61.6.tgz> (`dist/bundles/mediabunny.mjs`, `LICENSE`); upstream <https://github.com/Vanilagy/mediabunny>; the spike's lock file pins the same tarball |
 | Capacitor: `@capacitor/core`, `@capacitor/cli`, `@capacitor/android` | 8.5.3 | MIT, © 2017-present Drifty Co.; text in each package's `LICENSE` | The APK's shell: `app/android/` was generated by `@capacitor/cli` (`npx cap add android`) and is committed with its Gradle wrapper; `@capacitor/android`'s Java library and its injected `native-bridge.js` are built into the APK from `app/node_modules/` by `app/tools/build-apk.sh`. The web app imports nothing of `@capacitor/core`. Debug APKs only until `c33` | <https://registry.npmjs.org/@capacitor/core/-/core-8.5.3.tgz>, `cli`, `android`, via `app/package-lock.json`; upstream <https://github.com/ionic-team/capacitor> |
 | The APK's Android libraries, pulled by Gradle for Capacitor's template: AndroidX (`appcompat` 1.7.1, `coordinatorlayout` 1.3.0, `core-splashscreen` 1.2.0, `webkit`, `core`, `activity`, `fragment` and their AndroidX dependencies), Apache Cordova's Android `framework` 14.0.1 (Capacitor's Cordova-plugin layer), Kotlin's `kotlin-stdlib` 2.0.21 and `kotlinx-coroutines` 1.8.1, Guava's `listenablefuture` 1.0, JetBrains `annotations` 23.0.0, JSpecify 1.0.0 | as named (Gradle's `debugRuntimeClasspath` of `app/android/app`, 2026-11-02) | Apache-2.0, each | Not committed: downloaded by Gradle from Google's Maven and Maven Central into `~/.gradle/` and compiled into the debug APK by `app/tools/build-apk.sh`; the versions are those `app/android/variables.gradle` and `@capacitor/android` 8.5.3 name | <https://maven.google.com/>, <https://repo1.maven.org/maven2/>; `./gradlew :app:dependencies --configuration debugRuntimeClasspath` in `app/android/` lists them |
 | esbuild | 0.28.2 | MIT | Build only, not shipped: `app/node_modules/` through `app/package.json` and its lock file | <https://registry.npmjs.org/esbuild/-/esbuild-0.28.2.tgz> |
 | TF.js from npm: `@tensorflow/tfjs-core`, `-converter`, `-backend-cpu`, `-backend-webgpu` (4.22.0) and `@tensorflow-models/pose-detection` (2.1.3) | as named | Apache-2.0 | Dev only, never in `dist/` and never shipped: `app/node_modules/` through `app/package.json` and its lock file. `app/tools/parity-tfjs.mjs` (package `s7`) runs npm's build beside the from-source bundle to check that both give the same keypoints | <https://registry.npmjs.org/@tensorflow/tfjs-core>, `-converter`, `-backend-cpu`, `-backend-webgpu`, <https://registry.npmjs.org/@tensorflow-models/pose-detection>, via `app/package-lock.json` |
 
+- **`app/licences/`** holds the three licence texts that have no home beside
+  a component, shipped in `dist/licences/` for S1's credits, each copied byte
+  for byte: `Apache-2.0.txt` is apache.org's standard text
+  (<https://www.apache.org/licenses/LICENSE-2.0.txt>, 11,358 bytes, SHA-256
+  `cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30`, the
+  appendix's template unfilled), for the Apache-2.0 components with no text of
+  their own (the Android libraries, npm's TF.js); `MIT-capacitor.txt` is the
+  `LICENSE` of `@capacitor/core` 8.5.3 in its npm package; `MIT-esbuild.txt` is
+  the `LICENSE.md` of `esbuild` 0.28.2 in its npm package.
 - **Preact 11.1.1** is the newest 11.x on npm (11.1.1 exists, so the pin the
   plan asked for holds). Its hooks import `preact` by bare name, which
   `app/index.html`'s import map points at the vendored file. **htm** is the
@@ -121,7 +134,8 @@ on nordmu's laptop on 2026-10-31; the licences are what each package declares.
   default" (<https://www.ultralytics.com/license>); the
   `ultralytics/assets` repo the weights come from declares AGPL-3.0. None
   of them names `yolov8s.pt` itself, so treat the weights as AGPL-3.0
-  (checked 2026-10-31). This is why YOLOv8 stays on the dev server.
+  (checked 2026-10-31). YOLOv8 stays on the dev server and never ships in
+  the app, which doesn't need it ([docs/decisions.md](docs/decisions.md#licence)).
 
 ## Fetched by the Phase 3 spike (not shipped)
 
@@ -132,7 +146,7 @@ Downloaded by `spike/pose-bench/` (`npm ci`, `fetch-models.sh`), `spike/capture-
 | ONNX Runtime Web (`onnxruntime-web`) | 1.30.0 | MIT | npm. WebGPU: `ort.webgpu.min.mjs` + `ort-wasm-simd-threaded.asyncify.wasm` (26.8 MB); WebAssembly only: `ort.wasm.min.mjs` + `ort-wasm-simd-threaded.wasm` (14.2 MB) |
 | mp4box.js (`mp4box`) | 2.4.1 | BSD-3-Clause | npm, `dist/mp4box.all.mjs` |
 | MediaPipe Tasks Vision (`@mediapipe/tasks-vision`) | 1.1.1 | Apache-2.0 | npm; `wasm/vision_wasm_module_internal.wasm` (13.5 MB) |
-| mediabunny | 1.61.6 | MPL-2.0 (file-level copyleft, GPL-3.0-compatible) | npm, `dist/bundles/mediabunny.mjs`; `spike/capture-check/` only: reads MediaRecorder's WebM and fragmented MP4, writes MP4/WebM from WebCodecs. Chosen over jswebm (MIT, small, unmaintained, untested on MediaRecorder's unknown-size clusters) and web-demuxer (an LGPL FFmpeg build in wasm) |
+| mediabunny | 1.61.6 | MPL-2.0 (file-level copyleft, AGPL-3.0-compatible) | npm, `dist/bundles/mediabunny.mjs`; `spike/capture-check/` only: reads MediaRecorder's WebM and fragmented MP4, writes MP4/WebM from WebCodecs. Chosen over jswebm (MIT, small, unmaintained, untested on MediaRecorder's unknown-size clusters) and web-demuxer (an LGPL FFmpeg build in wasm) |
 | TensorFlow.js (`@tensorflow/tfjs-core`, `-converter`, `-backend-webgl`, `-backend-webgpu`, `-backend-wasm`) | 4.22.0 | Apache-2.0 | npm; bundled per backend by `spike/pose-bench/build-tfjs.mjs`: WebGL 1.17 MB, WebGPU 0.82 MB, WebAssembly 0.97 MB + `tfjs-backend-wasm-simd.wasm` (0.42 MB). The WebGL and WebGPU backends are TypeScript and shaders, no wasm |
 | TF.js pose-detection (`@tensorflow-models/pose-detection`) | 2.1.3 | Apache-2.0 | npm; MoveNet and BlazePose with runtime `tfjs`. Its peer `@mediapipe/pose` (0.5, Apache-2.0, a prebuilt wasm) is installed by npm but stubbed out of the bundles |
 | esbuild | 0.28.2 | MIT | npm, dev only: builds the TF.js bundles |
@@ -150,7 +164,8 @@ Downloaded by `spike/pose-bench/` (`npm ci`, `fetch-models.sh`), `spike/capture-
 | BlazePose full, the Pose Landmarker's own models converted to ONNX | `pose_{detector,landmarks}_full.onnx`, 11.9 / 12.2 MB (fp32; the detector's sparse weights made dense) | Apache-2.0, as the `.task` it comes from | `spike/pose-bench/convert-blazepose.py` from `pose_landmarker_full.task`; tf2onnx 1.17.0, TensorFlow 2.20.0, onnx 1.19.1 (Apache-2.0) and onnxruntime 1.23.2 (MIT) in a scratch venv, dev only. Not byte-reproducible (two runs, two SHA-256s); each output is checked against TF Lite (max difference 9e-4) |
 | YOLOX-nano / -tiny (COCO), the person detector for ViTPose and RTMPose | `yolox_{nano,tiny}.onnx`, 3.7 / 20.2 MB | Apache-2.0 (Megvii's repo and release) | `github.com/Megvii-BaseDetection/YOLOX/releases/tag/0.1.1rc0` |
 
-Left out: YOLOv8 and every Ultralytics model (AGPL-3.0); OpenMMLab's
+Left out: YOLOv8 and every Ultralytics model (AGPL-3.0, while coach was
+GPL-3.0; the app doesn't need them either); OpenMMLab's
 RTMDet-nano person detector (trained on Objects365, whose terms are reported
 as non-commercial, unverified) and its YOLOX HumanArt detectors (Human-Art is
 licensed for non-commercial use only).

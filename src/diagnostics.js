@@ -884,6 +884,7 @@ function makeFirstPullBackAngle(spec) {
     unit: '°',
     provisional: true,   // SD_GOOD/SD_WARN
     worstRule: 'farthest-from-mean',   // the verdict is the SD around the pull's mean
+    zones: null,   // the verdict reads the SD, which the plot (the angle itself) doesn't show
 
     // Active phase: floor to bar-past-knee — both triggers come from
     // firstPullWindow, which is shared with the bar-axis estimate (see there for
@@ -1167,6 +1168,7 @@ const secondPullTripleExtension = {
   unit: '°',
   provisional: true,   // EXT_GOOD/EXT_WARN
   worstRule: 'phase-end',   // the deficits are read over the phase's last samples
+  zones: null,   // the verdict reads the larger of two deficits averaged over the last samples, not one plotted value
 
   // Active phase: bar-past-knee (the first pull's own end trigger) to peak hip
   // elevation.
@@ -1514,6 +1516,15 @@ const lateralRaiseTopHeight = {
   unit: '%',
   provisional: true,   // TOP_GOOD/TOP_WARN
   worstRule: 'summary-worst',   // the verdict is the worst rep's height
+  // The verdict reads the worst rep's size (worstAbs): too high and too low
+  // alike, so the bands are mirrored about shoulder height (0). Lowest first.
+  zones: [
+    { status: 'critical', from: null, to: -TOP_WARN },
+    { status: 'warning', from: -TOP_WARN, to: -TOP_GOOD },
+    { status: 'good', from: -TOP_GOOD, to: TOP_GOOD },
+    { status: 'warning', from: TOP_GOOD, to: TOP_WARN },
+    { status: 'critical', from: TOP_WARN, to: null },
+  ],
 
   // Active phase: every rep this clip contains, start to finish — the union of
   // lateralRaiseReps' rep list rather than one window, since the cue applies
@@ -1683,6 +1694,7 @@ const lateralRaiseTorsoLean = {
   unit: '°',
   provisional: true,   // LEAN_GOOD/LEAN_WARN
   worstRule: 'farthest-from-mean',   // the verdict is the SD around the set's mean
+  zones: null,   // the verdict reads the SD, which the plot (the angle itself) doesn't show
 
   // Active phase: the same rep span lateralRaiseTopHeight uses, but measured
   // continuously frame-by-frame rather than only at each rep's peak — a lean
@@ -1837,6 +1849,11 @@ const lateralRaiseElbowLead = {
   unit: '%',
   provisional: true,   // ELBOW_GOOD/ELBOW_WARN
   worstRule: 'summary-worst',   // the verdict is the lowest elbow lead
+  zones: [   // lowest first, as verdict() reads summary.worst
+    { status: 'critical', from: null, to: ELBOW_WARN },
+    { status: 'warning', from: ELBOW_WARN, to: ELBOW_GOOD },
+    { status: 'good', from: ELBOW_GOOD, to: null },
+  ],
 
   phase(samples, scale, ax) {
     const notes = [];
@@ -1977,6 +1994,11 @@ const lateralRaiseTempo = {
   unit: 'x',
   provisional: true,   // TEMPO_GOOD/TEMPO_WARN
   worstRule: 'summary-worst',   // the verdict is the fastest descent
+  zones: [   // lowest first, as verdict() reads summary.worst
+    { status: 'good', from: null, to: TEMPO_GOOD },
+    { status: 'warning', from: TEMPO_GOOD, to: TEMPO_WARN },
+    { status: 'critical', from: TEMPO_WARN, to: null },
+  ],
 
   phase(samples, scale, ax) {
     const notes = [];
@@ -2123,6 +2145,7 @@ const lateralRaiseSymmetry = {
   unit: '%',
   provisional: true,   // SYM_GOOD/SYM_WARN
   worstRule: 'summary-last',   // the decline is measured to the last rep
+  zones: null,   // the verdict reads the decline, first rep minus last, which the plot (each rep's height) doesn't show
 
   phase(samples, scale, ax) {
     const notes = [];
@@ -2501,6 +2524,50 @@ function cueWorstMoment(d, res) {
   if (!res || res.error || !res.series || !res.series.length || !WORST_RULES[d.worstRule]) return null;
   const s = WORST_RULES[d.worstRule](res);
   return s ? { t: s.t, idx: s.idx, frame: s.frame, value: s.value, rule: d.worstRule } : null;
+}
+
+// A2's "How it's scored" block: the cue's transparency lines, the bullets the
+// old panel lists under its plot, as plain text. Every line is
+// '<strong>label</strong> — text'; the label is split off and nothing else may
+// be markup (a tag or an entity), so a cue can't slip HTML into the app: such
+// a line throws, naming the cue. A cue that can't be scored has none ([]).
+const LINE_RE = /^<strong>([^<>]+)<\/strong> — ([\s\S]*)$/;
+const MARKUP_RE = /[<>]|&(?:[a-zA-Z]+|#\d+|#x[0-9a-fA-F]+);/;
+
+function cueScoringLines(d, out, smoothingMs) {
+  const res = out && out.results ? out.results[d.id] : null;
+  if (!res || res.error) return [];
+  const ctxExtra = { smoothingMs, scale: out.scale, axis: out.axis };
+  return d.transparencyLines(res, out.samples, ctxExtra).map(line => {
+    const m = LINE_RE.exec(line);
+    if (!m || MARKUP_RE.test(m[1]) || MARKUP_RE.test(m[2])) {
+      throw new Error('Cue ' + d.id + ': a transparency line must be "<strong>label</strong> — text" ' +
+        'with no other markup: ' + JSON.stringify(line));
+    }
+    return { label: m[1], text: m[2] };
+  });
+}
+
+// Contract 4's status words (app/src/contracts/cue-view.mjs, VERDICT_STATUS)
+// for the verdict levels a cue's zones are declared in.
+const ZONE_STATUS = { good: 'good', warning: 'watch', critical: 'work on' };
+
+// The bands A2 draws behind the cue's plot, from the cue's own `zones`: an array
+// of { status, from, to } lowest first, in the cue's verdict levels and built
+// from its threshold constants, or null where the plot doesn't show the value
+// the verdict reads. A cue that declares neither throws, so a new cue can't
+// reach the app without saying which.
+function cueZones(d) {
+  if (d.zones === undefined) {
+    throw new Error('Cue ' + d.id + ' declares no zones: an array of bands, or null with the reason');
+  }
+  if (d.zones === null) return null;
+  return d.zones.map(z => {
+    if (!Object.prototype.hasOwnProperty.call(ZONE_STATUS, z.status)) {
+      throw new Error('Cue ' + d.id + ': no status word for the zone level ' + JSON.stringify(z.status));
+    }
+    return { status: ZONE_STATUS[z.status], from: z.from, to: z.to };
+  });
 }
 
 function overlaySize(ctx) {
@@ -2894,6 +2961,29 @@ function buildSections() {
 //       between samples, default false), cubic (the interpolator, linear
 //       without one), label (draw the phase label, default true), labelRow
 //       (its line, default 0). It is what overlay() draws for that cue.
+//   scoringLines(id, computed, { smoothingMs }) -> [{ label, text }]
+//       A2's "How it's scored" block: the cue's transparency lines, the
+//       bullets the old panel lists under its plot (the phase, the
+//       measurement, the bar axis, the time smoothing, the caveat with the
+//       provisional bands, the notes), as plain text: each line's <strong>
+//       label split off, so `<strong>label</strong> — text` is the panel's line
+//       again. A line with any other markup throws, naming the cue. computed
+//       is computeResults()'s whole output (the lines need its samples, scale
+//       and axis); smoothingMs is the σ in ms the track was smoothed with
+//       before computeResults() (0: the raw track), required, since the "Time
+//       smoothing" line says it. [] for a cue that can't be scored.
+//   zones(id) -> [{ status, from, to }] | null
+//       The verdict's bands on the plot's scale, in the cue's unit, lowest
+//       first, from the cue's own threshold constants: status is contract 4's
+//       word (good, watch, work on), from and to the band's edges, null where a
+//       band is open-ended. An edge value belongs to the band the cue's
+//       verdict() puts it in. For a cue whose verdict reads one value of its
+//       series (worstRule 'summary-worst'): the elbow lead and the tempo read
+//       the worst value as signed; the top height reads its size (worstAbs),
+//       so its bands are mirrored about shoulder height. null for a cue scored
+//       on something its series doesn't plot (the back angles' and the torso
+//       lean's SD, the symmetry's decline, the triple extension's deficits;
+//       contract 4's VERDICT_VALUE), where bands on the plot would mislead.
 //
 // Every id is a cue id from any set (unknown ids throw); none of these read the
 // active page or the mounted state.
@@ -2924,6 +3014,19 @@ const Diagnostics = {
 
   worstMoment(id, result) {
     return cueWorstMoment(cueById(id), result);
+  },
+
+  scoringLines(id, computed, opts) {
+    const d = cueById(id);
+    const ms = opts ? opts.smoothingMs : undefined;
+    if (typeof ms !== 'number' || !isFinite(ms) || ms < 0) {
+      throw new Error('scoringLines: opts.smoothingMs is the smoothing the track was scored with, in ms (0 for none)');
+    }
+    return cueScoringLines(d, computed, ms);
+  },
+
+  zones(id) {
+    return cueZones(cueById(id));
   },
 
   drawCue(ctx, id, t, computed, opts) {

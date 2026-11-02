@@ -42,12 +42,28 @@ const bool = v => typeof v === 'boolean';
 const intIn = (lo, hi) => v => Number.isInteger(v) && v >= lo && v <= hi;
 const oneOf = list => v => list.includes(v);
 
+/**
+ * The whole-second ranges of the replay's length, the delayed view's delay and
+ * the buffer. PROVISIONAL (nordmu, 2026-11-02): c27 measures the buffer's memory
+ * on the phone, and the replay's and the buffer's limits may move with it. S1
+ * offers values only inside these (app/src/ui/settings-model.mjs).
+ */
+export const RANGES = Object.freeze({
+  replayS: Object.freeze({ min: 5, max: 60 }),
+  delayS: Object.freeze({ min: 5, max: 20 }),
+  bufferS: Object.freeze({ min: 10, max: 300 }),
+});
+const rangeCheck = ([k, unit]) => [intIn(RANGES[k].min, RANGES[k].max), `must be a whole number of ${unit} from ${RANGES[k].min} to ${RANGES[k].max}`];
+
+// PROVISIONAL ranges, replayS 5-60 s, bufferS 10-300 s, delayS 5-20 s (RANGES above), and
+// smoothingSigmaMs 0-1000 ms (VIEW_FIELDS): they stay until c27 measures the buffer's memory on
+// the phone (nordmu, 2026-11-02). Do not read them as settled limits.
 /** Per field: the check, and what it says when it fails. */
 const FIELDS = {
   replayMode: [oneOf(['replay', 'delayed']), "must be 'replay' or 'delayed'"],
-  replayS: [intIn(5, 60), 'must be a whole number of seconds from 5 to 60'],
-  delayS: [intIn(5, 20), 'must be a whole number of seconds from 5 to 20'],
-  bufferS: [intIn(10, 300), 'must be a whole number of seconds from 10 to 300'],
+  replayS: rangeCheck(['replayS', 'seconds']),
+  delayS: rangeCheck(['delayS', 'seconds']),
+  bufferS: rangeCheck(['bufferS', 'seconds']),
   camera: [oneOf(['back', 'front']), "must be 'back' or 'front'"],
   quality: [v => typeof v === 'string' && v.length > 0, 'must be a non-empty string'],
   defaultLift: [oneOf(LIFTS), `must be one of ${LIFTS.join(', ')}`],

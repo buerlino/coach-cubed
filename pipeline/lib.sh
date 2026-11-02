@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # pipeline/lib.sh: the helpers of pipeline/pipeline.sh, sourced by it, by pipeline/gc.sh and by the tests. Ported from pascaline's
 # scripts/pipeline-lib.sh; the pascaline package that introduced a rule is named in brackets, so its history can be looked up there.
 
