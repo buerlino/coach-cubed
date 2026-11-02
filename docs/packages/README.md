@@ -52,7 +52,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 17 | `s36` | A lift without a lift window says so | schrödinger, opus | `s35` | waits |
 | 18 | `s37` | batch_extract_tracks.py writes the diagnostics set | schrödinger, sonnet | — | waits |
 | 19 | `s38` | One-frame steps from a cache | schrödinger, opus | `s35`, `c34` | waits |
-| 20 | `d13` | H and importing a video | dirac, sonnet | `d3`, `c8` | waits |
+| 20 | `d13` | H and importing a video | dirac, sonnet | `d3`, `c8`, `s12` | waits |
 | 21 | `d14` | M1–M3, marking a lift | dirac, sonnet | `s9`, `s12`, `s35`, `s38` | waits |
 | 22 | `d15` | Q1, analysing | dirac, sonnet | `s12` | waits |
 | 23 | `d16` | A1's player with the skeleton overlay | dirac, sonnet | `s9`, `s11`, `s32`, `s35` | waits; L at the limit: split point `d16b` |
@@ -60,19 +60,20 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | | | **Look A0** (D7): nordmu, about 15 minutes on the Fairphone | | `d13`, `d14`, `d15`, `d17`, `c20` | not a gate |
 | 25 | `c19` | The service worker, the app offline | curie, sonnet | `d3`, `s6`, `s12` | waits |
 | 26 | `c21` | The page test, offline | curie, sonnet | `d13`, `d14`, `d15`, `d17`, `c19` | waits |
-| 27 | `d18` | A2, a cue's detail | dirac, sonnet | `d17`, `s4` | waits |
-| 28 | `d22` | A3, view options | dirac, sonnet | `d17`, `c8`, `d14`, `s35` | waits |
-| 29 | `d23` | The screens v1 doesn't draw | dirac, sonnet | `d17`, `s12`, `c8` | waits |
-| 30 | `d24` | S1, settings and about | dirac, sonnet | `c8` | waits |
-| 31 | `d25` | A4 and the responsive check | dirac, sonnet | `d18`, `c21` | waits |
-| 32 | `c26` | Milestone A on the Fairphone | curie, sonnet | `d13`, `d14`, `d18`, `c19`, `c20`, `c34` | waits; phone: by day, nordmu told (airplane mode) |
+| 27 | `s39` | The headless API gives A2's scoring lines and zones | schrödinger, opus | `s35`, `s36` | waits |
+| 28 | `d18` | A2, a cue's detail | dirac, sonnet | `d17`, `s4`, `s39` | waits |
+| 29 | `d22` | A3, view options | dirac, sonnet | `d17`, `c8`, `d14`, `s35` | waits |
+| 30 | `d23` | The screens v1 doesn't draw | dirac, sonnet | `d17`, `s12`, `c8` | waits |
+| 31 | `d24` | S1, settings and about | dirac, sonnet | `c8` | waits |
+| 32 | `d25` | A4 and the responsive check | dirac, sonnet | `d18`, `c21` | waits |
+| 33 | `c26` | Milestone A on the Fairphone | curie, sonnet | `d13`, `d14`, `d18`, `c19`, `c20`, `c34` | waits; phone: by day, nordmu told (airplane mode); its numbers set s12's stall time and time left (nordmu, 2026-11-02) |
 | | | **Checkpoint A:** nordmu uses milestone A on the Fairphone; feedback by screen ID. Then **2.7 and 2.8** with the queue empty (D8) | | `c26` | |
-| 33 | `c33` | The tester APK: the real name and ID, release signing | curie | checkpoint A, 2.8, question 10, the key's holder | id only: written after checkpoint A |
-| 34 | `c27` | Capture and the rolling buffer (cuts with `s32`'s cut) | curie | checkpoint A | id only |
-| 35 | `d28` | R1 and R2 | dirac | `c27` | id only |
-| 36 | `d29` | R3 and R3b | dirac | `d28`, `d14` | id only |
-| 37 | `c30` | Recording and analysis together | curie | `d29`, `s12` | id only |
-| 38 | `c31` | A session on the Fairphone | curie | `c30` | id only; phone: by day |
+| 34 | `c33` | The tester APK: the real name and ID, release signing | curie | checkpoint A, 2.8, question 10, the key's holder | id only: written after checkpoint A |
+| 35 | `c27` | Capture and the rolling buffer (cuts with `s32`'s cut) | curie | checkpoint A | id only |
+| 36 | `d28` | R1 and R2 | dirac | `c27` | id only |
+| 37 | `d29` | R3 and R3b | dirac | `d28`, `d14` | id only |
+| 38 | `c30` | Recording and analysis together | curie | `d29`, `s12` | id only |
+| 39 | `c31` | A session on the Fairphone | curie | `c30` | id only; phone: by day |
 | | | **Checkpoint B:** nordmu runs a real gym session | | `c31` | |
 
 Gates outside the queue ([../app-plan.md](../app-plan.md#gates-outside-the-sessions)): no APK goes to testers before
