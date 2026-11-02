@@ -20,10 +20,11 @@
 // No browser found: fails with one clear line, unless COACH_PAGE_TEST_SKIP=1 (then it says it skipped, exit 0).
 //
 // --break KIND   a deliberate fault, to see the test fail (exit 1): console (a console.error), http (a
-//                request that 404s), rejection (an unhandled rejection), stall (the replay engine's tracks
-//                missing, so no job finishes), cards (a fixture track altered in the test build, so the
+//                request that 404s, made online), rejection (an unhandled rejection), stall (the replay
+//                engine has no tracks, so the job fails), hang (the replay engine never answers: the job
+//                does not finish in its time, 5 s here), cards (a fixture track altered in the test build, so the
 //                cards differ from the adapter's).
-// --real CLIP    off by default: the real engine (MoveNet on TF.js, the CPU backend) on one example clip,
+// --real CLIP    off by default: the real engine (MoveNet on TF.js; its WebGL backend, which headless Brave runs in software, on the CPU: the app has no other) on one example clip,
 //                CLIP being lateral-raise-cable-1 or athlete-a-trim, read from the phase-0 worktree's
 //                tests/fixtures/local/example/ (found with `git worktree list`; read in place, never copied;
 //                its app/vendor/tfjs/ and app/models/ are used when this folder has none). Online, not
@@ -64,6 +65,8 @@ function findBrowser() {
   return null;
 }
 
+const breakKind = arg('--break');
+if (breakKind && !['console', 'http', 'rejection', 'stall', 'hang', 'cards'].includes(breakKind)) { console.error(`page-test: --break wants console, http, rejection, stall, hang or cards (got ${breakKind})`); process.exit(2); }
 const browserPath = findBrowser();
 if (!browserPath) {
   if (process.env.COACH_PAGE_TEST_SKIP === '1') { say('page-test: SKIPPED: no Brave or Chromium found (COACH_PAGE_TEST_SKIP=1)'); process.exit(0); }
@@ -71,10 +74,8 @@ if (!browserPath) {
   process.exit(1);
 }
 
-const breakKind = arg('--break');
-if (breakKind && !['console', 'http', 'rejection', 'stall', 'cards'].includes(breakKind)) { console.error(`page-test: --break wants console, http, rejection, stall or cards (got ${breakKind})`); process.exit(2); }
 const realClip = arg('--real');
-const JOB_S = Number(process.env.COACH_PAGE_TEST_JOB_S) || (realClip ? 540 : 60);
+const JOB_S = Number(process.env.COACH_PAGE_TEST_JOB_S) || (breakKind === 'hang' ? 5 : realClip ? 540 : 60);
 
 // ---- the phase-0 worktree, for --real ----
 function phase0() {
@@ -127,7 +128,13 @@ console.log = () => {};   // serve.mjs logs every request; this script says what
 try {
   // 1. the test build
   const built = assemble({ out: dist, app: APP, src: join(ROOT, 'src'), test: true, log: () => {} });
-  if (breakKind === 'stall') writeFileSync(join(dist, 'page-test', 'tracks.json'), '[]\n');   // sealed: the manifest is the one hashed file we change; the SW does not matter on a first load
+  if (breakKind === 'stall') writeFileSync(join(dist, 'page-test', 'tracks.json'), '[]\n');   // the manifest is changed after files.json's hash was made: the first load does not mind
+  if (breakKind === 'hang') {
+    const f = join(dist, 'page-test', 'replay.mjs');
+    const text = readFileSync(f, 'utf8');
+    if (!text.includes('async estimate() {')) throw new Error('--break hang: replay.mjs changed, update the break');
+    writeFileSync(f, text.replace('async estimate() {', 'estimate() { return new Promise(() => {}); },\n    async unused() {'));
+  }
   if (breakKind === 'cards') {
     const f = join(dist, 'page-test', TEST_TRACKS[0].file);
     const track = JSON.parse(readFileSync(f, 'utf8'));
@@ -215,6 +222,7 @@ try {
   let preReload = new Set();
   await send('Page.navigate', { url: `${origin}/${realClip ? '?real' : ''}` });
   await waitFor(`document.querySelector('[data-screen="H"]')`, 'H on the first load');
+  if (breakKind === 'http') await evaluate(`fetch('./no-such-file.txt').then(() => 0, () => 0)`);   // online: the server says 404
   if (!realClip) {
     await waitFor(`(async () => {
       const reg = await navigator.serviceWorker.getRegistration();
@@ -233,11 +241,10 @@ try {
     await waitFor(`document.querySelector('[data-screen="H"]') && !!navigator.serviceWorker.controller`, 'H after the offline reload');
     result.offlineReload = { at: stamp() };
   }
-  const mark = events.length;   // errors count from the first load on (events before are kept: nothing is cleared)
+  // errors count from the first load on: no event is cleared
 
-  // the break that needs the page
+  // the breaks that need the page
   if (breakKind === 'console') await evaluate(`console.error('page-test --break console')`);
-  if (breakKind === 'http') await evaluate(`fetch('./no-such-file.txt').then(() => 0, () => 0)`);
   if (breakKind === 'rejection') await evaluate(`void Promise.reject(new Error('page-test --break rejection'))`);
 
   // 5. the lifts
@@ -271,8 +278,18 @@ try {
     await mouse('mousePressed', strip.x + strip.w - 10);
     for (let k = 1; k <= 10; k++) await mouse('mouseMoved', strip.x + strip.w - 10 - (strip.w - 20) * k / 10);   // the whole strip leftwards: far past the end, which clamps
     await mouse('mouseReleased', strip.x + 10);
+    // the drag clamps at the last frame: the playhead stops there (the clip's own last frame; the example clips may have
+    // one frame more than their fixture's track)
+    let seen = null, still = 0;
+    for (let i = 0; i < 200 && still < 8; i++) {
+      await sleep(100);
+      const now = await evaluate(`document.querySelector('.strip')?.getAttribute('aria-valuenow') ?? null`);
+      still = now !== null && now === seen && Number(now) > 0 ? still + 1 : 0;
+      seen = now;
+    }
+    if (still < 8) throw new Error('timed out waiting for the playhead at the last frame');
     const lastAt = ((l.meta.frame_count - 1) / l.meta.fps).toFixed(1);   // the strip's aria-valuenow, to a tenth
-    await waitFor(`document.querySelector('.strip')?.getAttribute('aria-valuenow') === ${JSON.stringify(lastAt)}`, `the playhead at the last frame (${lastAt} s)`);
+    if (!realClip && seen !== lastAt) throw new Error(`the playhead stopped at ${seen} s, not at the last frame (${lastAt} s)`);
     await sleep(300);   // the frame under the playhead settles
     if (!await click('.mark-main--set')) throw new Error('M: Set end was not there');
     await waitFor(`document.querySelector('[data-screen="M"][data-step="ready"] .mark-main.button--primary:not([disabled])')`, 'M ready to analyse');
@@ -340,7 +357,6 @@ try {
   }
   for (const h of hits) if (h.status >= 400) problems.push(`server answered ${h.status} to ${h.url}`);
   if (!realClip && hits.length > result.hitsBeforeOffline) problems.push(`${hits.length - result.hitsBeforeOffline} request(s) reached the server after it was taken away`);
-  void mark;
   result.browser = (await (await fetch(`http://127.0.0.1:${port}/json/version`)).json()).Browser;
   result.files = built.files.length;
   result.vendoredFromPhase0 = vendored || undefined;
