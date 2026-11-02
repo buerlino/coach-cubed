@@ -28,7 +28,7 @@ export const SCREEN_OF = {
 
 // Where each state may go. Milestone A: H, import, mark, queued, result, and
 // back to H; open a lift from H (still analysing: queued; done: result);
-// leave Q1 without stopping the analysis (home); re-mark from the result (A3).
+// leave Q1 without stopping the analysis (home); pick another video after "No person found" (d51: queued → import); re-mark from the result (A3).
 // S1's "How the cues are scored" (d18): settings → scoring and back.
 // The first run (d23): the app starts in `welcome` once, which leads to home or import; nothing leads back to it.
 // Milestone B: H, live (R2), replay (R3), mark, then back to live with the
@@ -38,7 +38,7 @@ export const TRANSITIONS = {
   home: ['import', 'settings', 'queued', 'result', 'live'],
   import: ['mark', 'home'],
   mark: ['queued', 'home', 'import', 'live'],
-  queued: ['result', 'home', 'live'],
+  queued: ['result', 'home', 'live', 'import'],
   result: ['home', 'mark', 'detail'],
   detail: ['result', 'home'],
   settings: ['home', 'scoring'],

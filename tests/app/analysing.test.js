@@ -144,6 +144,30 @@ test('a failed job: its reason in the engine\'s words, retry instead of cancel, 
   assert.equal(v.left, '');
 });
 
+test('d51: "Pick another video" is offered on "No person found" only; the other problems keep their buttons', async () => {
+  const { analysingView } = await model();
+  const failed = error => analysingView([job(LR, 'failed', { progress: progress('pose', 120, 390), error })], { liftId: LR.id, lift: LR });
+  const nobody = failed('No person was found in the marked part of the video. detected in only 0 sampled frames');
+  assert.equal(nobody.problem.kind, 'no-person');
+  assert.equal(nobody.actions.another, true);
+  assert.equal(nobody.actions.retry, false);
+  for (const error of ['The pose engine failed: x', 'The video file ends early.', 'The analysis stopped responding: no progress for 30 s with the app open.']) {
+    const v = failed(error);
+    assert.equal(v.actions.another, false, error);
+    assert.equal(v.actions.retry, true, error);
+  }
+  assert.equal(failed('The video could not be read (unreadable): x').actions.another, false, 'unreadable keeps its own buttons on Q1');
+  for (const state of ['pose', 'queued', 'cancelled', 'done']) {
+    assert.equal(analysingView([job(LR, state, { progress: progress('pose', 1, 390) })], { liftId: LR.id }).actions.another, false, state);
+  }
+});
+
+test('d51: Q1 draws the button on the panel, as a 44 px-class big button that goes to the import step', () => {
+  const fs = require('node:fs');
+  const q1 = fs.readFileSync(path.join(APP, 'src', 'ui', 'screens', 'Q1.mjs'), 'utf8');
+  assert.match(q1, /view\.actions\.another \? html`<button type="button" class="button--primary button-big" onClick=\$\{\(\) => flow\.go\('import'\)\}>Pick another video<\/button>`/);
+});
+
 test('a cancelled job: stopped, retry offered, no reason', async () => {
   const { analysingView } = await model();
   const v = analysingView([job(LR, 'cancelled', { progress: progress('pose', 120, 390) })], { liftId: LR.id });

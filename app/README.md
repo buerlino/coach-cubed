@@ -279,9 +279,11 @@ lifts/<id>/lift.json    the lift's record: contract 3, a StoredLift
   checks the patch (`validateSettingsPatch`) and keeps the merge. The fields
   are in `settings.mjs` (`introSeen`, `d23`: the first-run screen has been left; no row in S1). **The ranges are provisional** (nordmu, 2026-11-02):
   a replay of 5–60 s, a buffer of 10–300 s, a delay of 5–20 s and a smoothing
-  of 0–1000 ms (`RANGES` and the view fields in `settings.mjs`) stay as `c8`
-  chose them until `c27` measures the buffer's memory on the phone. S1 offers
-  values only inside them.
+  of 0–300 ms (`RANGES` and the view fields in `settings.mjs`) stay as `c8`
+  chose them (the smoothing's cap was 1000 ms until `d51`, when nordmu set it to A3's
+  slider end, 2026-11-02) until `c27` measures the buffer's memory on the phone. S1
+  offers values only inside them. A record stored with a smoothing above 300 ms reads
+  back as 300 (`readSettings`), not as a damaged field; a patch above 300 is refused.
 - **`persist()`** is asked at the first save, once; the answer is kept in
   `meta.json` (`persistAnswer()`), and a refusal doesn't stop the save.
 - **Quota:** `storageInfo()` gives `estimate()`'s usage and quota, the room
@@ -952,7 +954,7 @@ nordmu in the app. Screenshots stay out of git; this is what each looks like.
   | `unreadable` | s9's `MediaError` `unreadable`, `no-video`, `decode-failed`, `decode-stalled` | This video can't be read | pick another video |
   | `unsupported-codec` | s9's `unsupported-codec` (names the codec) | This phone can't play this video | pick another video |
   | `no-webcodecs` | s9's `no-webcodecs` | This app can't read videos here | back |
-  | `no-person` | s12's job: a track nobody is in (`kept_frames` 0) fails with `NO_PERSON` and diagnostics.js's reason | No person found | pick another video (from M); back to home (from Q1) |
+  | `no-person` | s12's job: a track nobody is in (`kept_frames` 0) fails with `NO_PERSON` and diagnostics.js's reason | No person found | pick another video (from M and, since `d51`, from Q1: `queued → import`); back to home |
   | `engine-failed` | s12: `EngineError` (`ENGINE_FAILED` and the worker's message) and the watchdog's `StallError` | The pose engine stopped | analyse again |
   | `storage-full` | c8's `StoreError` `storage-full`, at Analyse (`saveLift`) and in the job (`updateLift`, as the job's string) | Storage is full | try again after deleting lifts |
   | `failed` | anything else, in its own words | That didn't work | try again |
@@ -1004,7 +1006,9 @@ plain functions that Node runs (`tests/app/analysing.test.js`):
 - **Buttons:** Open the result (done: `go('result', {liftId})`), Analyse again
   (failed or stopped: the queue's `retry`, or `enqueue(lift)` when the queue
   no longer holds the job), Back to home (to `live` with `from: 'live'` in
-  the params, "Back to the session"), Cancel this analysis (`queue.cancel`).
+  the params, "Back to the session"), Cancel this analysis (`queue.cancel`), and
+  (`d51`) Pick another video (`actions.another`, `go('import')`: `queued → import` is legal) on the "No person found"
+  panel only, a big primary button like "Analyse again"; the other problems keep their buttons.
 
 ## H, home, and the import step
 

@@ -75,7 +75,7 @@ const HEADING = { done: 'Ready', failed: "Couldn't analyse", cancelled: 'Stopped
  * @param {import('../analysis/estimate.mjs').Rate|null} [ctx.rate] the queue's measured rate, for the other lifts' times
  * @param {boolean} [ctx.visible] false while the app is in the background: a running job is then paused
  * @returns {Object} kind (running, paused, waiting, done, failed, cancelled, idle), heading, lift, percent,
- *   pctLabel, left, eta, stages, reason, problem (d23: problem-model.mjs's, for a failed job), queue, actions {cancel, retry, open}, jobId, liftId
+ *   pctLabel, left, eta, stages, reason, problem (d23: problem-model.mjs's, for a failed job), queue, actions {cancel, retry, another, open}, jobId, liftId
  */
 export function analysingView(jobs, { liftId, lift = null, rate = null, visible = true } = {}) {
   const job = pick(jobs, liftId);
@@ -122,6 +122,8 @@ export function analysingView(jobs, { liftId, lift = null, rate = null, visible 
     actions: {
       cancel: ongoing,
       retry: (kind === 'failed' && problem.actions.retry) || kind === 'cancelled',
+      // d51: only "No person found" offers another video here; the other problems keep their buttons
+      another: !!problem && problem.kind === 'no-person',
       open: kind === 'done' && id ? { to: 'result', params: { liftId: id } } : null,
     },
     jobId: job ? job.id : null,

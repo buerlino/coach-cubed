@@ -40,6 +40,9 @@ export const DEFAULT_SETTINGS = Object.freeze({
   view: Object.freeze({ skeleton: true, cues: true, unsure: false, loop: true, speed: 1, smoothingSigmaMs: 50 }),
 });
 
+/** The largest smoothing σ in ms: A3's slider ends here, and a stored value above it reads as this (d51). */
+export const SMOOTHING_MAX_MS = 300;
+
 const bool = v => typeof v === 'boolean';
 const intIn = (lo, hi) => v => Number.isInteger(v) && v >= lo && v <= hi;
 const oneOf = list => v => list.includes(v);
@@ -58,7 +61,7 @@ export const RANGES = Object.freeze({
 const rangeCheck = ([k, unit]) => [intIn(RANGES[k].min, RANGES[k].max), `must be a whole number of ${unit} from ${RANGES[k].min} to ${RANGES[k].max}`];
 
 // PROVISIONAL ranges, replayS 5-60 s, bufferS 10-300 s, delayS 5-20 s (RANGES above), and
-// smoothingSigmaMs 0-1000 ms (VIEW_FIELDS): they stay until c27 measures the buffer's memory on
+// smoothingSigmaMs 0-300 ms (SMOOTHING_MAX_MS, A3's slider; nordmu capped it at 300 on 2026-11-02): they stay until c27 measures the buffer's memory on
 // the phone (nordmu, 2026-11-02). Do not read them as settled limits.
 /** Per field: the check, and what it says when it fails. */
 const FIELDS = {
@@ -78,7 +81,7 @@ const VIEW_FIELDS = {
   unsure: [bool, 'must be true or false'],
   loop: [bool, 'must be true or false'],
   speed: [oneOf([0.25, 0.5, 1]), 'must be 0.25, 0.5 or 1'],
-  smoothingSigmaMs: [v => isNumber(v) && v >= 0 && v <= 1000, 'must be a number from 0 to 1000'],
+  smoothingSigmaMs: [v => isNumber(v) && v >= 0 && v <= SMOOTHING_MAX_MS, `must be a number from 0 to ${SMOOTHING_MAX_MS}`],
 };
 
 /** A copy of the defaults: callers may change it. */
@@ -141,6 +144,9 @@ export function readSettings(stored) {
   for (const [k, [ok]] of Object.entries(FIELDS)) if (k in stored && ok(stored[k])) out[k] = stored[k];
   if (isObject(stored.view)) {
     for (const [k, [ok]] of Object.entries(VIEW_FIELDS)) if (k in stored.view && ok(stored.view[k])) out.view[k] = stored.view[k];
+    // a record kept under the old, higher cap: the value reads as the cap, not as damage (d51)
+    const sigma = stored.view.smoothingSigmaMs;
+    if (isNumber(sigma) && sigma > SMOOTHING_MAX_MS) out.view.smoothingSigmaMs = SMOOTHING_MAX_MS;
   }
   return out;
 }
