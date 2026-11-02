@@ -29,6 +29,7 @@ python3 -m unittest discover -s tests -p 'test_*.py'  # the Python tests
 | `docs.test.js` | The docs: AGENTS.md, CLAUDE.md and the big docs within their budgets, every relative link and anchor in a tracked `.md` file, every path `docs/README.md` names. The budgets are at its top. |
 | `test_launchers.py` | The local preview (`launchers/run_local.py`): its entry points, the `/` and `/original/` routes, and the example gallery. |
 | `test_sync_clipper_fixtures.py` | `scripts/sync_clipper_fixtures.py`: its clip-name pattern matches clipper's names (format string quoted from its `src/cut.py`) for attempts 1, 99, 100 and 123, keeps session, attempt and result, and rejects a name with no result; clips are found in attempt order (99 before 100). |
+| `test_batch_extract_tracks.py` | `scripts/batch_extract_tracks.py`'s `process_clip` with the server calls faked (no ViTPose, no network): a new manifest entry gets `"diagnostics"` equal to `--stance`; `--diagnostics <set>` sets it, also over a hand-set value; a re-extract keeps a hand-set value; `main()` passes the option through. |
 | `test_adb_guard.py` | The Bash hook `.claude/hooks/adb_guard.py`: a bare adb, another serial, the tablet's serial and the shared adb server are blocked, also behind wrappers, `bash -c` and `$( )`; `adb -s 4d42e62f`, `adb devices`, "adb" as a plain word and in a here-document's text pass. |
 
 The helpers: `fixtures.js` (where fixtures and goldens live), `loadDiagnostics.js`
@@ -78,7 +79,7 @@ gets committed except a `.gitkeep`.
 
 ```sh
 python scripts/batch_extract_tracks.py --stance snatch --dir clips_inbox/snatch
-python scripts/batch_extract_tracks.py --stance clean  --dir clips_inbox/clean
+python scripts/batch_extract_tracks.py --stance clean  --diagnostics clean-and-jerk --dir clips_inbox/clean
 ```
 
 Processes one clip at a time against the running app (that's the server's
@@ -91,7 +92,9 @@ This writes, per clip:
 tests/fixtures/local/<stance>/<clip-stem>.mp4          the source clip
 tests/fixtures/local/<stance>/<clip-stem>.track.json   its cached pose track
 ```
-and appends an entry to `tests/fixtures/local/manifest.json` keyed
+and appends an entry to `tests/fixtures/local/manifest.json`, with `"diagnostics"` set to
+`--diagnostics` (default: the stance, which is a `DIAGNOSTIC_SETS` key for `snatch`; `clean` needs
+`--diagnostics clean-and-jerk`), keyed
 `<stance>/<clip-stem>` (re-running on the same clip overwrites its entry
 rather than duplicating it). `local/` is gitignored: the clips show up in the
 app's example picker and in the tests on this machine, but never in a commit.
@@ -123,8 +126,7 @@ you have it) is a worked example.
 ### 5. (Optional) hand-label technique for the fixtures worth asserting on
 
 Edit the fixture's entry in its scope's `manifest.json` — `labels`, `notes`
-and `diagnostics` are never touched by the batch script once they've been
-filled in, so this is safe to do by hand at any point, including before or
+and `diagnostics` are kept by the batch script on a re-extract (unless `--diagnostics` is given), so this is safe to do by hand at any point, including before or
 after
 re-extracting the same clip:
 

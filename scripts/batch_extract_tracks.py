@@ -3,7 +3,7 @@ pose track as a test fixture.
 
     ./scripts/coach_launch.sh local          # or coach_launch_venv.sh
     python scripts/batch_extract_tracks.py --stance snatch clip1.mp4 clip2.mp4
-    python scripts/batch_extract_tracks.py --stance clean --dir ~/incoming_clips/
+    python scripts/batch_extract_tracks.py --stance clean --diagnostics clean-and-jerk --dir ~/incoming_clips/
 
 Deliberately a plain HTTP client, not a second process loading the ViTPose/
 YOLO weights: the app already exposes everything batch extraction needs
@@ -32,6 +32,12 @@ own clips, shown in the app's example picker on this machine only; "global"
 is committed and ships with the repo. Both have the same layout, so promoting
 a clip is a move of its track plus its manifest entry; the clip itself moves
 only if it may be published (tests/fixtures/README.md, "Videos").
+
+--diagnostics picks the DIAGNOSTIC_SETS key the fixtures are scored against; it
+defaults to --stance, so --stance snatch writes "diagnostics": "snatch". A stance
+that is not a set key (clean) needs it spelled out (clean-and-jerk). Without
+--diagnostics a re-extract keeps the value already in the clip's manifest entry
+(hand-set); with it, the option wins.
 
 A clip that errors (bad upload, no person detected, pose pass raised) is
 logged and skipped — one bad file shouldn't cost the rest of the batch.
@@ -111,7 +117,8 @@ def save_manifest(out_dir, manifest):
     (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
 
 
-def process_clip(base_url, clip_path, stance, size, frame_stride, out_dir, manifest):
+def process_clip(base_url, clip_path, stance, size, frame_stride, out_dir, manifest,
+                 diagnostics=None):
     slug = f"{stance}/{clip_path.stem}"
     print(f"-> {slug}")
     start_job(base_url, clip_path, size, frame_stride)
@@ -138,11 +145,11 @@ def process_clip(base_url, clip_path, stance, size, frame_stride, out_dir, manif
         "labels": manifest.get(slug, {}).get("labels", []),
         "notes": manifest.get(slug, {}).get("notes", ""),
         # Which lift's cues this clip is scored against (a key in
-        # DIAGNOSTIC_SETS). Also hand-set, and carried across a re-extract for
-        # the same reason: re-running the pose pass on a clip must not quietly
-        # re-file it under another lift. Absent means the tests' default.
-        **({"diagnostics": manifest[slug]["diagnostics"]}
-           if manifest.get(slug, {}).get("diagnostics") else {}),
+        # DIAGNOSTIC_SETS; the tests fail on a fixture without one). The
+        # option if given, else the value already in the entry (hand-set, and
+        # carried across a re-extract so re-running the pose pass doesn't
+        # quietly re-file a clip under another lift), else the stance.
+        "diagnostics": diagnostics or manifest.get(slug, {}).get("diagnostics") or stance,
     }
     print(f"   {meta.get('frames_processed')} frames, kept person {manifest[slug]['kept_person']}")
 
@@ -155,6 +162,10 @@ def main():
     ap.add_argument("--stance", required=True,
                      help="label for this batch, e.g. snatch, clean, jerk — "
                           "fixtures land under <out-dir>/<stance>/")
+    ap.add_argument("--diagnostics", default=None, metavar="SET",
+                     help="DIAGNOSTIC_SETS key the fixtures are scored against, e.g. "
+                          "clean-and-jerk (default: --stance; on a re-extract, the "
+                          "entry's existing value)")
     ap.add_argument("--host", default="127.0.0.1:8080", help="host:port the app is listening on")
     ap.add_argument("--size", default="l", choices=("l", "h"), help="ViTPose checkpoint size")
     ap.add_argument("--frame-stride", type=int, default=1)
@@ -184,7 +195,7 @@ def main():
     for clip in clips:
         try:
             process_clip(base_url, clip, args.stance, args.size, args.frame_stride,
-                         out_dir, manifest)
+                         out_dir, manifest, diagnostics=args.diagnostics)
             save_manifest(out_dir, manifest)   # after every clip, not just at the end —
                                                 # a later failure shouldn't lose earlier work
         except Exception as e:
