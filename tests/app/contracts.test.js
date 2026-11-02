@@ -750,7 +750,7 @@ test('frame source: each broken field is named', async () => {
   assertNames(v, I, 'rotation', i => { i.rotation = 45; });
   assertNames(v, I, 'codec', i => { i.codec = 264; });
   assertNames(v, I, 'bitrate', i => { i.bitrate = 1; });
-  for (const method of ['frameAt', 'frames', 'thumbnails', 'close']) {
+  for (const method of ['frameAt', 'frames', 'thumbnails', 'stepper', 'close']) {
     const src = exampleFrameSource();
     delete src[method];
     assert.ok(validateFrameSource(src).some(e => e.startsWith(method)), method);
@@ -758,6 +758,32 @@ test('frame source: each broken field is named', async () => {
   const src = exampleFrameSource();
   src.info = { ...src.info, rotation: 30 };
   assert.ok(validateFrameSource(src).some(e => e.startsWith('info.rotation')));
+});
+
+test('frame source: the stepper (s38) is part of a source: opened at a time, it steps by frameTimes, holds a budget, and closes its frames', async () => {
+  const { exampleFrameSource, STEPPER_BUDGET } = await load('frame-source.mjs');
+  assert.deepEqual(STEPPER_BUDGET, { maxFrames: 90, maxBytes: 128 * 1024 * 1024 });
+  assert.ok(Object.isFrozen(STEPPER_BUDGET));
+  const src = exampleFrameSource();
+  const st = await src.stepper(1.01, { height: 64 });
+  assert.equal(st.index, 25, 'the frame shown at 1.01 s at 25 fps');
+  assert.equal(st.time, src.frameTimes[25]);
+  assert.deepEqual([st.width, st.height, st.frame.width, st.frame.height], [36, 64, 36, 64], '1080 × 1920 scaled to 64 high');
+  assert.deepEqual(st.budget, { ...STEPPER_BUDGET, frameBytes: 36 * 64 * 4, frames: 90 });
+  const r = await st.step(1);
+  assert.deepEqual([r.index, r.time, r.cached], [26, src.frameTimes[26], true]);
+  assert.equal(r.frame, st.frame);
+  assert.equal((await st.step(-2)).index, 24);
+  assert.equal((await st.seek(99)).index, src.frameTimes.length - 1);
+  assert.equal((await st.step(1)).index, src.frameTimes.length - 1, 'the last frame stays put');
+  await st.settled();
+  assert.ok(st.held >= 1 && st.held <= st.budget.frames);
+  assert.equal(st.bytes, st.held * st.budget.frameBytes);
+  const shown = st.frame;
+  st.close();
+  assert.equal(shown.width, 0, 'close() closes the frames it held');
+  await assert.rejects(st.step(1));
+  src.close();
 });
 
 test('frame source: a range is a stream of frames in order, each one an estimate message can carry', async () => {

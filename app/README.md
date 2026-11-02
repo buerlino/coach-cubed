@@ -24,6 +24,7 @@ pipeline/devlock.sh slice check-tfjs node app/tools/check-tfjs.mjs   # the WebGL
 pipeline/devlock.sh slice parity-tfjs nice node app/tools/parity-tfjs.mjs   # npm's TF.js against the from-source bundle: same keypoints?
 pipeline/devlock.sh slice check-pose node app/tools/check-pose.mjs   # the pose engine (client, worker, MoveNet) in headless Brave on synthetic frames
 node app/tools/check-media.mjs               # the frame source on a real WebCodecs decoder, in headless Brave, on tests/app/clips/
+pipeline/devlock.sh slice check-media node app/tools/check-media.mjs --clips ~/.cache/coach/c34-clips   # the same, plus the step timings on c34's 1080p clips and the decoded frames an idle stepper holds
 pipeline/devlock.sh slice check-offline node app/tools/check-offline.mjs   # the app offline (c19): load, go offline over CDP, reload; needs the TF.js bundle and the weights
 node app/tools/assemble.mjs --debug          # the same, plus the check page (app/debug/) and its clip: the debug APK's dist/
 pipeline/devlock.sh slice apk-web app/tools/build-apk.sh web      # the debug APK, first half: npm ci, bundle, weights, assemble --debug, cap sync
@@ -119,7 +120,7 @@ the screens and the tests.
 | `analysis-job.mjs` | 2. An analysis job: the lift, its `source` (the stored cut's path, D6, never a `File`), its range in the cut's timeline, the state, progress by stage with the time left (reading is one unit, the cut read and opened; pose one a frame; scoring one), the error. `createJob(id, lift)` makes a queued one; a job read back after a restart is the same job. | Analyse in M3 (`d14`), through the queue (`s12`) | the queue (`s12`), Q1 (`d15`), H (`d13`) |
 | `stored-lift.mjs` | 3. A stored lift: id, created, lift, the cut's path, the range, the track's and the result's paths, the app version, the engine. `liftPaths(id)` is the folder's layout: `lifts/<id>/cut.mp4`, `track.json`, `result.json`. | the store (`c8`) at Analyse, with `s32`'s cut; completed by the job (`s12`) | H (`d13`), A1 and A3 (`d16`, `d17`, `d22`), the job (`s12`) |
 | `cue-view.mjs` | 4. The cue view model: per cue its id, title, cue, status word (good, watch, work on, can't score), verdict, value, tiles, reference line, series, phase, worst moment, provisional flag and, when it can't be scored, the engine's reason; plus whether the lift has a lift window at all (`hasLiftWindow`, diagnostics.js's per set; `s36`: false for a lateral raise, with no window and no reason), the lift window (`{t0, t1: null}` when diagnostics.js found the start and no held finish, its reason then the engine's note; `s35`), the notes and the `smoothing` (`{sigmaMs, keepVelocity}`) the verdicts were scored with. `CUE_VIEW_SOURCES` names where each field comes from (`computeResults()`, `s4`'s API, or the adapter); `VERDICT_VALUE` names, per cue rule, the summary field the verdict is scored on, which is the card's value (the SD for a cue scored on its spread, not the worst moment's sample). A lift's `result.json` holds one `ResultView`. | the scoring adapter (`s11`), in the job's scoring stage | A1, A2, A4 (`d17`, `d18`, `d25`), the page test (`c21`) |
-| `frame-source.mjs` | 5. A frame source: an opened video's info (duration, frame rate, upright size, rotation), `frameTimes` (every frame's start in seconds, presentation order, from the first frame at 0; required since `s35`: M1–M3's one-frame steps and the job's frame count), a frame at a time, a range as a stream of `VideoFrame`s, thumbnails. `exampleFrameSource()` is a stand-in with no video behind it, for tests. | the media module (`s9`) | marking (`d14`), A1's player (`d16`), the job (`s12`) |
+| `frame-source.mjs` | 5. A frame source: an opened video's info (duration, frame rate, upright size, rotation), `frameTimes` (every frame's start in seconds, presentation order, from the first frame at 0; required since `s35`: M1–M3's one-frame steps and the job's frame count), a frame at a time, a range as a stream of `VideoFrame`s, thumbnails, and (`s38`) the `stepper`: the frames around a playhead decoded once and kept, so M1–M3's one-frame step is a lookup, with its default budget `STEPPER_BUDGET`. `exampleFrameSource()` is a stand-in with no video behind it, for tests. | the media module (`s9`) | marking (`d14`), A1's player (`d16`), the job (`s12`) |
 | `track.mjs` | The track, `track.json`, in the fixture format ([fixture-data-contract.md](../docs/fixture-data-contract.md)), so the app's tracks and the committed fixtures read the same. `trackFromFrames()` builds one from the worker's results, `framesFromTrack()` reads one back. | the job (`s12`) | the scoring adapter (`s11`), A1's skeleton (`d16`), the page test (`c21`) |
 | `keypoints.mjs` | COCO-17 `[y, x, conf]` in the frame's pixels, or `null` ([rules-core.md](../docs/rules-core.md), principle 4). | the pose worker | the track, `diagnostics.js` |
 | `common.mjs` | What they share: the lifts, ids, store paths, ranges, the checks. | | the modules above |
@@ -297,7 +298,10 @@ src.frameTimes              // every frame's start time in seconds, presentation
 const f = await src.frameAt(t);               // last frame starting at or before t; f.close()
 for await (const f of src.frames(t0, t1)) …   // [t0, t1] in order, ends included; f.close()
 const bitmaps = await src.thumbnails(times, { height: 64 });
-src.close();
+const st = await src.stepper(t, { height: 1320 });   // M1–M3's steps: see "The stepper" below
+const { index, time, frame } = await st.step(+1);     // a lookup when held; frame is the stepper's, never close it
+st.close();
+src.close();                                          // closes its steppers too
 ```
 
 | File | What |
@@ -305,6 +309,7 @@ src.close();
 | `frame-source.mjs` | `openFrameSource(blob, {webcodecs, stallMs})`; re-exports `MediaError`. |
 | `sample-table.mjs` | `buildSampleTable(packets)`: from the packets' types, times and durations, the frame times (from 0, the earliest frame), `indexAt(t)`, `indexRange(t0, t1)`, `keyBefore(d)` and `plan(first, last)`, the keyframe search. No file, no decoder. |
 | `decode.mjs` | `decodeFrames(…)`: chunks in, frames out, an async generator over a `VideoDecoder`. |
+| `stepper.mjs` | `openStepper(…)`, behind `src.stepper(t, opts)`: the one-frame steps' cache ([below](#the-stepper)). |
 | `webcodecs.mjs` | `browserWebCodecs()`: the browser's `VideoDecoder`, `EncodedVideoChunk`, the canvas turn and `createImageBitmap`, behind one object that tests replace (`tests/app/fake-webcodecs.js`). |
 | `media-error.mjs` | `MediaError` and its `code`s. |
 
@@ -342,6 +347,116 @@ held are closed.
 few decoded frames wait, so a slow consumer (the pose model) keeps the
 decoder a few frames ahead instead of filling memory; a hardware decoder's
 last frames come out while the loop is still draining, not after the flush.
+
+### The stepper
+
+M1–M3 mark a lift one frame at a time, and `frameAt` decodes again from the
+keyframe before the frame on every call: 0.17 s a step on the Fairphone with a
+keyframe every second, 0.42 s (up to 0.83 s) with a phone camera's 2–5 s
+([below](#on-the-phone)). The stepper (`s38`, contract 5's `stepper`) decodes
+the frames around the playhead once and keeps them, so a step to a held frame
+is a lookup, in both directions, and decodes nothing.
+
+```js
+const st = await src.stepper(t, { height: 1320 });   // or { width }, or both; opened once frame t is held
+st.index; st.time; st.frame;                          // the playhead: frameTimes' index, its time, its ImageBitmap
+const r = await st.step(-1);                          // { index, time, frame, cached }; at the ends it stays put
+await st.seek(t2);                                    // the frame shown at t2 (a drag of the filmstrip)
+st.budget;                                            // { maxFrames, maxBytes, frameBytes, frames }
+st.held; st.bytes;                                    // what it holds now
+await st.settled();                                   // the refill has nothing left to do (tests, measurements)
+st.close();                                           // closes every frame it holds, stops the refill
+```
+
+- **The frames** are `ImageBitmap`s, upright and at the size asked for (a
+  missing side from the upright aspect), drawn from the turned frame as
+  thumbnails are; the decoded frame is closed once its bitmap is made. They are
+  the stepper's: draw one, never close it; it stays
+  valid until the next `step` or `seek` settles. `cached` says whether the
+  frame was held when the step was asked; such a step returns before the
+  refill does anything (it starts on the next task: turning a decoded frame
+  into a bitmap can hold the main thread, 23 ms a step in headless Brave
+  before this).
+- **The window:** the budget's frames, half ahead and half behind until the
+  first step, then three quarters on the side the steps go. A background
+  refill fills it nearest frame first, one decode at a time. Ahead, one decoder
+  keeps going from the keyframe before the playhead (it waits between frames),
+  so stepping on through a keyframe group decodes the group once, however long
+  it is. Behind, a decode runs from the keyframe of the group before to the
+  frame needed, once that whole group fits in the window, or when the missing
+  frame is a quarter of the window away; a group longer than the window behind
+  is decoded again for each window's worth, and given up when a step or seek
+  moves the window off it. The decoder ahead is fed one chunk at a time and
+  stops while a decoded frame waits (`STREAM_QUEUES` in `stepper.mjs`:
+  `maxQueued` 1, `maxQueueSize` 1), so while it waits between steps it holds
+  **at most 2 decoded frames** at the file's size, outside the budget and
+  `st.bytes`: the one waiting and the one its last chunk makes (`s38f1`; before,
+  decodeFrames' defaults let up to about 12 come out, and headless Brave held 8
+  1080p frames). A hardware decoder has few output buffers, so these are the
+  frames to keep few. `frameAt`, `frames` and `thumbnails` keep decodeFrames'
+  defaults (4 frames waiting, 8 chunks fed): they run to their end, and a range
+  read stays a few frames ahead of the pose model. A frame decoded on the way
+  that is outside the window (from the keyframe to the window's edge) is
+  closed without being
+  turned or made into a bitmap. A step to a frame not held yet waits for it; a
+  step never starts a second decode of a group being decoded.
+- **The budget:** at most `maxFrames` frames and `maxBytes` bytes, a frame
+  being width × height × 4 bytes. The default (`STEPPER_BUDGET` in the
+  contract) is 90 frames and 128 MiB: three 1 s groups at 30 fps. A new frame
+  takes the place of the one farthest from the playhead (its distance over its
+  side of the window), which is closed first, so the budget is never exceeded;
+  the playhead's frame is never dropped, nor the frame on screen (`st.frame`)
+  while a step or seek waits for its own: it stays open until the new frame is
+  held. With a budget of one frame, the frame on screen is closed only when the
+  new one takes its place.
+- **Errors:** a decoder error or a stall (`stallMs`) in the refill ends it; a
+  step waiting for a frame rejects with the source's `MediaError`, else the next
+  step does (the playhead stays), and the step after that refills again.
+  `close()` and the source's `close()` reject a waiting step with `closed`.
+
+What the default budget costs at M1–M3's size: the mockup's video is 248 × 440
+CSS px, a 1080 × 1920 portrait video's 9 : 16, so a frame is that times the
+screen's pixel ratio, squared, times 4 bytes. (The Fairphone's pixel ratio
+isn't measured here: `stepCached` on the check page records it.) On top of the
+bitmaps, the paused decoder ahead holds at most 2 decoded frames at the
+file's own size: a 4:2:0 frame (I420 or NV12) is 1.5 bytes a pixel, so
+3,110,400 bytes (2.97 MiB) for a 1080p video, 5.9 MiB for two (4K: 11.9 MiB
+a frame, 23.7 MiB for two; a hardware decoder's buffers may be padded beyond
+that).
+
+| Pixel ratio | Frame | Bytes a frame | Frames held | Bitmaps | With the paused decoder (1080p, 2 frames) | Stepping back: frames behind |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 248 × 440 | 436,480 (0.42 MiB) | 90 | 37.5 MiB | 43.4 MiB | 67 |
+| 2 | 496 × 880 | 1,745,920 (1.67 MiB) | 76 | 126.5 MiB | 132.4 MiB | 57 |
+| 3 | 744 × 1320 | 3,928,320 (3.75 MiB) | 34 | 127.4 MiB | 133.3 MiB | 25 |
+
+In headless Brave (`check-media.mjs`, c34's 1080p clips, 782 × 440 frames,
+the default budget) a stepper with its window full holds 90 bitmaps, 118.1
+MiB, and the paused decoder 1 decoded frame, 3.0 MiB: 121.1 MiB (at most
+124.0 MiB with two). Before `s38f1` it held 8, 23.7 MiB more (141.8 MiB).
+Feeding one chunk at a time cost no measurable speed there: steps back to
+back (the refill's own rate) took a median 18.7 and 20.4 ms before, 19.0 and
+15.3 ms after on k1, 21.3 and 22.7 ms before, 23.5 and 23.4 ms after on
+k2to5 (two runs each), and a step to a held frame stays 0 ms (p90 0.1 ms).
+
+With a phone camera's groups of 60–150 frames, stepping forwards still
+decodes each group once; stepping backwards at a pixel ratio of 3 decodes a
+group again for every 25 frames, in the background. The check page's
+`stepCached` (`debug/media.mjs`, beside `step`'s `frameAt`) measures it on the
+phone (`c26`), and `seekCached` the seeks beside `frameAtRandom`'s
+`frameAt` on the same times; headless Brave's numbers are in `s38`'s report.
+
+**Opening and seeking cost more than a `frameAt`.** The stepper's open and a
+seek to a frame not held decode from the keyframe like `frameAt`, and the
+frames on the way that fall inside the window (up to the side behind the
+playhead: 44 frames with the default budget at a pixel ratio of 1) are made
+into bitmaps before the playhead's frame, so that group isn't decoded again.
+In headless Brave (software decode, c34's 1080p30 clips, 20 seeded seeks,
+medians): with the default budget at 782 × 440 a seek took 265 ms against
+`frameAt`'s 70 ms with a keyframe every second, and 1,016 ms against 202 ms
+with keyframes every 2–5 s; with a budget of 10 frames (1320 px high) 291 ms
+and 421 ms. A step to a held frame stays a lookup (0.1 ms); what a seek costs
+on the phone's hardware decoder is `c26`'s.
 
 ### On the phone
 
@@ -902,7 +1017,7 @@ loads and the engine answers, not how fast. The worker itself is tested in
 `tests/`: `flow.test.js` (the state machine), `home.test.js` (H's logic: a lift's state, the lists, the import step, `main.mjs`'s boot), `assemble.test.js` (assemble
 into a temporary folder, the manifest and `index.html`), `serve.test.js` (the
 dev server), `contracts.test.js` (the contracts, against the committed tracks
-and `diagnostics.js`'s headless API), `store.test.js` (the store, on `fake-opfs.js`, an in-memory OPFS), `frame-source.test.js` (the frame source, on our own clips in `tests/app/clips/` and a fake decoder), `pose-engine.test.js` (the pose engine's client and worker handler, against fakes), `media-phone.test.js` (the check page's media measurements, their driver and the clips' script; the shipped `dist/` without them), `android-shell.test.js` (the Capacitor config, the committed Android project, the pins and `build-apk.sh`), `sw.test.js` (the service worker run as a script on a fake Cache Storage and fetch, the registration module on a fake browser and queue, assemble's version stamp), `build-tfjs.test.js` (the TF.js
+and `diagnostics.js`'s headless API), `store.test.js` (the store, on `fake-opfs.js`, an in-memory OPFS), `frame-source.test.js` (the frame source and its stepper, on our own clips in `tests/app/clips/` and a fake decoder), `pose-engine.test.js` (the pose engine's client and worker handler, against fakes), `media-phone.test.js` (the check page's media measurements, their driver and the clips' script; the shipped `dist/` without them), `android-shell.test.js` (the Capacitor config, the committed Android project, the pins and `build-apk.sh`), `sw.test.js` (the service worker run as a script on a fake Cache Storage and fetch, the registration module on a fake browser and queue, assemble's version stamp), `build-tfjs.test.js` (the TF.js
 build's pins, cache, op lists and patch notices, the MoveNet entry's
 refusal of a config without `modelUrl`, and `fetch-models.sh`'s checks and
 clean-up, all without the network). Every test runs in a fresh worktree, which has neither

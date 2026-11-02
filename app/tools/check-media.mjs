@@ -1,4 +1,4 @@
-// node app/tools/check-media.mjs [--browser <path>]
+// node app/tools/check-media.mjs [--browser <path>] [--clips <dir>]
 //
 // The frame source (app/src/media/) on a real WebCodecs decoder: serves the
 // repo's app/ and tests/app/clips/ on 127.0.0.1 (a free port), opens each clip
@@ -8,10 +8,19 @@
 // the rotated clip's frame has the pixels ffmpeg's own autorotation gives
 // (within 8 levels of colour-conversion difference; needs ffmpeg, else skipped),
 // and that a codec the decoder lacks (HEVC, on a desktop build without it)
-// fails with `unsupported-codec` rather than a hang. Prints JSON; exits 1 on a
-// failed check. Headless desktop timings say nothing about the Fairphone (c26).
+// fails with `unsupported-codec` rather than a hang. Then M1–M3's one-frame step
+// (s38), the check page's own measurement (app/debug/media.mjs): frameAt on the
+// next frame's time against the stepper, forwards and back, as fast as the steps
+// come and at a tap every 150 ms, on the 30 fps clip and on c34's k1.mp4 and
+// k2to5.mp4 (1080p, keyframes every 1 s and every 2–5 s) when --clips names their
+// folder (app/tools/make-phone-clips.sh); each frame must be the next by frameTimes.
+// And the stepper's seek against frameAt at the same 20 random times (on k1 and
+// k2to5 also at 1320 px high, a pixel ratio of 3's budget of 34 frames). And
+// (s38f1) the decoded frames still open while a stepper sits on a frame: at most 2.
+// Prints JSON; exits 1 on a failed check. Headless desktop timings say nothing
+// about the Fairphone (c26).
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
@@ -21,6 +30,8 @@ const APP = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CLIPS = resolve(APP, '..', 'tests', 'app', 'clips');
 const arg = (name, dflt) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : dflt; };
 const BROWSER = arg('--browser', '/usr/bin/brave-browser');
+const EXTRA = arg('--clips', null) && resolve(arg('--clips'));
+const STEP_CLIPS = ['testsrc2-h264-30fps', ...(EXTRA ? ['k1', 'k2to5'].filter(c => existsSync(join(EXTRA, `${c}.mp4`))) : [])];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const PAGE = `<!doctype html><meta charset="utf-8"><script type="module">
@@ -56,6 +67,54 @@ window.check = (async () => {
       src.close();
     } catch (e) { r.error = { code: e.code, message: e.message }; }
   }
+  // M1–M3's step: frameAt on the next frame against the stepper (s38), same frames, same seed
+  const { c34 } = await import('./app/debug/media.mjs');
+  const steps = out.steps = {};
+  for (const name of ${JSON.stringify(STEP_CLIPS)}) {
+    const url = name.startsWith('testsrc2') ? './clips/' + name + '.mp4' : './extra/' + name + '.mp4';
+    c34.add(name, await (await fetch(url)).blob());
+    const n = name.startsWith('testsrc2') ? 20 : 30;
+    steps[name] = {
+      frameAt: await c34.step(name, { n, seed: 1 }),
+      stepper: await c34.stepCached(name, { n, seed: 1 }),
+      stepperTap: await c34.stepCached(name, { n, seed: 1, gapMs: 150 }),
+      stepperBack: await c34.stepCached(name, { n, seed: 1, dir: -1 }),
+      stepperBackTap: await c34.stepCached(name, { n, seed: 1, dir: -1, gapMs: 150 }),
+      frameAtRandom: await c34.frameAtRandom(name, { n: 20, seed: 1 }),
+      seek: await c34.seekCached(name, { n: 20, seed: 1 }),
+      ...(name.startsWith('testsrc2') ? {} : { seek1320: await c34.seekCached(name, { n: 20, seed: 1, height: 1320 }) }),
+    };
+    for (const r of Object.values(steps[name])) { delete r.each; delete r.times; delete r.got; }
+  }
+  // the decoder's VideoFrames still open while a stepper sits on a frame (s38f1):
+  // the paused forward decoder's, outside the budget; counted by wrapping the
+  // decoder's output, at the default budget 440 px high, opened at a third of the
+  // clip, then after 10 steps forwards, each time once the refill has settled
+  const { browserWebCodecs } = await import('./app/src/media/webcodecs.mjs');
+  const idle = out.idle = {};
+  for (const name of ${JSON.stringify(STEP_CLIPS)}) {
+    const url = name.startsWith('testsrc2') ? './clips/' + name + '.mp4' : './extra/' + name + '.mp4';
+    const live = new Set(), wc = browserWebCodecs();
+    const counting = { ...wc, createDecoder: init => wc.createDecoder({ ...init, output: f => {
+      live.add(f);
+      const close = f.close.bind(f);
+      f.close = () => { live.delete(f); close(); };
+      init.output(f);
+    } }) };
+    const r = idle[name] = {};
+    try {
+      const src = await openFrameSource(await (await fetch(url)).blob(), { webcodecs: counting });
+      const st = await src.stepper(src.frameTimes[Math.floor(src.frameTimes.length / 3)], { height: 440 });
+      const look = async () => { await st.settled(); await new Promise(res => setTimeout(res, 300)); return { index: st.index, held: st.held, decodedOpen: live.size }; };
+      r.opened = await look();
+      for (let k = 0; k < 10; k++) { await st.step(1); await st.settled(); }
+      r.stepped = await look();
+      r.decodedSize = src.info.width + 'x' + src.info.height;
+      st.close(); src.close();
+      await new Promise(res => setTimeout(res, 100));
+      r.afterClose = live.size;
+    } catch (e) { r.error = { code: e.code, message: e.message }; }
+  }
   return out;
 })();
 </script>`;
@@ -64,7 +123,8 @@ const TYPES = { '.mjs': 'text/javascript', '.js': 'text/javascript', '.html': 't
 const server = createServer((req, res) => {
   const p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
   if (p === '/check.html') { res.writeHead(200, { 'content-type': 'text/html' }); return res.end(PAGE); }
-  const [root, rest] = p.startsWith('/clips/') ? [CLIPS, p.slice(7)] : p.startsWith('/app/') ? [APP, p.slice(5)] : [null, null];
+  const [root, rest] = p.startsWith('/clips/') ? [CLIPS, p.slice(7)] : p.startsWith('/app/') ? [APP, p.slice(5)]
+    : EXTRA && p.startsWith('/extra/') ? [EXTRA, p.slice(7)] : [null, null];
   const file = root && normalize(join(root, rest));
   try {
     if (!file || !file.startsWith(root + sep) || !statSync(file).isFile()) throw new Error('not served');
@@ -98,7 +158,7 @@ try {
     if (r.result?.result?.value === 'object') break;
     await sleep(100);
   }
-  const r = await send('Runtime.evaluate', { expression: 'window.check', awaitPromise: true, returnByValue: true, timeout: 90000 });
+  const r = await send('Runtime.evaluate', { expression: 'window.check', awaitPromise: true, returnByValue: true, timeout: 480000 });
   result = r.result?.result?.value ?? { error: JSON.stringify(r).slice(0, 1000) };
   result.browser = (await (await fetch(`http://127.0.0.1:${port}/json/version`)).json()).Browser;
   ws.close();
@@ -114,8 +174,23 @@ try {
 // ---- judge ----
 const problems = [];
 if (result.error) problems.push(result.error);
+for (const [name, r] of Object.entries(result.idle || {})) {
+  if (r.error) { problems.push(`idle ${name}: ${JSON.stringify(r.error)}`); continue; }
+  for (const how of ['opened', 'stepped']) {
+    if (r[how].decodedOpen > 2) problems.push(`idle ${name} ${how}: ${r[how].decodedOpen} decoded frames open beyond the stepper's budget, more than 2`);
+  }
+}
+for (const [name, r] of Object.entries(result.steps || {})) {
+  for (const [how, m] of Object.entries(r)) {
+    if (m.error) { problems.push(`steps ${name} ${how}: ${JSON.stringify(m.error)}`); continue; }
+    if (how.startsWith('seek')) { if (!m.right) problems.push(`steps ${name} ${how}: a seek did not give the frame shown at its time`); continue; }
+    if (how === 'frameAtRandom') continue;
+    if (!m.consecutive) problems.push(`steps ${name} ${how}: a step did not give the next frame by frameTimes`);
+    if (how !== 'frameAt' && m.frame !== m.size) problems.push(`steps ${name} ${how}: frames are ${m.frame}, not the ${m.size} asked for`);
+  }
+}
 for (const [name, r] of Object.entries(result)) {
-  if (typeof r !== 'object' || !r || name === 'browser') continue;
+  if (typeof r !== 'object' || !r || name === 'browser' || name === 'steps' || name === 'idle') continue;
   if (name.includes('hevc')) {
     // a desktop build may decode HEVC; then it must open like the others
     if (r.error && r.error.code !== 'unsupported-codec') problems.push(`${name}: ${JSON.stringify(r.error)}`);

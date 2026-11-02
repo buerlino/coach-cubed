@@ -8,7 +8,9 @@
 //   await src.frameAt(t)          the frame shown at t seconds, a VideoFrame to close()
 //   for await (f of src.frames(t0, t1)) …   a range in order, each frame to close()
 //   await src.thumbnails([t…], {height})    ImageBitmaps for the filmstrip
-//   src.close()
+//   const st = await src.stepper(t, {height})   M1–M3's one-frame steps from a cache (stepper.mjs)
+//   await st.step(+1)             a lookup when the frame is held; st.close()
+//   src.close()                   closes its steppers too
 //   src.frameTimes                every frame's start time, presentation order (the steps of M1–M3)
 //
 // How: the demuxer lists every packet once, without reading the data (the
@@ -30,6 +32,7 @@ import { ALL_FORMATS, BlobSource, EncodedPacketSink, Input } from '../../vendor/
 import { decodeFrames } from './decode.mjs';
 import { MediaError, asMediaError } from './media-error.mjs';
 import { buildSampleTable } from './sample-table.mjs';
+import { openStepper } from './stepper.mjs';
 import { browserWebCodecs } from './webcodecs.mjs';
 
 export { MediaError, MEDIA_ERROR_CODES } from './media-error.mjs';
@@ -97,9 +100,13 @@ export async function openFrameSource(blob, options = {}) {
   }
 
   // decoded frames (as the decoder made them, not yet turned) of the packets
-  // startDec..endDec whose timestamps `wants` accepts
-  const decode = (startDec, endDec, wants) => decodeFrames({
-    webcodecs, config, chunks: chunks(startDec, endDec), wants, signal: controller.signal, stallMs,
+  // startDec..endDec whose timestamps `wants` accepts; `queues` ({maxQueued,
+  // maxQueueSize}) only for the stepper's paused forward decoder: frameAt, frames
+  // and thumbnails keep decodeFrames' defaults
+  const decode = (startDec, endDec, wants, signal = controller.signal, queues = {}) => decodeFrames({
+    webcodecs, config, chunks: chunks(startDec, endDec), wants, signal, stallMs,
+    ...(queues.maxQueued !== undefined && { maxQueued: queues.maxQueued }),
+    ...(queues.maxQueueSize !== undefined && { maxQueueSize: queues.maxQueueSize }),
   });
 
   // the file's rotation applied to a frame; the original is closed
@@ -128,6 +135,14 @@ export async function openFrameSource(blob, options = {}) {
     duration: table.duration, fps: table.fps,
     width: swap ? decodedH : decodedW, height: swap ? decodedW : decodedH,
     rotation, codec,
+  };
+
+  // the steppers open on this source, closed with it; a frame's index from its timestamp
+  const steppers = new Set();
+  let byUs = null;
+  const indexOf = us => {
+    if (!byUs) { byUs = new Map(); for (let i = 0; i < table.count; i++) byUs.set(table.timestampUs(i), i); }
+    return byUs.get(us);
   };
 
   return {
@@ -195,9 +210,18 @@ export async function openFrameSource(blob, options = {}) {
       return out;
     },
 
+    async stepper(t, options = {}) {
+      guard();
+      return openStepper({
+        table, info, webcodecs, decode, upright, indexOf,
+        register: s => steppers.add(s), unregister: s => steppers.delete(s),
+      }, t, options);
+    },
+
     close() {
       if (closed) return;
       closed = true;
+      for (const s of [...steppers]) s.close();
       controller.abort();
       free();
     },

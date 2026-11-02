@@ -49,6 +49,13 @@ const PLAN = [
   ['frameAt-k2to5', 'frameAtRandom', 'k2to5', k => ({ n: 20, seed: k })],
   ['step-k1', 'step', 'k1', k => ({ n: 30, seed: k })],
   ['step-k2to5', 'step', 'k2to5', k => ({ n: 30, seed: k })],
+  // s38's stepper on the same frames: as fast as the steps come, and at a tap every 150 ms; forwards and back
+  ...['k1', 'k2to5'].flatMap(c => [
+    [`stepCached-${c}`, 'stepCached', c, k => ({ n: 30, seed: k })],
+    [`stepCached-tap-${c}`, 'stepCached', c, k => ({ n: 30, seed: k, gapMs: 150 })],
+    [`stepCached-back-${c}`, 'stepCached', c, k => ({ n: 30, seed: k, dir: -1, gapMs: 150 })],
+    [`seekCached-${c}`, 'seekCached', c, k => ({ n: 20, seed: k })],
+  ]),
   ['cut-k1', 'cut', 'k1', () => ({ t0: 0, t1: 60 })],
   ['keep-k1', 'cut', 'k1', () => ({ t0: 0, t1: 60, keep: true })],
   ['cut-big', 'cut', 'big', () => ({ t0: 0, t1: 60 })],
