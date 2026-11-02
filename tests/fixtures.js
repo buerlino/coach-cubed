@@ -68,4 +68,16 @@ function diagnosticsSet(manifest, slug, Diagnostics) {
   return name;
 }
 
-module.exports = { FIXTURES_DIR, GOLDEN_DIR, SCOPES, loadManifests, splitSlug, trackPathFor, goldenPathFor, diagnosticsSet };
+// Temp folders for tests (c48): made under os.tmpdir() and removed when the test process exits,
+// whether its tests passed or failed. A test that wants its folder gone sooner removes it itself.
+const tempMade = [];
+function tempDir(prefix) {
+  if (!tempMade.length) {
+    process.on('exit', () => { for (const d of tempMade) fs.rmSync(d, { recursive: true, force: true }); });
+  }
+  const dir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), prefix));
+  tempMade.push(dir);
+  return dir;
+}
+
+module.exports = { FIXTURES_DIR, GOLDEN_DIR, SCOPES, loadManifests, splitSlug, trackPathFor, goldenPathFor, diagnosticsSet, tempDir };

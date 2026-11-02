@@ -59,7 +59,7 @@ It logs each request (`200 /index.html`); a `404` there is a broken path.
 | `src/analysis/` | The analysis job and its queue (`s12`): `appQueue()` is the app's one queue; Analyse keeps the cut (`s32`), then queues the job, which poses every frame of the range, builds the track and scores it. See [The analysis](#the-analysis). |
 | `src/pose/` | The pose engine (`s10`): `PoseEngine.create()` gives one async `estimate(frame, tMs)` over a worker running MoveNet Thunder on TF.js. See [The pose engine](#the-pose-engine). |
 | `vendor/` | Third-party files, each with its licence text, byte for byte from its npm package ([THIRD_PARTY.md](../THIRD_PARTY.md#in-the-new-app-app)): `preact/` (Preact 11.1.1 and its hooks), `htm/` (htm 3.1.1), `mediabunny/` (mediabunny 1.61.6, MPL-2.0, the frame source's one demuxer), `fonts/` (Barlow and Barlow Condensed, woff2, with `OFL.txt`). `vendor/tfjs/` is built by `tools/build-tfjs.mjs` (gitignored). |
-| `tools/` | `assemble.mjs`, `serve.mjs`, `make-icon.mjs`, and the TF.js build: `build-tfjs.mjs`, `fetch-models.sh`, `check-tfjs.mjs`, `patches/` ([below](#tfjs-from-source)), `check-media.mjs` (the frame source on a real decoder, [above](#the-frame-source)), and the debug APK's `build-apk.sh` and `check-apk.mjs` ([The Android shell](#the-android-shell)), and `make-phone-clips.sh` and `check-media-apk.mjs`, the frame source and the cut on the phone ([On the phone](#on-the-phone)). Node only; only `build-tfjs.mjs` needs `app/node_modules/` (esbuild). Not copied into `dist/`. `page-test.mjs` is the page test ([below](#the-page-test)). |
+| `tools/` | `assemble.mjs`, `serve.mjs`, `make-icon.mjs`, and the TF.js build: `build-tfjs.mjs`, `fetch-models.sh`, `check-tfjs.mjs`, `patches/` ([below](#tfjs-from-source)), `check-media.mjs` (the frame source on a real decoder, [above](#the-frame-source)), and the debug APK's `build-apk.sh` and `check-apk.mjs` ([The Android shell](#the-android-shell)), and `make-phone-clips.sh` and `check-media-apk.mjs`, the frame source and the cut on the phone ([On the phone](#on-the-phone)). Node only; only `build-tfjs.mjs` needs `app/node_modules/` (esbuild). Not copied into `dist/`. `page-test.mjs` is the page test ([below](#the-page-test)). `browser.mjs` is the one place a tool finds, launches and ends a headless browser (`c47`, [below](#the-tools-browser)). |
 | `dist/` | The assembled app (gitignored): what the PWA host and Capacitor get. `files.json` lists every file in it, with a version hash, for the service worker. |
 | `android/`, `capacitor.config.json` | The Capacitor shell (`c20`): the Android project `npx cap add android` generated, committed; Gradle's outputs and the copied web assets are gitignored. See [The Android shell](#the-android-shell). |
 | `debug/` | The check page (`c20`), assembled only into the debug APK (`assemble.mjs --debug`), never into the shipped `dist/`. |
@@ -1270,6 +1270,22 @@ exactly `files.json`'s files. Run it after `build-tfjs.mjs` and
 `fetch-models.sh`. Headless Brave's WebGL is SwiftShader, so it says the app
 loads and the engine answers, not how fast. The worker itself is tested in
 `tests/app/sw.test.js` on a fake Cache Storage and fetch.
+
+## The tools' browser
+
+`tools/browser.mjs` (package `c47`) is how `page-test.mjs`, `check-tfjs.mjs`, `check-offline.mjs`, `check-pose.mjs` and
+`check-media.mjs` get their headless Brave or Chromium: `findBrowser()` (`--browser PATH`, then `COACH_BROWSER`, then
+Brave/Chromium/Chrome on `PATH`) and `launchBrowser(profile, args)`, which returns the child, its DevTools port and
+`close()`. No tool spawns a browser itself (`tests/app/browser.test.js` checks the source).
+
+Why: `/usr/bin/brave-browser` (and Fedora's chromium) is a bash wrapper whose last line is `"$HERE/brave" "$@" || true`,
+**without `exec`**. `child.kill()` on what a tool spawned signals only the wrapper: bash exits and the real browser and its GPU
+process live on as children of systemd (~0.5 GB each; 90 of them filled the laptop on 2026-11-02). So `close()` ends the whole
+tree (the wrapper's descendants by `pgrep -P`, and anything else with the profile in its command line), SIGTERM, up to 5 s,
+then SIGKILL; it is idempotent, and the tool removes its profile after it. The browser is not `detached`: it stays in the
+check's session, so the pipeline's own kill of a check reaches it too. While a browser is open the helper closes it on SIGTERM,
+SIGINT and SIGHUP (what `timeout` sends) and on `exit`. A **SIGKILL** to the test can't be caught, so a test killed that way can
+still leave a browser behind; `ps -eo args | grep -c '[-]-user-data-dir=/tmp/coach-'` counts them.
 
 ## The page test
 

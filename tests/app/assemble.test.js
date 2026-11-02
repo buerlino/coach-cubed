@@ -8,16 +8,17 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
+const { tempDir } = require('../fixtures.js');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const APP = path.join(ROOT, 'app');
 const ASSEMBLE = path.join(APP, 'tools', 'assemble.mjs');
 
-const tmp = (name) => fs.mkdtempSync(path.join(os.tmpdir(), `coach-${name}-`));
+// Every folder a test makes is removed when the process exits (tempDir), whether the tests passed or failed.
+const tmp = (name) => tempDir(`coach-${name}-`);
 const put = (base, rel, text = rel) => {
   fs.mkdirSync(path.dirname(path.join(base, rel)), { recursive: true });
   fs.writeFileSync(path.join(base, rel), text);

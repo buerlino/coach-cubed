@@ -19,17 +19,17 @@
 // (s38f1) the decoded frames still open while a stepper sits on a frame: at most 2.
 // Prints JSON; exits 1 on a failed check. Headless desktop timings say nothing
 // about the Fairphone (c26).
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { launchBrowser } from './browser.mjs';
 
 const APP = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CLIPS = resolve(APP, '..', 'tests', 'app', 'clips');
 const arg = (name, dflt) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : dflt; };
-const BROWSER = arg('--browser', '/usr/bin/brave-browser');
 const EXTRA = arg('--clips', null) && resolve(arg('--clips'));
 const STEP_CLIPS = ['testsrc2-h264-30fps', ...(EXTRA ? ['k1', 'k2to5'].filter(c => existsSync(join(EXTRA, `${c}.mp4`))) : [])];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -135,17 +135,12 @@ const server = createServer((req, res) => {
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 const url = `http://127.0.0.1:${server.address().port}/check.html`;
 const profile = mkdtempSync(join(tmpdir(), 'coach-check-media-'));
-const browser = spawn(BROWSER, ['--headless=new', `--user-data-dir=${profile}`, '--remote-debugging-port=0',
-  '--no-first-run', '--no-default-browser-check', 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
+let browser = null;
 
 let result;
 try {
-  const port = await new Promise((res, rej) => {
-    let err = '';
-    const timer = setTimeout(() => rej(new Error('no DevTools port from the browser: ' + err.slice(-500))), 30000);
-    browser.stderr.on('data', d => { err += d; const m = err.match(/DevTools listening on ws:\/\/127\.0\.0\.1:(\d+)\//); if (m) { clearTimeout(timer); res(m[1]); } });
-    browser.on('exit', code => rej(new Error(`the browser exited (${code}): ${err.slice(-500)}`)));
-  });
+  browser = await launchBrowser(profile, ['--headless=new', 'about:blank']);
+  const port = browser.port;
   const target = await (await fetch(`http://127.0.0.1:${port}/json/new?${encodeURIComponent(url)}`, { method: 'PUT' })).json();
   const ws = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });
@@ -165,7 +160,7 @@ try {
 } catch (e) {
   result = { error: String(e.message || e) };
 } finally {
-  browser.kill();
+  if (browser) await browser.close();
   server.close();
   await sleep(500);
   rmSync(profile, { recursive: true, force: true });

@@ -19,18 +19,17 @@
 // Headless Brave's WebGL is SwiftShader (software): this checks that the app
 // loads and the engine answers, not its speed. Heavy: run it through
 // pipeline/devlock.sh slice.
-import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assemble } from './assemble.mjs';
 import { createApp } from './serve.mjs';
+import { launchBrowser } from './browser.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const APP = resolve(HERE, '..');
 const arg = (name, dflt) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : dflt; };
-const BROWSER = arg('--browser', '/usr/bin/brave-browser');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // Run in the page after the offline reload: the engine loads its weights and answers.
@@ -83,22 +82,13 @@ server.on('request', req => served.push(req.url));
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 const origin = `http://127.0.0.1:${server.address().port}`;
 
-const browser = spawn(BROWSER, ['--headless=new', `--user-data-dir=${profile}`, '--remote-debugging-port=0',
-  '--no-first-run', '--no-default-browser-check', '--enable-unsafe-swiftshader', '--use-angle=swiftshader',
-  'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
+let browser = null;
 
 let result = { version: built.version, files: built.files.length };
 try {
-  const port = await new Promise((res, rej) => {
-    let err = '';
-    const timer = setTimeout(() => rej(new Error('no DevTools port from the browser: ' + err.slice(-500))), 30000);
-    browser.stderr.on('data', d => {
-      err += d;
-      const m = err.match(/DevTools listening on ws:\/\/127\.0\.0\.1:(\d+)\//);
-      if (m) { clearTimeout(timer); res(m[1]); }
-    });
-    browser.on('exit', code => rej(new Error(`the browser exited (${code}): ${err.slice(-500)}`)));
-  });
+  browser = await launchBrowser(profile, ['--headless=new', '--enable-unsafe-swiftshader', '--use-angle=swiftshader',
+  'about:blank']);
+  const port = browser.port;
   const target = await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT' })).json();
   const ws = new WebSocket(target.webSocketDebuggerUrl);
   await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });
@@ -186,7 +176,7 @@ try {
 } catch (e) {
   result.error = String(e.message || e);
 } finally {
-  browser.kill();
+  if (browser) await browser.close();
   server.close();
   await sleep(500);
   rmSync(profile, { recursive: true, force: true });

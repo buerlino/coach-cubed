@@ -68,20 +68,22 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 32 | `s44` | scoreLift() returns the smoothed keypoints (A1 smooths only once) | schrödinger, sonnet | `d18` | merged `54f53fa` |
 | 33 | `s45` | The API gives each cue's unit noun and how its verdict is decided | schrödinger, opus | `d18`, `s44` | merged `e3a87b6` |
 | 34 | `d46` | A2's "Play the rep at ½×" opens A1 at the cue's phase | dirac, sonnet | `d18` | merged `908e96d` |
-| 35 | `d22` | A3, view options | dirac, sonnet | `d17`, `c8`, `d14`, `s35` | waits |
-| 36 | `d23` | The screens v1 doesn't draw | dirac, sonnet | `d17`, `s12`, `c8` | waits |
-| 37 | `d24` | S1, settings and about | dirac, sonnet | `c8` | merged `5d33a32` |
-| 38 | `d25` | A4 and the responsive check | dirac, sonnet | `d18`, `c21` | waits |
-| 39 | `c26` | Milestone A on the Fairphone | curie, sonnet | `d13`, `d14`, `d18`, `c19`, `c20`, `c34`, `c43` | waits; phone: by day, nordmu told (airplane mode); its numbers set s12's stall time and time left (nordmu, 2026-11-02) |
+| 35 | `c47` | A test's browser ends with the test (the brave wrapper leak; nordmu, 2026-11-02) | curie, sonnet | — | merged `c3cf06f` |
+| 36 | `c48` | The app tests leave no temp folders behind (9.3 GB in /tmp; nordmu, 2026-11-02) | curie, sonnet | — | merged `aef3346` (one fix round: red-first) |
+| 37 | `d22` | A3, view options | dirac, sonnet | `d17`, `c8`, `d14`, `s35`, `c47` | waits |
+| 38 | `d23` | The screens v1 doesn't draw | dirac, sonnet | `d17`, `s12`, `c8`, `c47` | waits |
+| 39 | `d24` | S1, settings and about | dirac, sonnet | `c8` | merged `5d33a32` |
+| 40 | `d25` | A4 and the responsive check | dirac, sonnet | `d18`, `c21`, `c47` | waits |
+| 41 | `c26` | Milestone A on the Fairphone | curie, sonnet | `d13`, `d14`, `d18`, `c19`, `c20`, `c34`, `c43` | waits; phone: by day, nordmu told (airplane mode); its numbers set s12's stall time and time left (nordmu, 2026-11-02) |
 | | | **Checkpoint A:** nordmu uses milestone A on the Fairphone; feedback by screen ID. Then **2.7 and 2.8** with the queue empty (D8) | | `c26` | |
-| 40 | `c33` | The tester APK: the real name and ID, release signing | curie | checkpoint A, 2.8, question 10, the key's holder | id only: written after checkpoint A |
-| 41 | `c27` | Capture and the rolling buffer (cuts with `s32`'s cut) | curie | checkpoint A | id only |
-| 42 | `d28` | R1 and R2 | dirac | `c27` | id only |
-| 43 | `d29` | R3 and R3b | dirac | `d28`, `d14` | id only |
-| 44 | `c30` | Recording and analysis together | curie | `d29`, `s12` | id only |
-| 45 | `c31` | A session on the Fairphone | curie | `c30` | id only; phone: by day |
+| 42 | `c33` | The tester APK: the real name and ID, release signing | curie | checkpoint A, 2.8, question 10, the key's holder | id only: written after checkpoint A |
+| 43 | `c27` | Capture and the rolling buffer (cuts with `s32`'s cut) | curie | checkpoint A | id only |
+| 44 | `d28` | R1 and R2 | dirac | `c27` | id only |
+| 45 | `d29` | R3 and R3b | dirac | `d28`, `d14` | id only |
+| 46 | `c30` | Recording and analysis together | curie | `d29`, `s12` | id only |
+| 47 | `c31` | A session on the Fairphone | curie | `c30` | id only; phone: by day |
 | | | **Checkpoint B:** nordmu runs a real gym session | | `c31` | |
-| 46 | `c40` | The handover: the pipeline runnable for Noah | curie | checkpoint B | id only; laptop only |
+| 48 | `c40` | The handover: the pipeline runnable for Noah | curie | checkpoint B | id only; laptop only |
 
 Gates outside the queue ([../app-plan.md](../app-plan.md#gates-outside-the-sessions)): no APK goes to testers before
 `c33`, which needs the name and the package ID (question 10) and the signing key's holder.
