@@ -439,3 +439,66 @@ test('the plot and the screens\' colours come from tokens: no literal in app/src
   const plot = read('app', 'src', 'draw', 'plot.mjs');
   for (const t of Object.keys(TOKENS).filter(n => /^--(zone|plot)-/.test(n))) assert.ok(plot.includes(`'${t}'`), `${t} read in plot.mjs`);
 });
+
+// ---- "Play the rep at ½×" (package d46): A2 has no player; the button goes back to A1 at the cue's phase ----
+
+test('d46: a cue with a phase offers "Play the rep at ½×" (the mockup\'s string) that names the cue, the phase\'s start and speed 0.5; one without a phase offers none', async () => {
+  const m = await load('ui/detail-model.mjs');
+  const { view, computed } = await scored(LATERAL);
+  assert.equal(m.PLAY_HALF_LABEL, 'Play the rep at ½×');
+  assert.ok(read('design', 'mockups', 'CueDetail.dc.html').includes(m.PLAY_HALF_LABEL), 'the mockup\'s string');
+  const scoredCues = view.cues.filter(c => c.status !== "can't score");
+  assert.ok(scoredCues.length > 1);
+  for (const cue of scoredCues) {
+    const d = m.detailOf({ Diagnostics: D, view, computed, cueId: cue.id, range: { t0: 0, t1: 10 } });
+    assert.deepStrictEqual(d.playHalf, { cue: cue.id, from: cue.phase.t0, speed: 0.5 }, cue.id);
+  }
+  const cant = view.cues.find(c => c.status === "can't score");
+  assert.equal(m.detailOf({ Diagnostics: D, view, computed, cueId: cant.id, range: { t0: 0, t1: 10 } }).playHalf, null, 'no phase, no button');
+  assert.equal(m.playHalfOf({ id: 'x', phase: null }), null);
+});
+
+test('d46: A2 draws the button for playHalf only and sends the result its params; Back sends the lift\'s id alone', () => {
+  const src = read('app', 'src', 'ui', 'screens', 'A2.mjs');
+  assert.ok(src.includes('PLAY_HALF_LABEL'), 'the label comes from the model');
+  assert.match(src, /d\.playHalf \?/, 'drawn only when there is a playHalf');
+  assert.match(src, /flow\.go\('result', \{ liftId, \.\.\.d\.playHalf \}\)/);
+  assert.match(src, /flow\.go\('result', \{ liftId \}\)/, 'Back is as before');
+});
+
+test('d46: the flow carries those params from detail to result', async () => {
+  const { createFlow } = await load('flow/flow.mjs');
+  const flow = createFlow('detail');
+  flow.go('result', { liftId: 'l1', cue: 'c', from: 1.16, speed: 0.5 });
+  assert.equal(flow.state, 'result');
+  assert.deepStrictEqual(flow.params, { liftId: 'l1', cue: 'c', from: 1.16, speed: 0.5 });
+});
+
+test('d46: A1 reads the request once: the cue\'s card open, the phase\'s start, ½×; params without a valid request, or none, open A1 as before', async () => {
+  const m = await load('ui/player-model.mjs');
+  const { view } = await scored(LATERAL);
+  const range = { t0: 0.5, t1: 3.5 };
+  const cue = view.cues.find(c => c.id === 'lateral-raise-elbow-lead');
+  const asked = { liftId: 'l1', cue: cue.id, from: cue.phase.t0, speed: 0.5 };
+  assert.deepStrictEqual(m.playRequest(asked, view, range), { cue: cue.id, t: cue.phase.t0, speed: 0.5 });
+  // the start is held inside the marked range
+  assert.equal(m.playRequest({ ...asked, from: 99 }, view, range).t, 3.5);
+  assert.equal(m.playRequest({ ...asked, from: -3 }, view, range).t, 0.5);
+  // as before: no request, or one that names no cue of this result / no number / a speed the button doesn't have
+  for (const p of [{ liftId: 'l1' }, {}, { ...asked, cue: 'nope' }, { ...asked, from: 'x' }, { ...asked, from: NaN }, { ...asked, speed: 0.3 }, { ...asked, cue: undefined }]) {
+    assert.equal(m.playRequest(p, view, range), null, JSON.stringify(p));
+  }
+});
+
+test('d46: A1 opens the requested card and plays at the request\'s speed, keeping the stored view options: the screen\'s source', () => {
+  const a1 = read('app', 'src', 'ui', 'screens', 'A1.mjs');
+  assert.match(a1, /playRequest\(flow\.params, view, rec\.range\)/, 'read once, in the load');
+  assert.match(a1, /setOpen\(want \? want\.cue : defaultOpen/);
+  assert.match(a1, /playFrom\(/);
+  // the speed saved is the user's: the only write of speed is the button's
+  const writes = a1.match(/keep\(\{[^}]*\}\)/g);
+  assert.deepStrictEqual(writes, ['keep({ skeleton: next })', 'keep({ speed: next })']);
+  const load_ = a1.slice(a1.indexOf('const [rec, view, track, settings]'), a1.indexOf('return () => {\n      current = false'));
+  assert.ok(!/saveSettings|keep\(/.test(load_), 'the load writes nothing');
+  assert.match(load_, /speed: want \? want\.speed : view_\.speed/);
+});

@@ -9,9 +9,9 @@ import { html } from '../html.mjs';
 import { openFrameSource } from '../../media/frame-source.mjs';
 import { getDiagnostics, scoreLift } from '../../scoring/score.mjs';
 import { drawPlot, overlayStyle, paintCue, plotGeometry, plotStyle, timeAtTap, trackSamples } from '../../draw/index.mjs';
-import { detailOf } from '../detail-model.mjs';
+import { PLAY_HALF_LABEL, detailOf } from '../detail-model.mjs';
 import { valueText } from '../result-model.mjs';
-import { BackIcon, StatusIcon } from '../components/icons.mjs';
+import { BackIcon, PlayIcon, StatusIcon } from '../components/icons.mjs';
 
 const NO_LIFT = 'There is no lift to show. Open one from home.';
 const NOT_READY = 'This lift has no result yet.';
@@ -142,6 +142,7 @@ export function A2({ flow, store, openSource = openFrameSource, diagnostics = nu
               <span class=${`detail-chip detail-chip--verdict status--${d.cls}`}>${d.verdict}</span>
             </div>` : null}
           <div class="detail-content">
+            ${d.playHalf ? html`<button type="button" class="detail-play" onClick=${() => flow.go('result', { liftId, ...d.playHalf })}><${PlayIcon} />${PLAY_HALF_LABEL}</button>` : null}
             ${d.scored ? null : html`<p class="detail-reason">${d.reason}</p>`}
             ${d.scored ? html`
               <section class="detail-plot" aria-labelledby="plot-h">

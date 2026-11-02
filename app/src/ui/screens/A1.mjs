@@ -12,7 +12,7 @@ import { getDiagnostics, scoreLift } from '../../scoring/score.mjs';
 import { overlayStyle, trackSamples } from '../../draw/index.mjs';
 import { fitSize } from '../mark-model.mjs';
 import { createPlayer } from '../player.mjs';
-import { clockOf, fractionAt, headerOf, momentTitle, nextSpeed, speedLabel } from '../player-model.mjs';
+import { clockOf, fractionAt, headerOf, momentTitle, nextSpeed, playRequest, speedLabel } from '../player-model.mjs';
 import { cardsOf, defaultOpen, provisionalNote, seekTime, summaryOf, timelineOf } from '../result-model.mjs';
 import { BackIcon, ChevronIcon, MoreIcon, PauseIcon, PlayIcon, StatusIcon, StepBackIcon, StepForwardIcon } from '../components/icons.mjs';
 
@@ -65,11 +65,14 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
       if (!current) { stepper.close(); src.close(); return; }
       p.url = URL.createObjectURL(blob);
       const view_ = settings.view;
+      // A2's "Play the rep at ½×" (flow params, read once here): that cue's card open, the phase's start, ½×.
+      // The speed is the player's only; the stored view options stay the user's (only the buttons write them).
+      const want = playRequest(flow.params, view, rec.range);
       flags.current = { skeleton: view_.skeleton, cues: view_.cues, loop: view_.loop };
       setSkeleton(view_.skeleton);
-      setSpeed(view_.speed);
-      setOpen(defaultOpen(cardsOf(view)));   // the ids and statuses only
-      setData({ rec, view, computed, diagnostics: diagnostics || getDiagnostics(), meta: track.meta, track: trackSamples(keypoints, track.meta), src, stepper, url: p.url, speed: view_.speed });
+      setSpeed(want ? want.speed : view_.speed);
+      setOpen(want ? want.cue : defaultOpen(cardsOf(view)));   // the ids and statuses only
+      setData({ rec, view, computed, diagnostics: diagnostics || getDiagnostics(), meta: track.meta, track: trackSamples(keypoints, track.meta), src, stepper, url: p.url, speed: want ? want.speed : view_.speed, playFrom: want ? want.t : null });
     })().catch(e => { if (current) setProblem(e && e.message ? e.message : CANT_SHOW); });
     return () => {
       current = false;
@@ -101,7 +104,9 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
       onChange: setPs, onError: e => setProblem(e.message || CANT_SHOW),
     });
     p.player = player;
-    player.start();
+    // a request from A2 starts playing at the phase; else the first frame, paused. A refused play() is reported through onError
+    if (data.playFrom !== null) player.playFrom(data.playFrom).catch(() => {});
+    else player.start();
     let watch = null;
     if (globalThis.ResizeObserver && frameBox.current) {
       watch = new globalThis.ResizeObserver(() => { restyle(); player.repaint(); });

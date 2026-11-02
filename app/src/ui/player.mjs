@@ -206,6 +206,8 @@ export function createPlayer(o) {
         if (token === latest && !closed) show(r);
       });
     },
+    /** Shows the frame at t and plays from there, at the player's speed (A2's "Play the rep at ½×"). */
+    playFrom(t) { api.seek(t); return api.play(); },
     setSpeed(v) { state.speed = v; video.playbackRate = v; emit(); },
     /** Paints the overlay again on the frame shown: a view option or the look changed. */
     repaint() { if (!closed) paint(state.t); },

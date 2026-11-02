@@ -8,6 +8,9 @@ import { liftLabel, clock, dayKey, dayName } from './home-model.mjs';
 /** The playback speeds in the order the button cycles them (settings.view.speed's values). */
 export const SPEEDS = Object.freeze([1, 0.5, 0.25]);
 
+/** ½×, the speed "Play the rep at ½×" (A2) asks for: the second of SPEEDS. */
+export const HALF_SPEED = SPEEDS[1];
+
 /** The speed button's label: 1×, ½×, ¼×. */
 export const speedLabel = v => (v === 1 ? '1×' : v === 0.5 ? '½×' : v === 0.25 ? '¼×' : `${v}×`);
 
@@ -79,3 +82,19 @@ export function timeAtPointer(x, rect, range) {
 
 /** The playhead's place on the bar, a fraction 0–1. */
 export const fractionAt = (t, range) => (range.t1 > range.t0 ? Math.max(0, Math.min(1, (t - range.t0) / (range.t1 - range.t0))) : 0);
+
+/**
+ * What A2's "Play the rep at ½×" asks A1 for, read from the flow's params when A1 opens: the cue whose card
+ * opens, the time to start from (held inside the marked range) and the speed to play at. Null for params
+ * without a request (A1 opens as it always does): no cue of this result, no start time, a speed the speed
+ * button doesn't have.
+ * @param {{cue?: string, from?: number, speed?: number}} params
+ * @param {import('../contracts/cue-view.mjs').ResultView} view
+ * @param {{t0: number, t1: number}} range
+ * @returns {{cue: string, t: number, speed: number}|null}
+ */
+export function playRequest(params, view, range) {
+  if (!params || typeof params.from !== 'number' || !Number.isFinite(params.from) || !SPEEDS.includes(params.speed)) return null;
+  if (typeof params.cue !== 'string' || !view.cues.some(c => c.id === params.cue)) return null;
+  return { cue: params.cue, t: Math.max(range.t0, Math.min(range.t1, params.from)), speed: params.speed };
+}

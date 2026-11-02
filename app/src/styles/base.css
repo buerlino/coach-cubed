@@ -310,6 +310,7 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .detail-chip--verdict { right: var(--space-2h); font-weight: var(--weight-semibold); }
 .detail-content { padding: var(--space-3) var(--space-4) var(--space-6); display: flex; flex-direction: column; gap: var(--space-3h); }
 .detail-reason { margin: 0; font-size: var(--size-body); line-height: 1.45; color: var(--text-soft); }
+.detail-play { align-self: flex-start; min-height: var(--touch); padding: 0 var(--space-3h); border: 0; border-radius: var(--radius-s); background: var(--surface-raised); color: var(--text); display: flex; align-items: center; gap: var(--space-2); font-size: var(--size-label); font-weight: var(--weight-semibold); }
 .detail-plot { border-radius: var(--radius-l); background: var(--surface); padding: var(--space-3) 0 var(--space-2); }
 .detail-plot h2 { margin: 0 var(--space-4) var(--space-half); font-size: var(--size-body); font-weight: var(--weight-semibold); }
 .detail-plot .quiet { margin: 0 var(--space-4) var(--space-1h); }
