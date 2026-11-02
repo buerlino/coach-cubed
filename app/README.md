@@ -246,7 +246,11 @@ lifts/<id>/lift.json    the lift's record: contract 3, a StoredLift
   buffer, videos kept, D2) over whatever `settings.json` holds; a field that
   is missing or fails its check takes its default. `saveSettings(patch)`
   checks the patch (`validateSettingsPatch`) and keeps the merge. The fields
-  are in `settings.mjs`.
+  are in `settings.mjs`. **The ranges are provisional** (nordmu, 2026-11-02):
+  a replay of 5–60 s, a buffer of 10–300 s, a delay of 5–20 s and a smoothing
+  of 0–1000 ms (`RANGES` and the view fields in `settings.mjs`) stay as `c8`
+  chose them until `c27` measures the buffer's memory on the phone. S1 offers
+  values only inside them.
 - **`persist()`** is asked at the first save, once; the answer is kept in
   `meta.json` (`persistAnswer()`), and a refusal doesn't stop the save.
 - **Quota:** `storageInfo()` gives `estimate()`'s usage and quota, the room
