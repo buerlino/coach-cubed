@@ -331,3 +331,41 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .scoring-cue__title { margin: 0; font-size: var(--size-row); font-weight: var(--weight-semibold); }
 .scoring-cue .soft { margin: 0; }
 .scoring-cue__rule { margin: 0; font-size: var(--size-label); }
+
+/* A3, View options: the sheet over A1 (design/mockups/ViewOptions.dc.html) */
+.vo { position: fixed; inset: 0; z-index: 10; }
+.vo-backdrop { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; border-radius: 0; background: var(--scrim-sheet); }
+.vo-sheet { position: absolute; left: 0; right: 0; bottom: 0; top: var(--sheet-top); max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; border-radius: var(--radius-sheet) var(--radius-sheet) 0 0; background: var(--surface); }
+.vo-sheet:focus { outline: none; }
+.vo-head { flex: none; padding: var(--space-2) var(--space-3) var(--space-1) var(--space-5); }
+.vo-grabber { width: var(--grabber-w); height: var(--grabber-h); margin: 0 auto var(--space-2); border-radius: var(--radius-xs); background: var(--line-mid); }
+.vo-headrow { display: flex; align-items: center; justify-content: space-between; }
+.vo-title { margin: 0; font-size: var(--size-subtitle); font-weight: var(--weight-bold); }
+.vo-done { min-height: var(--touch); padding: 0 var(--space-3); border: 0; border-radius: var(--radius-s); background: transparent; color: var(--accent); font-size: var(--size-body); font-weight: var(--weight-semibold); }
+.vo-body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-1) var(--space-5) var(--space-6); display: flex; flex-direction: column; gap: var(--space-5); }
+.vo-group { display: flex; flex-direction: column; gap: var(--space-2); }
+.vo-group--switches { gap: 0; }
+.vo-label { margin: 0; font-size: var(--size-small); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-label); text-transform: uppercase; color: var(--text-soft); }
+.vo-group--switches .vo-label { margin-bottom: var(--space-1); }
+.vo-switch { width: 100%; min-height: var(--switch-row); padding: var(--space-1h) 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; color: var(--text); display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); text-align: left; }
+.vo-switch__text { display: flex; flex-direction: column; gap: var(--space-half); }
+.vo-switch__name { font-size: var(--size-row); font-weight: var(--weight-medium); }
+.vo-switch__sub, .vo-note { font-size: var(--size-small); line-height: 1.35; color: var(--text-quiet); }
+.vo-switch__track { flex: none; width: var(--switch-w); height: var(--switch-h); border-radius: calc(var(--switch-h) / 2); position: relative; background: var(--line-mid); }
+.vo-switch[aria-checked="true"] .vo-switch__track { background: var(--accent); }
+.vo-switch__knob { position: absolute; top: var(--switch-pad); left: var(--switch-pad); width: var(--switch-knob); height: var(--switch-knob); border-radius: calc(var(--switch-knob) / 2); background: var(--text); }
+.vo-switch[aria-checked="true"] .vo-switch__knob { left: calc(var(--switch-w) - var(--switch-knob) - var(--switch-pad)); }
+.vo-segments { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-1); padding: var(--space-1); border-radius: var(--radius-m); background: var(--surface-raised); }
+.vo-segment { height: var(--touch); padding: 0; border: 0; border-radius: var(--radius-segment); background: transparent; color: var(--text-soft); font-size: var(--size-body); font-weight: var(--weight-bold); }
+.vo-segment[aria-pressed="true"] { background: var(--text); color: var(--on-accent); }
+.vo-sigma { display: flex; justify-content: space-between; font-size: var(--size-row); font-weight: var(--weight-medium); }
+.vo-sigma__value { color: var(--text-soft); }
+.vo-slider { width: 100%; height: var(--slider-h); accent-color: var(--accent); }
+.vo-actions { display: flex; flex-direction: column; gap: var(--space-2); padding-top: var(--space-1); }
+.vo-action { height: var(--button-sheet); border: 0; border-radius: var(--radius-m); background: var(--surface-raised); color: var(--text); font-size: var(--size-body); font-weight: var(--weight-semibold); }
+.vo-action--danger { background: transparent; color: var(--danger-text); }
+.vo-ask { display: flex; flex-direction: column; gap: var(--space-2); }
+.vo-ask p { margin: 0; font-size: var(--size-body); }
+.vo-ask__buttons { display: flex; gap: var(--space-2); }
+.vo-ask__buttons button { flex: 1; height: var(--button-sheet); border-radius: var(--radius-m); font-weight: var(--weight-semibold); }
+.vo-error { margin: 0; }

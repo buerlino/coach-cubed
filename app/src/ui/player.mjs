@@ -11,8 +11,11 @@
 //    cannot step back). A bitmap on a canvas covers the <video> while paused or stepping; the
 //    overlay is painted from the stepped frame's own time. Pausing takes the last frame the
 //    video presented and shows that same frame from the stepper.
-//  - The marked range is the whole timeline: playing wraps at its end (loop) or stops on its last
-//    frame, and steps stop at its first and last frame (the frames the job posed).
+//  - The marked range is the whole timeline: steps stop at its first and last frame (the frames the
+//    job posed). With A3's "Loop the lift only" on, playing stays inside the lift window (o.lift,
+//    view-options-model.mjs's loopSpan: the window, or its start to the range's end, or the whole range
+//    when there is none) and wraps at its end; with it off, playing runs the whole range once and stops
+//    on the last frame. A seek or a step may leave the window; playing from outside it starts at its start.
 // The overlay is painted by draw/overlay.mjs on a canvas the size of the track's frame, so the
 // keypoints (in the frame's pixels) need no scaling. A plain module: the elements are given,
 // the tests pass fakes.
@@ -42,7 +45,8 @@ const EPS = 1e-3;   // a frame time read back from a video is rounded: a millise
  * @param {{t0: number, t1: number}} o.range the marked range
  * @param {import('../draw/overlay.mjs').OverlayScene} o.scene
  * @param {() => object} o.style the overlay's look (draw/skeleton.mjs overlayStyle), read when painting
- * @param {() => {skeleton: boolean, cues: boolean, loop?: boolean}} o.flags the view options, read when painting
+ * @param {() => {skeleton: boolean, cues: boolean, unsure?: boolean, loop?: boolean}} o.flags the view options, read when painting
+ * @param {{t0: number, t1: number}|null} [o.lift] where "loop" plays: the lift window inside the range; null is the whole range
  * @param {number} [o.speed]
  * @param {(s: PlayerState) => void} [o.onChange] after every move of the playhead or switch of playing
  * @param {(e: Error) => void} [o.onError]
@@ -50,7 +54,9 @@ const EPS = 1e-3;   // a frame time read back from a video is rounded: a millise
  * @param {(id: number) => void} [o.caf]
  */
 export function createPlayer(o) {
-  const { video, frame, overlay, stepper, frameTimes, range, scene } = o;
+  const { video, frame, overlay, stepper, frameTimes, range } = o;
+  let scene = o.scene;
+  let span = o.lift || null;
   const onChange = o.onChange || (() => {});
   const onError = o.onError || (() => {});
   const raf = o.raf || (fn => globalThis.requestAnimationFrame(fn));
@@ -74,10 +80,16 @@ export function createPlayer(o) {
     while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (frameTimes[mid] <= t + EPS) lo = mid; else hi = mid - 1; }
     return lo;
   };
+  // Where playing runs: the lift window's frames while looping inside it, else the whole range.
+  const playSpan = () => {
+    if (flags().loop === false || !span) return { from: firstT, to: lastT, windowed: false };
+    const a = indexAtTime(span.t0), b = Math.max(a, indexAtTime(span.t1));
+    return { from: frameTimes[a], to: frameTimes[b], windowed: true };
+  };
   const emit = () => onChange({ ...state });
   const fail = e => { if (!closed) onError(e instanceof Error ? e : new Error(String(e))); };
   const flags = () => o.flags();
-  const paint = t => paintOverlay(overlayCtx, scene, t, { skeleton: flags().skeleton, cues: flags().cues, style: o.style() });
+  const paint = t => paintOverlay(overlayCtx, scene, t, { skeleton: flags().skeleton, cues: flags().cues, unsure: !!flags().unsure, style: o.style() });
 
   // A frame from the stepper onto the canvas, and the overlay for its time.
   function show(r) {
@@ -112,7 +124,7 @@ export function createPlayer(o) {
     if (closed || !state.playing) return;
     lastMedia = mediaTime;
     if (!state.live) state.live = true;   // the video now shows the moving frame: the screen hides the stepped one
-    if (mediaTime > lastT + EPS) { ended(); return; }
+    if (mediaTime > playSpan().to + EPS) { ended(); return; }
     const t = Math.max(firstT, mediaTime);
     state.t = t;
     state.index = indexAtTime(t);
@@ -130,8 +142,9 @@ export function createPlayer(o) {
   function ended() {
     stopLoop();
     if (flags().loop !== false) {
-      video.currentTime = firstT;
-      lastMedia = firstT;
+      const from = playSpan().from;
+      video.currentTime = from;
+      lastMedia = from;
       if (video.paused) {   // an ended video has stopped by itself
         let p;
         try { p = Promise.resolve(video.play()); } catch (e) { p = Promise.reject(e); }
@@ -169,7 +182,8 @@ export function createPlayer(o) {
       return enqueue(async () => {
         if (state.playing || closed) return;
         ++latest;
-        if (state.t >= lastT - EPS) { state.t = firstT; state.index = bounds.first; }
+        const p = playSpan();
+        if (state.t >= p.to - EPS || (p.windowed && state.t < p.from - EPS)) { state.t = p.from; state.index = indexAtTime(p.from); }
         video.currentTime = state.t;
         lastMedia = state.t;
         video.playbackRate = state.speed;
@@ -209,6 +223,10 @@ export function createPlayer(o) {
     /** Shows the frame at t and plays from there, at the player's speed (A2's "Play the rep at ½×"). */
     playFrom(t) { api.seek(t); return api.play(); },
     setSpeed(v) { state.speed = v; video.playbackRate = v; emit(); },
+    /** A new scene (a re-score with another smoothing: the skeleton, the view and the cues' numbers); repaints. */
+    setScene(next) { scene = next; api.repaint(); },
+    /** Where "loop" plays (view-options-model.mjs's loopSpan): the lift window, or null for the whole range. */
+    setLift(next) { span = next || null; },
     /** Paints the overlay again on the frame shown: a view option or the look changed. */
     repaint() { if (!closed) paint(state.t); },
     /** Shows the range's first frame. */

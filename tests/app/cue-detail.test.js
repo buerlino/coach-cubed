@@ -533,10 +533,10 @@ test('d46: A1 opens the requested card and plays at the request\'s speed, keepin
   assert.match(a1, /playRequest\(flow\.params, view, rec\.range\)/, 'read once, in the load');
   assert.match(a1, /setOpen\(want \? want\.cue : defaultOpen/);
   assert.match(a1, /playFrom\(/);
-  // the speed saved is the user's: the only write of speed is the button's
-  const writes = a1.match(/keep\(\{[^}]*\}\)/g);
-  assert.deepStrictEqual(writes, ['keep({ skeleton: next })', 'keep({ speed: next })']);
+  // the speed saved is the user's: the only writes of speed are the buttons' (A3's controller, d22), never the request's
+  const writes = a1.match(/options\(\)\.set\w+\([^)]*\)\)?/g);
+  assert.deepStrictEqual(writes, ["options().setSwitch('skeleton', !skeleton)", 'options().setSpeed(nextSpeed(speed))']);
   const load_ = a1.slice(a1.indexOf('const [rec, view, track, settings]'), a1.indexOf('return () => {\n      current = false'));
-  assert.ok(!/saveSettings|keep\(/.test(load_), 'the load writes nothing');
-  assert.match(load_, /speed: want \? want\.speed : view_\.speed/);
+  assert.ok(!/saveSettings|setSpeed|setSwitch/.test(load_), 'the load writes nothing');
+  assert.match(load_, /speed: want \? want\.speed : settings\.view\.speed/);
 });
