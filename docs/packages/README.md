@@ -58,7 +58,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 23 | `d16` | A1's player with the skeleton overlay | dirac, sonnet | `s9`, `s11`, `s32`, `s35` | waits; L at the limit: split point `d16b` |
 | 24 | `d17` | A1's timeline and cue cards | dirac, sonnet | `d16`, `s36` | waits |
 | | | **Look A0** (D7): nordmu, about 15 minutes on the Fairphone | | `d13`, `d14`, `d15`, `d17`, `c20` | not a gate |
-| 25 | `c19` | The service worker, the app offline | curie, sonnet | `d3`, `s6`, `s12` | waits |
+| 25 | `c19` | The service worker, the app offline | curie, sonnet | `d3`, `s6`, `s12` | merged `5ccc0a0` |
 | 26 | `c21` | The page test, offline | curie, sonnet | `d13`, `d14`, `d15`, `d17`, `c19` | waits |
 | 27 | `s39` | The headless API gives A2's scoring lines and zones | schrödinger, opus | `s35`, `s36` | waits |
 | 28 | `d18` | A2, a cue's detail | dirac, sonnet | `d17`, `s4`, `s39` | waits |
