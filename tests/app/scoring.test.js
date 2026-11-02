@@ -138,7 +138,9 @@ test('scoring: with the default smoothing it is src/track/ smoothing followed by
     const D = loadDiagnostics();
     const set = manifest[slug].diagnostics;
     const out = scoreLift(track, set, { Diagnostics: D });
-    assert.deepStrictEqual(out.smoothing, { sigmaMs: DEFAULT_SIGMA_MS, keepVelocity: DEFAULT_KEEP_VELOCITY }, slug);
+    // the view says which smoothing its verdicts were scored with (contract 4), so result.json keeps it
+    assert.deepStrictEqual(out.view.smoothing, { sigmaMs: DEFAULT_SIGMA_MS, keepVelocity: DEFAULT_KEEP_VELOCITY }, slug);
+    assert.equal(out.smoothing, undefined, 'one place for it: the view, not beside it');
     assert.deepStrictEqual(validateResultView(out.view), [], slug);
 
     // the reference: the app's smoothing, then the engine, called directly
@@ -168,13 +170,13 @@ test('scoring: sigmaMs and keepVelocity are the caller\'s, and sigmaMs 0 is the 
   const track = loadTrack(slug);
   const set = 'snatch';
   const a = scoreLift(track, set, { Diagnostics: loadDiagnostics(), sigmaMs: 100, keepVelocity: false });
-  assert.deepStrictEqual(a.smoothing, { sigmaMs: 100, keepVelocity: false });
+  assert.deepStrictEqual(a.view.smoothing, { sigmaMs: 100, keepVelocity: false });
   const ref = loadDiagnostics();
   ref.setPage(set);
   const sm = smoothKeypoints(track.keypoints, track.meta, 0.1, false);
   assert.deepStrictEqual(json(a.computed.results), json(ref.computeResults(sm, track.meta, track.meta.tracks.kept).results));
   const raw = scoreLift(track, set, { Diagnostics: loadDiagnostics(), sigmaMs: 0 });
-  assert.deepStrictEqual(raw.smoothing, { sigmaMs: 0, keepVelocity: true });
+  assert.deepStrictEqual(raw.view.smoothing, { sigmaMs: 0, keepVelocity: true });
   assert.deepStrictEqual(json(raw.computed.results), json(ref.computeResults(track.keypoints, track.meta, track.meta.tracks.kept).results));
 });
 
@@ -297,6 +299,9 @@ test('scoring: the lift window is the engine\'s, or its reason for having none',
       assert.deepStrictEqual(view.liftWindow, { t0: lift.t0, t1: lift.t1 }, slug);
       assert.equal(view.liftWindowReason, null, slug);
       assert.deepStrictEqual(view.notes, lift.notes, slug);
+    } else if (lift.t0 != null && !lift.error) {
+      assert.deepStrictEqual(view.liftWindow, { t0: lift.t0, t1: null }, slug);
+      assert.equal(view.liftWindowReason, lift.notes.at(-1), slug);
     } else {
       assert.equal(view.liftWindow, null, slug);
       if (lift.error) { absent++; assert.equal(view.liftWindowReason, lift.error, slug); assert.deepStrictEqual(view.notes, lift.notes, slug); }
@@ -305,10 +310,11 @@ test('scoring: the lift window is the engine\'s, or its reason for having none',
   assert.ok(found > 0 && absent > 0, `fixtures with a window (${found}) and without (${absent})`);
 });
 
-test('scoring: a start found with no end is no window, and says why in the engine\'s words', async () => {
-  // The contract's liftWindow has both ends. The snatch never held a finish: diagnostics.js
-  // returns t0 and notes (the last is why the lift has no end marker). The adapter makes
-  // that note the reason; the others stay notes.
+test('scoring: a start found with no end keeps its start, {t0, t1: null}, and says why in the engine\'s words', async () => {
+  // The snatch never held a finish: diagnostics.js returns t0, no t1 and no error, and notes
+  // (the last is why the lift has no end marker). Contract 4 keeps the start (s11's adapter
+  // dropped it whole); that note is the reason, the others stay notes.
+  // The track: the longest committed snatch (over 400 frames), cut off at 2.0 s.
   const { scoreLift } = await scoring;
   const { validateResultView } = await cueView;
   const D = loadDiagnostics();
@@ -326,8 +332,9 @@ test('scoring: a start found with no end is no window, and says why in the engin
   assert.ok(want.t0 != null && want.t1 == null && !want.error, 'the cut clip has a start and no end: ' + JSON.stringify(want).slice(0, 200));
   const { view } = scoreLift(cut, 'snatch', { Diagnostics: D, sigmaMs: 0 });
   assert.deepStrictEqual(validateResultView(view), []);
-  assert.equal(view.liftWindow, null);
+  assert.deepStrictEqual(view.liftWindow, { t0: want.t0, t1: null });
   assert.equal(view.liftWindowReason, want.notes[want.notes.length - 1]);
+  assert.match(view.liftWindowReason, /no end marker/);
   assert.deepStrictEqual(view.notes, want.notes.slice(0, -1));
 });
 

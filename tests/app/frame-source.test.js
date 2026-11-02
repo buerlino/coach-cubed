@@ -182,6 +182,8 @@ test('a variable frame rate has its own times, and the average rate is frames ov
   const kept = range(0, 89).filter(n => n % 5 < 3);
   assert.equal(kept.length, 54);
   assert.equal(src.frameTimes.length, 54);
+  const { validateFrameSource } = await contract();
+  assert.deepEqual(validateFrameSource(src), [], 'contract 5 takes a variable rate\'s own times');
   src.frameTimes.forEach((t, i) => assert.ok(Math.abs(t - kept[i] / 30) < 1e-9, `frame ${i}: ${t}`));
   // the last frame (n = 87) lasts to 88/30 s; the table's duration is the span of the frames
   assert.ok(Math.abs(src.info.duration - 88 / 30) < 1e-6, `duration ${src.info.duration}`);
