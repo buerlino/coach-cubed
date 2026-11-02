@@ -113,11 +113,12 @@ async function until(cond, what) {
   throw new Error(`timed out waiting for ${what}`);
 }
 
-async function setup({ storage, engines, sources, ...opts } = {}) {
+async function setup({ storage, engines, sources, wrapStore, ...opts } = {}) {
   const { createStore } = await load('src/store/index.mjs');
   const { createQueue } = await load('src/analysis/index.mjs');
   const fake = storage || createFakeStorage();
   const store = createStore({ storage: fake.storage, now: NOW, appVersion: '0.1.0' });
+  const queueStore = wrapStore ? wrapStore(store) : store;
   const clock = { t: 0, now() { return clock.t; } };
   const timers = fakeTimers();
   const made = [];
@@ -133,7 +134,7 @@ async function setup({ storage, engines, sources, ...opts } = {}) {
     return src;
   };
   const queue = createQueue({
-    store, createEngine, openFrameSource, Diagnostics, now: clock.now, timers, stallMs: 30000, tickMs: 1000, ...opts,
+    store: queueStore, createEngine, openFrameSource, Diagnostics, now: clock.now, timers, stallMs: 30000, tickMs: 1000, ...opts,
   });
   return { fake, store, queue, clock, timers, made, opened };
 }
@@ -270,6 +271,33 @@ test('a queued job is cancelled before it runs; cancel of an ended job changes n
   assert.ok(made[0].frames.every(f => f.index !== undefined));
   assert.equal(await queue.cancel(ja.id), false);
   assert.equal(queue.jobs().find(j => j.id === ja.id).state, 'done');
+});
+
+test('a job cancelled while it starts (the settings still being read) never runs, and stays cancelled', async () => {
+  // pump() has taken the job, but drive() still waits on getSettings (OPFS): the job is
+  // still "queued" then. A cancel in that window must stop it, not let it run to done.
+  let releaseSettings;
+  const settingsGate = new Promise(r => { releaseSettings = r; });
+  let asked = false;
+  const { store, queue, made, opened } = await setup({
+    wrapStore: s => Object.assign(Object.create(s), {
+      async getSettings() { asked = true; await settingsGate; return s.getSettings(); },
+    }),
+  });
+  const lift = await storeLift(store, { range: { t0: 0, t1: 1 } });
+  const rec = record(queue);
+  const job = await queue.enqueue(lift);
+  await until(() => asked, 'the job reading the settings');
+  const cancelled = queue.cancel(job.id);
+  releaseSettings();
+  assert.equal(await cancelled, true);
+  await queue.idle();
+  assert.equal(made.reduce((n, e) => n + e.frames.length, 0), 0, 'the engine posed no frame');
+  assert.equal(opened.length, 0, 'the cut was never opened');
+  assert.equal(queue.jobs().find(j => j.id === job.id).state, 'cancelled');
+  assert.ok(!rec.states(job.id).some(s => ['reading', 'pose', 'scoring', 'done'].includes(s)), `states: ${rec.states(job.id).join(', ')}`);
+  assert.equal((await store.getLift(lift.id)).track, null, 'no result saved');
+  assert.equal((await store.readQueue()).jobs.find(j => j.id === job.id).state, 'cancelled');
 });
 
 test('a failed job says why, and the queue goes on with the next', async () => {

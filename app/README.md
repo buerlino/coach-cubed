@@ -385,7 +385,9 @@ await queue.retry(id); await queue.dismiss(id);    // a failed or cancelled job 
   engine has posed another clip, and after a cancel.
 - **Cancel** stops between frames: the frame in flight finishes, no next
   one is sent, the stream and the source are closed, the engine is reset;
-  the lift stays stored, unanalysed.
+  the lift stays stored, unanalysed. A job the queue has taken but not yet
+  started (its settings still being read) is the running one, so a cancel
+  then stops it before its first frame; a cancelled job stays cancelled.
 - **Failures** say why, in the words of whatever failed (`error`). An
   engine that fails (a refused frame, the worker gone) is closed and
   replaced and the job restarts once; failing again fails it.

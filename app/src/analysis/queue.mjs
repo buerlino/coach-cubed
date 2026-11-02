@@ -147,7 +147,8 @@ export function createQueue({
   }
 
   function update(job, run, state, progress) {
-    if (running !== run) return;
+    // a job cancelled (or ended) keeps its state: a late emit from the run never revives it
+    if (running !== run || ended(job.state)) return;
     const moved = job.state !== state;
     job.state = state;
     job.progress = progress;
@@ -159,6 +160,8 @@ export function createQueue({
 
   async function drive(job, run) {
     const sigmaMs = await sigma();
+    // cancelled while the settings were read: nothing has started, so nothing to stop
+    if (run.cancel) return { state: 'cancelled' };
     for (let restarts = 0; ; restarts++) {
       const aborted = new Promise((_, reject) => { run.abort = reject; });
       aborted.catch(() => {});
@@ -203,6 +206,8 @@ export function createQueue({
     startWatchdog();
     let end;
     try { end = await drive(job, run); } catch (e) { end = { state: 'failed', error: messageOf(e) }; }
+    // a cancel the run saw ends it cancelled, whatever the run's own end (a failure after it)
+    if (run.cancel && end.state !== 'done') end = { state: 'cancelled' };
     job.state = end.state;
     job.error = end.state === 'failed' ? end.error : null;
     if (end.state === 'done' && end.out && end.out.msPerFrame > 0 && end.out.fps > 0) rate = rateOf(end.out.msPerFrame, end.out.fps);
@@ -232,15 +237,20 @@ export function createQueue({
   function cancelNow(id) {
     const job = jobs.find(j => j.id === id);
     if (!job || ended(job.state)) return Promise.resolve(false);
+    // the running job first: pump() has taken it but it may still read "queued" while
+    // its run starts (the settings read from OPFS), so its state can't tell
+    const run = running;
+    if (run && run.id === id) {
+      run.cancel = true;
+      return new Promise(res => run.waiters.push(res));
+    }
     if (job.state === 'queued') {
       job.state = 'cancelled';
       persist();
       emit();
       return Promise.resolve(true);
     }
-    const run = running;
-    run.cancel = true;
-    return new Promise(res => run.waiters.push(res));
+    return Promise.resolve(false);   // not reached: a job in a running stage is the running one
   }
 
   return {
