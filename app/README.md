@@ -677,8 +677,8 @@ first screen draws), the frame source by `openSource` (default `openFrameSource`
 
 ## A1, the player and the overlay
 
-`d16`. The cards under the player are a later package's; this is the video, the
-overlay and the controls (`screens/A1.mjs`, the mockup's `Result.dc.html`).
+`d16`. This is the video, the overlay and the controls; the cards under the
+player are [below](#a1-the-timeline-and-the-cue-cards) (`screens/A1.mjs`, the mockup's `Result.dc.html`).
 `A1({flow, store, openSource, diagnostics})` takes the lift's id from the flow's
 params (`liftId`, as H and Q1 hand it) and reads from the store the record
 (`getLift`), the result (`readResult`), the track (`readTrack`), the cut
@@ -733,7 +733,38 @@ the old page's code in `tests/app/draw.test.js` through `tests/loadOldCode.js`):
   frame's pixels (the overlay canvas is the track's frame size, shown scaled).
   `tests/app/draw.test.js` scans `app/src/ui/` and `app/src/draw/` for colour literals.
 - **Not drawn yet:** A3's "unsure joints" option (`view.unsure`), the lifter picker,
-  the "Rep 1" chip (the view holds no rep count), the cue cards.
+  the "Rep 1" chip (the view holds no rep count).
+
+## A1, the timeline and the cue cards
+
+`d17`. `ui/result-model.mjs` (plain functions, `tests/app/result.test.js` on views
+the scoring adapter builds from committed fixture tracks) lays the view model
+(contract 4) out; `screens/A1.mjs` draws what it gives.
+
+- **The cards** are `cardsOf(view)`: one per `view.cues`, in diagnostics.js's
+  order, whatever the cue is called. A cue added to a set there appears with no
+  change here (the test adds one to a view; the screen and the model name no cue).
+  A card is the status icon, the title (before the " — "), the status word and
+  the verdict (for a cue that can't be scored, the engine's reason, two lines
+  at most) and the value (`valueText`: signed for a worst sample, "1.07×" for
+  a ratio, "—" for none). Opened, it shows the cue, the cue's notes (the camera
+  note) in a box, "Provisional", and "Plot and details", which goes to A2 with
+  the lift's id and the cue's. The card that starts open is the first to work on,
+  else the first to watch.
+- **Status is an icon and a word, never colour alone:** `StatusIcon` (four icons,
+  `components/icons.mjs`) and base.css's `.status--…`, whose word is the token's
+  (`--status-…-word`); the model's `word` is the same text, for the card's
+  `aria-label` and the tests (which compare it to tokens.css).
+- **The timeline** is d16's one bar, extended: `timelineOf(view, range)` gives the lift window
+  (both ends, or the start alone with the view's `liftWindowReason`; none for a lift without
+  one: `hasLiftWindow` false shows no window and no reason) and each cue's phase and worst
+  moment, in seconds, in seconds into the range and as shares of the bar. The bar draws the
+  window, the worst moments of cues to watch or work on, and the phase of the open card's
+  cue. A tap on a worst-moment mark seeks to that moment (`seekTime`, 22 px); a drag follows
+  the finger, the arrow keys step.
+- **A2** is a placeholder (`screens/A2.mjs`) until `d18`: the flow gained `detail`
+  (screen A2): `result → detail`, `detail → result | home`.
+- **Not in the view model, so not drawn:** the card's threshold sentence ("Good within 15%…").
 
 ## Q1, analysing
 

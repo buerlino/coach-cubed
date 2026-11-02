@@ -151,4 +151,12 @@
   --speed-w: 56px;
   --speed-h: 40px;
   --play-icon: 20px;
+  --timeline-phase-top: 27px;
+  --timeline-phase-h: 3px;
+
+  /* A1's cue cards (the mockup's): the closed card's height, the status icon's box, and where the open
+     card's text starts (under the title, past the icon) */
+  --card-cue-min: 64px;
+  --status-icon: 28px;
+  --card-indent: 54px;
 }

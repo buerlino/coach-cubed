@@ -11,9 +11,9 @@ const { pathToFileURL } = require('node:url');
 const APP = path.resolve(__dirname, '..', '..', 'app');
 const load = () => import(pathToFileURL(path.join(APP, 'src', 'flow', 'flow.mjs')).href);
 
-test('the states: milestone A\'s six, plus live and replay for milestone B', async () => {
+test('the states: milestone A\'s six and a result\'s detail, plus live and replay for milestone B', async () => {
   const { STATES } = await load();
-  assert.deepEqual([...STATES].sort(), ['home', 'import', 'live', 'mark', 'queued', 'replay', 'result', 'settings']);
+  assert.deepEqual([...STATES].sort(), ['detail', 'home', 'import', 'live', 'mark', 'queued', 'replay', 'result', 'settings']);
 });
 
 test('a flow starts at home and keeps what each step carries', async () => {

@@ -270,4 +270,25 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .timeline__moment--watch { background: var(--status-watch); }
 .timeline__knob { position: absolute; top: var(--timeline-knob-top); width: var(--timeline-knob-w); height: var(--timeline-knob-h); margin-left: calc(var(--timeline-knob-w) / -2); border-radius: calc(var(--timeline-knob-w) / 2); background: var(--text); }
 .timeline__label { position: absolute; top: var(--timeline-label-top); font-size: var(--size-mark); color: var(--text-quiet); white-space: nowrap; }
+.timeline__phase { position: absolute; top: var(--timeline-phase-top); height: var(--timeline-phase-h); border-radius: calc(var(--timeline-phase-h) / 2); background: var(--accent); }
 
+/* A1, Result: the cue cards (design/mockups/Result.dc.html) */
+.cues { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-2) var(--space-4) var(--space-5); display: flex; flex-direction: column; gap: var(--space-2); }
+.cues-summary { display: flex; align-items: center; gap: var(--space-3h); padding: var(--space-1) var(--space-1) var(--space-half); font-size: var(--size-label); font-weight: var(--weight-semibold); }
+.cues-note { margin: 0 var(--space-1) var(--space-1); font-size: var(--size-small); line-height: 1.35; color: var(--text-quiet); }
+.cues > * { flex: none; }
+.cue-card { border-radius: var(--radius-l); background: var(--surface); overflow: hidden; }
+.cue-card__head { width: 100%; min-height: var(--card-cue-min); padding: var(--space-2h) var(--space-3h); border: 0; border-radius: 0; background: transparent; color: var(--text); display: flex; align-items: center; gap: var(--space-3); text-align: left; font-weight: var(--weight-regular); }
+.cue-card__icon { width: var(--status-icon); height: var(--status-icon); flex: none; display: flex; align-items: center; justify-content: center; }
+.cue-card__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-half); }
+.cue-card__title { font-size: var(--size-row); font-weight: var(--weight-semibold); }
+.cue-card__line { font-size: var(--size-small); line-height: 1.3; }
+.cue-card__line .status + span { font-weight: var(--weight-regular); }
+.cue-card__line--reason { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cue-card__value { font-family: var(--font-display); font-size: var(--size-subtitle); font-weight: var(--weight-bold); color: var(--text); }
+.cue-card__body { padding: 0 var(--space-3h) var(--space-3h) var(--card-indent); display: flex; flex-direction: column; gap: var(--space-2h); }
+.cue-card__cue { margin: 0; font-size: var(--size-label); line-height: 1.4; color: var(--text-soft); }
+.cue-card__note { margin: 0; padding: var(--space-2) var(--space-2h); border-radius: var(--radius-s); background: var(--surface-raised); font-size: var(--size-small); line-height: 1.4; color: var(--text-soft); }
+.cue-card__rule { font-size: var(--size-small); color: var(--text-quiet); }
+.cue-card__more { align-self: flex-start; min-height: var(--touch); padding: 0 var(--space-4); border: 0; border-radius: var(--radius-s); background: var(--surface-raised); color: var(--text); display: flex; align-items: center; gap: var(--space-1h); font-size: var(--size-label); font-weight: var(--weight-semibold); }
+.cues-window { margin: 0 var(--space-1); font-size: var(--size-small); line-height: 1.35; color: var(--text-soft); }

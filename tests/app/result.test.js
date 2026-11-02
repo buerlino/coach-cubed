@@ -143,6 +143,15 @@ test('result: the counts under the header are worst first, as the mockup has the
   assert.deepStrictEqual(m.summaryOf(view).map(s => s.text), ['1 work on', '3 good', "1 can't score"]);
 });
 
+test('result: the card that starts open is the first cue to work on, else the first to watch', async () => {
+  const m = await load('ui/result-model.mjs');
+  const { view } = await scored(LATERAL);
+  assert.equal(m.defaultOpen(m.cardsOf(view)), 'lateral-raise-elbow-lead', 'the mockup opens the elbow lead');
+  const snatch = await scored(SNATCH);
+  assert.equal(m.defaultOpen(m.cardsOf(snatch.view)), 'second-pull-triple-extension', 'watch, when nothing is to work on');
+  assert.equal(m.defaultOpen(m.cardsOf({ cues: [] })), null);
+});
+
 test('result: a cue added to diagnostics.js appears as a card with no change here', async () => {
   // The cards come from view.cues alone: a set with another cue (any id, title, unit) gives one more card.
   const m = await load('ui/result-model.mjs');

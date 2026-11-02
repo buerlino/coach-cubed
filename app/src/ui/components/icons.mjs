@@ -31,3 +31,16 @@ const solid = 'fill: currentColor';
 export const PlayIcon = () => html`<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style=${solid}><path d="M8 5v14l11-7z"></path></svg>`;
 export const PauseIcon = () => html`<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style=${solid}><rect x="6" y="5" width="4" height="14" rx="1"></rect><rect x="14" y="5" width="4" height="14" rx="1"></rect></svg>`;
 export const MoreIcon = () => html`<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style=${solid}><circle cx="5" cy="12" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="19" cy="12" r="2"></circle></svg>`;
+
+// A1's cue cards (design/mockups/Result.dc.html): a status's icon, drawn before its word. The mockup draws
+// good (a circle with a tick), work on (a triangle with a mark) and can't score (a dashed circle with a
+// dash); watch has no card in the mockups, so it is built in their style: a circle with a mark.
+const statusLine = 'fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round';
+const STATUS_ICONS = {
+  good: () => html`<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style=${statusLine}><circle cx="12" cy="12" r="9.5"></circle><path d="M7.5 12.5l3 3 6-6.5"></path></svg>`,
+  watch: () => html`<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style=${statusLine}><circle cx="12" cy="12" r="9.5"></circle><path d="M12 7.5v5.5M12 16.5h.01"></path></svg>`,
+  work: () => html`<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style=${statusLine}><path d="M12 3l9.5 17h-19z"></path><path d="M12 10v4.5M12 17.5h.01"></path></svg>`,
+  cant: () => html`<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style=${statusLine}><circle cx="12" cy="12" r="9.5" style="stroke-dasharray: 3 3"></circle><path d="M8 12h8"></path></svg>`,
+};
+/** @param {{icon: 'good'|'watch'|'work'|'cant'}} props result-model.mjs's `icon` */
+export const StatusIcon = ({ icon }) => STATUS_ICONS[icon]();

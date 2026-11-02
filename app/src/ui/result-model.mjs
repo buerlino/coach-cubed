@@ -82,6 +82,17 @@ export function cardsOf(view) {
   });
 }
 
+/**
+ * The card that starts open: the first cue to work on, else the first to watch, else none.
+ * @param {ReturnType<typeof cardsOf>} cards
+ * @returns {string|null} a cue's id
+ */
+export function defaultOpen(cards) {
+  const first = status => cards.find(c => c.status === status);
+  const c = first('work on') || first('watch');
+  return c ? c.id : null;
+}
+
 /** The counts under the header: [{status, count, text}], the worst first (H's). */
 export const summaryOf = view => summariseResult(view);
 

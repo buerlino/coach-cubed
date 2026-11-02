@@ -1,7 +1,7 @@
 // A1, Result (design/mockups/Result.dc.html), the player half (package d16): the stored cut with the
 // skeleton and the cue drawings over the frame shown, play and pause, one frame back or on, the
-// speed, and a timeline with the lift the analysis found and where a cue went wrong. The cards
-// below it are a later package's. What plays and steps, and why: player.mjs; what to show:
+// speed, and a timeline with the lift the analysis found and where a cue went wrong; under it (package d17)
+// the cards, one per cue of the view model, which open to the cue and to A2. What plays and steps, and why: player.mjs; what to show:
 // player-model.mjs; the overlay: draw/. The lift's id comes in the flow's params (H, Q1); the store
 // and the diagnostics.js object are injected (main.mjs gives the app's store; tests pass fakes).
 // The skeleton and cue switches and the speed are A3's view options (settings.view), kept in the store.
@@ -10,11 +10,12 @@ import { html } from '../html.mjs';
 import { openFrameSource } from '../../media/frame-source.mjs';
 import { getDiagnostics, scoreLift } from '../../scoring/score.mjs';
 import { smoothKeypoints } from '../../track/smoothing.mjs';
-import { overlayStyle, timelineMarks, trackSamples } from '../../draw/index.mjs';
+import { overlayStyle, trackSamples } from '../../draw/index.mjs';
 import { fitSize } from '../mark-model.mjs';
 import { createPlayer } from '../player.mjs';
-import { clockOf, fractionAt, headerOf, momentTitle, nextSpeed, speedLabel, timeAtPointer, windowLabel } from '../player-model.mjs';
-import { BackIcon, MoreIcon, PauseIcon, PlayIcon, StepBackIcon, StepForwardIcon } from '../components/icons.mjs';
+import { clockOf, fractionAt, headerOf, momentTitle, nextSpeed, speedLabel } from '../player-model.mjs';
+import { cardsOf, defaultOpen, provisionalNote, seekTime, summaryOf, timelineOf } from '../result-model.mjs';
+import { BackIcon, ChevronIcon, MoreIcon, PauseIcon, PlayIcon, StatusIcon, StepBackIcon, StepForwardIcon } from '../components/icons.mjs';
 
 const pixelRatio = () => (globalThis.devicePixelRatio > 0 ? globalThis.devicePixelRatio : 1);
 const pct = f => `${(f * 100).toFixed(2)}%`;
@@ -31,6 +32,7 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
   const [ps, setPs] = useState(null);           // the player's state
   const [skeleton, setSkeleton] = useState(true);
   const [speed, setSpeed] = useState(1);
+  const [open, setOpen] = useState(null);       // the cue whose card is open: its phase shows on the timeline
   const parts = useRef({});                     // the open video, its stepper, the object URL and the player: closed when A1 closes
   const flags = useRef({ skeleton: true, cues: true, loop: true });
   const frameBox = useRef(null);
@@ -67,6 +69,7 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
       flags.current = { skeleton: view_.skeleton, cues: view_.cues, loop: view_.loop };
       setSkeleton(view_.skeleton);
       setSpeed(view_.speed);
+      setOpen(defaultOpen(cardsOf(view)));
       setData({ rec, view, computed, diagnostics: diagnostics || getDiagnostics(), meta: track.meta, track: trackSamples(keypoints, track.meta), src, stepper, url: p.url, speed: view_.speed });
     })().catch(e => { if (current) setProblem(e && e.message ? e.message : CANT_SHOW); });
     return () => {
@@ -123,9 +126,10 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
     if (player()) player().setSpeed(next);
     keep({ speed: next });
   };
-  const seekTo = e => player().seek(timeAtPointer(e.clientX, barRef.current.getBoundingClientRect(), data.rec.range));
-  const down = e => { drag.current = true; if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); seekTo(e); };
-  const move = e => { if (drag.current) seekTo(e); };
+  // a tap on a worst-moment mark lands on that moment; a drag follows the finger
+  const seekTo = (e, moments) => player().seek(seekTime(e.clientX, barRef.current.getBoundingClientRect(), data.rec.range, moments));
+  const down = e => { drag.current = true; if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); seekTo(e, tl.cues.filter(c => c.marked).map(c => c.worst)); };
+  const move = e => { if (drag.current) seekTo(e, []); };
   const up = () => { drag.current = false; };
   const key = e => {
     if (e.key === 'ArrowLeft') { e.preventDefault(); player().step(-1); }
@@ -134,11 +138,14 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
 
   const head = data ? headerOf(data.rec) : null;
   const range = data ? data.rec.range : null;
-  const marks = data ? timelineMarks(data.view, range) : null;
+  const tl = data ? timelineOf(data.view, range) : null;
+  const cards = data ? cardsOf(data.view) : [];
+  const counts = data ? summaryOf(data.view) : [];
+  const note = data ? provisionalNote(data.view) : null;
+  const opened = tl ? tl.cues.find(c => c.id === open) : null;
   const t = ps ? ps.t : range ? range.t0 : 0;
   const clock = range ? clockOf(t, range) : null;
   const playing = !!(ps && ps.playing);
-  const label = data ? windowLabel(data.view, range) : null;
 
   return html`
     <main class="screen result" data-screen="A1">
@@ -172,14 +179,40 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
         <div class="timeline" ref=${barRef} role="slider" tabindex="0" aria-label="Video position" aria-valuemin="0" aria-valuemax=${clock.total} aria-valuenow=${clock.now} aria-valuetext=${`${clock.now} seconds`}
           onPointerDown=${down} onPointerMove=${move} onPointerUp=${up} onPointerCancel=${up} onKeyDown=${key}>
           <div class="timeline__bar"></div>
-          ${marks.lift && marks.lift.span ? html`<div class="timeline__lift" title="Lift found by the analysis" style=${`left: ${pct(marks.lift.span[0])}; width: ${pct(marks.lift.span[1] - marks.lift.span[0])}`}></div>` : null}
-          ${marks.lift && !marks.lift.span ? marks.lift.marks.map(m => html`<div class="timeline__start" title="Lift starts here" style=${`left: ${pct(m)}`}></div>`) : null}
-          ${marks.moments.map(m => {
-            const cue = data.view.cues.find(c => c.id === m.cue);
-            return html`<div class=${`timeline__moment timeline__moment--${m.status === 'work on' ? 'work-on' : 'watch'}`} title=${momentTitle(cue)} style=${`left: ${pct(m.fraction)}`}></div>`;
+          ${tl.lift && tl.lift.span ? html`<div class="timeline__lift" title="Lift found by the analysis" style=${`left: ${pct(tl.lift.span[0])}; width: ${pct(tl.lift.span[1] - tl.lift.span[0])}`}></div>` : null}
+          ${tl.lift && !tl.lift.span ? tl.lift.marks.map(m => html`<div class="timeline__start" title="Lift starts here" style=${`left: ${pct(m)}`}></div>`) : null}
+          ${opened && opened.phase ? html`<div class="timeline__phase" title=${`${cards.find(c => c.id === open).title}: where it was scored`} style=${`left: ${pct(opened.phase.from)}; width: ${pct(opened.phase.to - opened.phase.from)}`}></div>` : null}
+          ${tl.cues.filter(c => c.marked).map(m => {
+            const cue = data.view.cues.find(c => c.id === m.id);
+            return html`<div class=${`timeline__moment timeline__moment--${m.status === 'work on' ? 'work-on' : 'watch'}`} title=${momentTitle(cue)} style=${`left: ${pct(m.worst.fraction)}`}></div>`;
           })}
           <div class="timeline__knob" style=${`left: ${pct(fractionAt(t, range))}`}></div>
-          ${label ? html`<span class="timeline__label" style=${`left: ${pct(marks.lift ? (marks.lift.span ? marks.lift.span[0] : marks.lift.marks[0]) : 0)}`}>${label}</span>` : null}
+          ${tl.label ? html`<span class="timeline__label" style=${`left: ${pct(tl.lift ? (tl.lift.span ? tl.lift.span[0] : tl.lift.marks[0]) : 0)}`}>${tl.label}</span>` : null}
+        </div>
+        <div class="cues">
+          ${tl.reason ? html`<p class="cues-window">${tl.reason}</p>` : null}
+          <div class="cues-summary">${counts.map(c => html`<span class=${`count--${c.status}`}>${c.text}</span>`)}</div>
+          ${note ? html`<p class="cues-note">${note}</p>` : null}
+          ${cards.map(c => html`
+            <div class="cue-card" data-cue=${c.id}>
+              <button type="button" class="cue-card__head" aria-expanded=${open === c.id} aria-label=${`${c.title}: ${c.word}${c.line ? `, ${c.line}` : ''}${c.scored ? `, ${c.value}` : ''}`} onClick=${() => setOpen(open === c.id ? null : c.id)}>
+                <span class=${`cue-card__icon status--${c.cls}`}><${StatusIcon} icon=${c.icon} /></span>
+                <span class="cue-card__text">
+                  <span class="cue-card__title">${c.title}</span>
+                  <span class=${`cue-card__line status--${c.cls}${c.scored ? '' : ' cue-card__line--reason'}`}><span class=${`status status--${c.cls}`}></span><span> · ${c.line}</span></span>
+                </span>
+                <span class="cue-card__value">${c.value}</span>
+              </button>
+              ${open === c.id ? html`
+                <div class="cue-card__body">
+                  <p class="cue-card__cue">${c.cue}</p>
+                  ${c.reason ? html`<p class="cue-card__note">${c.reason}</p>` : null}
+                  ${c.notes.map(n => html`<p class="cue-card__note">${n}</p>`)}
+                  ${c.provisional ? html`<span class="cue-card__rule">Provisional</span>` : null}
+                  ${c.scored ? html`<button type="button" class="cue-card__more" onClick=${() => flow.go('detail', { liftId, cue: c.id })}>Plot and details<${ChevronIcon} /></button>` : null}
+                </div>` : null}
+            </div>`)}
+          ${data.view.notes.map(n => html`<p class="cues-window">${n}</p>`)}
         </div>` : null}
     </main>
   `;

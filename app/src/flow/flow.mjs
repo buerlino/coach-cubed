@@ -8,7 +8,7 @@
 // draws the screen the state names (SCREEN_OF). What a step carries (the
 // picked file, the lift's id) is `flow.params`, replaced by each step.
 
-export const STATES = ['home', 'import', 'mark', 'queued', 'result', 'settings', 'live', 'replay'];
+export const STATES = ['home', 'import', 'mark', 'queued', 'result', 'detail', 'settings', 'live', 'replay'];
 
 // The screen ID (docs/ui-design.md, "The screens") each state shows. "import"
 // is H's picker, which v1's mockups don't draw as a screen of its own.
@@ -18,6 +18,7 @@ export const SCREEN_OF = {
   mark: 'M',
   queued: 'Q1',
   result: 'A1',
+  detail: 'A2',
   settings: 'S1',
   live: 'R2',
   replay: 'R3',
@@ -33,7 +34,8 @@ export const TRANSITIONS = {
   import: ['mark', 'home'],
   mark: ['queued', 'home', 'import', 'live'],
   queued: ['result', 'home', 'live'],
-  result: ['home', 'mark'],
+  result: ['home', 'mark', 'detail'],
+  detail: ['result', 'home'],
   settings: ['home'],
   live: ['replay', 'home', 'queued'],
   replay: ['live', 'mark'],
