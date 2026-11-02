@@ -12,7 +12,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../html.mjs';
 import { openFrameSource } from '../../media/frame-source.mjs';
 import { getDiagnostics, scoreLift } from '../../scoring/score.mjs';
-import { overlayStyle, trackSamples } from '../../draw/index.mjs';
+import { overlayStyle, trackSamples, unsureStyle } from '../../draw/index.mjs';
 import { fitSize } from '../mark-model.mjs';
 import { ViewOptions } from '../components/view-options.mjs';
 import { createViewOptions, loopSpan } from '../view-options-model.mjs';
@@ -98,7 +98,8 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
     let style = null;
     const restyle = () => {
       const w = frameBox.current ? frameBox.current.clientWidth : 0;
-      style = overlayStyle(read, w > 0 ? data.meta.width / w : 1);   // frame pixels per CSS pixel
+      const scale = w > 0 ? data.meta.width / w : 1;   // frame pixels per CSS pixel
+      style = { ...overlayStyle(read, scale), unsure: unsureStyle(read, scale) };   // drawSkeleton rings the unsure joints only with style.unsure
     };
     restyle();
     const player = createPlayer({

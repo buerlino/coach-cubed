@@ -443,3 +443,9 @@ test('view options: the controller tells its subscribers about every change and 
   await r.ctl.setSwitch('loop', true);
   assert.equal(seen.length, n);
 });
+
+test('view options: A1 gives the overlay the unsure joints\' style, so the "Unsure joints" switch draws something in the app', () => {
+  const a1 = read('ui/screens/A1.mjs');
+  assert.match(a1, /import \{[^}]*\bunsureStyle\b[^}]*\} from '\.\.\/\.\.\/draw\/index\.mjs'/, 'A1 imports unsureStyle');
+  assert.match(a1, /style = \{[^}]*\.\.\.overlayStyle\([^}]*\bunsure: unsureStyle\(/, "restyle() sets style.unsure from unsureStyle()");
+});
