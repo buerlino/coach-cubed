@@ -29,6 +29,15 @@ Newest first within each group.
 
 ### What 0.1.0 is
 
+- **2026-11-02, nordmu, on the first night's reports:** one contract
+  package (`s35`): `frameTimes` in contract 5, a `reset` message in
+  contract 1, contract 4's window may lack its end and the view records
+  its smoothing, contract 2's reading reworded. Each set in diagnostics.js
+  says whether it has a lift window; the lateral raise has none (`s36`).
+  `athlete-a-trim` is a snatch (seen on the clip). S1 hides keepVideos
+  until contract 3 allows a lift without its cut; c8's setting ranges are
+  provisional until c27. mediabunny ships unminified. s9's and s32's phone
+  measurements move from c26 to `c34`, after c20.
 - **2026-11-01, nordmu, after the plan's review**
   ([app-plan.md](app-plan.md#decided-2026-11-01)): D5, the raw keypoint
   plots aren't ported (A2's per-cue plots replace them). D6, an analysed

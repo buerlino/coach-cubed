@@ -52,7 +52,12 @@ finish (git keeps the history). Decisions and open questions are in
   plan's review is fixed (2026-11-01): nordmu's D5–D8, the new package
   `s32` (the lift's video kept as a cut), Look A0 after `d17` and the
   tester APK's `c33`. The rest of Phase 3 runs as its own session once the
-  clips and the OK are in.
+  clips and the OK are in. **Progress:** faraday's first night
+  (2026-11-02) merged 13 packages, `s1` to `s12`, the app's frame (`d3`)
+  among them, and the FIX `s12f1` followed that morning; nordmu's answers
+  to their reports added `c34` and `s35`–`s37` to the queue
+  ([decisions.md](decisions.md#what-010-is)). The queue's status is the
+  record.
 - **Phase 4 is done** (2026-11-01): Phase 5 runs as packages through
   `pipeline/pipeline.sh <id>` ([pipeline.md](pipeline.md)), written by a
   coordinating session. 4.4, the first real run, is `s1`, watched by

@@ -105,7 +105,8 @@ while runs are queued may hold `integ` too (`pipeline/devlock.sh acquire integ <
 - **No hanging commands:** every long command gets a timeout and never waits for input; never a background loop that
   waits on a process (`pgrep -f` matches the loop's own command line).
 - **Heavy CPU work** (builds, Gradle, pose runs over videos, ViTPose) goes through `pipeline/devlock.sh slice <name>
-  <cmd…>`: ten minutes per piece at most, so pascaline's night and the other runs get the CPU between pieces.
+  <cmd…>`: ten minutes per piece at most, so pascaline's night and the other runs get the CPU between pieces. A slice
+  may wait 20 minutes or more for `host-cpu` while others hold it (s7 waited about 20): that is not a hang.
 - **The phone belongs to curie** (below). Everyone else runs no adb; the pipeline's adb refuses them.
 - **Decisions belong to nordmu** (or Noah, where [decisions.md](decisions.md) says so). Settle what the rules and the
   decisions already decide; anything else goes into your report under "Needs a decision", with your recommendation.
