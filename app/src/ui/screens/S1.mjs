@@ -147,7 +147,7 @@ export function S1({ flow, store, queue }) {
                     <button type="button" onClick=${() => setAsking(false)}>Cancel</button>
                   </div>
                 </div>` : html`
-                <button type="button" class="row row--action" disabled=${!stor.canDelete || busy} onClick=${() => setAsking(true)}>Delete all lifts…</button>`}
+                <button type="button" class="row row--action row--danger" disabled=${!stor.canDelete || busy} onClick=${() => setAsking(true)}>Delete all lifts…</button>`}
             </div>
             ${stor.persistedNote ? html`<p class="quiet">${stor.persistedNote}</p>` : null}
             ${busy ? html`<p class="quiet">Lifts waiting to be analysed or being analysed can't be deleted. Wait until the queue is empty.</p>` : null}` : null}

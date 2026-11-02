@@ -66,6 +66,15 @@ In the repo column names ([app/README.md](app/README.md#tfjs-from-source)).
 | esbuild | 0.28.2 | MIT | Build only, not shipped: `app/node_modules/` through `app/package.json` and its lock file | <https://registry.npmjs.org/esbuild/-/esbuild-0.28.2.tgz> |
 | TF.js from npm: `@tensorflow/tfjs-core`, `-converter`, `-backend-cpu`, `-backend-webgpu` (4.22.0) and `@tensorflow-models/pose-detection` (2.1.3) | as named | Apache-2.0 | Dev only, never in `dist/` and never shipped: `app/node_modules/` through `app/package.json` and its lock file. `app/tools/parity-tfjs.mjs` (package `s7`) runs npm's build beside the from-source bundle to check that both give the same keypoints | <https://registry.npmjs.org/@tensorflow/tfjs-core>, `-converter`, `-backend-cpu`, `-backend-webgpu`, <https://registry.npmjs.org/@tensorflow-models/pose-detection>, via `app/package-lock.json` |
 
+- **`app/licences/`** holds the three licence texts that have no home beside
+  a component, shipped in `dist/licences/` for S1's credits, each copied byte
+  for byte: `Apache-2.0.txt` is apache.org's standard text
+  (<https://www.apache.org/licenses/LICENSE-2.0.txt>, 11,358 bytes, SHA-256
+  `cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30`, the
+  appendix's template unfilled), for the Apache-2.0 components with no text of
+  their own (the Android libraries, npm's TF.js); `MIT-capacitor.txt` is the
+  `LICENSE` of `@capacitor/core` 8.5.3 in its npm package; `MIT-esbuild.txt` is
+  the `LICENSE.md` of `esbuild` 0.28.2 in its npm package.
 - **Preact 11.1.1** is the newest 11.x on npm (11.1.1 exists, so the pin the
   plan asked for holds). Its hooks import `preact` by bare name, which
   `app/index.html`'s import map points at the vendored file. **htm** is the

@@ -264,3 +264,19 @@ test('S1 draws the mockup\'s strings for what this package builds', () => {
     'Quality', 'Default lift', 'Storage', 'On this phone', 'Delete all lifts…', 'About', 'Credits and licences', 'How the cues are scored', 'Source code', 'AGPL-3.0-or-later',
     'Back to home', "This phone's camera gives up to 30 fps in the app."]) assert.ok(screen.includes(s), s);
 });
+
+test('"Delete all lifts…" is drawn as the destructive action: danger colour, weight 600, quiet when disabled', () => {
+  const screen = read('app', 'src', 'ui', 'screens', 'S1.mjs');
+  assert.match(screen, /class="row row--action row--danger"[^\n]*>Delete all lifts…/);
+  const css = read('app', 'src', 'styles', 'base.css');
+  assert.match(css, /\.row--danger\s*\{[^}]*color:\s*var\(--danger-text\)[^}]*font-weight:\s*var\(--weight-semibold\)/);
+  assert.match(css, /\.row--danger:disabled\s*\{[^}]*color:\s*var\(--text-quiet\)/);
+});
+
+test('app/licences/Apache-2.0.txt is apache.org\'s LICENSE-2.0.txt byte for byte, as THIRD_PARTY.md says', () => {
+  const crypto = require('node:crypto');
+  const buf = fs.readFileSync(path.join(APP, 'licences', 'Apache-2.0.txt'));
+  assert.equal(buf.length, 11358);
+  assert.equal(crypto.createHash('sha256').update(buf).digest('hex'), 'cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30');
+  assert.ok(read('THIRD_PARTY.md').includes('cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30'));
+});
