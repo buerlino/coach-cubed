@@ -12,7 +12,7 @@
 // Memory: around every call a sampler on the phone reads VmRSS of the app's
 // process and of the WebView renderer it binds (/proc/<pid>/status, every
 // 200 ms; 2 s idle first for the baseline), so each run has its baseline and
-// peak. The hardware decoder's own process (the codec service) isn't counted.
+// peak (the samples from the last one before the call to the first after it). The hardware decoder's own process (the codec service) isn't counted.
 // Before every run the battery is read: under 10 % it stops; over 36 °C it waits
 // (up to 5 min) for the phone to cool.
 //
@@ -100,6 +100,8 @@ function sampler(appPid, rendererPids) {
   child.stdout.on('data', d => { text += d; });
   const done = new Promise(r => child.on('exit', r));
   return {
+    // the samples received so far: those before a call are its baseline (the phone's clock isn't the laptop's)
+    mark: () => (text.match(/\n/g) || []).length,
     async stop() {
       try { sh(`touch ${stop}`); } catch { /* gone */ }
       await Promise.race([done, sleep(5000)]);
@@ -186,13 +188,14 @@ try {
       if (b.level < 10) throw new Error(`battery at ${b.level} %: stopped`);
       const s = sampler(pid, renderers);
       await sleep(2000);
-      const t = Date.now();
+      const t = s.mark();
       let r;
       try {
         r = await c.evaluate(`window.c34.${call}(${JSON.stringify(clip)}${args(k) ? `, ${JSON.stringify(args(k))}` : ''})`, { timeout: 600000 });
       } catch (e) { r = { error: { message: String(e.message || e) } }; }
       const samples = await s.stop();
-      const before = samples.filter(x => x[0] < t), during = samples.filter(x => x[0] >= t);
+      // during: from the call's start to the first sample after it ended
+      const before = samples.slice(0, t), during = samples.slice(Math.max(0, t - 1));
       const mb = kb => (kb == null ? null : Math.round(kb / 1024));
       r.rss = {
         samples: samples.length,
