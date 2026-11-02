@@ -52,7 +52,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 17 | `s36` | A lift without a lift window says so | schrödinger, opus | `s35` | merged `f926b4f` |
 | 18 | `s37` | batch_extract_tracks.py writes the diagnostics set | schrödinger, sonnet | — | merged `e8b2a92` |
 | 19 | `s38` | One-frame steps from a cache | schrödinger, opus | `s35`, `c34` | waits |
-| 20 | `d13` | H and importing a video | dirac, sonnet | `d3`, `c8`, `s12` | waits |
+| 20 | `d13` | H and importing a video | dirac, sonnet | `d3`, `c8`, `s12` | merged `109eaeb` |
 | 21 | `d14` | M1–M3, marking a lift | dirac, sonnet | `s9`, `s12`, `s35`, `s38` | waits |
 | 22 | `d15` | Q1, analysing | dirac, sonnet | `s12` | waits |
 | 23 | `d16` | A1's player with the skeleton overlay | dirac, sonnet | `s9`, `s11`, `s32`, `s35` | waits; L at the limit: split point `d16b` |
