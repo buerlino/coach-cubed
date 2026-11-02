@@ -51,14 +51,20 @@
   --tracking-wordmark: 0.5px;
 
   /* Spacing, on a 4 px step */
+  --space-half: 2px;   /* the half steps, for the lists' fine spacing */
   --space-1: 4px;
+  --space-1h: 6px;
   --space-2: 8px;
+  --space-2h: 10px;
   --space-3: 12px;
+  --space-3h: 14px;
   --space-4: 16px;
+  --space-4h: 18px;
   --space-5: 20px;
   --space-6: 24px;
 
   /* Corners */
+  --radius-xs: 3px;
   --radius-s: 12px;
   --radius-m: 14px;
   --radius-l: 16px;
@@ -66,4 +72,11 @@
 
   /* Touch targets are 44 px or more */
   --touch: 44px;
+
+  /* Sizes of H's pieces (the mockup's): action card, thumbnail, list row, progress bar */
+  --card-min: 88px;
+  --card-min-primary: 104px;
+  --thumb: 56px;
+  --row-min: 52px;
+  --bar: 6px;
 }
