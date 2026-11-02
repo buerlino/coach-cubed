@@ -21,6 +21,7 @@ python3 -m unittest discover -s tests -p 'test_*.py'  # the Python tests
 | `app/flow.test.js` | The new app's flow, `app/src/flow/flow.mjs`: the states, the transitions milestone A needs (H, import, mark, queued, result, back to H), an illegal one throws, listeners hear each change, each state has a screen module. |
 | `app/diagnostics-headless.test.js` | `diagnostics.js`'s headless API on the committed lateral raise and snatch tracks: `describe(set)` (the cues in order, their text, provisional), `tiles` and `referenceLine` against what the mounted old panel shows, `drawCue` on a recording fake context (inside the cue's phase only, no DOM or module state, the same calls as the old page's `overlay()` in each motion mode), `worstMoment` by each cue's rule. The old page's overlay is pinned by digests in `app/golden/overlay-digests.json`, recorded from phase-0's code before `s4` (`UPDATE_OVERLAY_DIGESTS=1` rewrites them; only for a deliberate drawing change). |
 | `app/store.test.js` | The store, `app/src/store/`, against `tests/app/fake-opfs.js`'s in-memory OPFS: save, list (newest first, today's apart), read, update and delete a lift with its folder; the index written by move and rebuilt when missing or damaged; settings with v1's defaults; `persist()` once; usage and quota; a full disk as `storage-full`; nothing outside OPFS. |
+| `app/frame-source.test.js` | The frame source, `app/src/media/` (`s9`): the sample table and its keyframe search on a synthetic B-frame stream; mediabunny's demuxing of our own clips in `app/clips/` (metadata, rotation, frame times, a variable rate); a range's frames in order from the keyframe before it, the frame at a time, thumbnails, rotation applied once; the decode loop against `fake-webcodecs.js` (reordering, a key chunk first, backpressure, an erroring, silent or stuck decoder, close); HEVC where the decoder lacks it and bytes that aren't a video fail with a named error; mediabunny is the only demuxer, vendored pinned with its licence and no "Incompatible With Secondary Licenses" notice. The real decoder, the canvas turn and the speed wait for the Fairphone (`c26`). |
 | `app/assemble.test.js` | `app/tools/assemble.mjs` into a temporary folder: `index.html`, the manifest, the vendored files and their licences, `diagnostics.js` and `src/track/`, `files.json` with every file and a version hash, the run without `app/vendor/tfjs/` and `app/models/`, and a refusal to empty a folder that isn't assemble's. Needs neither gitignored folder. |
 | `app/serve.test.js` | `app/tools/serve.mjs`: the types for `.mjs`, `.webmanifest`, `.woff2` and `.wasm`, no COOP/COEP, `/` is `index.html`, nothing outside the folder. |
 | `docs.test.js` | The docs: AGENTS.md, CLAUDE.md and the big docs within their budgets, every relative link and anchor in a tracked `.md` file, every path `docs/README.md` names. The budgets are at its top. |
@@ -172,3 +173,25 @@ Its `.mp4` stays out of git unless the clip may be published
 ([fixtures/README.md](fixtures/README.md#videos)); `.gitignore` refuses
 videos under `global/`, so committing one takes `git add -f`. Keep clips
 short (a few seconds).
+
+## The test clips (`tests/app/clips/`)
+
+Our own, from ffmpeg's `testsrc2` pattern (nothing recorded, nothing third-party): 96×54, 30 fps, 3 s (90 frames),
+H.264 with two B-frames and a keyframe every 30 frames (every second), 7–10 kB each. Made with ffmpeg 7.1.5 and
+libx264/libx265; the bit-exact flags keep the metadata free of the build's version string.
+
+```sh
+cd tests/app/clips
+SRC="-f lavfi -i testsrc2=size=96x54:rate=30:duration=3"
+X264="-c:v libx264 -preset veryslow -crf 36 -pix_fmt yuv420p -g 30 -keyint_min 30 -sc_threshold 0 -bf 2 -movflags +faststart -an -map_metadata -1 -fflags +bitexact -flags:v +bitexact"
+ffmpeg -y $SRC $X264 testsrc2-h264-30fps.mp4
+# the same stream with the file's rotation set to 90° clockwise (ffmpeg's display_rotation counts the other way): 54×96 upright
+ffmpeg -y -display_rotation -90 -i testsrc2-h264-30fps.mp4 -c copy -map_metadata -1 -fflags +bitexact testsrc2-h264-30fps-rot90.mp4
+# a variable frame rate: frames n of 0..89 with n % 5 < 3 kept, at their own times (54 frames, 2.93 s)
+ffmpeg -y $SRC -vf "select='lt(mod(n,5),3)'" -fps_mode vfr $X264 testsrc2-h264-vfr.mp4
+# HEVC, for the error a WebView without an HEVC decoder gives
+ffmpeg -y $SRC -c:v libx265 -preset veryslow -crf 36 -pix_fmt yuv420p -x265-params "keyint=30:min-keyint=30:scenecut=0:log-level=error" -tag:v hvc1 -movflags +faststart -an -map_metadata -1 testsrc2-hevc-30fps.mp4
+```
+
+The tests take their expected values from these commands (90 frames at n/30 s; which frames the select keeps), never from
+a decode. Regenerating the clips changes their bytes if the encoder changes, not the expectations.

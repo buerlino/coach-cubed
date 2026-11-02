@@ -22,6 +22,7 @@ node app/tools/build-tfjs.mjs                # TF.js and pose-detection from sou
 app/tools/fetch-models.sh                    # MoveNet Thunder's weights into app/models/, SHA-256 checked
 pipeline/devlock.sh slice check-tfjs node app/tools/check-tfjs.mjs   # the WebGL bundle in headless Brave
 pipeline/devlock.sh slice parity-tfjs nice node app/tools/parity-tfjs.mjs   # npm's TF.js against the from-source bundle: same keypoints?
+node app/tools/check-media.mjs               # the frame source on a real WebCodecs decoder, in headless Brave, on tests/app/clips/
 ```
 
 `serve.mjs` serves what `assemble.mjs` made: assemble again after a change.
@@ -40,8 +41,9 @@ It logs each request (`200 /index.html`); a `404` there is a broken path.
 | `src/track/` | One-line stubs, see below. |
 | `src/contracts/` | The shapes the app's parts agree on: JSDoc types, validators, examples. See [Contracts](#contracts). |
 | `src/store/` | The store (`c8`): lifts, their cut videos, tracks and results, the index and the settings, in OPFS. See [The store](#the-store). |
-| `vendor/` | Third-party files, each with its licence text, byte for byte from its npm package ([THIRD_PARTY.md](../THIRD_PARTY.md#in-the-new-app-app)): `preact/` (Preact 11.1.1 and its hooks), `htm/` (htm 3.1.1), `fonts/` (Barlow and Barlow Condensed, woff2, with `OFL.txt`). `vendor/tfjs/` is built by `tools/build-tfjs.mjs` (gitignored). |
-| `tools/` | `assemble.mjs`, `serve.mjs`, `make-icon.mjs`, and the TF.js build: `build-tfjs.mjs`, `fetch-models.sh`, `check-tfjs.mjs`, `patches/` ([below](#tfjs-from-source)). Node only; only `build-tfjs.mjs` needs `app/node_modules/` (esbuild). Not copied into `dist/`. |
+| `src/media/` | The frame source (`s9`): `openFrameSource(blob)` gives contract 5's source over mediabunny and WebCodecs. See [The frame source](#the-frame-source). |
+| `vendor/` | Third-party files, each with its licence text, byte for byte from its npm package ([THIRD_PARTY.md](../THIRD_PARTY.md#in-the-new-app-app)): `preact/` (Preact 11.1.1 and its hooks), `htm/` (htm 3.1.1), `mediabunny/` (mediabunny 1.61.6, MPL-2.0, the frame source's one demuxer), `fonts/` (Barlow and Barlow Condensed, woff2, with `OFL.txt`). `vendor/tfjs/` is built by `tools/build-tfjs.mjs` (gitignored). |
+| `tools/` | `assemble.mjs`, `serve.mjs`, `make-icon.mjs`, and the TF.js build: `build-tfjs.mjs`, `fetch-models.sh`, `check-tfjs.mjs`, `patches/` ([below](#tfjs-from-source)), and `check-media.mjs` (the frame source on a real decoder, [above](#the-frame-source)). Node only; only `build-tfjs.mjs` needs `app/node_modules/` (esbuild). Not copied into `dist/`. |
 | `dist/` | The assembled app (gitignored): what the PWA host and Capacitor get. `files.json` lists every file in it, with a version hash, for the service worker. |
 | `models/` | MoveNet SinglePose Thunder v4's weights, `movenet-thunder-4/` (`model.json` and three shards), fetched by `tools/fetch-models.sh` (gitignored). |
 
@@ -170,6 +172,77 @@ lifts/<id>/lift.json    the lift's record: contract 3, a StoredLift
 
 Not here: keeping or dropping the video after Analyse (`keepVideos` is only
 stored; `s32` and the job act on it), and the job queue's own state (`s12`).
+
+## The frame source
+
+`src/media/` opens a video from a `Blob` (the picked `File`, or the stored
+cut read back) and hands out contract 5's `FrameSource`
+([frame-source.mjs](src/contracts/frame-source.mjs)). mediabunny
+([`vendor/mediabunny/`](vendor/mediabunny/LICENSE), MPL-2.0, 1.61.6, the one
+demuxer in the app) reads the container; WebCodecs decodes. No `<video>`
+element: seeking one cost more than the pose model on the Fairphone.
+
+```js
+import { openFrameSource } from './media/frame-source.mjs';
+const src = await openFrameSource(file);   // MediaError if it can't be read or decoded
+src.info                    // { duration, fps, width, height, rotation, codec }: upright size
+src.frameTimes              // every frame's start time in seconds, presentation order: M1–M3's steps
+const f = await src.frameAt(t);               // last frame starting at or before t; f.close()
+for await (const f of src.frames(t0, t1)) …   // [t0, t1] in order, ends included; f.close()
+const bitmaps = await src.thumbnails(times, { height: 64 });
+src.close();
+```
+
+| File | What |
+| --- | --- |
+| `frame-source.mjs` | `openFrameSource(blob, {webcodecs, stallMs})`; re-exports `MediaError`. |
+| `sample-table.mjs` | `buildSampleTable(packets)`: from the packets' types, times and durations, the frame times (from 0, the earliest frame), `indexAt(t)`, `indexRange(t0, t1)`, `keyBefore(d)` and `plan(first, last)`, the keyframe search. No file, no decoder. |
+| `decode.mjs` | `decodeFrames(…)`: chunks in, frames out, an async generator over a `VideoDecoder`. |
+| `webcodecs.mjs` | `browserWebCodecs()`: the browser's `VideoDecoder`, `EncodedVideoChunk`, the canvas turn and `createImageBitmap`, behind one object that tests replace (`tests/app/fake-webcodecs.js`). |
+| `media-error.mjs` | `MediaError` and its `code`s. |
+
+**How a request becomes frames.** Open lists every packet once with
+mediabunny's `metadataOnly` (no data read) into the sample table. A request
+for frames *first..last* (presentation order) becomes the packets from the key
+packet before the earliest-stored of them to the latest-stored of them (with
+B-frames a picture is stored after one shown later), those packets are read
+from the Blob, and a fresh decoder is fed them; frames the caller didn't ask
+for (those from the keyframe to the range) are closed in the decode loop. One
+decoder per call, so calls may overlap; `close()` aborts them all. Times are
+seconds from the first frame; a frame's `timestamp` is its time in µs.
+
+**Rotation** is applied once, here: a file with a 90°, 180° or 270° rotation
+in its metadata is turned on a canvas (`webcodecs.rotate`) and delivered as a
+`VideoFrame` with rotation 0; `info.width` and `info.height` are the upright
+sides, and `info.rotation` is what the file asked for. `check-media.mjs`
+compares such a frame with ffmpeg's own autorotation of the same stream.
+Mirroring in the file isn't applied.
+
+**Errors, never a hang.** Everything that goes wrong is a `MediaError`; `code`
+is one of `no-webcodecs`, `unreadable` (not a video, damaged, a file that
+ends early), `no-video`, `unsupported-codec`, `decode-failed`,
+`decode-stalled`, `range` (a time that isn't a number) and `closed`. Open
+asks the decoder whether it supports the file's codec string
+(`VideoDecoder.isConfigSupported`) and decodes the first frame, so HEVC on a
+WebView without it fails at import with `unsupported-codec` and the codec
+named (`error.codec`), and a decoder that says yes but fails is caught too.
+During a decode, the decoder's error callback ends the stream with
+`decode-failed`, and a decoder that makes no progress for `stallMs` (15 s)
+with `decode-stalled`. Whatever the end, the decoder and every frame still
+held are closed.
+
+**Backpressure.** The decode loop feeds the decoder only while few chunks and
+few decoded frames wait, so a slow consumer (the pose model) keeps the
+decoder a few frames ahead instead of filling memory; a hardware decoder's
+last frames come out while the loop is still draining, not after the flush.
+
+**Not here, measured on the phone (`c26`):** a range's decode rate on the
+Fairphone's hardware decoder, the time to one frame at a random time (a
+keyframe's worth of decoding: up to a second of video), the cost of the
+canvas turn for a rotated clip at 30 and 60 fps, and an HEVC file's behaviour
+in the APK's WebView. `frameAt` decodes from the keyframe every time, with no
+cache of the last group of pictures, so stepping frame by frame in M1–M3 is
+the first thing to measure.
 
 ## TF.js from source
 
@@ -310,7 +383,7 @@ and WebGPU backends, and speed. They wait for the Fairphone (`c26`).
 `tests/`: `flow.test.js` (the state machine), `assemble.test.js` (assemble
 into a temporary folder, the manifest and `index.html`), `serve.test.js` (the
 dev server), `contracts.test.js` (the contracts, against the committed tracks
-and `diagnostics.js`'s headless API), `store.test.js` (the store, on `fake-opfs.js`, an in-memory OPFS), `build-tfjs.test.js` (the TF.js
+and `diagnostics.js`'s headless API), `store.test.js` (the store, on `fake-opfs.js`, an in-memory OPFS), `frame-source.test.js` (the frame source, on our own clips in `tests/app/clips/` and a fake decoder), `build-tfjs.test.js` (the TF.js
 build's pins, cache, op lists and patch notices, the MoveNet entry's
 refusal of a config without `modelUrl`, and `fetch-models.sh`'s checks and
 clean-up, all without the network). Every test runs in a fresh worktree, which has neither
