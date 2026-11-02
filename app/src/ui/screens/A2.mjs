@@ -8,17 +8,16 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../html.mjs';
 import { openFrameSource } from '../../media/frame-source.mjs';
 import { getDiagnostics, scoreLift } from '../../scoring/score.mjs';
-import { drawPlot, overlayStyle, paintCue, plotGeometry, plotStyle, timeAtTap, trackSamples } from '../../draw/index.mjs';
+import { overlayStyle, paintCue, trackSamples } from '../../draw/index.mjs';
 import { PLAY_HALF_LABEL, detailOf } from '../detail-model.mjs';
-import { valueText } from '../result-model.mjs';
 import { BackIcon, PlayIcon, StatusIcon } from '../components/icons.mjs';
+import { CuePlot } from '../components/cue-plot.mjs';
 
 const NO_LIFT = 'There is no lift to show. Open one from home.';
 const NOT_READY = 'This lift has no result yet.';
 const NO_CUE = 'This lift has no such cue.';
 const CANT_SHOW = 'This cue could not be shown.';
 
-const pixelRatio = () => (globalThis.devicePixelRatio > 0 ? globalThis.devicePixelRatio : 1);
 const root = () => (globalThis.document ? globalThis.document.documentElement : null);
 const readToken = n => (root() ? globalThis.getComputedStyle(root()).getPropertyValue(n) : '');
 
@@ -31,8 +30,6 @@ export function A2({ flow, store, openSource = openFrameSource, diagnostics = nu
   const parts = useRef({});
   const frameRef = useRef(null);
   const overlayRef = useRef(null);
-  const plotRef = useRef(null);
-  const geomRef = useRef(null);
   const seq = useRef(0);
 
   // load: the record, the result, the track; score the track as the result was; open the cut
@@ -83,39 +80,6 @@ export function A2({ flow, store, openSource = openFrameSource, diagnostics = nu
     return undefined;
   }, [data, t]);
 
-  // the plot, at the canvas's own width; again when the frame shown or the width changes
-  useEffect(() => {
-    const cv = plotRef.current;
-    if (!data || !cv || !data.detail.scored) return undefined;
-    const draw = () => {
-      const ratio = pixelRatio();
-      const style = plotStyle(readToken, data.detail.status);
-      const width = cv.clientWidth;
-      if (!(width > 0)) return;   // not laid out yet: the ResizeObserver draws it when it is
-      const height = parseFloat(globalThis.getComputedStyle(cv).height) || style.height;
-      cv.width = Math.round(width * ratio);
-      cv.height = Math.round(height * ratio);
-      const ctx = cv.getContext('2d');
-      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-      const cue = data.detail.plot;
-      const geom = plotGeometry(cue, data.detail.zones, {
-        width, height, pad: style.pad, origin: data.detail.origin,
-        format: v => valueText({ unit: cue.unit, value: v, worst: cue.worst }),
-      });
-      geomRef.current = geom;
-      drawPlot(ctx, geom, style, { at: t });
-    };
-    draw();
-    let watch = null;
-    if (globalThis.ResizeObserver) { watch = new globalThis.ResizeObserver(draw); watch.observe(cv); }
-    return () => { if (watch) watch.disconnect(); };
-  }, [data, t]);
-
-  const tap = e => {
-    if (!geomRef.current) return;
-    setT(timeAtTap(e.clientX, e.currentTarget.getBoundingClientRect(), geomRef.current));
-  };
-
   const d = data ? data.detail : null;
   const atWorst = d && d.worst && t !== null && Math.abs(t - d.worst.t) < 1e-3;
   const shown = d && t !== null ? (t - d.origin).toFixed(2) : null;
@@ -148,7 +112,7 @@ export function A2({ flow, store, openSource = openFrameSource, diagnostics = nu
               <section class="detail-plot" aria-labelledby="plot-h">
                 <h2 id="plot-h">Over time</h2>
                 <p class="quiet">${sub}</p>
-                <canvas class="detail-plot__canvas" ref=${plotRef} role="img" aria-label=${`${d.title} over time, against its zones. Tap to show that moment in the frame.`} onPointerDown=${tap}></canvas>
+                <${CuePlot} detail=${d} at=${t} onTap=${setT} />
               </section>
               <div class="detail-tiles">
                 ${d.tiles.map(k => html`

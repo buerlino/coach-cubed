@@ -430,7 +430,9 @@ test('detail: S1\'s text is built from scoringLines of a stored lift, and from t
 // ---- the screen, the flow, the tokens ----
 
 test('A2 replaces the placeholder: it draws the model and the plot, seeks on a tap, and goes back to the result', () => {
-  const src = read('app', 'src', 'ui', 'screens', 'A2.mjs');
+  // d25: the plot's drawing moved into components/cue-plot.mjs, which A2 and A4 (A1's wide layout) share
+  const src = read('app', 'src', 'ui', 'screens', 'A2.mjs') + read('app', 'src', 'ui', 'components', 'cue-plot.mjs');
+  assert.match(read('app', 'src', 'ui', 'screens', 'A2.mjs'), /<\$\{CuePlot\}/, 'A2 draws the plot through CuePlot');
   assert.ok(!/Coming in a later version|A placeholder/.test(src), 'no placeholder');
   for (const name of ['detailOf', 'plotGeometry', 'drawPlot', 'timeAtTap', 'paintCue']) assert.ok(src.includes(name), name);
   assert.match(src, /flow\.go\('result'/);

@@ -37,10 +37,12 @@ const T30 = Array.from({ length: 90 }, (_, i) => i / 30);                 // 3 s
 const TVFR = [0, 1, 2, 5, 6, 7, 10, 11, 12].map(n => n / 30);             // the vfr clip's first frames
 const near = (a, b, m) => assert.ok(Math.abs(a - b) < 1e-9, `${m || ''} ${a} vs ${b}`);
 
+// no test here is about a stall; a short stallMs only made a loaded machine (the browser tests in the same run) fail with decode-stalled
+
 async function openSource(file) {
   const { openFrameSource } = await load('media/frame-source.mjs');
   const fake = createFakeWebCodecs();
-  const src = await openFrameSource(clip(file), { webcodecs: fake, stallMs: 400 });
+  const src = await openFrameSource(clip(file), { webcodecs: fake, stallMs: 10000 });
   return { src, fake };
 }
 

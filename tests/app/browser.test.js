@@ -1,7 +1,7 @@
 'use strict';
 // c47: a test's browser ends with the test. /usr/bin/brave-browser is a bash wrapper whose last line is
 // `"$HERE/brave" "$@" || true` (no exec): killing the spawned wrapper orphans the real browser. app/tools/browser.mjs
-// launches the browser and closes its whole tree; the five tools use it and never spawn a browser themselves.
+// launches the browser and closes its whole tree; the tools use it and never spawn a browser themselves.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -13,7 +13,7 @@ const { pathToFileURL } = require('node:url');
 const ROOT = path.resolve(__dirname, '..', '..');
 const TOOLS = path.join(ROOT, 'app', 'tools');
 const HELPER = path.join(TOOLS, 'browser.mjs');
-const FIVE = ['page-test.mjs', 'check-tfjs.mjs', 'check-offline.mjs', 'check-pose.mjs', 'check-media.mjs'];
+const FIVE = ['page-test.mjs', 'check-tfjs.mjs', 'check-offline.mjs', 'check-pose.mjs', 'check-media.mjs', 'layout-check.mjs'];   // d25 added the sixth
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 const load = () => import(pathToFileURL(HELPER).href);   // fails (red) while the helper does not exist
@@ -26,7 +26,7 @@ async function noneWithin(needle, ms) {
   return left;
 }
 
-test('the five tools launch and close the browser through browser.mjs, none spawns one itself', () => {
+test('the tools (the five of c47 and the d25 layout check) launch and close the browser through browser.mjs, none spawns one itself', () => {
   assert.ok(fs.existsSync(HELPER), 'app/tools/browser.mjs exists');
   for (const f of FIVE) {
     const text = fs.readFileSync(path.join(TOOLS, f), 'utf8');
