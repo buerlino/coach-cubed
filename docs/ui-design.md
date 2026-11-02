@@ -15,6 +15,13 @@ mockups and what they propose, and what is still open. What binds is in
   enough to build now"; tweaks later). The build:
   [app-plan.md](app-plan.md). The real app runs on the Fairphone from
   milestone A's phone run on.
+- **Checkpoint A, round 1, approved by nordmu on 2026-11-02:** the new
+  lift step L1, M1–M3 reworked, a cue where a screen goes on below, and a
+  wording pass. It's a page of its own, not on the canvas: the session
+  couldn't write the canvas's files. The page is
+  <https://claude.ai/code/artifact/c1156e32-cab3-4bed-962d-f785be185294>,
+  and its copy is in [design/](../design/README.md). Built by `d53`, `d54`
+  and `d55` ([packages/](packages/README.md)). More feedback is to come.
 
 ## nordmu's requirements (2026-11-01)
 
@@ -28,16 +35,17 @@ mockups and what they propose, and what is still open. What binds is in
   has a button, plus whatever else a functional UI needs. UI best practices,
   and maintainable code, not a pile of spaghetti.
 
-## The screens (v1)
+## The screens (v1, with checkpoint A's round 1)
 
 | ID | Screen | What it covers |
 | --- | --- | --- |
-| H | Home | Start a gym session, import a video, today's lifts and their state (analysing, ready, waiting), earlier sessions, "everything stays on this phone". |
+| H | Home | Start a gym session, import a video (round 1: the card opens the phone's picker), today's lifts and their state (analysing, ready, waiting), earlier sessions, "nothing leaves this phone". |
+| L1 | Which lift? (round 1) | After the picker: one tile per lift from the registry (icon, name, "provisional"), S1's default lift ringed in the accent; a tap goes on to M; ‹ back to H. The lift is chosen here and nowhere else in milestone A. |
 | R1 | Set up the camera | A framing guide, the lift (lateral raise or snatch) with a framing tip each, the replay mode, start. |
 | R2 | Recording | REC and the session time, the camera's real frame rate, the queue, a large Replay button, end session; the screen stays on. |
 | R3 | Replay (nordmu's idea) | The last 20 s play at once: pause, scrub, ½×. Keep and mark, or back to live (by itself after a while); recording never stops. |
 | R3b | Delayed view (proposed) | The screen shows the camera 5–20 s late, a small live view in the corner; Keep this lift; nothing to touch until then. |
-| M1–M3 | Mark the lift | One screen in three states (start, end, ready): the filmstrip moves under a fixed playhead; Set start, Set end, one-frame steps; the marked length and the time to analyse it; Analyse, Redo. |
+| M1–M3 | Mark the lift | One screen in three states (start, end, ready): the filmstrip moves under a fixed playhead. Round 1: the buttons are the steps, 1 Start, 2 End, 3 Analyse, in the bottom row; a set step turns green with its time, and pressed again moves its mark to the playhead; ↶ undoes the last mark from the first mark on. One text line between the one-frame steps carries the hint, the length and the time to analyse. Fixed positions: only the video takes what's left, so nothing moves and it fits a portrait phone from 640 px high. The lift is shown in the header, not switched. |
 | Q1 | Analysing | Progress by stage (read the video, find the pose, score the cues), the time left, the queue; leaving doesn't stop it. |
 | A1 | Result | The video with the skeleton: play, frame steps, speed; a timeline with the lift found and where a cue went wrong; a card per cue (status, verdict, value) that opens to the cue, a camera note and the provisional thresholds. |
 | A2 | Cue detail | The worst moment with the cue drawn on the video, the cue's plot over time against its zones, its tiles, the cue, how it's scored. |
@@ -46,9 +54,11 @@ mockups and what they propose, and what is still open. What binds is in
 | S1 | Settings and about | Replay mode and lengths, camera, quality, default lift, storage and keeping videos, version, the privacy text, credits and licences. |
 | S1b | How the cues are scored (built, d18) | S1's row opens a short text: each cue of a lift, its rule from the cue's zones and, from the newest analysed lift, how it was measured. |
 
-The flows: **milestone A**, H, import, M1–M3, Q1, A1 and A2. **Milestone
+The flows: **milestone A**, H, the phone's picker, L1, M1–M3, Q1, A1 and
+A2; every newly picked video passes L1 (A3's re-mark knows its lift). **Milestone
 B**, H, R1, R2, R3 or R3b, M1–M3, then back to R2 while the lift waits in
-the queue, and A1 from H or the queue.
+the queue, and A1 from H or the queue. Where a screen goes on below the
+window, a fade and a ⌄ at its bottom edge show it (round 1).
 
 ## What the mockups add to the requirements
 
@@ -117,7 +127,10 @@ The numbers are in [pose-spike.md](pose-spike.md).
    nordmu shares the canvas. The app is built fresh as static files from
    it ([app-plan.md](app-plan.md)); the mockups' code (the canvas's
    format) isn't reused. Changes after checkpoint A go through the canvas
-   first.
+   first. Round 1 is the exception (nordmu, 2026-11-02): the session's
+   tool couldn't write the canvas's files, so a review page in the
+   canvas's look is the record (`design/checkpoint-a/`), and a session
+   that can write the canvas catches it up.
 4. On the Fairphone, the canvas opens in a browser logged in to claude.ai;
    from 5.3 on, the real app runs on the phone.
 
@@ -152,9 +165,8 @@ theme waits, and phone landscape gets no layout of its own, only 5.7's
 check that nothing breaks.
 
 Built beyond the mockups and kept (nordmu, 2026-11-02, from d13's, d15's,
-d24's and c19's reports): Import as built ("Which lift?", then "Pick a
-video", then Back), starting on S1's default lift (d41); the gym card's
-"Coming in a later version"; the snatch marked "provisional" until step
+d24's and c19's reports): Import as built until `d53` replaces it with
+L1 (round 1); the gym card's "Coming later" tag; the snatch marked "provisional" until step
 3.6 closes; earlier days expanded in place on H; Q1's "Paused" in the
 background and "Analyse again" after a failed or stopped analysis, with
 M handing Q1 the lift's id (d14); H's percent from Q1's bands (d41); S1's

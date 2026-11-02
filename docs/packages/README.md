@@ -79,15 +79,18 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 43 | `s50` | A re-marked lift replaces the old one once its analysis is done | schrödinger, opus | `d22` | ready (nordmu, 2026-11-02, on d22's report) |
 | 44 | `c52` | The tools' browser leaves no org.chromium.Chromium folders in /tmp | curie, sonnet | `c47`, `c48` | ready; laptop only (nordmu, 2026-11-02, on c48's report) |
 | 45 | `s49` | One lift registry, and the guide to adding a lift or a cue (Noah's handover of the lift side) | schrödinger, opus | `d25` | ready (nordmu, 2026-11-02) |
+| 46 | `d53` | Pick the video, then "Which lift?" (L1); M's lift switch goes | dirac, sonnet | `d51`, `s50`, `s49` | waits (checkpoint A round 1, approved by nordmu 2026-11-02; to run tonight); laptop only |
+| 47 | `d54` | M1–M3: the steps are the buttons, and nothing moves | dirac, opus | `d53` | waits (as `d53`); laptop only; B's `d29` comes after it |
+| 48 | `d55` | Fewer words, symbols, and a cue where a screen goes on below | dirac, sonnet | `d54` | waits (as `d53`); laptop only |
 | | | **Checkpoint A:** nordmu uses milestone A on the Fairphone; feedback by screen ID. Then **2.7 and 2.8** with the queue empty (D8) | | `c26` | passed for laptop rows (nordmu, 2026-11-02: feedback given on the PWA, more to come; `c26` still runs by day; 2.7 and 2.8 wait for the OKs and the clipper repo) |
-| 46 | `c33` | The tester APK: the real name and ID, release signing | curie | checkpoint A, 2.8, question 10, the key's holder | id only: written after checkpoint A |
-| 47 | `c27` | Capture and the rolling buffer (cuts with `s32`'s cut) | curie | checkpoint A | id only; laptop only (nordmu, 2026-11-02) |
-| 48 | `d28` | R1 and R2 | dirac | `c27` | id only |
-| 49 | `d29` | R3 and R3b | dirac | `d28`, `d14` | id only |
-| 50 | `c30` | Recording and analysis together | curie | `d29`, `s12` | id only |
-| 51 | `c31` | A session on the Fairphone | curie | `c30` | id only; phone: by day |
+| 49 | `c33` | The tester APK: the real name and ID, release signing | curie | checkpoint A, 2.8, question 10, the key's holder | id only: written after checkpoint A |
+| 50 | `c27` | Capture and the rolling buffer (cuts with `s32`'s cut) | curie | checkpoint A | id only; laptop only (nordmu, 2026-11-02) |
+| 51 | `d28` | R1 and R2 | dirac | `c27` | id only |
+| 52 | `d29` | R3 and R3b | dirac | `d28`, `d14`, `d54` | id only; marks through d54's reworked M1–M3 |
+| 53 | `c30` | Recording and analysis together | curie | `d29`, `s12` | id only |
+| 54 | `c31` | A session on the Fairphone | curie | `c30` | id only; phone: by day |
 | | | **Checkpoint B:** nordmu runs a real gym session | | `c31` | |
-| 52 | `c40` | The handover: the pipeline runnable for Noah | curie | checkpoint B | id only; laptop only |
+| 55 | `c40` | The handover: the pipeline runnable for Noah | curie | checkpoint B | id only; laptop only |
 
 Gates outside the queue ([../app-plan.md](../app-plan.md#gates-outside-the-sessions)): no APK goes to testers before
 `c33`, which needs the name and the package ID (question 10) and the signing key's holder.

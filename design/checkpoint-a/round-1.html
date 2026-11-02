@@ -1,0 +1,754 @@
+<title>coach checkpoint A revision</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap">
+<style>
+/* Layout: one reading column for the notes; the phones in a row that wraps; the wording as tables per screen.
+   Single dark look on purpose: it is coach's own (app/src/styles/tokens.css), dark only. */
+:root {
+  --ground: #0E0F11;
+  --surface: #17191C;
+  --raised: #21242A;
+  --line: #2E3238;
+  --line-strong: #3A3F46;
+  --text: #F2F1EC;
+  --soft: #B4B8BF;
+  --quiet: #8E939B;
+  --accent: #C8F04A;
+  --on-accent: #0E0F11;
+  --rec: #FF4D4D;
+  --good: #6FB7FF;
+  --watch: #F2C14E;
+  --work: #FF8A4C;
+  --wash: rgba(200, 240, 74, 0.22);
+  --scrim: rgba(14, 15, 17, 0.8);
+  --f-text: Barlow, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-display: "Barlow Condensed", Barlow, system-ui, sans-serif;
+  --touch: 44px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--ground); }
+body {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--f-text);
+  font-size: 16px;
+  line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 72px;
+}
+button { font: inherit; color: inherit; }
+button:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.page { max-width: 1320px; margin: 0 auto; display: flex; flex-direction: column; gap: 48px; }
+.prose { max-width: 68ch; display: flex; flex-direction: column; gap: 12px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+h1 { font-family: var(--f-display); font-size: clamp(34px, 6vw, 52px); line-height: 1.02; letter-spacing: 0.4px; }
+h2 { font-family: var(--f-display); font-size: 30px; line-height: 1.1; letter-spacing: 0.3px; }
+h3 { font-size: 17px; font-weight: 700; }
+p { margin: 0; }
+.eyebrow { font-size: 13px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; color: var(--quiet); }
+.soft { color: var(--soft); }
+.quiet { color: var(--quiet); }
+.accent { color: var(--accent); }
+code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.88em; color: var(--soft); }
+ul.points { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; color: var(--soft); }
+ul.points b { color: var(--text); font-weight: 600; }
+
+/* the flow line */
+.flow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.flow__step { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 6px 14px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); font-weight: 600; }
+.flow__step--new { border-color: var(--accent); }
+.flow__id { font-family: var(--f-display); font-size: 15px; color: var(--quiet); letter-spacing: 0.4px; }
+.flow__step--new .flow__id { color: var(--accent); }
+.flow__arrow { color: var(--quiet); }
+.flow__gone { color: var(--quiet); text-decoration: line-through; font-weight: 500; }
+
+/* the phones */
+.phones { display: flex; flex-wrap: wrap; gap: 40px 32px; align-items: flex-start; }
+.phone { width: min(390px, 100%); display: flex; flex-direction: column; gap: 12px; }
+.phone__cap { display: flex; align-items: baseline; gap: 10px; }
+.phone__id { font-family: var(--f-display); font-size: 22px; font-weight: 700; color: var(--accent); }
+.phone__name { font-weight: 600; }
+.phone__frame { position: relative; height: var(--h, 844px); border-radius: 30px; border: 1px solid var(--line-strong); background: var(--ground); overflow: hidden; box-shadow: 0 0 0 6px #050506; transition: height 0.2s ease; }
+.phone__note { font-size: 14px; color: var(--soft); max-width: 390px; }
+.controls { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 14px; color: var(--quiet); }
+.seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: 10px; overflow: hidden; }
+.seg button { min-height: 36px; padding: 0 12px; border: 0; background: transparent; color: var(--soft); cursor: pointer; font-size: 14px; font-weight: 600; }
+.seg button + button { border-left: 1px solid var(--line-strong); }
+.seg button[aria-pressed="true"] { background: var(--raised); color: var(--text); }
+@media (prefers-reduced-motion: reduce) { .phone__frame { transition: none; } }
+
+/* ---- shared in-app pieces ---- */
+.app { position: absolute; inset: 0; display: flex; flex-direction: column; font-size: 16px; line-height: 1.35; }
+.icon-btn { width: var(--touch); height: var(--touch); flex: none; border-radius: 22px; border: 0; background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text); }
+.icon-btn svg { display: block; }
+.app-head { height: 56px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 12px; }
+.wordmark { font-family: var(--f-display); font-weight: 700; font-size: 34px; letter-spacing: 0.5px; line-height: 1; }
+.tag { display: inline-flex; align-items: center; min-height: 22px; padding: 0 8px; border-radius: 11px; background: var(--raised); color: var(--soft); font-size: 12px; font-weight: 600; }
+.foot { display: flex; align-items: center; gap: 8px; color: var(--quiet); font-size: 14px; padding: 16px 20px 22px; }
+
+/* H */
+.h-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; scrollbar-width: none; }
+.h-scroll::-webkit-scrollbar { display: none; }
+.h-head { display: flex; align-items: center; justify-content: space-between; padding: 20px 12px 4px 20px; }
+.h-body { display: flex; flex-direction: column; gap: 12px; padding: 12px 16px 0; }
+.card { display: flex; align-items: center; gap: 14px; min-height: 88px; padding: 14px 16px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); text-align: left; cursor: pointer; }
+.card--off { opacity: 0.55; cursor: default; }
+.card__icon { width: 52px; height: 52px; flex: none; border-radius: 14px; background: var(--raised); display: flex; align-items: center; justify-content: center; color: var(--accent); }
+.card--off .card__icon { color: var(--soft); }
+.card__title { font-size: 19px; font-weight: 700; display: block; }
+.card__text { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.section-h { display: flex; align-items: baseline; justify-content: space-between; padding: 26px 20px 8px; }
+.section-h h4 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--soft); }
+.row { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 8px 16px 8px 20px; border-top: 1px solid var(--line); }
+.row__thumb { width: 48px; height: 48px; flex: none; border-radius: 10px; background: var(--raised); display: flex; align-items: center; justify-content: center; color: var(--soft); }
+.row__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.row__title { font-weight: 600; }
+.row__meta { font-size: 14px; color: var(--quiet); font-variant-numeric: tabular-nums; }
+.row__state { font-size: 14px; display: flex; gap: 8px; align-items: center; }
+.dot { width: 8px; height: 8px; border-radius: 4px; display: inline-block; }
+.bar { height: 6px; border-radius: 3px; background: var(--raised); overflow: hidden; width: 120px; }
+.bar > i { display: block; height: 100%; background: var(--accent); }
+.more-cue { position: absolute; left: 0; right: 0; bottom: 0; height: 84px; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 10px; background: linear-gradient(rgba(14,15,17,0), rgba(14,15,17,0.94) 62%); pointer-events: none; transition: opacity 0.2s ease; }
+.more-cue button { pointer-events: auto; width: var(--touch); height: var(--touch); border-radius: 22px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.more-cue[hidden] { display: none; }
+
+/* L1 */
+.l-body { flex: 1; display: flex; flex-direction: column; gap: 14px; padding: 8px 16px 0; }
+.l-title { font-family: var(--f-display); font-size: 34px; font-weight: 700; letter-spacing: 0.4px; padding: 4px 4px 0; }
+.l-clip { display: flex; align-items: center; gap: 8px; color: var(--quiet); font-size: 14px; padding: 0 4px 6px; }
+.lift-tile { display: flex; align-items: center; gap: 18px; min-height: 120px; padding: 16px 20px; border-radius: 20px; background: var(--surface); border: 2px solid var(--line); cursor: pointer; text-align: left; }
+.lift-tile--default { border-color: var(--accent); }
+.lift-tile:active { background: var(--raised); }
+.lift-tile__icon { width: 72px; height: 72px; flex: none; border-radius: 18px; background: var(--raised); display: flex; align-items: center; justify-content: center; color: var(--text); }
+.lift-tile__name { font-size: 24px; font-weight: 700; display: block; }
+.lift-tile__text { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+
+/* M */
+.m-head { height: 56px; flex: none; display: flex; align-items: center; gap: 6px; padding: 0 12px; }
+.m-lift { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--soft); }
+.m-lift svg { color: var(--soft); }
+.m-stage { flex: 1 1 auto; min-height: 140px; position: relative; background: #000; }
+.m-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.m-clock { position: absolute; left: 12px; top: 12px; padding: 4px 10px; border-radius: 10px; background: var(--scrim); font-family: var(--f-display); font-size: 19px; font-weight: 700; letter-spacing: 0.5px; font-variant-numeric: tabular-nums; }
+.m-clear { position: absolute; right: 8px; top: 8px; width: var(--touch); height: var(--touch); border-radius: 22px; border: 0; background: var(--scrim); color: var(--rec); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.m-clear[hidden] { display: none; }
+.strip { height: 100px; flex: none; position: relative; overflow: hidden; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.strip:active { cursor: grabbing; }
+.strip__track { position: absolute; top: 4px; height: 92px; }
+.strip__tick { position: absolute; top: 14px; width: 1px; background: var(--line-strong); }
+.strip__label { position: absolute; top: 0; width: 40px; margin-left: -20px; text-align: center; font-size: 12px; font-weight: 600; color: var(--quiet); font-variant-numeric: tabular-nums; }
+.strip__thumb { position: absolute; top: 26px; width: 47px; height: 64px; border-radius: 3px; overflow: hidden; background: var(--raised); }
+.strip__thumb canvas { width: 100%; height: 100%; display: block; }
+.strip__region { position: absolute; top: 24px; height: 64px; border-top: 3px solid var(--accent); border-bottom: 3px solid var(--accent); background: var(--wash); }
+.strip__pole { position: absolute; top: 20px; width: 4px; height: 72px; margin-left: -2px; border-radius: 2px; background: var(--accent); }
+.strip__flag { position: absolute; top: 0; width: 20px; height: 18px; margin-left: -10px; border-radius: 4px; background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 700; text-align: center; line-height: 18px; }
+.strip__playhead { position: absolute; left: 50%; top: 22px; width: 2px; height: 78px; margin-left: -1px; background: var(--text); pointer-events: none; }
+.strip__knob { position: absolute; left: 50%; top: 14px; width: 12px; height: 12px; margin-left: -6px; background: var(--text); transform: rotate(45deg); border-radius: 2px; pointer-events: none; }
+.m-read { height: 56px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 16px; }
+.m-fine { width: 52px; height: 48px; flex: none; border-radius: 14px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.m-text { flex: 1; min-width: 0; height: 40px; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 15px; line-height: 20px; color: var(--soft); font-variant-numeric: tabular-nums; overflow: hidden; }
+.m-text--error { color: var(--work); }
+.m-text--ready { color: var(--text); }
+.m-steps { flex: none; display: flex; gap: 8px; padding: 6px 16px 18px; }
+.m-undo { width: 52px; height: 68px; flex: none; border-radius: 16px; border: 1px solid var(--line-strong); background: var(--surface); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text); }
+.m-undo--x { color: var(--rec); }
+.m-undo:disabled { opacity: 0.35; cursor: default; }
+.tile { flex: 1 1 0; min-width: 0; height: 68px; border-radius: 16px; border: 2px solid var(--line); background: var(--surface); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; cursor: pointer; color: var(--quiet); padding: 0 4px; }
+.tile__disc { width: 26px; height: 26px; border-radius: 13px; border: 2px solid var(--line-strong); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; }
+.tile__label { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; font-variant-numeric: tabular-nums; }
+.tile:disabled { cursor: default; }
+.tile--next { background: var(--text); border-color: var(--text); color: var(--on-accent); }
+.tile--next .tile__disc { border-color: var(--on-accent); }
+.tile--done { border-color: var(--accent); color: var(--text); }
+.tile--done .tile__disc { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.tile--go { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.tile--go .tile__disc { border-color: var(--on-accent); }
+.tile--flash { animation: flash 0.35s ease; }
+@keyframes flash { 0% { transform: scale(0.96); } 100% { transform: scale(1); } }
+@media (prefers-reduced-motion: reduce) { .tile--flash { animation: none; } .more-cue { transition: none; } }
+.m-toast { position: absolute; left: 16px; right: 16px; top: 64px; padding: 12px 14px; border-radius: 14px; background: var(--raised); border: 1px solid var(--line-strong); font-size: 15px; }
+.m-toast[hidden] { display: none; }
+
+/* the wording */
+.wording { display: flex; flex-direction: column; gap: 36px; }
+.wtable-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; }
+table.wtable { width: 100%; border-collapse: collapse; font-size: 15px; min-width: 560px; }
+.wtable th { text-align: left; font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--quiet); font-weight: 600; padding: 10px 14px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.wtable td { padding: 10px 14px; border-top: 1px solid var(--line); vertical-align: top; }
+.wtable tr:first-child td { border-top: 0; }
+.wtable td.before { color: var(--quiet); width: 42%; }
+.wtable td.after { color: var(--text); width: 42%; }
+.wtable td.where { color: var(--quiet); font-size: 13px; }
+.cut { text-decoration: line-through; text-decoration-color: rgba(142,147,155,0.6); }
+.gone { color: var(--quiet); font-style: italic; }
+.sym { color: var(--accent); font-weight: 700; }
+
+/* the open choices */
+.choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 16px; }
+.choice { padding: 18px 20px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; }
+.choice h3 { font-size: 18px; }
+.choice .rec { color: var(--accent); font-weight: 600; }
+</style>
+
+<div class="page">
+
+  <header class="prose">
+    <p class="eyebrow">coach · checkpoint A · round 1 · approved by nordmu, 2026-11-02</p>
+    <h1>Pick, choose the lift, mark, analyse</h1>
+    <p class="soft">nordmu's first checkpoint feedback, drawn. The lift is chosen once, right after the video. On M the numbered steps are the buttons, undo is a symbol, and nothing moves when a mark is set. Every screen uses fewer words. Look and colours stay as they are, the green accent included.</p>
+  </header>
+
+  <section class="prose" aria-labelledby="flow-h">
+    <h2 id="flow-h">The flow</h2>
+    <div class="flow" role="list">
+      <span class="flow__step" role="listitem"><span class="flow__id">H</span>Import a video</span>
+      <span class="flow__arrow" aria-hidden="true">→</span>
+      <span class="flow__step" role="listitem">the phone's own picker</span>
+      <span class="flow__arrow" aria-hidden="true">→</span>
+      <span class="flow__step flow__step--new" role="listitem"><span class="flow__id">L1</span>Which lift?</span>
+      <span class="flow__arrow" aria-hidden="true">→</span>
+      <span class="flow__step" role="listitem"><span class="flow__id">M1–M3</span>mark</span>
+      <span class="flow__arrow" aria-hidden="true">→</span>
+      <span class="flow__step" role="listitem"><span class="flow__id">Q1</span>analysing</span>
+      <span class="flow__arrow" aria-hidden="true">→</span>
+      <span class="flow__step" role="listitem"><span class="flow__id">A1</span>result</span>
+    </div>
+    <ul class="points">
+      <li><b>Gone:</b> <span class="flow__gone">Import</span> as a screen of its own (lift, then picker), and <span class="flow__gone">M's lift switch</span>. H's card opens the picker straight away.</li>
+      <li><b>Every new video passes L1.</b> "Pick another video" on M's error screen leads there too. A3's re-mark already knows the lift and goes straight to M.</li>
+      <li><b>Milestone B fits:</b> R1 already chooses the lift before recording, so a recorded lift reaches M with its lift.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="screens-h" style="display:flex;flex-direction:column;gap:20px">
+    <div class="prose">
+      <h2 id="screens-h">The screens</h2>
+      <p class="soft">All three are live. Drag M's filmstrip, press 1, 2, 3, undo, then change the phone's height: the buttons stay put. On L1, a tap on a lift goes on to M with that lift.</p>
+    </div>
+    <div class="controls" role="group" aria-label="Prototype settings">
+      <span>Phone height</span>
+      <span class="seg" id="seg-h">
+        <button type="button" id="h-844" data-h="844" aria-pressed="true">844</button>
+        <button type="button" id="h-760" data-h="760" aria-pressed="false">760 (Brave)</button>
+        <button type="button" id="h-640" data-h="640" aria-pressed="false">640</button>
+      </span>
+      <span>M at</span>
+      <span class="seg" id="seg-m">
+        <button type="button" id="m-1" data-m="1">M1</button>
+        <button type="button" id="m-2" data-m="2">M2</button>
+        <button type="button" id="m-3" data-m="3">M3</button>
+      </span>
+    </div>
+
+    <div class="phones">
+      <!-- H -->
+      <figure class="phone" style="margin:0">
+        <figcaption class="phone__cap"><span class="phone__id">H</span><span class="phone__name">Home</span></figcaption>
+        <div class="phone__frame phone-h">
+          <div class="app">
+            <div class="h-scroll" id="h-scroll">
+              <div class="h-head">
+                <span class="wordmark">coach</span>
+                <button type="button" class="icon-btn" aria-label="Settings and about"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></button>
+              </div>
+              <div class="h-body">
+                <button type="button" class="card card--off" disabled aria-disabled="true">
+                  <span class="card__icon"><svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round"><rect x="2.5" y="6.5" width="13" height="11" rx="2.5"/><path d="M15.5 10.5l6-3.5v10l-6-3.5z"/></svg></span>
+                  <span class="card__text"><span class="card__title">Gym session</span><span class="tag">Coming later</span></span>
+                </button>
+                <button type="button" class="card" id="h-import">
+                  <span class="card__icon"><svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M12 3.5v11M7.5 10l4.5 4.5 4.5-4.5M4.5 19.5h15"/></svg></span>
+                  <span class="card__text"><span class="card__title">Import a video</span></span>
+                </button>
+              </div>
+              <div class="section-h"><h4>Today</h4><span class="quiet" style="font-size:14px">5 lifts</span></div>
+              <div id="h-rows"></div>
+              <div class="section-h"><h4>Earlier</h4></div>
+              <div class="row"><span class="row__text"><span class="row__title">Thu 29 Oct · 4 lifts</span><span class="row__meta">Lateral raise, snatch</span></span></div>
+              <p class="foot"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Nothing leaves this phone.</span></p>
+            </div>
+            <div class="more-cue" id="h-more"><button type="button" aria-label="More below"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round"><path d="M6 9l6 6 6-6"/></svg></button></div>
+          </div>
+        </div>
+        <p class="phone__note">Import opens the picker directly. Where a screen goes on below the window, a soft fade and a <span class="accent">⌄</span> show it; a tap scrolls one screen; they go at the bottom. Same on A1, A2, S1 and Q1.</p>
+      </figure>
+
+      <!-- L1 -->
+      <figure class="phone" style="margin:0">
+        <figcaption class="phone__cap"><span class="phone__id">L1</span><span class="phone__name">Which lift? (new)</span></figcaption>
+        <div class="phone__frame phone-h">
+          <div class="app">
+            <div class="app-head">
+              <button type="button" class="icon-btn" aria-label="Back"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round"><path d="M15 5l-7 7 7 7"/></svg></button>
+            </div>
+            <div class="l-body">
+              <p class="l-title">Which lift?</p>
+              <p class="l-clip"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14M17 5v14M3 9.5h4M3 14.5h4M17 9.5h4M17 14.5h4"/></svg><span>PXL_20261102_1832.mp4</span></p>
+              <button type="button" class="lift-tile lift-tile--default" data-lift="lateral-raise">
+                <span class="lift-tile__icon"><svg viewBox="0 0 48 48" width="52" height="52" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round"><circle cx="24" cy="11" r="4"/><path d="M24 17v15M24 19H10M24 19h14M10 15.5v7M38 15.5v7M24 32l-5 12M24 32l5 12"/></svg></span>
+                <span class="lift-tile__text"><span class="lift-tile__name">Lateral raise</span></span>
+              </button>
+              <button type="button" class="lift-tile" data-lift="snatch">
+                <span class="lift-tile__icon"><svg viewBox="0 0 48 48" width="52" height="52" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round"><circle cx="24" cy="17" r="4"/><path d="M5 7h38M8 3v8M40 3v8M24 23l-8-16M24 23l8-16M24 21v13M24 34l-8 4 2 6M24 34l8 4-2 6"/></svg></span>
+                <span class="lift-tile__text"><span class="lift-tile__name">Snatch</span><span class="tag">provisional</span></span>
+              </button>
+            </div>
+            <p class="foot"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Nothing leaves this phone.</span></p>
+          </div>
+        </div>
+        <p class="phone__note">One tap on a lift goes on to M; there is no Next. S1's default lift wears the green ring. The tiles keep their order from the lift registry (<code>s49</code>), so a third lift adds a third tile. ‹ goes back to H and drops the clip.</p>
+      </figure>
+
+      <!-- M -->
+      <figure class="phone" style="margin:0">
+        <figcaption class="phone__cap"><span class="phone__id" id="m-id">M1</span><span class="phone__name">Mark the lift</span></figcaption>
+        <div class="phone__frame phone-h">
+          <div class="app" id="m-app">
+            <div class="m-head">
+              <button type="button" class="icon-btn" aria-label="Close"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+              <span class="m-lift" id="m-lift"></span>
+            </div>
+            <div class="m-stage" id="m-stage">
+              <canvas id="m-canvas" role="img" aria-label="The video at the playhead"></canvas>
+              <span class="m-clock" id="m-clock">0:00.0</span>
+              <button type="button" class="m-clear" id="m-clear" aria-label="Clear both marks" hidden><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+              <div class="m-toast" id="m-toast" role="status" hidden></div>
+            </div>
+            <div class="strip" id="m-strip" role="slider" tabindex="0" aria-label="Playhead position, drag the filmstrip" aria-valuemin="0" aria-valuemax="14">
+              <div class="strip__track" id="m-track"></div>
+              <div class="strip__playhead" aria-hidden="true"></div>
+              <div class="strip__knob" aria-hidden="true"></div>
+            </div>
+            <div class="m-read">
+              <button type="button" class="m-fine" id="m-back" aria-label="One frame back"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round"><path d="M16 6l-6 6 6 6M8 6v12"/></svg></button>
+              <p class="m-text" id="m-text" role="status"></p>
+              <button type="button" class="m-fine" id="m-fwd" aria-label="One frame forward"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round"><path d="M8 6l6 6-6 6M16 6v12"/></svg></button>
+            </div>
+            <div class="m-steps" role="group" aria-label="Marks">
+              <button type="button" class="m-undo" id="m-undo" aria-label="Undo the last mark" disabled></button>
+              <button type="button" class="tile" id="t1"><span class="tile__disc">1</span><span class="tile__label">Start</span></button>
+              <button type="button" class="tile" id="t2"><span class="tile__disc">2</span><span class="tile__label">End</span></button>
+              <button type="button" class="tile" id="t3"><span class="tile__disc">3</span><span class="tile__label">Analyse</span></button>
+            </div>
+          </div>
+        </div>
+        <p class="phone__note">Press <b>1</b> at the start, <b>2</b> at the end, <b>3</b> to analyse. A green step can be pressed again to move that mark to the playhead. The text line between the frame steps holds two lines at most and never pushes anything.</p>
+      </figure>
+    </div>
+  </section>
+
+  <section class="prose" aria-labelledby="m-h">
+    <h2 id="m-h">M1–M3, what changes</h2>
+    <ul class="points">
+      <li><b>The steps are the buttons.</b> 1 Start, 2 End, 3 Analyse, in one row at the bottom, where the thumb is. The next one to press is white; a set one turns green and shows its time; 3 turns green-filled once both are set. "Set start", "Set end" and the step list above the strip are gone.</li>
+      <li><b>Undo works at any point</b>, from the first mark on, in a fixed slot left of the steps. It is greyed out, never hidden, while there is nothing to undo.</li>
+      <li><b>Nothing moves.</b> Header, strip, text line and buttons have fixed heights; only the video takes what is left. A set mark, an error or the time estimate changes text in place. A test compares every control's position before and after each mark.</li>
+      <li><b>Fits the phone.</b> No scrolling in portrait from 640 px high (the Fairphone in Brave is about 760). Phone landscape still scrolls, with the ⌄ cue.</li>
+      <li><b>The fine steps stay</b> (‹ one frame ›), on both sides of the text line, right under the strip they move.</li>
+      <li><b>The lift is shown, not switched:</b> its icon and name in the header.</li>
+    </ul>
+  </section>
+
+  <section class="wording" aria-labelledby="w-h">
+    <div class="prose">
+      <h2 id="w-h">The wording, before and after</h2>
+      <p class="soft">Strings of the built screens. Cue titles, cue texts, verdicts and how a cue is scored come from <code>src/diagnostics.js</code>; they are Noah's and stay. So do S1's privacy text and the licences. <span class="sym">Symbol</span> marks a word replaced by an icon that carries it, with the word kept for screen readers.</p>
+    </div>
+    <div id="w-tables" class="wording"></div>
+  </section>
+
+  <section aria-labelledby="c-h" style="display:flex;flex-direction:column;gap:16px">
+    <div class="prose">
+      <h2 id="c-h">Decided</h2>
+      <p class="soft">nordmu, 2026-11-02, on this page. Built as packages d53 (L1), d54 (M1–M3) and d55 (the wording and the ⌄ cue), in that order.</p>
+    </div>
+    <div class="choices">
+      <div class="choice"><h3>Undo</h3><p class="soft">↶ in the fixed slot left of the steps. Each press takes back the last mark; two presses clear both. Not × (the header's × closes M).</p></div>
+      <div class="choice"><h3>Pressing a green step again</h3><p class="soft">It moves that mark to the playhead; ↶ brings the old one back.</p></div>
+      <div class="choice"><h3>The wording</h3><p class="soft">All of the tables above, in one package after the M rework.</p></div>
+      <div class="choice"><h3>Where this round lives</h3><p class="soft">This page is the record, copied into design/ in git. The claude.ai canvas catches up when a session can write it.</p></div>
+    </div>
+  </section>
+</div>
+
+<script>
+// The wording pass: [before, after, where]. R = removed, S = a symbol carries it (the word stays for screen readers).
+(function () {
+  var R = '<span class="gone">removed</span>';
+  var S = function (s) { return '<span class="sym">Symbol</span> ' + s; };
+  window.WORDING = [
+    { id: 'M1–M3', name: 'Mark the lift', rows: [
+      ['Mark the lift (header)', 'the lift’s icon and name, e.g. Lateral raise', 'header'],
+      ['Lateral raise ⌄ (the lift switch)', R + ' (the lift is chosen on L1)', 'header, right'],
+      ['the step list 1 Start · 2 End · 3 Analyse, and the Set start / Set end button', 'the buttons 1 Start · 2 End · 3 Analyse', 'bottom row'],
+      ['Drag the filmstrip until the playhead sits just before the lift starts, then tap Set start.', 'Drag to just before the lift', 'text line, M1'],
+      ['Now drag to just after the last rep ends, then tap Set end.', 'Drag to just after it · 2.4 s', 'text line, M2 (the length follows the playhead)'],
+      ['13.0 s marked. About 38 s to analyse on this phone; it runs in the background while you train.', '13.0 s · analysed in about 38 s', 'text line, M3'],
+      ['Estimated from a first-run default: this phone has not measured its own rate yet.', '13.0 s · about 38 s, a first guess', 'text line, M3 before the phone has timed itself'],
+      ['Rough is fine: coach finds the exact lift inside your marks. Shorter marks analyse faster.', R, 'under the hint, M1 and M2'],
+      ['The marks only need to bracket the lift; the analysis finds its exact start and end.', R, 'under the hint, M3'],
+      ['The end has to come after the start: drag right, past the lift.', 'The end has to come after the start', 'text line, in the work-on colour'],
+      ['Too close to the end of the video for an end to follow: drag left, to before the lift starts.', 'No room for an end after this', 'text line, in the work-on colour'],
+      ['Analyse 13.0 s', '3 Analyse (the length is on the text line)', 'button 3'],
+      ['Keeping the video…', 'Saving… on button 3, Saving the clip… on the text line', 'while Analyse stores the cut'],
+      ['Redo the marks (text button, M3 only)', S('↶, from the first mark on'), 'left of the buttons'],
+      ['Set the start and the end first.', 'Set 1 and 2 first', 'if Analyse is reached without both marks'],
+      ['Opening the video…', 'Opening…', 'over the video while it opens'],
+      ['There is no video to mark. Pick one from the home screen.', 'No video to mark.', 'M opened without a file']
+    ]},
+    { id: 'H', name: 'Home', rows: [
+      ['Start gym session', 'Gym session', 'first card'],
+      ['Film non-stop, replay each lift, keep the good ones.', R, 'first card'],
+      ['Coming in a later version', 'Coming later', 'tag on the first card'],
+      ['Pick a clip from this phone and mark the lift.', R + ' (the card opens the picker)', 'Import card'],
+      ['Update ready. Reload the app to use the new version.', 'Update ready · reload the app', 'status line'],
+      ['The lifts could not be read.', 'Couldn’t read your lifts.', 'error line'],
+      ['Import a video to mark a lift and get its feedback. Your lifts will be listed here.', 'Your lifts show up here.', 'empty state, under No lifts yet'],
+      ['Today’s session · 3 lifts kept', 'Today · 3 lifts', 'section heading and count'],
+      ['Analysing 46%', '46 % (beside the bar)', 'row, while analysing'],
+      ['Waiting · starts after the one above / …the ones ahead', 'Waiting · next / Waiting · 2 ahead', 'row, while queued'],
+      ['Couldn’t analyse · ' + '<i>the job’s error</i>', S('▲') + ' Couldn’t analyse (the reason is on Q1)', 'row, failed'],
+      ['Not analysed · stopped', 'Stopped', 'row, cancelled'],
+      ['1 work on · 3 good', S('▲ 1 · ✓ 3') + ' (A1’s status icons with counts)', 'row, ready'],
+      ['Everything stays on this phone. No account, no uploads.', 'Nothing leaves this phone.', 'footer, with the lock (S1’s privacy text opens with the same words)'],
+      ['That file is not a video.', 'That’s not a video.', 'error line after the picker']
+    ]},
+    { id: 'L1', name: 'Which lift? (the Import screen’s strings)', rows: [
+      ['Import a video (heading) · Choose the lift first, then pick a clip from this phone.', R + ' (no Import screen)', ''],
+      ['Which lift? (radio legend)', 'Which lift? (L1’s heading)', ''],
+      ['Pick a video (button)', R + ' (H’s card opens the picker)', ''],
+      ['Choose the lift first. · Pick a video from this phone.', R + ' (neither can happen any more)', 'error lines'],
+      ['Back', S('‹'), 'header'],
+      ['Everything stays on this phone. No account, no uploads.', 'Nothing leaves this phone.', 'footer']
+    ]},
+    { id: 'Welcome', name: 'The first run (added after the approval: nordmu’s d23 decision puts its text in this pass)', rows: [
+      ['Pick a video of a lift from this phone and mark where the lift starts and ends.', 'Pick a video, then mark the lift.', 'first point'],
+      ['The app finds the lifter in the video and scores each technique cue.', 'coach finds the lifter and scores each cue.', 'second point'],
+      ['Everything stays on this phone. No account, no uploads.', 'Nothing leaves this phone.', 'third point, and the footer'],
+      ['Go to home', 'Not now', 'quiet button under the Import card (which opens the picker, as on H)']
+    ]},
+    { id: 'Q1', name: 'Analysing', rows: [
+      ['Kept 14:32 · 13.0 s marked · 390 frames', '14:32 · 13.0 s', 'under the lift’s name'],
+      ['about 38 s left · about 2 min left', '~38 s left · ~2 min left', 'beside the percent; also the queue line'],
+      ['measuring the speed', 'estimating…', 'before a rate is measured'],
+      ['frame 120 of 390', '120 / 390', 'beside Find the pose'],
+      ['Runs on this phone; nothing is uploaded. You can leave this screen: it keeps going.', 'Keeps going if you leave.', 'note while it runs'],
+      ['Runs on this phone; nothing is uploaded.', R, 'note when it has ended'],
+      ['Ahead in the queue / Next in the queue', 'Before this / Up next', 'queue box'],
+      ['and 2 more', '+2 more', 'queue box'],
+      ['Nothing is being analysed.', 'Nothing to analyse.', 'empty'],
+      ['Back to home (wide button)', 'Home', 'bottom'],
+      ['Cancel this analysis', 'Cancel', 'quiet button'],
+      ['That did not work.', 'That didn’t work.', 'error line']
+    ]},
+    { id: 'A1', name: 'Result (and A4, the wide layout)', rows: [
+      ['There is no lift to show. Open one from home.', 'No lift to show.', 'error line (also A2)'],
+      ['This lift has no result yet.', 'No result yet.', 'error line (also A2)'],
+      ['This lift could not be shown.', 'Couldn’t show this lift.', 'error line'],
+      ['Today’s session / Earlier sessions', 'Today / Earlier', 'A4’s breadcrumb, as on H'],
+      ['Plot and details', 'Details', 'link in the open card and A4’s panel']
+    ]},
+    { id: 'A2', name: 'Cue detail', rows: [
+      ['This lift has no such cue.', 'No such cue.', 'error line'],
+      ['This cue could not be shown.', 'Couldn’t show this cue.', 'error line'],
+      ['band: the two sides', 'band: both sides', 'under Over time']
+    ]},
+    { id: 'A3', name: 'View options', rows: [
+      ['The pose, joint by joint', R, 'under Skeleton'],
+      ['What each cue measures, like the elbow line', 'The lines each cue measures', 'under Cue drawings'],
+      ['Joints the model was less than 30% sure of', 'Under 30 % sure', 'under Unsure joints'],
+      ['Skip the walk-in and walk-out', 'Skips walking in and out', 'under Loop the lift only'],
+      ['Playback speed', 'Speed', 'group heading'],
+      ['Changes the scores. The thresholds assume the default, 50 ms.', 'Changes the scores. Thresholds assume 50 ms.', 'under Smoothing'],
+      ['Delete this lift? Its video and result are removed from this phone. This can’t be undone.', 'Delete this lift and its video? This can’t be undone.', 'confirmation'],
+      ['This choice could not be kept: … · The smoothing could not be changed: … · This lift could not be opened for marking: … · This lift could not be deleted: …', 'Couldn’t save this: … · Couldn’t change the smoothing: … · Couldn’t open this lift: … · Couldn’t delete this lift: …', 'error lines'],
+      ['That did not work.', 'That didn’t work.', 'error fallback']
+    ]},
+    { id: 'S1', name: 'Settings and about', rows: [
+      ['This phone’s camera gives up to 30 fps in the app. In dim light it drops; the recording screen shows the real rate.', 'Up to 30 fps; less in dim light.', 'note under Gym session'],
+      ['Replay mode, lengths, camera and quality come with the camera, in a later version.', 'These come with the gym session, later.', 'second note'],
+      ['Room left for the app', 'Free for the app', 'storage row'],
+      ['The system hasn’t promised to keep these files if the phone runs very low on space. They stay until then, or until you delete them.', 'If the phone runs very low on space, the system may remove them.', 'storage note'],
+      ['Lifts waiting to be analysed or being analysed can’t be deleted. Wait until the queue is empty.', 'Can’t delete while lifts are being analysed.', 'under Delete all lifts…'],
+      ['coach is made with the components below. Each one’s licence text is in the app, so it reads without a connection.', 'coach is built with these. Their licences are in the app, readable offline.', 'credits intro'],
+      ['Reading the licence text…', 'Loading…', 'credits'],
+      ['This licence text couldn’t be read from the app’s files.', 'Couldn’t load this licence.', 'credits'],
+      ['Something went wrong.', 'That didn’t work.', 'error fallback']
+    ]}
+  ];
+})();
+</script>
+<script>
+(function () {
+  'use strict';
+  var FPS = 30, DURATION = 14, N = DURATION * FPS, PX = 48, MIN = 3;
+  var REPS = [[3.2, 5.6], [6.2, 8.6], [9.2, 11.4]];
+  var LIFTS = {
+    'lateral-raise': { name: 'Lateral raise', icon: '<svg viewBox="0 0 48 48" width="26" height="26" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round"><circle cx="24" cy="11" r="4"/><path d="M24 17v15M24 19H10M24 19h14M10 15.5v7M38 15.5v7M24 32l-5 12M24 32l5 12"/></svg>' },
+    'snatch': { name: 'Snatch', icon: '<svg viewBox="0 0 48 48" width="26" height="26" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:round"><circle cx="24" cy="17" r="4"/><path d="M5 7h38M8 3v8M40 3v8M24 23l-8-16M24 23l8-16M24 21v13M24 34l-8 4 2 6M24 34l8 4-2 6"/></svg>' }
+  };
+  var UNDO_ARROW = '<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>';
+  var UNDO_X = '<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style="fill:none;stroke:currentColor;stroke-width:2.8;stroke-linecap:round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var state = { index: 3 * FPS - 12, start: null, end: null, history: [], error: null, busy: false, lift: 'lateral-raise', undo: 'arrow' };
+
+  function clock(t) {
+    var tenths = Math.max(0, Math.round(t * 10)), m = Math.floor(tenths / 600), s = (tenths % 600) / 10;
+    return m + ':' + s.toFixed(1).padStart(4, '0');
+  }
+  var timeOf = function (i) { return i / FPS; };
+  var clampI = function (i) { return Math.max(0, Math.min(N - 1, i)); };
+
+  // ---- the stand-in lifter ----
+  function armAngle(t) {
+    for (var k = 0; k < REPS.length; k++) {
+      var a = REPS[k][0], b = REPS[k][1];
+      if (t >= a && t <= b) return 12 + 73 * Math.pow(Math.sin(Math.PI * (t - a) / (b - a)), 1.2);
+    }
+    return 12;
+  }
+  function drawLifter(ctx, w, h, t) {
+    var g = ctx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#262A30'); g.addColorStop(0.7, '#1B1E22');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#16181B'; ctx.fillRect(0, h * 0.85, w, h * 0.15);
+    ctx.strokeStyle = '#2A2E34'; ctx.lineWidth = Math.max(1, h / 400);
+    ctx.beginPath(); ctx.moveTo(0, h * 0.85); ctx.lineTo(w, h * 0.85); ctx.stroke();
+    var u = h / 100, cx = w / 2;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#B4B8BF'; ctx.fillStyle = '#B4B8BF';
+    ctx.lineWidth = Math.max(1.5, 3.2 * u);
+    var sy = 30 * u, hip = 54 * u, sh = 8 * u;
+    ctx.beginPath(); ctx.arc(cx, 22 * u, 4.2 * u, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(cx - sh, sy); ctx.lineTo(cx + sh, sy); ctx.moveTo(cx, sy); ctx.lineTo(cx, hip); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx - 4 * u, hip); ctx.lineTo(cx - 6 * u, 84 * u); ctx.moveTo(cx + 4 * u, hip); ctx.lineTo(cx + 6 * u, 84 * u);
+    ctx.moveTo(cx - 4 * u, hip); ctx.lineTo(cx + 4 * u, hip); ctx.stroke();
+    var ang = armAngle(t) * Math.PI / 180, L = 22 * u;
+    var lx = cx - sh - Math.sin(ang) * L, rx = cx + sh + Math.sin(ang) * L, ay = sy + Math.cos(ang) * L;
+    ctx.beginPath(); ctx.moveTo(cx - sh, sy); ctx.lineTo(lx, ay); ctx.moveTo(cx + sh, sy); ctx.lineTo(rx, ay); ctx.stroke();
+    ctx.fillStyle = '#4A4F57';
+    [lx, rx].forEach(function (x) { ctx.beginPath(); ctx.arc(x, ay, 3.4 * u, 0, Math.PI * 2); ctx.fill(); });
+  }
+
+  // ---- M ----
+  var stage = $('m-stage'), canvas = $('m-canvas'), strip = $('m-strip'), track = $('m-track');
+  var thumbsBuilt = false;
+  function buildTrack() {
+    var html = '';
+    for (var s = 0; s <= DURATION; s++) {
+      html += '<div class="strip__tick" style="left:' + (s * PX) + 'px;height:' + (s % 2 ? 6 : 10) + 'px"></div>';
+      if (s % 2 === 0) html += '<span class="strip__label" style="left:' + (s * PX) + 'px">' + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0') + '</span>';
+    }
+    for (var k = 0; k < DURATION; k++) html += '<div class="strip__thumb" style="left:' + (k * PX) + 'px"><canvas width="94" height="128" data-s="' + k + '"></canvas></div>';
+    html += '<div class="strip__region" id="m-region" hidden></div>';
+    html += '<div class="strip__pole" id="m-pole-s" hidden></div><span class="strip__flag" id="m-flag-s" hidden>S</span>';
+    html += '<div class="strip__pole" id="m-pole-e" hidden></div><span class="strip__flag" id="m-flag-e" hidden>E</span>';
+    track.innerHTML = html;
+    track.querySelectorAll('canvas[data-s]').forEach(function (c) {
+      var s = +c.getAttribute('data-s');
+      drawLifter(c.getContext('2d'), c.width, c.height, s + 0.5);
+    });
+    thumbsBuilt = true;
+  }
+  function paintStage() {
+    var r = stage.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+    var W = Math.max(1, Math.round(r.width * dpr)), H = Math.max(1, Math.round(r.height * dpr));
+    if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+    var vh = H, vw = Math.round(vh * 9 / 16);
+    if (vw > W) { vw = W; vh = Math.round(vw * 16 / 9); }
+    ctx.save(); ctx.translate(Math.round((W - vw) / 2), Math.round((H - vh) / 2));
+    drawLifter(ctx, vw, vh, timeOf(state.index));
+    ctx.restore();
+  }
+  var place = function (el, on, left, width) {
+    el.hidden = !on;
+    if (on) { el.style.left = left.toFixed(1) + 'px'; if (width !== undefined) el.style.width = Math.max(0, width).toFixed(1) + 'px'; }
+  };
+  function stepNow() { return state.start === null ? 1 : state.end === null ? 2 : 3; }
+
+  function render() {
+    if (!thumbsBuilt) buildTrack();
+    var t = timeOf(state.index), width = strip.clientWidth;
+    track.style.left = (width / 2 - t * PX).toFixed(1) + 'px';
+    strip.setAttribute('aria-valuenow', t.toFixed(1));
+    strip.setAttribute('aria-valuetext', clock(t));
+    $('m-clock').textContent = clock(t);
+    var s = state.start === null ? null : timeOf(state.start), e = state.end === null ? null : timeOf(state.end);
+    var to = e !== null ? e : t;
+    place($('m-region'), s !== null && to > s, (s || 0) * PX, (to - (s || 0)) * PX);
+    place($('m-pole-s'), s !== null, (s || 0) * PX); place($('m-flag-s'), s !== null, (s || 0) * PX);
+    place($('m-pole-e'), e !== null, (e || 0) * PX); place($('m-flag-e'), e !== null, (e || 0) * PX);
+
+    var now = stepNow();
+    $('m-id').textContent = 'M' + now;
+    var t1 = $('t1'), t2 = $('t2'), t3 = $('t3');
+    setTile(t1, s !== null ? 'done' : 'next', s !== null ? '✓' : '1', s !== null ? clock(s) : 'Start', false);
+    setTile(t2, e !== null ? 'done' : now === 2 ? 'next' : 'wait', e !== null ? '✓' : '2', e !== null ? clock(e) : 'End', now < 2);
+    setTile(t3, now === 3 ? 'go' : 'wait', '3', state.busy ? 'Saving…' : 'Analyse', now < 3 || state.busy);
+    t1.setAttribute('aria-label', s !== null ? 'Start at ' + clock(s) + '. Press to move it to the playhead.' : 'Set the start at the playhead');
+    t2.setAttribute('aria-label', e !== null ? 'End at ' + clock(e) + '. Press to move it to the playhead.' : 'Set the end at the playhead');
+
+    var text = $('m-text'); text.className = 'm-text';
+    var len = s !== null ? (to - s) : 0;
+    if (state.error === 'order') { text.textContent = 'The end has to come after the start'; text.className += ' m-text--error'; }
+    else if (state.error === 'late') { text.textContent = 'No room for an end after this'; text.className += ' m-text--error'; }
+    else if (state.busy) text.textContent = 'Saving the clip…';
+    else if (now === 1) text.textContent = 'Drag to just before the lift';
+    else if (now === 2) text.textContent = 'Drag to just after it · ' + Math.max(0, len).toFixed(1) + ' s';
+    else { text.textContent = len.toFixed(1) + ' s · analysed in about ' + Math.max(1, Math.round(len * 2.9)) + ' s'; text.className += ' m-text--ready'; }
+
+    var any = s !== null || e !== null;
+    var undo = $('m-undo'), clear = $('m-clear');
+    if (state.undo === 'x') {
+      undo.innerHTML = UNDO_X; undo.className = 'm-undo m-undo--x'; undo.setAttribute('aria-label', 'Clear both marks');
+      clear.hidden = true;
+    } else {
+      undo.innerHTML = UNDO_ARROW; undo.className = 'm-undo'; undo.setAttribute('aria-label', 'Undo the last mark');
+      clear.hidden = !(state.undo === 'both' && any);
+    }
+    undo.disabled = state.undo === 'x' ? !any : state.history.length === 0;
+    paintStage();
+  }
+  function setTile(el, kind, disc, label, disabled) {
+    el.className = 'tile tile--' + kind;
+    el.querySelector('.tile__disc').textContent = disc;
+    el.querySelector('.tile__label').textContent = label;
+    el.disabled = disabled;
+  }
+  function flash(el) { el.classList.remove('tile--flash'); void el.offsetWidth; el.classList.add('tile--flash'); }
+  function remember() { state.history.push({ start: state.start, end: state.end }); }
+
+  function press(which) {
+    if (state.busy) return;
+    var i = state.index;
+    state.error = null;
+    if (which === 1) {
+      if (i > N - 1 - MIN) { state.error = 'late'; return render(); }
+      if (state.end !== null && i > state.end - MIN) { state.error = 'order'; return render(); }
+      if (state.start === i) return render();
+      remember(); state.start = i; flash($('t1'));
+    } else if (which === 2) {
+      if (state.start === null) return;
+      if (i < state.start + MIN) { state.error = 'order'; return render(); }
+      if (state.end === i) return render();
+      remember(); state.end = i; flash($('t2'));
+    } else if (which === 3) {
+      if (state.start === null || state.end === null) return;
+      state.busy = true; render();
+      setTimeout(function () {
+        var toast = $('m-toast'); toast.textContent = 'In the prototype, Analyse ends here. The app goes on to Q1.'; toast.hidden = false;
+        setTimeout(function () { toast.hidden = true; state.busy = false; render(); }, 1800);
+      }, 700);
+      return;
+    }
+    render();
+  }
+  function undo() {
+    state.error = null;
+    if (state.undo === 'x') { if (state.start !== null || state.end !== null) { remember(); state.start = null; state.end = null; } }
+    else { var last = state.history.pop(); if (last) { state.start = last.start; state.end = last.end; } }
+    render();
+  }
+  function clearAll() { state.error = null; if (state.start !== null || state.end !== null) { remember(); state.start = null; state.end = null; } render(); }
+
+  $('t1').addEventListener('click', function () { press(1); });
+  $('t2').addEventListener('click', function () { press(2); });
+  $('t3').addEventListener('click', function () { press(3); });
+  $('m-undo').addEventListener('click', undo);
+  $('m-clear').addEventListener('click', clearAll);
+  $('m-back').addEventListener('click', function () { state.index = clampI(state.index - 1); state.error = null; render(); });
+  $('m-fwd').addEventListener('click', function () { state.index = clampI(state.index + 1); state.error = null; render(); });
+
+  var drag = null;
+  strip.addEventListener('pointerdown', function (ev) { strip.setPointerCapture(ev.pointerId); drag = { x: ev.clientX, i: state.index }; });
+  strip.addEventListener('pointermove', function (ev) {
+    if (!drag) return;
+    var t = timeOf(drag.i) - (ev.clientX - drag.x) / PX;
+    var i = clampI(Math.floor(t * FPS + 1e-6));
+    if (i !== state.index) { state.index = i; state.error = null; render(); }
+  });
+  var endDrag = function () { drag = null; };
+  strip.addEventListener('pointerup', endDrag);
+  strip.addEventListener('pointercancel', endDrag);
+  strip.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'ArrowLeft' && ev.key !== 'ArrowRight') return;
+    ev.preventDefault();
+    state.index = clampI(state.index + (ev.key === 'ArrowLeft' ? -1 : 1)); state.error = null; render();
+  });
+
+  function setLift(id) {
+    state.lift = id;
+    var l = LIFTS[id];
+    $('m-lift').innerHTML = l.icon + '<span>' + l.name + '</span>' + (id === 'snatch' ? '<span class="tag">provisional</span>' : '');
+  }
+  document.querySelectorAll('.lift-tile').forEach(function (b) {
+    b.addEventListener('click', function () {
+      setLift(b.getAttribute('data-lift'));
+      state.start = null; state.end = null; state.history = []; state.error = null; state.index = 3 * FPS - 12;
+      render();
+      var m = $('m-app');
+      if (m.scrollIntoView) m.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
+    });
+  });
+
+  // ---- the settings row ----
+  function seg(id, attr, fn) {
+    var buttons = $(id).querySelectorAll('button');
+    buttons.forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (attr !== 'data-m') buttons.forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+        fn(b.getAttribute(attr));
+      });
+    });
+  }
+  seg('seg-h', 'data-h', function (h) {
+    document.querySelectorAll('.phone-h').forEach(function (f) { f.style.setProperty('--h', h + 'px'); });
+    setTimeout(function () { render(); moreCue(); }, 240);
+  });
+  seg('seg-m', 'data-m', function (m) {
+    state.error = null; state.busy = false; state.history = [];
+    if (m === '1') { state.start = null; state.end = null; state.index = 3 * FPS - 12; }
+    if (m === '2') { state.start = 3 * FPS - 12; state.end = null; state.index = Math.round(7.4 * FPS); state.history = [{ start: null, end: null }]; }
+    if (m === '3') { state.start = 3 * FPS - 12; state.end = Math.round(11.7 * FPS); state.index = state.end; state.history = [{ start: null, end: null }, { start: 3 * FPS - 12, end: null }]; }
+    render();
+  });
+
+  // ---- H: rows and the more-below cue ----
+  var rows = [
+    ['lateral-raise', 'Lateral raise', '18:32 · 8.6 s', '<span class="dot" style="background:var(--accent)"></span><span class="bar"><i style="width:46%"></i></span><span class="quiet">46 %</span>'],
+    ['snatch', 'Snatch', '18:24 · 3.1 s', '<span class="quiet">Waiting · next</span>'],
+    ['lateral-raise', 'Lateral raise', '18:10 · 12.9 s', '<span style="color:var(--good)">✓</span><span class="soft">2 good · 1 watch</span>'],
+    ['lateral-raise', 'Lateral raise', '17:58 · 9.4 s', '<span style="color:var(--work)">▲</span><span class="soft">1 work on · 2 good</span>'],
+    ['snatch', 'Snatch', '17:41 · 2.8 s', '<span class="quiet">Stopped</span>']
+  ];
+  $('h-rows').innerHTML = rows.map(function (r) {
+    return '<div class="row"><span class="row__thumb">' + LIFTS[r[0]].icon + '</span><span class="row__text"><span class="row__title">' + r[1] + '</span><span class="row__meta">' + r[2] + '</span><span class="row__state">' + r[3] + '</span></span></div>';
+  }).join('');
+  var hs = $('h-scroll'), hm = $('h-more');
+  function moreCue() { hm.hidden = hs.scrollTop + hs.clientHeight >= hs.scrollHeight - 8; }
+  hs.addEventListener('scroll', moreCue, { passive: true });
+  hm.querySelector('button').addEventListener('click', function () { hs.scrollBy({ top: hs.clientHeight * 0.8, behavior: 'smooth' }); });
+
+  // ---- the wording tables ----
+  var W = window.WORDING || [];
+  $('w-tables').innerHTML = W.map(function (sec) {
+    return '<div style="display:flex;flex-direction:column;gap:10px"><h3><span class="phone__id" style="font-size:20px">' + sec.id + '</span> ' + sec.name + '</h3>' +
+      '<div class="wtable-wrap"><table class="wtable"><thead><tr><th scope="col">Before</th><th scope="col">After</th><th scope="col">Where</th></tr></thead><tbody>' +
+      sec.rows.map(function (r) { return '<tr><td class="before">' + r[0] + '</td><td class="after">' + r[1] + '</td><td class="where">' + (r[2] || '') + '</td></tr>'; }).join('') +
+      '</tbody></table></div></div>';
+  }).join('');
+
+  setLift('lateral-raise');
+  if (typeof ResizeObserver === 'function') new ResizeObserver(function () { render(); }).observe(stage);
+  window.addEventListener('resize', function () { render(); moreCue(); });
+  render(); moreCue();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { render(); });
+})();
+</script>

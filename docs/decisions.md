@@ -39,6 +39,13 @@ restructuring window, merged packages' details) are in [decisions-archive.md](de
   through the canvas first. Checkpoint A counts as passed for milestone B's
   laptop packages; `c26` still runs by day. `c27` runs on the laptop alone,
   `c30` and `c31` on the phone. Tonight's order: the fixes, `s49`, then B.
+- **2026-11-02, nordmu, checkpoint A round 1** (the review page in
+  [design/](../design/README.md); [ui-design.md](ui-design.md)): the picker,
+  then L1 "Which lift?", then M (`d53`); on M the steps are the buttons, ↶
+  undoes the last mark, a green step pressed again moves its mark, fixed
+  positions (`d54`, before B's `d29`); the whole wording pass and a ⌄ where
+  a screen goes on below (`d55`). The page is the record; the canvas
+  catches up later.
 - **2026-11-02, nordmu, on d22, d23 and d25:** a re-marked lift replaces
   the old one once its analysis succeeds (`s50`); unsure-joint rings stay,
   judged on the phone later; A3's smoothing becomes the default for later
