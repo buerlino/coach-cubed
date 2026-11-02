@@ -485,12 +485,14 @@ test('scoring: scoreLift returns the keypoints it scored: smoothKeypoints() on t
     const out = scoreLift(track, set, { Diagnostics: loadDiagnostics(), ...opts });
     assert.deepStrictEqual(json(out.keypoints), json(smoothKeypoints(track.keypoints, track.meta, sigma / 1000, keepVelocity)), JSON.stringify(opts));
     assert.equal(JSON.stringify(track), before, 'the track passed in stays unchanged');
+    assert.notStrictEqual(out.keypoints, track.keypoints, 'above σ 0 keypoints is a new object');
     assert.deepStrictEqual(Object.keys(out).sort(), ['computed', 'keypoints', 'personId', 'view']);
   }
   // σ 0: the raw keypoints
   const track = loadTrack(slug);
   const raw = scoreLift(track, set, { Diagnostics: loadDiagnostics(), sigmaMs: 0 });
   assert.deepStrictEqual(json(raw.keypoints), json(track.keypoints));
+  assert.strictEqual(raw.keypoints, track.keypoints, 'σ 0: keypoints is track.keypoints itself (as the doc says)');
   // and not vacuous: the default smoothing changes them
   const sm = scoreLift(track, set, { Diagnostics: loadDiagnostics() });
   assert.notDeepStrictEqual(json(sm.keypoints), json(track.keypoints));

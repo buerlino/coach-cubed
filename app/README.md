@@ -147,9 +147,11 @@ const { view, computed, personId, keypoints } = scoreLift(track, 'snatch', { sig
 
 - **`keypoints`** (`s44`) is the smoothed keypoints the verdicts were scored on,
   so A1 and A2 draw the skeleton from them and do not smooth the track a second
-  time (`grep smoothKeypoints app/src/ui/` finds nothing). It is a new object
-  (the track passed in is unchanged) and equals `smoothKeypoints()` on the same
-  track with the same σ and velocity option. The job stores only `view`.
+  time (`grep smoothKeypoints app/src/ui/` finds nothing). It equals
+  `smoothKeypoints()` on the same track with the same σ and velocity option. It
+  is a new object only when σ is above 0 (the track passed in is never changed);
+  at σ 0 it is `track.keypoints` itself, so a caller must not change it. The job
+  stores only `view`.
 
 - **Order:** `src/track/`'s smoothing first (σ 50 ms, velocity kept, the old
   page's defaults and S1's `smoothingSigmaMs`; `sigmaMs: 0` scores the raw
@@ -734,8 +736,8 @@ the old page's code in `tests/app/draw.test.js` through `tests/loadOldCode.js`):
 - **`computed`** is `scoreLift(track, lift, {sigmaMs, keepVelocity})`'s, with the
   *view's own* `smoothing` (`result.json` holds the view, not `computeResults()`'s
   samples), and the skeleton is drawn from the same smoothed keypoints, so the marks
-  sit on the joints they measure. `scoreLift` doesn't return the smoothed keypoints,
-  so A1 smooths again with `smoothKeypoints` (cheap; the same numbers).
+  sit on the joints they measure. The skeleton is drawn from `scoreLift()`'s
+  `keypoints`; neither A1 nor A2 smooths the track.
 - **Colours, sizes and spacing** come from `styles/tokens.css`, the canvas code too:
   `overlayStyle` reads `--accent-bone`, `--text`, `--ground`, `--bone-width`,
   `--joint-size` and `--joint-ring` with `getComputedStyle`, and scales them to the

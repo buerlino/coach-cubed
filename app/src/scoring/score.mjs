@@ -144,8 +144,9 @@ function liftWindowOf(lift) {
  *   computed: Object, personId: string, keypoints: Object}} the view carries the smoothing it was
  *   scored with (view.smoothing); computed is computeResults()'s output (what drawCue() takes);
  *   keypoints is the track's keypoints as scored: smoothKeypoints() with the same σ and velocity
- *   option (the raw ones for σ 0), what the skeleton is drawn from. A new object; the track passed
- *   in is not changed
+ *   option (the raw ones for σ 0), what the skeleton is drawn from. A new object when σ
+ *   is above 0; at σ 0 it is track.keypoints itself (smoothKeypoints() returns its input then).
+ *   The track passed in is never changed; callers must not change keypoints
  * @throws {Error} for a lift diagnostics.js has no set for
  */
 export function scoreLift(track, lift, opts = {}) {
