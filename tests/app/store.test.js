@@ -85,7 +85,7 @@ test('a bad lift is refused before anything is written', async () => {
   assert.deepEqual(fake.paths(), []);
 });
 
-test('lists lifts newest first, and groups today\'s apart from earlier ones', async () => {
+test('lists lifts newest first, and groups today\'s apart from earlier ones (the local day)', async () => {
   const { store, lib } = await setup();
   const mk = (created, lift = 'lateral-raise') => store.saveLift(lr({ lift, created }));
   const old = await mk('2026-10-30T18:00:00.000Z');
@@ -93,25 +93,18 @@ test('lists lifts newest first, and groups today\'s apart from earlier ones', as
   const t1 = await mk('2026-11-01T08:00:00.000Z');
   const t2 = await mk('2026-11-01T16:30:00.000Z');
   assert.deepEqual((await store.listLifts()).map(l => l.id), [t2.id, t1.id, yday.id, old.id]);
-  const noon = new Date(2026, 10, 1, 12, 0, 0); // local time: "today" is the local day
-  const lifts = await store.listLifts();
-  const g = lib.groupLifts(lifts, new Date(Date.parse(t2.created)));
-  assert.ok(Array.isArray(g.today) && Array.isArray(g.earlier));
-  assert.equal(g.today.length + g.earlier.length, 4);
-  assert.deepEqual(g.today.map(l => l.id), g.today.map(l => l.id).sort().reverse());
-  // today = the local calendar day of `now`
-  const localDay = d => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-  const now = new Date(Date.parse(t2.created));
-  for (const l of g.today) assert.equal(localDay(new Date(l.created)), localDay(now));
-  for (const l of g.earlier) assert.notEqual(localDay(new Date(l.created)), localDay(now));
-  void noon;
-  const viaStore = await setup().then(async s => {
-    await s.store.saveLift(lr({ created: '2026-11-01T08:00:00.000Z' }));
-    await s.store.saveLift(lr({ created: '2026-10-01T08:00:00.000Z' }));
-    return s.make({ now: () => new Date('2026-11-01T10:00:00.000Z') }).listByDay();
-  });
-  assert.equal(viaStore.today.length + viaStore.earlier.length, 2);
-  assert.equal(viaStore.earlier.length >= 1, true);
+  // "now" is built in local time, so the test holds in any time zone
+  const now = new Date(2026, 10, 1, 12, 0, 0);
+  const at = (y, m, d, h) => new Date(y, m, d, h).toISOString();
+  const day = await setup();
+  const e1 = await day.store.saveLift(lr({ created: at(2026, 9, 31, 23) }));
+  const t3 = await day.store.saveLift(lr({ created: at(2026, 10, 1, 0) }));
+  const t4 = await day.store.saveLift(lr({ created: at(2026, 10, 1, 23) }));
+  const g = lib.groupLifts(await day.store.listLifts(), now);
+  assert.deepEqual(g.today.map(l => l.id), [t4.id, t3.id]);
+  assert.deepEqual(g.earlier.map(l => l.id), [e1.id]);
+  const viaStore = await day.make({ now: () => now }).listByDay();
+  assert.deepEqual(viaStore, g);
 });
 
 test('updates a lift\'s state: analysed with its track, result and engine; it stays after a restart', async () => {

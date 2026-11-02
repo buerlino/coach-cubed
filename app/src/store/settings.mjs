@@ -1,0 +1,127 @@
+// The settings record: S1's defaults and A3's view options, one small JSON
+// file in the store (settings.json). Plain module, no DOM, no storage: the
+// store reads and writes it. Defaults are v1's (docs/decisions.md, D2): a
+// 20 s replay, a 60 s buffer, an analysed lift keeps its video.
+import { LIFTS, checkFields, isNumber, isObject } from '../contracts/common.mjs';
+
+/**
+ * @typedef {Object} ViewOptions A3's choices.
+ * @property {boolean} skeleton draw the skeleton over the video
+ * @property {boolean} cues draw the cue overlays
+ * @property {boolean} unsure draw the joints the model is unsure of
+ * @property {boolean} loop loop the lift's window
+ * @property {number} speed playback speed: 0.25, 0.5 or 1
+ * @property {number} smoothingSigmaMs the time smoothing's sigma in ms (0: none)
+ *
+ * @typedef {Object} Settings S1's choices, with the view options.
+ * @property {'replay'|'delayed'} replayMode R3 (a replay on demand) or R3b (the delayed view)
+ * @property {number} replayS the replay's length in seconds
+ * @property {number} delayS the delayed view's delay in seconds (5 to 20)
+ * @property {number} bufferS how much of the camera is kept in memory, in seconds
+ * @property {'back'|'front'} camera
+ * @property {string} quality the capture quality, e.g. '1080p30'
+ * @property {'lateral-raise'|'snatch'} defaultLift
+ * @property {boolean} keepVideos an analysed lift keeps its cut video
+ * @property {ViewOptions} view
+ */
+
+/** @type {Readonly<Settings>} */
+export const DEFAULT_SETTINGS = Object.freeze({
+  replayMode: 'replay',
+  replayS: 20,
+  delayS: 10,
+  bufferS: 60,
+  camera: 'back',
+  quality: '1080p30',
+  defaultLift: 'lateral-raise',
+  keepVideos: true,
+  view: Object.freeze({ skeleton: true, cues: true, unsure: false, loop: true, speed: 1, smoothingSigmaMs: 50 }),
+});
+
+const bool = v => typeof v === 'boolean';
+const intIn = (lo, hi) => v => Number.isInteger(v) && v >= lo && v <= hi;
+const oneOf = list => v => list.includes(v);
+
+/** Per field: the check, and what it says when it fails. */
+const FIELDS = {
+  replayMode: [oneOf(['replay', 'delayed']), "must be 'replay' or 'delayed'"],
+  replayS: [intIn(5, 60), 'must be a whole number of seconds from 5 to 60'],
+  delayS: [intIn(5, 20), 'must be a whole number of seconds from 5 to 20'],
+  bufferS: [intIn(10, 300), 'must be a whole number of seconds from 10 to 300'],
+  camera: [oneOf(['back', 'front']), "must be 'back' or 'front'"],
+  quality: [v => typeof v === 'string' && v.length > 0, 'must be a non-empty string'],
+  defaultLift: [oneOf(LIFTS), `must be one of ${LIFTS.join(', ')}`],
+  keepVideos: [bool, 'must be true or false'],
+};
+const VIEW_FIELDS = {
+  skeleton: [bool, 'must be true or false'],
+  cues: [bool, 'must be true or false'],
+  unsure: [bool, 'must be true or false'],
+  loop: [bool, 'must be true or false'],
+  speed: [oneOf([0.25, 0.5, 1]), 'must be 0.25, 0.5 or 1'],
+  smoothingSigmaMs: [v => isNumber(v) && v >= 0 && v <= 1000, 'must be a number from 0 to 1000'],
+};
+
+/** A copy of the defaults: callers may change it. */
+export const defaultSettings = () => ({ ...DEFAULT_SETTINGS, view: { ...DEFAULT_SETTINGS.view } });
+
+function checkTable(errors, base, obj, table, { partial }) {
+  for (const [k, v] of Object.entries(obj)) {
+    const path = base ? `${base}.${k}` : k;
+    if (k === 'view' && !base) continue;
+    if (!(k in table)) errors.push(`${path}: unknown field`);
+    else if (!table[k][0](v)) errors.push(`${path}: ${table[k][1]}`);
+  }
+  if (!partial) for (const k of Object.keys(table)) if (!(k in obj)) errors.push(`${base ? `${base}.` : ''}${k}: missing`);
+}
+
+/**
+ * Checks a full settings record.
+ * @param {unknown} s
+ * @returns {string[]} the errors, empty when valid
+ */
+export function validateSettings(s) {
+  const errors = [];
+  if (!checkFields(errors, '', s, [...Object.keys(FIELDS), 'view'])) return errors;
+  checkTable(errors, '', s, FIELDS, { partial: true });
+  if (checkFields(errors, 'view', s.view, Object.keys(VIEW_FIELDS))) checkTable(errors, 'view', s.view, VIEW_FIELDS, { partial: true });
+  return errors;
+}
+
+/**
+ * Checks a patch: any of the fields, `view` any of its own.
+ * @param {unknown} patch
+ * @returns {string[]}
+ */
+export function validateSettingsPatch(patch) {
+  const errors = [];
+  if (!isObject(patch)) return ['settings: must be an object'];
+  checkTable(errors, '', patch, FIELDS, { partial: true });
+  if ('view' in patch) {
+    if (!isObject(patch.view)) errors.push('view: must be an object');
+    else checkTable(errors, 'view', patch.view, VIEW_FIELDS, { partial: true });
+  }
+  return errors;
+}
+
+/** The defaults with `patch` laid over them (a deep copy; `patch` is not checked). */
+export function applySettings(base, patch) {
+  const out = { ...base, ...patch, view: { ...base.view, ...(isObject(patch.view) ? patch.view : {}) } };
+  return out;
+}
+
+/**
+ * What a stored record means: every field that passes its check, the default
+ * for every other, so a damaged or older record still reads.
+ * @param {unknown} stored
+ * @returns {Settings}
+ */
+export function readSettings(stored) {
+  const out = defaultSettings();
+  if (!isObject(stored)) return out;
+  for (const [k, [ok]] of Object.entries(FIELDS)) if (k in stored && ok(stored[k])) out[k] = stored[k];
+  if (isObject(stored.view)) {
+    for (const [k, [ok]] of Object.entries(VIEW_FIELDS)) if (k in stored.view && ok(stored.view[k])) out.view[k] = stored.view[k];
+  }
+  return out;
+}
