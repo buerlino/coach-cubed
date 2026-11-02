@@ -1418,9 +1418,11 @@ still leave a browser behind; `ps -eo args | grep -c '[-]-user-data-dir=/tmp/coa
 **The temp folder** (`c52`). Chromium makes `org.chromium.Chromium.*` folders in `$TMPDIR`: its singleton folder for the
 profile (`SingletonCookie`, `SingletonSocket`), removed on a clean exit and left when the browser is killed, which is what
 `close()` does; and Brave's component updater's scratch folders (`…BraveComponentUpdater_chrome_url_fetcher_.*`,
-`…_Unpacker_BeginUnzipping.*`: new-tab wallpapers and extensions, 363 MB of the 1,431 folders in `/tmp` on 2026-11-02).
-Brave honours `TMPDIR` for all of them, so `launchBrowser` gives each browser a `$TMPDIR` of its own, `<profile>/t` (short:
-a socket path holds about 108 bytes), and `close()` and the `exit` handler remove it once the processes are gone; nothing
+`…_Unpacker_BeginUnzipping.*`: new-tab wallpapers and extensions), made by every headless launch, killed or not. On 2026-11-02 `/tmp` held 1,431 such folders (1,269 made in two hours of tests; 363 MB, mostly the updater's).
+Checked: the singleton folder lands in `TMPDIR` under Brave. The updater folders never appeared in the runs here, so they
+could not be reproduced and are only expected to follow `TMPDIR`. So `launchBrowser` gives each browser a `$TMPDIR` of its own,
+`<profile>/t` (short: a socket path holds about 108 bytes); `close()` removes it once the processes are gone, and the `exit`
+handler (`killNow()`) removes it right after sending SIGKILL, without waiting for the processes to end (best effort). Nothing
 outside the browser's own folders is touched, and nothing is left in `os.tmpdir()`. A tool that removes its profile
 removes this too; a test killed with SIGKILL leaves the profile (and with it `t/`), never an `org.chromium.*` folder in `/tmp`.
 The component updater is also switched off in every tools' browser (`--disable-component-update`,

@@ -16,13 +16,16 @@
 // SIGTERM, SIGINT and SIGHUP (then exits with the signal's code, 128 + n; `timeout` sends SIGTERM) and on `exit`
 // (synchronously, SIGKILL).
 //
-// The temp folder (c52): Chromium makes `org.chromium.Chromium.*` folders in $TMPDIR (its singleton folder for the
-// profile, SingletonCookie and SingletonSocket, and Brave's component updater's `BraveComponentUpdater_*` scratch
-// folders), and a browser that is killed never removes them: 1,431 of them in /tmp in two hours of tests. So every
-// browser gets a $TMPDIR of its own, `<profile>/t` (short: a socket path is limited to about 108 bytes), and close()
-// and killNow() remove it; nothing outside the browser's own folders is touched. The component updater is switched
-// off as well (`--disable-component-update`, `--disable-background-networking`): a tool's browser has no business
-// downloading Brave's wallpapers and extensions.
+// The temp folder (c52): Chromium makes `org.chromium.Chromium.*` folders in $TMPDIR, from two causes. Its singleton
+// folder for the profile (SingletonCookie, SingletonSocket) is removed on a clean exit and left when the browser is
+// killed, which close() does. Brave's component updater's `BraveComponentUpdater_*` scratch folders (new-tab wallpapers
+// and extensions, most of the 363 MB) come from every headless launch, killed or not. On 2026-11-02 /tmp held 1,431
+// such folders, 1,269 of them made in two hours of tests. So every browser gets a $TMPDIR of its own, `<profile>/t`
+// (short: a socket path is limited to about 108 bytes), and close() and killNow() remove it; nothing outside the
+// browser's own folders is touched. Checked: the singleton folder lands in that $TMPDIR. Not reproduced here: the
+// updater folders never appeared in this session's runs, so they are only expected to follow $TMPDIR. The component
+// updater is switched off as well (`--disable-component-update`, `--disable-background-networking`): a tool's browser
+// has no business downloading Brave's wallpapers and extensions.
 // A SIGKILL to node cannot be caught: the browser is then left behind (it is cleaned up by nothing but the
 // pipeline's session kill, when there is one).
 import { spawn, spawnSync } from 'node:child_process';

@@ -138,8 +138,10 @@ test('c52: a browser killed before close() (killNow, the exit handler) leaves no
   await withFake(async ({ launchBrowser, fake, priv, profile }) => {
     const br = await launchBrowser(profile, ['--headless=new', 'about:blank'], { browser: fake });
     br.killNow();
-    await br.close();
+    // the exit handler calls killNow() alone, never close(): it must have removed the folder by itself
+    assert.ok(!fs.existsSync(path.join(profile, 't')), 'killNow() removed the browser\'s own temp folder');
     assert.deepEqual(chromiumEntries(priv), []);
+    await br.close();   // cleanup only
   });
 });
 
@@ -164,6 +166,7 @@ test('c52: the browser gets its own TMPDIR inside the profile\'s folder, and the
       const argv = fs.readFileSync(path.join(path.dirname(fake), 'argv.txt'), 'utf8').split('\n');
       assert.ok(seen.startsWith(profile + path.sep), `TMPDIR ${seen} is inside the profile ${profile}`);
       assert.ok(argv.includes('--disable-component-update'), 'the component updater is off');
+      assert.ok(argv.includes('--disable-background-networking'), 'background networking is off');
       assert.ok(argv.includes('about:blank'), 'the caller\'s own arguments are kept');
     } finally { await br.close(); }
     assert.ok(!fs.existsSync(seen), 'its temp folder is gone after close()');
