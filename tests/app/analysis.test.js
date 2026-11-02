@@ -386,6 +386,60 @@ test('the track and the result are saved through the store, the track in the fix
   const result = await store.readResult(lift.id);
   assert.deepEqual(validateResultView(result), []);
   assert.deepEqual(result, JSON.parse(JSON.stringify(scoreLift(track, 'lateral-raise', { Diagnostics }).view)));
+  // result.json says which smoothing its verdicts were scored with (contract 4): S1's σ, velocity kept
+  const { DEFAULT_KEEP_VELOCITY } = await load('src/scoring/score.mjs');
+  const settings = await store.getSettings();
+  assert.equal(typeof settings.view.smoothingSigmaMs, 'number');
+  assert.deepEqual(result.smoothing, { sigmaMs: settings.view.smoothingSigmaMs, keepVelocity: DEFAULT_KEEP_VELOCITY });
+});
+
+test('a source without frameTimes breaks contract 5: the job fails in the contract\'s words, no times are made up from the rate', async () => {
+  const { store, queue } = await setup({
+    sources: () => { const src = fakeSource({}); delete src.frameTimes; return src; },
+  });
+  const lift = await storeLift(store);
+  const job = await queue.enqueue(lift);
+  await queue.idle();
+  const done = queue.jobs().find(j => j.id === job.id);
+  assert.equal(done.state, 'failed');
+  assert.match(done.error, /frameTimes/);
+  assert.equal(await store.readResult(lift.id).catch(() => null), null, 'nothing scored');
+});
+
+test('a snatch with a start and no held finish reaches result.json with its start: liftWindow {t0, t1: null} and the engine\'s reason', async () => {
+  // The longest committed snatch (over 400 frames), cut off at 2.0 s as in scoring.test.js:
+  // the pull is in the range, the finish is not. Fed in place of the engine, through the job.
+  const slug = 'global/snatch/Session14_01_0h18m07s_made';
+  const fixture = JSON.parse(fs.readFileSync(trackPathFor(slug), 'utf8'));
+  const { meta } = fixture;
+  assert.ok(meta.frame_count > 400, slug);
+  const times = meta.frame_times_ms.map(ms => ms / 1000);
+  const { store, queue } = await setup({
+    sources: () => {
+      const src = fakeSource({ fps: meta.fps, width: meta.width, height: meta.height, frameTimes: times });
+      const frames = src.frames;
+      src.frames = async function* (t0, t1) { for await (const f of frames(t0, t1)) { f.timestamp = meta.frame_times_ms[f.index] * 1000; yield f; } };
+      return src;
+    },
+    engines: (k, clock) => fakeEngine({ clock, keypoints: f => (fixture.keypoints[String(f.index)] || {})[meta.tracks.kept] || null }),
+  });
+  const stored = await storeLift(store, { lift: 'snatch', range: { t0: 0, t1: 2.0 } });
+  await queue.enqueue(stored);
+  await queue.idle();
+  const result = await store.readResult(stored.id);
+  const { validateResultView } = await load('src/contracts/cue-view.mjs');
+  assert.deepEqual(validateResultView(result), []);
+  // what the engine says of the stored track, with the job's smoothing
+  const D = loadDiagnostics();
+  const { smoothKeypoints } = await import(pathToFileURL(path.join(APP, '..', 'src', 'track', 'smoothing.mjs')).href);
+  const track = await store.readTrack(stored.id);
+  D.setPage('snatch');
+  const sm = smoothKeypoints(track.keypoints, track.meta, result.smoothing.sigmaMs / 1000, result.smoothing.keepVelocity);
+  const want = D.computeResults(sm, track.meta, track.meta.tracks.kept).lift;
+  assert.ok(want.t0 != null && want.t1 == null && !want.error, 'the range has a start and no end: ' + JSON.stringify(want).slice(0, 200));
+  assert.deepEqual(result.liftWindow, { t0: want.t0, t1: null });
+  assert.equal(result.liftWindowReason, want.notes.at(-1));
+  assert.match(result.liftWindowReason, /no end marker/);
 });
 
 // ---- cut off, and back ----

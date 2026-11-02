@@ -2,7 +2,7 @@
 //
 //   const engine = await PoseEngine.create({ backend: 'webgl' });   // loads, warms up
 //   const { keypoints, ms } = await engine.estimate(videoFrame, tMs);
-//   await engine.reset();    // between clips: no crop carries over
+//   await engine.reset();    // between clips: no crop carries over (the worker and its model stay)
 //   engine.close();
 //
 // keypoints: COCO-17 × [y, x, conf] in the frame's pixels, or null when nobody
@@ -12,10 +12,11 @@
 // pose-messages.mjs): what the client sends and what it believes both pass
 // its validator. Copied from pose-bench's pose-client.mjs and trimmed.
 //
-// One frame at a time (the contract): estimate() calls made together wait in
-// order and each is sent after the last result, since MoveNet's crop follows
-// the previous pose. Results are matched by id; a reply that isn't for the
-// call in flight is ignored.
+// One message at a time (the contract): estimate() and reset() calls made
+// together wait in order and each is sent after the last answer, since MoveNet's
+// crop follows the previous pose. Answers are matched by type and id (result for
+// an estimate, cleared for a reset); a reply that isn't for the call in flight
+// is ignored.
 import { BACKENDS, validatePoseMessage } from '../contracts/pose-messages.mjs';
 import { checkResultKeypoints } from './check.mjs';
 
@@ -45,8 +46,7 @@ export class PoseEngine {
   #dead = null;        // the Error every call gets once the engine can't go on
   #next = 0;
   #queue = [];         // estimates and resets waiting, in order
-  #current = null;     // the estimate in flight
-  #busy = false;       // a reset is running, or an estimate is in flight
+  #current = null;     // the estimate or reset in flight
 
   /** What the worker said at ready: model, backend, runtime, initMs (a stored lift's `engine`). */
   info = null;
@@ -86,17 +86,18 @@ export class PoseEngine {
 
   #onMessage(worker, data) {
     const cur = this.#current;
-    if (worker !== this.#worker || !cur || !data || data.type !== 'result' || data.id !== cur.id) return;
+    const answer = cur && (cur.kind === 'reset' ? 'cleared' : 'result');
+    if (worker !== this.#worker || !cur || !data || data.type !== answer || data.id !== cur.id) return;
     const errors = validatePoseMessage(data);
     let outcome;
     if (errors.length) outcome = { error: new Error('worker: ' + errors.join('; ')) };
     else if ('error' in data) outcome = { error: new Error(data.error) };
+    else if (cur.kind === 'reset') outcome = { value: undefined };
     else {
       const bad = checkResultKeypoints(data.keypoints, cur.width, cur.height);
       outcome = bad.length ? { error: new Error('worker: ' + bad.join('; ')) } : { value: { keypoints: data.keypoints, ms: data.ms } };
     }
     this.#current = null;
-    this.#busy = false;
     if (outcome.error) cur.reject(outcome.error); else cur.resolve(outcome.value);
     this.#pump();
   }
@@ -122,16 +123,19 @@ export class PoseEngine {
 
   /**
    * Between clips: the next frame is a first frame, whatever came before.
-   * MoveNet's crop follows the last pose and contract 1 has no message to
-   * clear it, so this ends the worker and starts a fresh one (weights and
-   * warm-up again). Waits for the estimate in flight; calls made meanwhile
-   * go to the new worker.
-   * @returns {Promise<void>}
+   * Sends contract 1's reset, which clears MoveNet's crop in the same worker;
+   * the model, its weights and its compiled shaders stay. Sent after the
+   * estimate in flight; calls made meanwhile are sent after its answer.
+   * @returns {Promise<void>} resolves on cleared; rejects with the worker's
+   *   words when the reset failed (the engine goes on, as after a failed
+   *   estimate), or when the engine is closed or dead
    */
   reset() {
     if (this.#dead) return Promise.reject(this.#dead);
+    const id = this.#next++;
+    const msg = { type: 'reset', id };
     return new Promise((resolve, reject) => {
-      this.#queue.push({ kind: 'reset', resolve, reject });
+      this.#queue.push({ kind: 'reset', id, msg, resolve, reject });
       this.#pump();
     });
   }
@@ -141,39 +145,19 @@ export class PoseEngine {
   }
 
   #pump() {
-    if (this.#busy || this.#dead) return;
+    if (this.#current || this.#dead) return;
     const item = this.#queue.shift();
     if (!item) return;
-    this.#busy = true;
-    if (item.kind === 'reset') return this.#restart(item);
-    const worker = this.#worker;
     try {
-      worker.postMessage(item.msg, [item.msg.frame]);
+      if (item.kind === 'estimate') this.#worker.postMessage(item.msg, [item.msg.frame]);
+      else this.#worker.postMessage(item.msg);
     } catch (e) {
       // The transfer didn't happen: the frame is still ours.
-      closeFrame(item.msg.frame);
-      this.#busy = false;
+      if (item.kind === 'estimate') closeFrame(item.msg.frame);
       item.reject(e);
       return this.#pump();
     }
     this.#current = item;
-  }
-
-  async #restart(item) {
-    const old = this.#worker;
-    this.#worker = null;
-    try { old.terminate(); } catch { /* gone */ }
-    try {
-      const { worker, info } = await this.#start();
-      if (this.#dead) { worker.terminate(); item.reject(this.#dead); return; }
-      this.#attach(worker, info);
-      this.#busy = false;
-      item.resolve();
-      this.#pump();
-    } catch (e) {
-      item.reject(e);
-      this.#die(e);
-    }
   }
 
   // The engine can't go on: reject what is waiting or in flight, end the worker.

@@ -214,14 +214,30 @@ test('track: each broken field is named', async () => {
 
 test('pose messages: one example per message, each valid', async () => {
   const { validatePoseMessage, POSE_MESSAGE_EXAMPLES, TO_WORKER, FROM_WORKER } = await load('pose-messages.mjs');
-  assert.deepEqual(TO_WORKER, ['init', 'estimate']);
-  assert.deepEqual(FROM_WORKER, ['ready', 'error', 'result']);
+  assert.deepEqual(TO_WORKER, ['init', 'estimate', 'reset']);
+  assert.deepEqual(FROM_WORKER, ['ready', 'error', 'result', 'cleared']);
   const types = POSE_MESSAGE_EXAMPLES.map(m => m.type);
   for (const t of [...TO_WORKER, ...FROM_WORKER]) assert.ok(types.includes(t), `no example of ${t}`);
   for (const m of POSE_MESSAGE_EXAMPLES) assert.deepEqual(validatePoseMessage(m), [], m.type);
   // a result with no person, and a failed estimate
   assert.deepEqual(validatePoseMessage({ type: 'result', id: 3, keypoints: null, ms: 95.5 }), []);
   assert.deepEqual(validatePoseMessage({ type: 'result', id: 3, error: 'out of memory' }), []);
+});
+
+test('pose messages: reset {id} clears MoveNet\'s crop in the worker, answered by cleared {id} or cleared {id, error}', async () => {
+  const { validatePoseMessage, POSE_MESSAGE_EXAMPLES } = await load('pose-messages.mjs');
+  assert.deepEqual(validatePoseMessage({ type: 'reset', id: 7 }), []);
+  assert.deepEqual(validatePoseMessage({ type: 'cleared', id: 7 }), []);
+  assert.deepEqual(validatePoseMessage({ type: 'cleared', id: 7, error: 'the engine was not initialised: send init first' }), []);
+  const ex = type => POSE_MESSAGE_EXAMPLES.find(m => m.type === type);
+  const v = validatePoseMessage;
+  assertNames(v, ex('reset'), 'id', m => { delete m.id; });
+  assertNames(v, ex('reset'), 'id', m => { m.id = -1; });
+  assertNames(v, ex('reset'), 'backend', m => { m.backend = 'webgl'; });   // a reset keeps the model: no new backend
+  assertNames(v, ex('cleared'), 'id', m => { m.id = 1.5; });
+  assertNames(v, ex('cleared'), 'error', m => { m.error = ''; });
+  assertNames(v, ex('cleared'), 'ms', m => { m.ms = 3; });
+  assertNames(v, ex('cleared'), 'keypoints', m => { m.keypoints = null; });
 });
 
 test('pose messages: pose-bench\'s, trimmed to MoveNet: no detector, model or ep options', async () => {
@@ -501,6 +517,39 @@ test('result view: each broken field is named', async () => {
   assertNames(v, R, 'cues[0].status', r => { r.cues[0].status = 'bad'; });
   assertNames(v, R, 'cues[1].id', r => { r.cues[1].id = r.cues[0].id; });
   assertNames(v, R, 'notes', r => { delete r.notes; });
+  assertNames(v, R, 'smoothing', r => { delete r.smoothing; });
+  assertNames(v, R, 'smoothing', r => { r.smoothing = 50; });
+  assertNames(v, R, 'smoothing.sigmaMs', r => { r.smoothing.sigmaMs = -1; });
+  assertNames(v, R, 'smoothing.sigmaMs', r => { r.smoothing.sigmaMs = NaN; });
+  assertNames(v, R, 'smoothing.sigmaMs', r => { delete r.smoothing.sigmaMs; });
+  assertNames(v, R, 'smoothing.keepVelocity', r => { r.smoothing.keepVelocity = 'yes'; });
+  assertNames(v, R, 'smoothing.sigma', r => { r.smoothing.sigma = 0.05; });
+});
+
+test('result view: the smoothing its verdicts were scored with is part of it, as numbers', async () => {
+  const { validateResultView, RESULT_VIEW_EXAMPLE: R } = await load('cue-view.mjs');
+  // the example's cues are computeResults() on the committed raw track: no smoothing
+  assert.equal(R.smoothing.sigmaMs, 0);
+  assert.equal(typeof R.smoothing.keepVelocity, 'boolean');
+  for (const smoothing of [{ sigmaMs: 50, keepVelocity: true }, { sigmaMs: 100, keepVelocity: false }, { sigmaMs: 0, keepVelocity: true }]) {
+    assert.deepEqual(validateResultView({ ...clone(R), smoothing }), [], JSON.stringify(smoothing));
+  }
+});
+
+test('result view: a lift window with a start and no end is {t0, t1: null}, and its reason is required', async () => {
+  const { validateResultView, RESULT_VIEW_EXAMPLE: R } = await load('cue-view.mjs');
+  const v = validateResultView;
+  const noEnd = 'a stand-in for diagnostics.js\'s note on why the lift has no end marker (scoring.test.js checks the real one)';
+  assert.deepEqual(v({ ...clone(R), liftWindow: { t0: 1.2, t1: null }, liftWindowReason: noEnd }), []);
+  assertNames(v, R, 'liftWindowReason', r => { r.liftWindow = { t0: 1.2, t1: null }; r.liftWindowReason = null; });
+  assertNames(v, R, 'liftWindowReason', r => { r.liftWindow = { t0: 1.2, t1: null }; r.liftWindowReason = ''; });
+  assertNames(v, R, 'liftWindow.t0', r => { r.liftWindow = { t0: null, t1: 2 }; r.liftWindowReason = noEnd; });
+  assertNames(v, R, 'liftWindow.t0', r => { r.liftWindow = { t0: null, t1: null }; r.liftWindowReason = noEnd; });
+  assertNames(v, R, 'liftWindow.t1', r => { r.liftWindow = { t0: 1.2 }; r.liftWindowReason = noEnd; });
+  assertNames(v, R, 'liftWindow.t1', r => { r.liftWindow = { t0: 1.2, t1: NaN }; r.liftWindowReason = noEnd; });
+  // both ends found: no reason
+  assert.deepEqual(v({ ...clone(R), liftWindow: { t0: 1.2, t1: 2.4 }, liftWindowReason: null }), []);
+  assertNames(v, R, 'liftWindowReason', r => { r.liftWindow = { t0: 1.2, t1: 2.4 }; r.liftWindowReason = noEnd; });
 });
 
 // What the view model takes from diagnostics.js, read off the real API on the
@@ -524,8 +573,10 @@ function viewFrom(D, set, out) {
       worst, reason: null, notes: r.notes };
   });
   const ok = !out.lift.error;
-  return { lift: set, liftWindow: ok ? { t0: out.lift.t0, t1: out.lift.t1 } : null,
-    liftWindowReason: ok ? null : out.lift.error, cues, notes: out.lift.notes };
+  const end = ok && out.lift.t1 != null;
+  return { lift: set, liftWindow: ok ? { t0: out.lift.t0, t1: end ? out.lift.t1 : null } : null,
+    liftWindowReason: ok ? (end ? null : out.lift.notes.at(-1)) : out.lift.error, cues,
+    notes: end || !ok ? out.lift.notes : out.lift.notes.slice(0, -1), smoothing: { sigmaMs: 0, keepVelocity: true } };
 }
 
 test('cue view: the sources it names give its shapes, on the committed tracks', async () => {
@@ -625,7 +676,40 @@ test('frame source: the info and the example source are valid', async () => {
   const src = exampleFrameSource();
   assert.deepEqual(validateFrameSource(src), []);
   assert.deepEqual(src.info, FRAME_SOURCE_INFO_EXAMPLE);
+  // frameTimes: every frame's start, from the first frame at 0, in presentation order
+  const n = Math.round(FRAME_SOURCE_INFO_EXAMPLE.duration * FRAME_SOURCE_INFO_EXAMPLE.fps);
+  assert.equal(src.frameTimes.length, n);
+  src.frameTimes.forEach((t, i) => assert.ok(Math.abs(t - i / FRAME_SOURCE_INFO_EXAMPLE.fps) < 1e-9, `frame ${i}: ${t}`));
   src.close();
+});
+
+test('frame source: frameTimes is part of a source (s9 gives it; M1–M3 step on it): required, an array of finite seconds from 0, in order', async () => {
+  const { validateFrameSource, exampleFrameSource } = await load('frame-source.mjs');
+  const broken = (mutate, what) => {
+    const src = exampleFrameSource();
+    mutate(src);
+    const errors = validateFrameSource(src);
+    assert.ok(errors.some(e => e.startsWith('frameTimes')), `${what}: ${JSON.stringify(errors)}`);
+  };
+  broken(s => { delete s.frameTimes; }, 'missing');
+  broken(s => { s.frameTimes = '0,0.04,0.08'; }, 'not an array');
+  broken(s => { s.frameTimes = { 0: 0, 1: 0.04, length: 2 }; }, 'array-like, not an array');
+  broken(s => { s.frameTimes = []; }, 'empty: an open video has a first frame');
+  broken(s => { s.frameTimes = [0, 0.04, NaN]; }, 'NaN');
+  broken(s => { s.frameTimes = [0, 0.04, Infinity]; }, 'Infinity');
+  broken(s => { s.frameTimes = [0, '0.04', 0.08]; }, 'a string');
+  broken(s => { s.frameTimes = [0, 0.08, 0.04]; }, 'out of order');
+  broken(s => { s.frameTimes = [0, 0.04, 0.04]; }, 'two frames at one time');
+  broken(s => { s.frameTimes = [0.04, 0.08]; }, 'not from the first frame');
+  broken(s => { s.frameTimes = [-0.04, 0, 0.04]; }, 'negative');
+  // the error names the frame
+  const src = exampleFrameSource();
+  src.frameTimes = [0, 0.08, 0.04];
+  assert.ok(validateFrameSource(src).some(e => e.startsWith('frameTimes[2]')), JSON.stringify(validateFrameSource(src)));
+  // a variable rate's own times are fine
+  const vfr = exampleFrameSource();
+  vfr.frameTimes = [0, 0.0273, 0.0625, 0.0977];
+  assert.deepEqual(validateFrameSource(vfr), []);
 });
 
 test('frame source: each broken field is named', async () => {

@@ -12,6 +12,7 @@
 // The time left is the frames still to pose times the median ms a frame has
 // taken so far in this job (the wall time per frame: decoding, the transfer and
 // the model); before its first frame, the last job's median, if any.
+import { validateFrameSource } from '../contracts/frame-source.mjs';
 import { appTrackMeta, trackFromFrames } from '../contracts/track.mjs';
 import { scoreLift } from '../scoring/score.mjs';
 
@@ -52,9 +53,6 @@ function nearestIndex(times, t) {
   return lo > 0 && Math.abs(times[lo - 1] - t) <= Math.abs(times[lo] - t) ? lo - 1 : lo;
 }
 
-// A source without frameTimes (contract 5 has none): the times from its frame rate.
-const timesOf = src => src.frameTimes || Array.from({ length: Math.max(1, Math.round(src.info.duration * src.info.fps)) }, (_, i) => i / src.info.fps);
-
 /**
  * Runs one job through its stages.
  * @param {import('../contracts/analysis-job.mjs').AnalysisJob} job
@@ -82,7 +80,10 @@ export async function runJob(job, ctx) {
   const src = await guard(ctx.openFrameSource(blob));
   let it = null;
   try {
-    const times = timesOf(src);
+    // contract 5: the frames' own times (a variable rate's too), never times made up from the rate
+    const broken = validateFrameSource(src);
+    if (broken.length) throw new Error(`The frame source breaks contract 5: ${broken.join('; ')}`);
+    const times = src.frameTimes;
     const total = framesInRange(times, job.range);
     const etaFrom = (ms, left) => (ms === null ? null : ms * left / 1000);
     const before = rate ? rate.msPerFrame : null;

@@ -54,7 +54,7 @@ function echoScript({ ready = READY, keypoints = f => pose17(f.displayWidth, f.d
     else if (msg.type === 'estimate') {
       w.reply({ type: 'result', id: msg.id, keypoints: keypoints(msg.frame), ms: 90 });
       msg.frame.close();
-    }
+    } else if (msg.type === 'reset') w.reply({ type: 'cleared', id: msg.id });
   };
 }
 
@@ -319,58 +319,126 @@ test('a worker error event after init (the worker crashed) rejects what is pendi
   assert.equal(w.terminated, true);
 });
 
-test('reset: no crop carries over: the old worker is ended, a fresh one is initialised on the same backend, calls after it go there', async () => {
+test('reset: the same worker clears its crop and keeps its model: reset {id} is sent, cleared {id} resolves it, no new worker, no init', async () => {
   const { PoseEngine } = await client();
+  const { validatePoseMessage } = await contract();
   const create = factory(echoScript());
   const engine = await PoseEngine.create({ backend: 'webgl', createWorker: create });
   await engine.estimate(fakeFrame(), 0);
   await engine.reset();
-  assert.equal(create.made.length, 2);
-  assert.equal(create.made[0].terminated, true);
-  assert.deepEqual(create.made[1].sent.map(s => s.msg), [{ type: 'init', backend: 'webgl' }]);
-  const f = fakeFrame();
-  await engine.estimate(f, 0);
-  assert.equal(create.made[1].sent.length, 2);
-  assert.equal(create.made[0].sent.length, 2, 'the old worker got nothing more');
+  assert.equal(create.made.length, 1, 'no new worker');
+  const w = create.made[0];
+  assert.equal(w.terminated, false);
+  assert.deepEqual(w.sent.map(s => s.msg.type), ['init', 'estimate', 'reset']);
+  const reset = w.sent[2];
+  assert.deepEqual(reset.msg, { type: 'reset', id: 1 }, 'ids count across estimates and resets');
+  assert.deepEqual(reset.transfer, []);
+  assert.deepEqual(validatePoseMessage(reset.msg), []);
+  await engine.estimate(fakeFrame(), 0);
+  assert.deepEqual(w.sent.map(s => s.msg.type), ['init', 'estimate', 'reset', 'estimate'], 'calls after it go to the same worker');
   assert.deepEqual(engine.info, READY.info);
   engine.close();
 });
 
-test('reset waits for the call in flight and rejects nothing it did not have to; a call made during it goes to the new worker', async () => {
+test('reset waits for the call in flight; a call made during it is sent after its cleared', async () => {
   const { PoseEngine } = await client();
-  const create = factory(echoScript());
+  const held = [];
+  const create = factory((msg, w) => {
+    if (msg.type === 'init') return w.reply(READY);
+    held.push(msg);
+  });
   const engine = await PoseEngine.create({ createWorker: create });
+  const w = create.made[0];
   const first = engine.estimate(fakeFrame(), 0);
   const reset = engine.reset();
   const during = engine.estimate(fakeFrame(), 33);
-  await Promise.all([first, reset]);
+  await tick();
+  assert.deepEqual(w.sent.map(s => s.msg.type), ['init', 'estimate'], 'the reset waits for the result');
+  w.reply({ type: 'result', id: 0, keypoints: pose17(), ms: 90 });
+  await first;
+  await tick();
+  assert.deepEqual(w.sent.map(s => s.msg.type), ['init', 'estimate', 'reset'], 'the next estimate waits for cleared');
+  w.reply({ type: 'cleared', id: 0 });   // a stray id: ignored
+  await tick();
+  assert.equal(w.sent.length, 3);
+  w.reply({ type: 'cleared', id: 1 });
+  await reset;
+  await tick();
+  assert.deepEqual(w.sent.map(s => s.msg.type), ['init', 'estimate', 'reset', 'estimate']);
+  w.reply({ type: 'result', id: 2, keypoints: pose17(), ms: 90 });
   assert.equal((await during).keypoints.length, 17);
-  assert.equal(create.made[0].sent.filter(s => s.msg.type === 'estimate').length, 1);
-  assert.equal(create.made[1].sent.filter(s => s.msg.type === 'estimate').length, 1);
   engine.close();
 });
 
-test('reset whose new worker fails to start rejects, and the engine is closed', async () => {
+test('a failed reset rejects that call with the worker\'s words, and the engine goes on, as after a failed estimate', async () => {
   const { PoseEngine } = await client();
-  const create = factory([echoScript(), (msg, w) => w.reply({ type: 'error', error: 'weights missing' })]);
+  const create = factory((msg, w) => {
+    if (msg.type === 'init') return w.reply(READY);
+    if (msg.type === 'reset') return w.reply({ type: 'cleared', id: msg.id, error: 'detector.reset failed' });
+    w.reply({ type: 'result', id: msg.id, keypoints: pose17(), ms: 50 });
+    msg.frame.close();
+  });
   const engine = await PoseEngine.create({ createWorker: create });
-  await assert.rejects(engine.reset(), /weights missing/);
-  await assert.rejects(engine.estimate(fakeFrame(), 0), /weights missing|closed/);
+  await assert.rejects(engine.reset(), /detector\.reset failed/);
+  assert.equal(create.made[0].terminated, false);
+  assert.equal(create.made.length, 1);
+  assert.equal((await engine.estimate(fakeFrame(), 0)).ms, 50);
+  engine.close();
+});
+
+test('a cleared that breaks contract 1 rejects the reset; the engine goes on', async () => {
+  const { PoseEngine } = await client();
+  const create = factory((msg, w) => {
+    if (msg.type === 'init') return w.reply(READY);
+    if (msg.type === 'reset') return w.reply({ type: 'cleared', id: msg.id, ms: 4 });
+    w.reply({ type: 'result', id: msg.id, keypoints: pose17(), ms: 50 });
+    msg.frame.close();
+  });
+  const engine = await PoseEngine.create({ createWorker: create });
+  await assert.rejects(engine.reset(), /worker: .*ms/);
+  assert.equal((await engine.estimate(fakeFrame(), 0)).ms, 50);
+  engine.close();
+});
+
+test('a reset on a closed engine rejects; a worker that dies during a reset rejects it with its words', async () => {
+  const { PoseEngine } = await client();
+  const create = factory((msg, w) => { if (msg.type === 'init') w.reply(READY); });
+  const engine = await PoseEngine.create({ createWorker: create });
+  const reset = engine.reset();
+  await tick();
+  create.made[0].onerror({ message: 'WebGL context lost' });
+  await assert.rejects(reset, /WebGL context lost/);
+  await assert.rejects(engine.reset(), /WebGL context lost/);
+  const closed = await PoseEngine.create({ createWorker: factory(echoScript()) });
+  closed.close();
+  await assert.rejects(closed.reset(), /closed/);
 });
 
 // --- the worker's side -------------------------------------------------------
 
-// A fake engine behind the handler: what movenet.mjs gives it.
-function fakeEngine({ keypoints = () => pose17(), delay = () => 0, calls = [] } = {}) {
+// A fake engine behind the handler: what movenet.mjs gives it. Like MoveNet it
+// keeps the last pose (its crop follows it); `log` records, in order, each
+// estimate with whether it started from a previous pose, and each reset, which
+// forgets the pose (detector.reset()) or throws when `resetFails` says so.
+function fakeEngine({ keypoints = () => pose17(), delay = () => 0, calls = [], log = [], resetFails = () => null } = {}) {
+  let previous = null;
   return {
     info: { model: 'movenet-thunder', backend: 'webgl', runtime: 'tfjs 4.22.0' },
-    calls,
+    calls, log,
     async estimate(frame, tMs) {
       calls.push({ w: frame.displayWidth, tMs });
+      log.push({ estimate: tMs, fromPose: previous !== null });
       await new Promise(r => setTimeout(r, delay(calls.length - 1)));
       const kp = keypoints(frame, tMs);
       if (kp instanceof Error) throw kp;
+      previous = kp;
       return kp;
+    },
+    async reset() {
+      log.push({ reset: true });
+      const e = resetFails();
+      if (e) throw e;
+      previous = null;
     },
   };
 }
@@ -504,6 +572,78 @@ test('worker: a message that breaks contract 1 (unknown type, null, an estimate 
 
 // pose-detection 2.1.3's MoveNet keypoints: {y, x, score, name}, names from its COCO_KEYPOINTS
 // (movenet/constants.ts), x and y already in the image's pixels (movenet/detector.ts scales them).
+test('worker: reset clears the crop and keeps the model: cleared {id}, no second load, and the next estimate starts from no previous pose', async () => {
+  const { validatePoseMessage } = await contract();
+  const { createWorkerHandler } = await core();
+  const log = [];
+  let loads = 0;
+  const posted = [];
+  const h = createWorkerHandler({ load: async () => { loads++; return fakeEngine({ log }); }, post: m => posted.push(m), now: () => 0 });
+  await h({ type: 'init', backend: 'webgl' });
+  await h({ type: 'estimate', id: 0, frame: fakeFrame(), tMs: 0 });
+  await h({ type: 'estimate', id: 1, frame: fakeFrame(), tMs: 33 });
+  await h({ type: 'reset', id: 2 });
+  await h({ type: 'estimate', id: 3, frame: fakeFrame(), tMs: 0 });
+  assert.equal(loads, 1, 'the model is kept: no load, no warm-up');
+  assert.deepEqual(log, [
+    { estimate: 0, fromPose: false }, { estimate: 33, fromPose: true },
+    { reset: true },
+    { estimate: 0, fromPose: false },
+  ]);
+  assert.deepEqual(posted.map(m => m.type), ['ready', 'result', 'result', 'cleared', 'result']);
+  assert.deepEqual(posted[3], { type: 'cleared', id: 2 });
+  for (const m of posted) assert.deepEqual(validatePoseMessage(m), [], m.type);
+});
+
+test('worker: a reset that arrives with an estimate in flight is answered after that estimate, never in the middle of it', async () => {
+  const log = [];
+  const { h, posted } = await handler({ engine: fakeEngine({ log, delay: () => 20 }) });
+  await h({ type: 'init', backend: 'webgl' });
+  const a = h({ type: 'estimate', id: 0, frame: fakeFrame(), tMs: 0 });
+  const b = h({ type: 'reset', id: 1 });
+  const c = h({ type: 'estimate', id: 2, frame: fakeFrame(), tMs: 0 });
+  await Promise.all([a, b, c]);
+  assert.deepEqual(log, [{ estimate: 0, fromPose: false }, { reset: true }, { estimate: 0, fromPose: false }]);
+  assert.deepEqual(posted.slice(1).map(m => [m.type, m.id]), [['result', 0], ['cleared', 1], ['result', 2]]);
+});
+
+test('worker: a reset that fails answers cleared {id, error} in the engine\'s words, and the engine goes on', async () => {
+  const { validatePoseMessage } = await contract();
+  const { h, posted } = await handler({ engine: fakeEngine({ resetFails: () => new Error('WebGL context lost') }) });
+  await h({ type: 'init', backend: 'webgl' });
+  await h({ type: 'reset', id: 0 });
+  assert.deepEqual(posted[1], { type: 'cleared', id: 0, error: 'WebGL context lost' });
+  assert.deepEqual(validatePoseMessage(posted[1]), []);
+  await h({ type: 'estimate', id: 1, frame: fakeFrame(), tMs: 0 });
+  assert.equal(posted[2].type, 'result');
+  assert.equal(posted[2].keypoints.length, 17);
+});
+
+test('worker: a reset before init, or after a failed one, answers cleared {id, error}; a reset that breaks contract 1 posts nothing', async () => {
+  const { validatePoseMessage } = await contract();
+  const { createWorkerHandler } = await core();
+  const posted = [];
+  const h = createWorkerHandler({ load: async () => { throw new Error('weights missing'); }, post: m => posted.push(m), now: () => 0 });
+  await h({ type: 'reset', id: 0 });
+  assert.equal(posted[0].type, 'cleared');
+  assert.match(posted[0].error, /init/);
+  await h({ type: 'init', backend: 'webgl' });
+  await h({ type: 'reset', id: 1 });
+  assert.deepEqual(posted.map(m => m.type), ['cleared', 'error', 'cleared']);
+  assert.match(posted[2].error, /weights missing/);
+  for (const m of posted) assert.deepEqual(validatePoseMessage(m), [], m.type);
+  await h({ type: 'reset', id: -1 });
+  await h({ type: 'reset', id: 4, backend: 'webgl' });
+  assert.equal(posted.length, 3);
+});
+
+test('movenet.mjs: the engine\'s reset is pose-detection\'s detector.reset(), and nothing reloads the model', () => {
+  const src = fs.readFileSync(path.join(POSE, 'movenet.mjs'), 'utf8');
+  const ret = src.slice(src.lastIndexOf('return {'));
+  assert.match(ret, /reset[^,}]*detector\.reset\(\)/, 'the returned engine has reset() calling detector.reset()');
+  assert.doesNotMatch(ret, /createDetector|import\(/);
+});
+
 const PD_NAMES = ['nose', 'left_eye', 'right_eye', 'left_ear', 'right_ear', 'left_shoulder', 'right_shoulder', 'left_elbow',
   'right_elbow', 'left_wrist', 'right_wrist', 'left_hip', 'right_hip', 'left_knee', 'right_knee', 'left_ankle', 'right_ankle'];
 

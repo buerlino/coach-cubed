@@ -1,13 +1,15 @@
-// node app/tools/check-pose.mjs [--frames N] [--browser <path>]
+// node app/tools/check-pose.mjs [--frames N] [--resets N] [--browser <path>]
 //
 // The pose engine (app/src/pose/) at work in a real page: serves app/ on
 // 127.0.0.1 (a free port), opens headless Brave, starts PoseEngine over its
 // module worker on the WebGL bundle, and runs a few synthetic frames through
 // estimate(): fixed hash noise on a canvas (MoveNet scores a pose in it, as in
 // check-tfjs.mjs), wrapped in a VideoFrame; one frame with a drawn figure,
-// which may come back as null (nobody); then reset(), and a noise frame again.
+// which may come back as null (nobody); then, --resets times (3), reset() and two
+// noise frames, frame 0 and frame 1 again (a clip's first frame and its next).
 // It reports, as JSON, the engine's info, the init time (warm-up included), each estimate's
-// keypoint count and ms, and the first point of the first pose; exits 1 unless
+// keypoint count and ms, the first point of the first pose, and per reset its wall
+// time and the two frames' (`resets`, with their medians); exits 1 unless
 // every estimate answered (17 keypoints [y, x, conf], or null for nobody) and at
 // least one noise frame gave 17 inside a plausible range of the frame's pixels.
 // Needs build-tfjs.mjs's bundle and fetch-models.sh's weights. Headless Brave's
@@ -26,12 +28,13 @@ const APP = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const arg = (name, dflt) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : dflt; };
 const BROWSER = arg('--browser', '/usr/bin/brave-browser');
 const FRAMES = Number(arg('--frames', 3));
+const RESETS = Number(arg('--resets', 3));
 const W = 640, H = 480;
 
 // Run in the page. A gradient, with noise or without; a figure on it: a head,
 // a trunk, arms and legs as thick lines, shifted 4 px per frame.
-async function runCheck(frames, W, H) {
-  const out = { frames: [] };
+async function runCheck(frames, resets, W, H) {
+  const out = { frames: [], resets: [] };
   try {
     const { PoseEngine } = await import('./src/pose/pose-client.mjs');
     const canvas = new OffscreenCanvas(W, H), ctx = canvas.getContext('2d');
@@ -64,16 +67,27 @@ async function runCheck(frames, W, H) {
       const t = performance.now();
       const r = await engine.estimate(frameAt(i, noise), i * 33.333);
       const kp = r.keypoints;
-      out.frames.push({ label, wallMs: Math.round(performance.now() - t), workerMs: Math.round(r.ms),
+      const f = { label, wallMs: Math.round(performance.now() - t), workerMs: Math.round(r.ms),
         keypoints: kp ? kp.length : 0, first: kp ? kp[0].map(v => Math.round(v * 100) / 100) : null,
-        inFrame: kp ? kp.every(([y, x]) => y > -H && y < 2 * H && x > -W && x < 2 * W) : null });
+        inFrame: kp ? kp.every(([y, x]) => y > -H && y < 2 * H && x > -W && x < 2 * W) : null };
+      out.frames.push(f);
+      return f;
     };
     for (let i = 0; i < frames; i++) await run(i, 'noise frame ' + i, true);
     await run(frames, 'figure frame', false);   // reported, not required: a drawn figure may be "nobody"
-    const t1 = performance.now();
-    await engine.reset();
-    out.resetMs = Math.round(performance.now() - t1);
-    await run(0, 'noise after reset', true);
+    for (let k = 0; k < resets; k++) {
+      const t1 = performance.now();
+      await engine.reset();
+      const resetMs = Math.round(performance.now() - t1);
+      const f0 = await run(0, `noise frame 0 after reset ${k}`, true);
+      const f1 = await run(1, `noise frame 1 after reset ${k}`, true);
+      out.resets.push({ resetMs, frame0Ms: f0.wallMs, frame1Ms: f1.wallMs });
+    }
+    const med = xs => { const s = [...xs].sort((a, b) => a - b), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+    if (out.resets.length) {
+      out.resetMs = med(out.resets.map(r => r.resetMs));
+      out.afterReset = { frame0Ms: med(out.resets.map(r => r.frame0Ms)), frame1Ms: med(out.resets.map(r => r.frame1Ms)) };
+    }
     engine.close();
     // Every answer is 17 points or null (the client refuses anything else), and MoveNet finds a
     // pose in at least one noise frame: whether it scores one in a given noise frame is
@@ -88,7 +102,7 @@ async function runCheck(frames, W, H) {
 const PAGE = `<!doctype html><meta charset="utf-8"><title>check-pose</title>
 <script type="module">
 ${runCheck}
-window.check = runCheck(${FRAMES}, ${W}, ${H});
+window.check = runCheck(${FRAMES}, ${RESETS}, ${W}, ${H});
 </script>`;
 
 const TYPES = { '.mjs': 'text/javascript', '.js': 'text/javascript', '.json': 'application/json', '.bin': 'application/octet-stream', '.html': 'text/html' };

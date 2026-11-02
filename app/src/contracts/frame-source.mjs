@@ -9,7 +9,10 @@
 // it are in those pixels, y pointing down, as a track's meta.width and
 // meta.height say. Times are seconds in the video's own timeline (0 is its
 // first frame); a VideoFrame's timestamp is in microseconds, as WebCodecs has it.
-import { checkFields, checkInteger, checkNumber, isObject } from './common.mjs';
+// `frameTimes` lists every frame's start in that timeline, in presentation
+// order (s35): M1–M3's one-frame steps and the job's frame count use them,
+// never times made up from the frame rate.
+import { at, checkFields, checkInteger, checkNumber, isNumber, isObject } from './common.mjs';
 
 /** The rotations a video file can carry, in degrees clockwise. */
 export const ROTATIONS = Object.freeze([0, 90, 180, 270]);
@@ -30,6 +33,10 @@ export const ROTATIONS = Object.freeze([0, 90, 180, 270]);
  * An open video. Every frame it hands out is the caller's to close().
  * @typedef {Object} FrameSource
  * @property {FrameSourceInfo} info
+ * @property {readonly number[]} frameTimes every frame's start time in seconds,
+ *   in presentation order, from the first frame (frameTimes[0] is 0): finite and
+ *   increasing. A variable rate's times are the file's own. frameAt(frameTimes[i])
+ *   is frame i, so a one-frame step is the next entry.
  * @property {(t: number) => Promise<VideoFrame>} frameAt the frame shown at t
  *   seconds: the last one starting at or before t (decoded from the keyframe before it)
  * @property {(t0: number, t1: number) => AsyncIterable<VideoFrame>} frames
@@ -58,13 +65,33 @@ export function validateFrameSourceInfo(info, path = '') {
 }
 
 /**
- * Checks an open source's shape: its info and its four methods.
+ * Checks a source's frame times: a non-empty array of finite seconds, the first
+ * 0, each later than the one before. The first broken entry is named.
+ * @param {unknown} times
+ * @param {string} [path]
+ * @returns {string[]} the errors, empty when valid
+ */
+export function validateFrameTimes(times, path = 'frameTimes') {
+  if (!Array.isArray(times)) return [`${path}: must be an array of seconds (every frame's start, presentation order)`];
+  if (!times.length) return [`${path}: must not be empty: an open video has a first frame`];
+  for (let i = 0; i < times.length; i++) {
+    const t = times[i];
+    if (!isNumber(t)) return [`${at(path, i)}: must be a finite number (seconds)`];
+    if (i === 0 && t !== 0) return [`${at(path, 0)}: must be 0: times are from the first frame`];
+    if (i > 0 && !(t > times[i - 1])) return [`${at(path, i)}: must be later than ${at(path, i - 1)} (presentation order)`];
+  }
+  return [];
+}
+
+/**
+ * Checks an open source's shape: its info, its frame times and its four methods.
  * @param {unknown} src
  * @returns {string[]} the errors, empty when valid
  */
 export function validateFrameSource(src) {
   if (!src || typeof src !== 'object') return ['source: must be an object'];
   const errors = validateFrameSourceInfo(src.info, 'info');
+  errors.push(...validateFrameTimes(src.frameTimes));
   for (const m of ['frameAt', 'frames', 'thumbnails', 'close']) {
     if (typeof src[m] !== 'function') errors.push(`${m}: must be a method`);
   }
@@ -100,6 +127,7 @@ export function exampleFrameSource(info = FRAME_SOURCE_INFO_EXAMPLE) {
   const indexAt = t => Math.min(n - 1, Math.max(0, Math.floor(t * info.fps + 1e-6)));
   return {
     info: { ...info },
+    frameTimes: Object.freeze(Array.from({ length: n }, (_, i) => i / info.fps)),
     async frameAt(t) { return frame(indexAt(t)); },
     async *frames(t0, t1) {
       for (let i = Math.ceil(t0 * info.fps - 1e-6); i < n && i / info.fps <= t1 + 1e-9; i++) if (i >= 0) yield frame(i);
