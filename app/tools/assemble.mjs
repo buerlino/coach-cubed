@@ -1,7 +1,7 @@
 // Assembles the app into one folder, app/dist/ by default: what the PWA host
 // and Capacitor get, and what serve.mjs serves.
 //
-//   node app/tools/assemble.mjs [--debug] [--out DIR] [--app DIR] [--src DIR]
+//   node app/tools/assemble.mjs [--debug] [--test] [--out DIR] [--app DIR] [--src DIR]
 //
 // - app/ without tools/, android/, dist/, debug/, out/ (the APK), capacitor.config.json and
 //   node_modules/ (any node_modules);
@@ -9,6 +9,11 @@
 //   check page (c20), and the test clip it poses, tests/app/clips/
 //   testsrc2-h264-30fps.mp4, into debug/clips/. The shipped dist/ is
 //   assembled without it, so it never holds the check page;
+// - with --test only (the page test, c21: app/tools/page-test.mjs, which assembles into a temporary
+//   folder): app/page-test/, the replay engine and the boot that puts it in the queue, as page-test/;
+//   two committed fixture tracks (TEST_TRACKS) beside them, listed in page-test/tracks.json; and
+//   index.html loading page-test/boot.mjs before main.mjs. The test build needs neither
+//   vendor/tfjs/ nor models/. The shipped dist/ is assembled without it: no replay engine, no track;
 // - src/diagnostics.js and src/track/ from the repo's src/ (the old page
 //   serves them, so they stay there), into src/ of the output: the same
 //   relative imports work in the repo and here (app/README.md);
@@ -34,9 +39,17 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SKIP_TOP = new Set(['tools', 'android', 'dist', 'debug', 'out', 'node_modules', 'capacitor.config.json']);
+const SKIP_TOP = new Set(['tools', 'android', 'dist', 'debug', 'page-test', 'out', 'node_modules', 'capacitor.config.json']);
 // What --debug adds: the check page's clip, from the repo's tests/ (relative to src/'s parent).
 export const DEBUG_CLIPS = ['testsrc2-h264-30fps.mp4'];
+// What --test adds: the committed tracks the replay engine answers with (tests/fixtures/global/, from src/'s
+// parent), each with the lift it is scored as; the page test's clips are matched to them (tests/app/clips/).
+export const TEST_TRACKS = [
+  { id: 'example/lateral-raise-cable-1', lift: 'lateral-raise', file: 'lateral-raise-cable-1.track.json' },
+  { id: 'example/athlete-a-trim', lift: 'snatch', file: 'athlete-a-trim.track.json' },
+];
+const TEST_BOOT = '<script type="module" src="./page-test/boot.mjs"></script>\n';
+const MAIN_TAG = '<script type="module" src="./src/main.mjs"></script>';
 const OPTIONAL = [
   ['vendor/tfjs', 'the TF.js bundle (s6 builds it)'],
   ['models', "MoveNet's weights (s6 fetches them)"],
@@ -61,7 +74,8 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--debug') { opts.debug = true; continue; }
-    if (!['--out', '--app', '--src'].includes(a) || i + 1 >= argv.length) throw new Error(`usage: assemble.mjs [--debug] [--out DIR] [--app DIR] [--src DIR] (got ${a})`);
+    if (a === '--test') { opts.test = true; continue; }
+    if (!['--out', '--app', '--src'].includes(a) || i + 1 >= argv.length) throw new Error(`usage: assemble.mjs [--debug] [--test] [--out DIR] [--app DIR] [--src DIR] (got ${a})`);
     opts[a.slice(2)] = argv[++i];
   }
   return opts;
@@ -106,7 +120,7 @@ function copy(from, to) {
   copyFileSync(from, to);
 }
 
-export function assemble({ out, app, src, debug = false, log = console.log }) {
+export function assemble({ out, app, src, debug = false, test = false, log = console.log }) {
   out = resolve(out); app = resolve(app); src = resolve(src);
   for (const [dir, what] of [[app, 'app'], [src, 'src']]) if (!existsSync(dir)) throw new Error(`${what} folder not found: ${dir}`);
   prepareOut(out, app, src);
@@ -142,6 +156,22 @@ export function assemble({ out, app, src, debug = false, log = console.log }) {
       copied.add(`debug/clips/${c}`);
     }
   }
+  if (test) {
+    if (!existsSync(join(app, 'page-test'))) throw new Error(`--test: ${join(app, 'page-test')} not found`);
+    for (const f of listFiles(join(app, 'page-test'))) {
+      copy(join(app, 'page-test', f), join(out, 'page-test', f));
+      copied.add(`page-test/${f}`);
+    }
+    for (const t of TEST_TRACKS) {
+      copy(join(src, '..', 'tests', 'fixtures', 'global', 'example', t.file), join(out, 'page-test', t.file));
+      copied.add(`page-test/${t.file}`);
+    }
+    writeFileSync(join(out, 'page-test', 'tracks.json'), `${JSON.stringify(TEST_TRACKS, null, 2)}\n`);
+    copied.add('page-test/tracks.json');
+    const html = readFileSync(join(out, 'index.html'), 'utf8');
+    if (!html.includes(MAIN_TAG)) throw new Error(`--test: index.html has no ${MAIN_TAG}`);
+    writeFileSync(join(out, 'index.html'), html.replace(MAIN_TAG, () => TEST_BOOT + MAIN_TAG));
+  }
   for (const [dir, what] of OPTIONAL) {
     if (![...copied].some((f) => f.startsWith(`${dir}/`))) log(`${dir}/ absent, skipped: ${what}`);
   }
@@ -152,7 +182,7 @@ export function assemble({ out, app, src, debug = false, log = console.log }) {
   const version = hash.digest('hex').slice(0, 16);
   if (copied.has('sw.js')) writeFileSync(join(out, 'sw.js'), stampWorker(readFileSync(join(out, 'sw.js'), 'utf8'), version));
   writeFileSync(join(out, 'files.json'), `${JSON.stringify({ version, files }, null, 2)}\n`);
-  log(`assembled ${files.length} files into ${out}, version ${version}${debug ? ' (debug: with the check page)' : ''}`);
+  log(`assembled ${files.length} files into ${out}, version ${version}${debug ? ' (debug: with the check page)' : ''}${test ? ' (test: with the replay engine)' : ''}`);
   return { version, files };
 }
 
@@ -174,7 +204,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     const o = parseArgs(process.argv.slice(2));
     const app = o.app ?? resolve(HERE, '..');
     const out = o.out ?? join(app, 'dist');
-    assemble({ out, app, src: o.src ?? resolve(app, '..', 'src'), debug: !!o.debug });
+    assemble({ out, app, src: o.src ?? resolve(app, '..', 'src'), debug: !!o.debug, test: !!o.test });
     const missing = await checkLicences(out, app);
     if (missing.length) throw new Error(`licence texts the credits name are missing from ${out}: ${missing.join(', ')}`);
     if (!existsSync(join(out, 'vendor', 'tfjs'))) console.log("TF.js's licence texts absent with the bundle: they are copied when it is built");
