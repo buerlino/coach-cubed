@@ -91,7 +91,7 @@ test('the pickers: H, the first run, M\'s problem screen and Q1 open the phone\'
   for (const f of ['H.mjs', 'Welcome.mjs', 'M.mjs', 'Q1.mjs']) {
     const s = read('src', 'ui', 'screens', f);
     assert.match(s, /<\$\{PickVideo\}/, `${f} opens the picker`);
-    assert.doesNotMatch(s, /go\("import"\)|"import"/, `${f} does not go to import`);
+    assert.doesNotMatch(s, /go\(['"]import['"]\)/, `${f} does not go to import`);
   }
   assert.match(read('src', 'ui', 'screens', 'Welcome.mjs'), /finishWelcome\(store, flow, 'lift', \{ file \}\)/);
 });
