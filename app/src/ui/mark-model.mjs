@@ -315,6 +315,48 @@ export function createPlayhead({ stepper, draw, fail }) {
   };
 }
 
+// ---- the thumbnails' retries, and which answer may move the playhead ----
+
+/**
+ * Which thumbnails to ask for next, and what a failed batch does. A batch that
+ * fails is asked again second by second, and a second that fails alone is given up
+ * for good (until `reset`), so a frame the decoder can't make never makes the
+ * screen loop over decodes that compete with the stepper for the decoder.
+ * @param {{batch?: number}} [opts] seconds per request
+ */
+export function createThumbPlanner({ batch = 6 } = {}) {
+  const failed = new Set();
+  let size = batch;
+  return {
+    /** The seconds to ask for now: those wanted and neither held nor given up on, nearest to `time` first. */
+    next(seconds, held, time) {
+      return seconds.filter(s => !held.has(s) && !failed.has(s))
+        .sort((a, b) => Math.abs(a + 0.5 - time) - Math.abs(b + 0.5 - time)).slice(0, size);
+    },
+    /** A request for `asked` failed: the next ones are single seconds, and a single second that fails is given up. Each failure narrows what is left to ask, so the retries end. */
+    failure(asked) {
+      if (asked.length > 1) size = 1;
+      else for (const s of asked) failed.add(s);
+    },
+    given: () => [...failed],
+    reset() { failed.clear(); size = batch; },
+  };
+}
+
+/**
+ * Orders the answers that may move the playhead's index: an answer to a step is
+ * applied only if nothing newer (another step, a drag) was asked since.
+ */
+export function createLatest() {
+  let n = 0;
+  return {
+    /** A newer request starts: a token for its answer. */
+    issue: () => ++n,
+    /** True while no newer request has started since `token`. */
+    fresh: token => token === n,
+  };
+}
+
 // ---- Analyse ----
 
 const analysing = new WeakSet();   // the flows with an Analyse under way: a second tap does nothing

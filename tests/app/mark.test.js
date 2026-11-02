@@ -536,6 +536,43 @@ test('with two lifts queued, each Analyse hands Q1 its own lift\'s id', async ()
   assert.deepEqual((await store.listLifts()).map(l => l.id).sort(), [...ids].sort());
 });
 
+// ---- thumbnails that fail, and a late step ----
+
+test('a thumbnail batch that fails is asked again second by second; a second that fails alone is given up, so the retries end', async () => {
+  const m = await model();
+  const planner = m.createThumbPlanner({ batch: 4 });
+  const held = new Map();
+  const wanted = [0, 1, 2, 3, 4, 5];
+  let asks = 0;
+  const bad = 2;   // the one frame the decoder can't make (decode-failed)
+  for (let guard = 0; guard < 50; guard++) {
+    const batch = planner.next(wanted, held, 2.5);
+    if (!batch.length) break;
+    asks++;
+    if (batch.includes(bad)) planner.failure(batch);
+    else for (const s of batch) held.set(s, {});
+  }
+  assert.ok(asks < 12, `the retries end (${asks} requests)`);
+  assert.deepEqual([...held.keys()].sort(), [0, 1, 3, 4, 5], 'every other second still gets its picture');
+  assert.deepEqual(planner.given(), [bad]);
+  assert.deepEqual(planner.next(wanted, held, 2.5), [], 'a given-up second is not asked for again');
+  planner.reset();
+  assert.deepEqual(planner.next(wanted, held, 2.5), [bad], 'a new video starts afresh');
+});
+
+test('a step that lands after a drag began does not move the playhead\'s index back', async () => {
+  const m = await model();
+  const latest = m.createLatest();
+  const stepToken = latest.issue();   // tap a step
+  assert.ok(latest.fresh(stepToken));
+  latest.issue();                     // the drag starts before the step lands
+  assert.ok(!latest.fresh(stepToken), 'the late step result is dropped');
+  const second = latest.issue();      // two steps in a row: only the last answer counts
+  const third = latest.issue();
+  assert.ok(!latest.fresh(second));
+  assert.ok(latest.fresh(third));
+});
+
 // ---- the screen's files ----
 
 test('M changes the flow\'s state only through the model and the flow: no other screen, no store, no literal colour; every string of the mockup is in it', () => {
@@ -548,9 +585,12 @@ test('M changes the flow\'s state only through the model and the flow: no other 
   assert.doesNotMatch(screen + mdl, /<video|createElement\('video'\)/, 'no <video> element: seeking one costs more than the pose model');
   // the strings of design/mockups/Mark.dc.html that the screen itself draws (the model's are pinned above)
   for (const s of ['Mark the lift', 'aria-label="Close"', 'Playhead position, drag the filmstrip', 'aria-label="Steps"',
-    'One frame back', 'One frame forward', 'Redo the marks', '>S<', '>E<']) {
-    assert.ok(screen.includes(s.replace(/^>|<$/g, '')), `M.mjs draws ${s}`);
+    'One frame back', 'One frame forward', 'Redo the marks', '>S</span>', '>E</span>']) {
+    assert.ok(screen.includes(s), `M.mjs draws ${s}`);
   }
+  // role="img" hides its children from a screen reader: it sits on the canvas, not on the stage with the status and the alert
+  assert.match(screen, /<canvas[^>]*role="img"[^>]*aria-label="The video at the playhead"/);
+  assert.doesNotMatch(screen, /class="mark-stage"[^>]*role="img"/);
 });
 
 test('the app calls the queue once at boot and warms the engine after the first screen draws (s12\'s report, item 6)', () => {

@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../html.mjs';
 import { openFrameSource } from '../../media/frame-source.mjs';
 import {
-  PX_PER_SECOND, THUMB, analyse, analyseCost, createPlayhead, dragTarget, dropFarThumbs, fitSize, liftLabelOf, markView,
+  PX_PER_SECOND, THUMB, analyse, analyseCost, createLatest, createPlayhead, createThumbPlanner, dragTarget, dropFarThumbs, fitSize, liftLabelOf, markView,
   newMarks, otherLift, redo, setMark, stripLeft, thumbSeconds, thumbTime,
 } from '../mark-model.mjs';
 import { ChevronDownIcon, CloseIcon, StepBackIcon, StepForwardIcon } from '../components/icons.mjs';
@@ -54,6 +54,10 @@ export function M({ flow, queue, openSource = openFrameSource }) {
   const drag = useRef(null);
   const thumbs = useRef(new Map());               // second → ImageBitmap
   const making = useRef(false);
+  const planner = useRef(null);                   // what to ask the frame source for, and what it failed on
+  if (!planner.current) planner.current = createThumbPlanner({ batch: THUMB_BATCH });
+  const latest = useRef(null);                    // orders the answers that may move the playhead's index
+  if (!latest.current) latest.current = createLatest();
 
   // the video, its stepper and the playhead; all closed when M closes
   useEffect(() => {
@@ -84,6 +88,7 @@ export function M({ flow, queue, openSource = openFrameSource }) {
       if (p.src) p.src.close();
       for (const b of thumbs.current.values()) { try { b.close(); } catch { /* closed */ } }
       thumbs.current.clear();
+      planner.current.reset();
     };
   }, [file, openSource]);
 
@@ -117,7 +122,7 @@ export function M({ flow, queue, openSource = openFrameSource }) {
     const src = parts.current.src;
     if (!src || !seconds.length || making.current) return undefined;
     dropFarThumbs(thumbs.current, thumbSeconds({ time, width, duration, margin: THUMB_KEEP }));
-    const missing = seconds.filter(s => !thumbs.current.has(s)).sort((a, b) => Math.abs(a + 0.5 - time) - Math.abs(b + 0.5 - time)).slice(0, THUMB_BATCH);
+    const missing = planner.current.next(seconds, thumbs.current, time);
     if (!missing.length) return undefined;
     making.current = true;
     src.thumbnails(missing.map(s => thumbTime(s, frameTimes)), { height: THUMB.height * Math.min(2, pixelRatio()) })
@@ -125,7 +130,8 @@ export function M({ flow, queue, openSource = openFrameSource }) {
         if (!parts.current.src || parts.current.src !== src) { bitmaps.forEach(b => b.close()); return; }
         missing.forEach((s, k) => { if (thumbs.current.has(s)) bitmaps[k].close(); else thumbs.current.set(s, bitmaps[k]); });
       })
-      .catch(() => { /* a thumbnail that can't be made leaves its box empty */ })
+      // a failed batch is asked again second by second; a second that fails alone stays empty and is not asked again
+      .catch(() => { planner.current.failure(missing); })
       .finally(() => { making.current = false; setThumbVersion(v => v + 1); });
     return undefined;
   }, [need, source, thumbVersion]);   // eslint-disable-line react-hooks/exhaustive-deps
@@ -143,7 +149,9 @@ export function M({ flow, queue, openSource = openFrameSource }) {
     const head = parts.current.head;
     if (!head) return;
     setProblem(null);
-    to.catch(() => { /* the playhead reports it */ }).then(r => { if (r) setIndex(r.index); });
+    const token = latest.current.issue();
+    // a step that lands after a newer step or a drag began says nothing about the playhead now
+    to.catch(() => { /* the playhead reports it */ }).then(r => { if (r && latest.current.fresh(token)) setIndex(r.index); });
   };
   const stepBy = delta => { if (parts.current.head) move(parts.current.head.step(delta)); };
 
@@ -156,6 +164,7 @@ export function M({ flow, queue, openSource = openFrameSource }) {
     const d = drag.current;
     if (!d || !parts.current.head) return;
     const target = dragTarget(frameTimes, { time: d.time, dx: e.clientX - d.x });
+    latest.current.issue();
     setIndex(target.index);
     parts.current.head.request(target.time);   // returns at once: the frame follows
   };
@@ -201,8 +210,8 @@ export function M({ flow, queue, openSource = openFrameSource }) {
         </button>
       </header>
 
-      <div class="mark-stage" ref=${stageRef} role="img" aria-label="The video at the playhead">
-        <canvas ref=${canvasRef} style=${source ? '' : 'display: none'}></canvas>
+      <div class="mark-stage" ref=${stageRef}>
+        <canvas ref=${canvasRef} role="img" aria-label="The video at the playhead" style=${source ? '' : 'display: none'}></canvas>
         ${!source && !problem ? html`<p class="mark-stage__note" role="status">Opening the video…</p>` : null}
         ${problem ? html`<p class="mark-stage__note error" role="alert">${problem}</p>` : null}
         ${view ? html`<span class="mark-clock">${view.clock}</span>` : null}
