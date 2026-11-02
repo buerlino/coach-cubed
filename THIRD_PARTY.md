@@ -39,9 +39,11 @@ new app's components are in the section after this one.
 
 The new app, built fresh as static files ([docs/app-plan.md](docs/app-plan.md)).
 Every package that ships something third-party adds its rows here; S1's
-credits read this section. Checked 2026-11-02. Each file is copied byte for
-byte from the package named in the Source column (`npm pack`), next to its
-licence text.
+credits read this section. Checked 2026-11-02. Each committed file is copied
+byte for byte from the package named in the Source column (`npm pack`), next
+to its licence text. The pose runtime and its weights aren't committed: they
+are built from source or fetched, into gitignored folders, by the scripts the
+In the repo column names ([app/README.md](app/README.md#tfjs-from-source)).
 
 | Component | Version | Licence | In the repo | Source |
 | --- | --- | --- | --- | --- |
@@ -49,6 +51,12 @@ licence text.
 | htm | 3.1.1 | Apache-2.0; text in `app/vendor/htm/LICENSE` | `app/vendor/htm/htm.mjs` | <https://registry.npmjs.org/htm/-/htm-3.1.1.tgz> (`dist/htm.mjs`) |
 | Barlow (400, 500, 600, 700; latin) | 5.3.0 of `@fontsource/barlow` | SIL OFL 1.1, © 2017 The Barlow Project Authors; text in `app/vendor/fonts/barlow/OFL.txt` | `app/vendor/fonts/barlow/barlow-latin-{400,500,600,700}-normal.woff2` | <https://registry.npmjs.org/@fontsource/barlow/-/barlow-5.3.0.tgz> (`files/`); upstream <https://github.com/jpt/barlow> |
 | Barlow Condensed (600, 700; latin) | 5.3.0 of `@fontsource/barlow-condensed` | SIL OFL 1.1, © 2017 The Barlow Project Authors; text in `app/vendor/fonts/barlow-condensed/OFL.txt` | `app/vendor/fonts/barlow-condensed/barlow-condensed-latin-{600,700}-normal.woff2` | <https://registry.npmjs.org/@fontsource/barlow-condensed/-/barlow-condensed-5.3.0.tgz> (`files/`); upstream <https://github.com/jpt/barlow> |
+| TensorFlow.js: `tfjs-core`, `tfjs-converter`, `tfjs-backend-webgl`, `-webgpu`, `-cpu` | 4.22.0 | Apache-2.0; text in `app/vendor/tfjs/LICENSE-tfjs.txt` (copied by the build) | Not committed: built from source by `app/tools/build-tfjs.mjs` into `app/vendor/tfjs/` (gitignored), one bundle per backend, each banner naming the sources and any patched file (none at present) | <https://github.com/tensorflow/tfjs> at tag `tfjs-v4.22.0`, commit `e5d5e9371ed1fd0a4df6d7cd0b947d2a820cefd7`; the converter's op lists generated from the tag's JSON |
+| TF.js pose-detection (`@tensorflow-models/pose-detection`), MoveNet only | 2.1.3 | Apache-2.0; text in `app/vendor/tfjs/LICENSE-tfjs-models.txt` | Bundled into each `app/vendor/tfjs/tfjs-*.mjs`; PoseNet, BlazePose and `@mediapipe/pose` left out | <https://github.com/tensorflow/tfjs-models> at tag `pose-detection-v2.1.3`, commit `f588523c083f4254050cd76c23ea18bd8fdef934` |
+| long | 4.0.0 | Apache-2.0; text in `app/vendor/tfjs/LICENSE-long.txt` | Bundled into each TF.js bundle (tfjs-core's dependency, the version its `yarn.lock` pins) | <https://registry.npmjs.org/long/-/long-4.0.0.tgz>, via `app/package-lock.json` |
+| seedrandom | 3.0.5 | MIT, © 2019 David Bau (and alea.js, © 2010 Johannes Baagøe); text in `app/vendor/tfjs/LICENSE-seedrandom.txt`, taken from its sources (the package has no LICENSE file) | Bundled into each TF.js bundle (tfjs-core's and the CPU backend's dependency) | <https://registry.npmjs.org/seedrandom/-/seedrandom-3.0.5.tgz>, via `app/package-lock.json` |
+| MoveNet SinglePose Thunder v4, TF.js weights | 4 | Apache-2.0: the Kaggle instance's `licenseName` is "Apache 2.0", and the model card says "Licensed Under Apache License, Version 2.0" ([card](https://storage.googleapis.com/movenet/MoveNet.SinglePose%20Model%20Card.pdf)) | Not committed: `app/models/movenet-thunder-4/` (`model.json` and three shards, 12.6 MB; gitignored), fetched by `app/tools/fetch-models.sh` | <https://www.kaggle.com/api/v1/models/google/movenet/tfJs/singlepose-thunder/4/download> (Google's upload), archive SHA-256 `9ab8399bc82cd3c5cc0b61ea3b397512b73dde920590ac869872637eff97e522`, the spike's pinned source |
+| esbuild | 0.28.2 | MIT | Build only, not shipped: `app/node_modules/` through `app/package.json` and its lock file | <https://registry.npmjs.org/esbuild/-/esbuild-0.28.2.tgz> |
 
 - **Preact 11.1.1** is the newest 11.x on npm (11.1.1 exists, so the pin the
   plan asked for holds). Its hooks import `preact` by bare name, which
@@ -59,6 +67,11 @@ licence text.
   latin subset only (English only in 0.1.0). The Fontsource packages carry
   Google Fonts' woff2 files and the OFL text; the app serves them itself,
   nothing loads from a font CDN.
+- **TF.js from source** (nordmu, 2026-11-01): the app bundles TF.js from
+  the tags' TypeScript, not npm's built `dist/`, so a fix is a patch at the
+  tag and the F-Droid recipe, the APK and the PWA share one build. The tags
+  are TF.js's and pose-detection's last releases; nobody upstream maintains
+  them ([pose-spike.md](docs/pose-spike.md#maintaining-tfjs-ourselves)).
 - **The placeholder icon** (`app/icons/`) is generated by
   `app/tools/make-icon.mjs`: our own, a plain disc, until the name and the
   logo exist ([docs/branding.md](docs/branding.md)).
