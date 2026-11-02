@@ -79,11 +79,13 @@ function fakeElement(tag) {
 
 // The old page mounted on fakes, scoring the fixture's kept person (the one the
 // goldens use), as app.py's page would after the lifter is picked.
-function oldPage(slug, { smooth = false, cubic, sections = false } = {}) {
+// `set` scores the fixture against another set than its own; `smoothingMs` is
+// what the page tells the panel the track was smoothed with (setTrack's opts).
+function oldPage(slug, { smooth = false, cubic, sections = false, set, smoothingMs } = {}) {
   global.document = { createElement: fakeElement };
   try {
     const D = loadDiagnostics();
-    D.setPage(diagnosticsSet(manifest, slug, D));
+    D.setPage(set || diagnosticsSet(manifest, slug, D));
     const el = {
       select: fakeElement('select'),
       wrap: fakeElement('div'),
@@ -94,7 +96,7 @@ function oldPage(slug, { smooth = false, cubic, sections = false } = {}) {
     if (sections) el.sections = fakeElement('div');
     D.mount(el);
     const track = loadTrack(slug);
-    D.setTrack(track.keypoints, track.meta, {});
+    D.setTrack(track.keypoints, track.meta, smoothingMs === undefined ? {} : { smoothingMs });
     el.select.value = track.meta.tracks.kept;
     for (const fn of el.select.listeners.change || []) fn();
     return { D, el };
@@ -442,4 +444,220 @@ test('worstMoment of a scored symmetry is the last rep', () => {
   assert.equal(res.summary.reps, 8);
   const w = checkWorst(D, 'lateral-raise-symmetry', res, out.samples);
   assert.equal(w.idx, res.series[7].idx);
+});
+
+// --- scoringLines(id, computed, {smoothingMs}) and zones(id) --------------------
+//
+// A2's "How it's scored · provisional" block and the plot's zones (package s39;
+// docs/ui-design.md, A2; design/mockups/CueDetail.dc.html). The lines are read
+// off the old panel itself (drawPanels' <li> items under the plot), so "what
+// the old panel lists" is never retyped here.
+const vm = require('node:vm');
+
+const COMMITTED = Object.keys(manifest).filter(slug => manifest[slug].scope === 'global');
+
+// A second copy of diagnostics.js that also hands the test its cue objects, so a
+// test can call a cue's own verdict() or plant a bad cue. The shipped file is
+// unchanged: the hook is added to the source text here, in memory.
+function loadInternals() {
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'diagnostics.js'), 'utf8');
+  const hook = 'window.Diagnostics = Diagnostics;';
+  assert.equal(src.split(hook).length, 2, 'diagnostics.js sets window.Diagnostics once');
+  const win = {};
+  vm.runInNewContext(src.replace(hook, hook + ' window.__internals = { CUE_BY_ID, DIAGNOSTIC_SETS };'), { window: win });
+  return { D: win.Diagnostics, cues: win.__internals.CUE_BY_ID, sets: Object.keys(win.__internals.DIAGNOSTIC_SETS) };
+}
+
+function computedFor(D, slug, set) {
+  D.setPage(set);
+  const track = loadTrack(slug);
+  return D.computeResults(track.keypoints, track.meta, track.meta.tracks.kept);
+}
+
+// The old panel's transparency bullets for the k-th cue of the mounted set.
+function panelLines(el, k) {
+  const html = el.sections.children[k].children[3].innerHTML;
+  return Array.from(html.matchAll(/<li>([\s\S]*?)<\/li>/g), m => m[1]);
+}
+
+const MARKUP = /[<>]|&(?:[a-zA-Z]+|#\d+|#x[0-9a-fA-F]+);/;
+// diagnostics.js's tempo and symmetry cues have no time-smoothing bullet (their
+// transparencyLines at phase-0, 43b3dd5); every other cue has one.
+const NO_SMOOTHING_LINE = ['lateral-raise-tempo', 'lateral-raise-symmetry'];
+
+test('scoringLines gives each cue\'s transparency lines as plain text that joins back to the old panel\'s, on every committed fixture and set', () => {
+  const { cues, sets } = loadInternals();
+  const scoredIds = new Set();
+  for (const smoothingMs of [0, 50]) {
+    for (const slug of COMMITTED) {
+      for (const set of sets) {
+        const { el } = oldPage(slug, { sections: true, set, smoothingMs });
+        const D = loadDiagnostics();   // never mounted
+        const out = computedFor(D, slug, set);
+        D.describe(set).forEach((c, k) => {
+          const where = `${slug} ${set} ${c.id} σ ${smoothingMs}`;
+          const lines = D.scoringLines(c.id, out, { smoothingMs });
+          if (out.results[c.id].error) {
+            assert.deepStrictEqual(lines, [], `${where}: a cue that can't be scored has no lines`);
+            return;
+          }
+          scoredIds.add(c.id);
+          assert.ok(lines.length > 0, where);
+          for (const line of lines) {
+            assert.deepStrictEqual(Object.keys(line), ['label', 'text'], where);
+            assert.ok(line.label && !MARKUP.test(line.label), `${where}: label ${JSON.stringify(line.label)}`);
+            assert.ok(!MARKUP.test(line.text), `${where}: markup left in ${JSON.stringify(line.text)}`);
+          }
+          assert.deepStrictEqual(lines.map(l => `<strong>${l.label}</strong> — ${l.text}`), panelLines(el, k), where);
+          const smoothing = lines.filter(l => l.label === 'Time smoothing');
+          if (NO_SMOOTHING_LINE.includes(c.id)) { assert.equal(smoothing.length, 0, where); return; }
+          assert.equal(smoothing.length, 1, where);
+          if (smoothingMs) assert.match(smoothing[0].text, new RegExp(`σ = ${smoothingMs} ms`), where);
+          else assert.match(smoothing[0].text, /^off — /, where);
+        });
+      }
+    }
+  }
+  // every cue of every set has been checked on a scored result, the symmetry
+  // aside: it needs two reps, which no committed fixture has (the next test)
+  assert.deepStrictEqual([...cues.keys()].filter(id => !scoredIds.has(id)), ['lateral-raise-symmetry']);
+});
+
+// The symmetry's lines on the eight-rep fatigue set above, against the panel's
+// own transparencyLines called directly.
+test('scoringLines gives a scored symmetry\'s lines too', () => {
+  const { D, cues } = loadInternals();
+  D.setPage('lateral-raise');
+  const signal = [];
+  for (const amplitude of [0.6, 0.54, 0.48, 0.42, 0.36, 0.30, 0.24, 0.18]) {
+    const peak = -0.8 + amplitude;
+    signal.push(...Array(8).fill(-0.8));
+    signal.push(...Array.from({ length: 18 }, (_, i) => -0.8 + amplitude * (i + 1) / 18));
+    signal.push(...Array(8).fill(peak));
+    signal.push(...Array.from({ length: 18 }, (_, i) => peak - amplitude * (i + 1) / 18));
+  }
+  signal.push(...Array(8).fill(-0.8));
+  const keypoints = {};
+  signal.forEach((height, frame) => {
+    const wristY = 100 - height * 100;
+    const points = Array.from({ length: 17 }, () => [0, 0, 0]);
+    points[5] = [100, 80, 1]; points[6] = [100, 120, 1];
+    points[7] = [(100 + wristY) / 2, 75, 1]; points[8] = [(100 + wristY) / 2, 125, 1];
+    points[9] = [wristY, 70, 1]; points[10] = [wristY, 130, 1];
+    points[11] = [200, 85, 1]; points[12] = [200, 115, 1];
+    points[13] = [280, 90, 1]; points[14] = [280, 110, 1];
+    points[15] = [360, 90, 1]; points[16] = [360, 110, 1];
+    keypoints[String(frame)] = { '1': points };
+  });
+  const idx = signal.map((_, i) => i);
+  const out = D.computeResults(keypoints, { fps: 30, frame_indices: idx, frame_times_ms: idx.map(i => i * 1000 / 30) }, '1');
+  const id = 'lateral-raise-symmetry';
+  assert.ok(!out.results[id].error, out.results[id].error);
+  const lines = D.scoringLines(id, out, { smoothingMs: 50 });
+  const html = cues.get(id).transparencyLines(out.results[id], out.samples, { smoothingMs: 50, scale: out.scale, axis: out.axis });
+  assert.ok(lines.length > 0 && lines.every(l => !MARKUP.test(l.label) && !MARKUP.test(l.text)));
+  assert.deepStrictEqual(lines.map(l => `<strong>${l.label}</strong> — ${l.text}`), Array.from(html));
+});
+
+test('scoringLines: [] for a cue that can\'t be scored, the smoothing required, an unknown id throws, no mount needed', () => {
+  const { out } = computed(LATERAL);
+  const fresh = loadDiagnostics();
+  fresh.setPage('clean-and-jerk');
+  assert.equal(global.document, undefined);
+  // lateral-raise-cable-1 has one rep: its symmetry can't be scored (its golden)
+  assert.ok(out.results['lateral-raise-symmetry'].error);
+  assert.deepStrictEqual(fresh.scoringLines('lateral-raise-symmetry', out, { smoothingMs: 0 }), []);
+  // a cue the computed output didn't score at all (another set's)
+  assert.deepStrictEqual(fresh.scoringLines('first-pull-back-angle', out, { smoothingMs: 0 }), []);
+  assert.ok(fresh.scoringLines('lateral-raise-elbow-lead', out, { smoothingMs: 0 }).length > 0);
+  // without the smoothing it was scored with, the "Time smoothing" line would guess
+  for (const opts of [undefined, {}, { smoothingMs: -1 }, { smoothingMs: '50' }, { smoothingMs: NaN }]) {
+    assert.throws(() => fresh.scoringLines('lateral-raise-elbow-lead', out, opts), /smoothingMs/, JSON.stringify(opts));
+  }
+  assert.throws(() => fresh.scoringLines('no-such-cue', out, { smoothingMs: 0 }), /no-such-cue/);
+});
+
+test('scoringLines fails loudly on a line with markup besides its label', () => {
+  const { D, cues } = loadInternals();
+  const out = computedFor(D, LATERAL, 'lateral-raise');
+  const tempo = cues.get('lateral-raise-tempo');
+  const real = tempo.transparencyLines;
+  assert.ok(D.scoringLines(tempo.id, out, { smoothingMs: 0 }).length > 0);
+  for (const bad of [
+    '<strong>Phase</strong> — 3 rep(s), <em>frames</em> 1–9.',
+    '<strong>Phase</strong> — frames 1&ndash;9.',
+    'Phase — no label of its own.',
+    '<strong>Ph<em>a</em>se</strong> — a tag inside the label.',
+    '<b>Phase</b> — another tag for the label.',
+  ]) {
+    tempo.transparencyLines = (...args) => real.apply(tempo, args).concat([bad]);
+    assert.throws(() => D.scoringLines(tempo.id, out, { smoothingMs: 0 }), /lateral-raise-tempo/, bad);
+  }
+});
+
+test('zones(id) are each cue\'s verdict bands on its series\' scale, or null where the series doesn\'t plot the verdict\'s value', async () => {
+  const { VERDICT_STATUS, STATUS_WORDS } = await import('../../app/src/contracts/cue-view.mjs');
+  const { D: inner, cues } = loadInternals();
+  const D = loadDiagnostics();
+  D.setPage('snatch');
+  assert.equal(global.document, undefined);
+  let banded = 0;
+  for (const [id, d] of cues) {
+    assert.ok(RULES[id], `${id}: every cue has its worst-moment rule in RULES`);
+    const zones = D.zones(id);
+    assert.deepStrictEqual(inner.zones(id), zones, id);
+    if (RULES[id] !== 'summary-worst') { assert.equal(zones, null, `${id}: scored on ${RULES[id]}, not a series value`); continue; }
+    assert.ok(Array.isArray(zones) && zones.length >= 3, id);
+    banded++;
+    zones.forEach((z, i) => {
+      assert.deepStrictEqual(Object.keys(z), ['status', 'from', 'to'], id);
+      assert.ok(STATUS_WORDS.includes(z.status) && z.status !== "can't score", `${id}: ${z.status}`);
+      assert.equal(z.from === null, i === 0, `${id}: only the lowest band is open below`);
+      assert.equal(z.to === null, i === zones.length - 1, `${id}: only the highest band is open above`);
+      if (z.from !== null && z.to !== null) assert.ok(z.from < z.to, id);
+      if (i) assert.equal(z.from, zones[i - 1].to, `${id}: the bands meet`);
+      // the cue's own verdict(), on a summary whose verdict value sits in this
+      // band: its middle and just inside each edge (VERDICT_VALUE: summary.worst,
+      // and its size, worstAbs, for the top height)
+      const span = (z.from !== null && z.to !== null) ? z.to - z.from : 1;
+      const eps = 1e-6 * span;
+      const at = [];
+      if (z.from !== null) at.push(z.from + eps);
+      if (z.to !== null) at.push(z.to - eps);
+      if (z.from !== null && z.to !== null) at.push((z.from + z.to) / 2);
+      if (z.from === null) at.push(z.to - Math.max(1, Math.abs(z.to)));
+      if (z.to === null) at.push(z.from + Math.max(1, Math.abs(z.from)));
+      for (const v of at) {
+        const verdict = d.verdict({ worst: v, worstAbs: Math.abs(v) });
+        assert.equal(VERDICT_STATUS[verdict.status], z.status, `${id}: verdict at ${v} is ${verdict.status}, the band says ${z.status}`);
+      }
+    });
+  }
+  assert.equal(banded, 3);
+  // The top height's verdict reads the worst rep's size (worstAbs): the bands are
+  // mirrored about shoulder height, as its verdict treats too high and too low alike.
+  const top = D.zones('lateral-raise-top-height');
+  assert.deepStrictEqual(top.map(z => z.status), [...top].reverse().map(z => z.status));
+  top.forEach((z, i) => {
+    const m = top[top.length - 1 - i];
+    assert.deepStrictEqual([z.from, z.to], [m.to === null ? null : -m.to, m.from === null ? null : -m.from]);
+  });
+  // design/mockups/CueDetail.dc.html: good from +5 %, watch between +5 % and −5 %, work on below −5 %
+  assert.deepStrictEqual(D.zones('lateral-raise-elbow-lead'), [
+    { status: 'work on', from: null, to: -5 },
+    { status: 'watch', from: -5, to: 5 },
+    { status: 'good', from: 5, to: null },
+  ]);
+  // plain data, a fresh copy each call
+  const a = D.zones('lateral-raise-tempo');
+  a[0].to = 99;
+  assert.notEqual(D.zones('lateral-raise-tempo')[0].to, 99);
+});
+
+test('zones: an unknown id throws, and so does a cue that declares none', () => {
+  const D = loadDiagnostics();
+  assert.throws(() => D.zones('no-such-cue'), /no-such-cue/);
+  const { D: inner, cues } = loadInternals();
+  delete cues.get('lateral-raise-tempo').zones;
+  assert.throws(() => inner.zones('lateral-raise-tempo'), /lateral-raise-tempo/);
 });
