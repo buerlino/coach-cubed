@@ -19,7 +19,7 @@ const media = () => import(pathToFileURL(path.join(APP, 'debug', 'media.mjs')).h
 
 test('media.mjs loads in Node without a page and exposes the measurements', async () => {
   const m = await media();
-  for (const k of ['open', 'decodeRate', 'frameAtRandom', 'step', 'stepCached', 'rotateCost', 'cut']) assert.equal(typeof m.c34[k], 'function', k);
+  for (const k of ['open', 'decodeRate', 'frameAtRandom', 'step', 'stepCached', 'seekCached', 'rotateCost', 'cut']) assert.equal(typeof m.c34[k], 'function', k);
 });
 
 test('prng: seeded, so a run\'s random times can be drawn again; values in [0, 1)', async () => {
@@ -57,7 +57,7 @@ test('check-media-apk.mjs runs every measurement of c34 five times and puts the 
   const src = read('tools/check-media-apk.mjs');
   assert.match(src, /arg\('--runs', 5\)/, 'five runs by default: numbers are medians of at least five');
   for (const clip of ['k1', 'k2to5', 'p60', 'rot90', 'rot90p60', 'vfr', 'hevc', 'big']) assert.match(src, new RegExp(`'${clip}'`), clip);
-  for (const call of ["'open'", "'decodeRate'", "'frameAtRandom'", "'step'", "'stepCached'", "'rotateCost'", "'cut'"]) assert.ok(src.includes(call), call);
+  for (const call of ["'open'", "'decodeRate'", "'frameAtRandom'", "'step'", "'stepCached'", "'seekCached'", "'rotateCost'", "'cut'"]) assert.ok(src.includes(call), call);
   assert.match(src, /consumerMs: 100/, 'the backpressure run: a consumer taking 100 ms a frame');
   assert.match(src, /consumerMs: 0/, 'the plain decode rate');
   assert.match(src, /keep: true/, 'keepVideo itself, into OPFS');

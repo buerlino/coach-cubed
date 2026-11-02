@@ -14,6 +14,8 @@
 // come and at a tap every 150 ms, on the 30 fps clip and on c34's k1.mp4 and
 // k2to5.mp4 (1080p, keyframes every 1 s and every 2–5 s) when --clips names their
 // folder (app/tools/make-phone-clips.sh); each frame must be the next by frameTimes.
+// And the stepper's seek against frameAt at the same 20 random times (on k1 and
+// k2to5 also at 1320 px high, a pixel ratio of 3's budget of 34 frames).
 // Prints JSON; exits 1 on a failed check. Headless desktop timings say nothing
 // about the Fairphone (c26).
 import { spawn, spawnSync } from 'node:child_process';
@@ -77,8 +79,11 @@ window.check = (async () => {
       stepperTap: await c34.stepCached(name, { n, seed: 1, gapMs: 150 }),
       stepperBack: await c34.stepCached(name, { n, seed: 1, dir: -1 }),
       stepperBackTap: await c34.stepCached(name, { n, seed: 1, dir: -1, gapMs: 150 }),
+      frameAtRandom: await c34.frameAtRandom(name, { n: 20, seed: 1 }),
+      seek: await c34.seekCached(name, { n: 20, seed: 1 }),
+      ...(name.startsWith('testsrc2') ? {} : { seek1320: await c34.seekCached(name, { n: 20, seed: 1, height: 1320 }) }),
     };
-    for (const r of Object.values(steps[name])) delete r.each;
+    for (const r of Object.values(steps[name])) { delete r.each; delete r.times; delete r.got; }
   }
   return out;
 })();
@@ -142,6 +147,8 @@ if (result.error) problems.push(result.error);
 for (const [name, r] of Object.entries(result.steps || {})) {
   for (const [how, m] of Object.entries(r)) {
     if (m.error) { problems.push(`steps ${name} ${how}: ${JSON.stringify(m.error)}`); continue; }
+    if (how.startsWith('seek')) { if (!m.right) problems.push(`steps ${name} ${how}: a seek did not give the frame shown at its time`); continue; }
+    if (how === 'frameAtRandom') continue;
     if (!m.consecutive) problems.push(`steps ${name} ${how}: a step did not give the next frame by frameTimes`);
     if (how !== 'frameAt' && m.frame !== m.size) problems.push(`steps ${name} ${how}: frames are ${m.frame}, not the ${m.size} asked for`);
   }

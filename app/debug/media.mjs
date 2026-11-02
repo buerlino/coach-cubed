@@ -9,6 +9,7 @@
 //   window.c34.frameAtRandom(name, {n, seed})           frameAt at n seeded random times
 //   window.c34.step(name, {n, seed})    frameAt on n+1 consecutive frames from a seeded start (M1–M3's step)
 //   window.c34.stepCached(name, {n, seed, dir, gapMs, settle, height})   the same steps with the stepper (s38)
+//   window.c34.seekCached(name, {n, seed, height})      the stepper opened, then seeks at frameAtRandom's times (s38)
 //   window.c34.add(name, blob)          a clip given directly (check-media.mjs), not through #media
 //   window.c34.rotateCost(name, {t0, t1, rotation})     the canvas turn on each decoded frame, timed alone
 //   window.c34.cut(name, {t0, t1, keep})                cutVideo, the store's write (saveLift), the cut read back,
@@ -200,6 +201,35 @@ export const c34 = {
         size: `${st.width}x${st.height}`, frame: `${st.frame.width}x${st.frame.height}`,
         budget: st.budget, held: st.held, heldMb: r1(st.bytes / MB),
         openMs: r1(openMs), settledMs: r1(settledMs), ms: stats(ms), each: ms.map(r1),
+      };
+    } finally { st.close(); }
+  })),
+
+  // The stepper's seek (a drag of the filmstrip, s38): opened at the first of
+  // frameAtRandom's seeded times, then a seek to each of the others, each awaited
+  // until its frame is held (the refill around it goes on in the background).
+  // Beside frameAtRandom on the same times: what a seek costs over a frameAt.
+  seekCached: (name, { n = 20, seed = 1, height = null } = {}) => measured(() => withSource(name, async src => {
+    const rnd = prng(seed), d = src.info.duration;
+    const times = Array.from({ length: n }, () => rnd() * d);
+    const pixelRatio = (typeof devicePixelRatio === 'number' && devicePixelRatio) || 1;
+    const h = height ?? Math.round(440 * pixelRatio);
+    let t = now();
+    const st = await src.stepper(times[0], { height: h });
+    const openMs = now() - t;
+    const ms = [];
+    let right = true;
+    try {
+      for (const s of times.slice(1)) {
+        t = now();
+        const r = await st.seek(s);
+        ms.push(now() - t);
+        const ft = src.frameTimes, i = r.index;
+        if (!r.frame || !(ft[i] <= s + 1e-6) || (i + 1 < ft.length && ft[i + 1] <= s + 1e-6) || r.time !== ft[i]) right = false;
+      }
+      return {
+        n, seed, pixelRatio, size: `${st.width}x${st.height}`, budget: st.budget, right,
+        openMs: r1(openMs), ms: stats(ms), each: ms.map(r1), times: times.map(r3),
       };
     } finally { st.close(); }
   })),

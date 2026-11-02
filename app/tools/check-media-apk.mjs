@@ -54,6 +54,7 @@ const PLAN = [
     [`stepCached-${c}`, 'stepCached', c, k => ({ n: 30, seed: k })],
     [`stepCached-tap-${c}`, 'stepCached', c, k => ({ n: 30, seed: k, gapMs: 150 })],
     [`stepCached-back-${c}`, 'stepCached', c, k => ({ n: 30, seed: k, dir: -1, gapMs: 150 })],
+    [`seekCached-${c}`, 'seekCached', c, k => ({ n: 20, seed: k })],
   ]),
   ['cut-k1', 'cut', 'k1', () => ({ t0: 0, t1: 60 })],
   ['keep-k1', 'cut', 'k1', () => ({ t0: 0, t1: 60, keep: true })],
