@@ -5,6 +5,7 @@
 //   window.c20.basics    the WebView, WebGL, OPFS, persist(): run at load
 //   window.c20.engine    the engine, when ?engine=N (N runs) or the button
 //   window.c20.import    the picked file opened by the frame source (after a pick)
+//   window.c20.runEngine(n)   starts the engine's runs (once), returns its promise
 //
 // Each is a promise of a plain object (JSON), also shown on the page. A
 // failure is reported in the object (`error`), never thrown.
@@ -190,7 +191,7 @@ function runEngine(n) {
   return engineRunning;
 }
 
-window.c20 = {};
+window.c20 = { runEngine };
 window.c20.basics = (async () => {
   await step('environment', environment);
   await step('webgl', webgl);
