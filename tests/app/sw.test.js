@@ -389,3 +389,10 @@ test('H shows the "update ready" line from the updates it is given, and main.mjs
   assert.equal((main.match(/\.register\(/g) || []).length, 1);
   assert.ok(main.indexOf('render(') < main.indexOf('.register('), 'registered after the first draw');
 });
+
+test('the browser check exists and takes the network away twice over: emulation and the server', () => {
+  const text = fs.readFileSync(path.join(APP, 'tools', 'check-offline.mjs'), 'utf8');
+  assert.match(text, /Network\.emulateNetworkConditions/);
+  assert.match(text, /server\.close\(\)/);
+  assert.match(text, /fromServiceWorker/);
+});
