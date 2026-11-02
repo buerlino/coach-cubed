@@ -26,6 +26,10 @@
 <body>
 <div id="app"></div>
 <noscript>coach needs JavaScript.</noscript>
+<!-- diagnostics.js is a classic script that sets window.Diagnostics; the scoring
+     adapter (src/scoring/) reads it from there. Plain, so it runs before the
+     deferred module below. assemble.mjs copies it into src/ of dist/. -->
+<script src="./src/diagnostics.js"></script>
 <script type="module" src="./src/main.mjs"></script>
 </body>
 </html>

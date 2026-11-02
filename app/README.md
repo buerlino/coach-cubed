@@ -43,6 +43,7 @@ It logs each request (`200 /index.html`); a `404` there is a broken path.
 | `src/contracts/` | The shapes the app's parts agree on: JSDoc types, validators, examples. See [Contracts](#contracts). |
 | `src/store/` | The store (`c8`): lifts, their cut videos, tracks and results, the index and the settings, in OPFS. See [The store](#the-store). |
 | `src/media/` | The frame source (`s9`): `openFrameSource(blob)` gives contract 5's source over mediabunny and WebCodecs. See [The frame source](#the-frame-source). |
+| `src/scoring/` | The scoring adapter (`s11`): `scoreLift(track, lift, opts)` gives contract 4's `ResultView` from a raw track. See [Scoring](#scoring). |
 | `src/pose/` | The pose engine (`s10`): `PoseEngine.create()` gives one async `estimate(frame, tMs)` over a worker running MoveNet Thunder on TF.js. See [The pose engine](#the-pose-engine). |
 | `vendor/` | Third-party files, each with its licence text, byte for byte from its npm package ([THIRD_PARTY.md](../THIRD_PARTY.md#in-the-new-app-app)): `preact/` (Preact 11.1.1 and its hooks), `htm/` (htm 3.1.1), `mediabunny/` (mediabunny 1.61.6, MPL-2.0, the frame source's one demuxer), `fonts/` (Barlow and Barlow Condensed, woff2, with `OFL.txt`). `vendor/tfjs/` is built by `tools/build-tfjs.mjs` (gitignored). |
 | `tools/` | `assemble.mjs`, `serve.mjs`, `make-icon.mjs`, and the TF.js build: `build-tfjs.mjs`, `fetch-models.sh`, `check-tfjs.mjs`, `patches/` ([below](#tfjs-from-source)), and `check-media.mjs` (the frame source on a real decoder, [above](#the-frame-source)). Node only; only `build-tfjs.mjs` needs `app/node_modules/` (esbuild). Not copied into `dist/`. |
@@ -84,8 +85,9 @@ the app needs gets a stub the same way.
 
 `diagnostics.js` is a classic script that sets `window.Diagnostics`: the
 browser loads it with a `<script src="./src/diagnostics.js">`, and the tests
-load it with `tests/loadDiagnostics.js`. The scoring adapter (`s11`) decides how
-the app wraps it.
+load it with `tests/loadDiagnostics.js`. `index.html` has a plain
+`<script src="./src/diagnostics.js">` before the module, so it runs first; the
+scoring adapter wraps it ([Scoring](#scoring)).
 
 ## Contracts
 
@@ -112,6 +114,48 @@ the screens and the tests.
 A change to a contract is a package of its own: both sides build on it, so
 it is agreed first, with its tests, and then each side follows in its own
 package.
+
+## Scoring
+
+`src/scoring/score.mjs` turns a track into the cue view model (contract 4),
+the one thing the screens draw cues from, so a new cue in `diagnostics.js`
+needs no UI change.
+
+```js
+import { scoreLift } from './scoring/score.mjs';
+const { view, computed, personId, smoothing } = scoreLift(track, 'snatch', { sigmaMs: 50 });
+// view: a ResultView (passes validateResultView); computed: computeResults()'s output, for drawCue()
+```
+
+- **Order:** `src/track/`'s smoothing first (σ 50 ms, velocity kept, the old
+  page's defaults and S1's `smoothingSigmaMs`; `sigmaMs: 0` scores the raw
+  track), then `Diagnostics.setPage(lift)` and `computeResults()`, then the
+  view through `describe`, `tiles`, `referenceLine` and `worstMoment`
+  (`CUE_VIEW_SOURCES` names every field's source). The lifter is
+  `meta.tracks.kept`, else the person with most frames, else person 0.
+- **`diagnostics.js`** comes from `opts.Diagnostics` or `window.Diagnostics`
+  (the classic script's global, so on the page's main thread; a worker has no
+  `window`). It throws for a lift it has no set for.
+- **Honest verdicts:** every string on the view is diagnostics.js's (a test
+  checks each against what the engine returned); the adapter writes none. A
+  cue `computeResults()` can't score is "can't score" with the engine's error
+  as `reason`, for a track too short, without a body scale or with nobody in
+  it too. Each cue carries `describe()`'s `provisional` flag. A verdict level
+  the contract has no word for throws instead of showing as another word.
+- **Seconds:** the lift window, the phase, the series and the worst moment
+  are in seconds (the track's `frame_times_ms`). A lift window needs both
+  ends: a start with no end is `liftWindow: null` and its reason is the
+  engine's last note ("…the lift has no end marker"); the other notes stay in
+  `notes`.
+- **The smoothing's σ** is returned beside the view, as numbers (`smoothing`):
+  the ResultView has no field for it, and the adapter writes no sentence.
+- **What the tests pin** (`tests/app/scoring.test.js`): with smoothing off,
+  every committed fixture's verdicts, values, series, tiles, notes and
+  reasons are its golden's. The goldens score **raw** tracks; with the
+  default smoothing the result is `src/track/`'s smoothing followed by
+  `computeResults()`, which is the pinned old-page behaviour, not a golden.
+  So what the user sees (smoothed) is covered against the engine, not
+  against labelled lifts.
 
 ## The store
 
