@@ -885,6 +885,14 @@ function makeFirstPullBackAngle(spec) {
     provisional: true,   // SD_GOOD/SD_WARN
     worstRule: 'farthest-from-mean',   // the verdict is the SD around the pull's mean
     zones: null,   // the verdict reads the SD, which the plot (the angle itself) doesn't show
+    // rule(id)'s words and the bands of the value verdict() reads (the SD)
+    unitNoun: '° of spread (SD)',
+    verdictBasis: 'The spread (SD) of the back angle over the first pull decides, not the angle itself.',
+    bands: [
+      { status: 'good', from: null, to: SD_GOOD },
+      { status: 'warning', from: SD_GOOD, to: SD_WARN },
+      { status: 'critical', from: SD_WARN, to: null },
+    ],
 
     // Active phase: floor to bar-past-knee — both triggers come from
     // firstPullWindow, which is shared with the bar-axis estimate (see there for
@@ -1169,6 +1177,14 @@ const secondPullTripleExtension = {
   provisional: true,   // EXT_GOOD/EXT_WARN
   worstRule: 'phase-end',   // the deficits are read over the phase's last samples
   zones: null,   // the verdict reads the larger of two deficits averaged over the last samples, not one plotted value
+  // rule(id)'s words and the bands of the value verdict() reads (the larger deficit)
+  unitNoun: '° short of straight',
+  verdictBasis: 'The larger of the hip\'s and the knee\'s shortfall from straight, averaged over the last samples of the second pull, decides.',
+  bands: [
+    { status: 'good', from: null, to: EXT_GOOD },
+    { status: 'warning', from: EXT_GOOD, to: EXT_WARN },
+    { status: 'critical', from: EXT_WARN, to: null },
+  ],
 
   // Active phase: bar-past-knee (the first pull's own end trigger) to peak hip
   // elevation.
@@ -1525,6 +1541,9 @@ const lateralRaiseTopHeight = {
     { status: 'warning', from: TOP_GOOD, to: TOP_WARN },
     { status: 'critical', from: TOP_WARN, to: null },
   ],
+  // rule(id)'s words; its bands are the zones
+  unitNoun: '% of torso length of shoulder height',
+  verdictBasis: 'The rep farthest from shoulder height decides, too high or too low alike.',
 
   // Active phase: every rep this clip contains, start to finish — the union of
   // lateralRaiseReps' rep list rather than one window, since the cue applies
@@ -1695,6 +1714,14 @@ const lateralRaiseTorsoLean = {
   provisional: true,   // LEAN_GOOD/LEAN_WARN
   worstRule: 'farthest-from-mean',   // the verdict is the SD around the set's mean
   zones: null,   // the verdict reads the SD, which the plot (the angle itself) doesn't show
+  // rule(id)'s words and the bands of the value verdict() reads (the SD)
+  unitNoun: '° of sway (SD)',
+  verdictBasis: 'The spread (SD) of the trunk angle across the set decides, not the angle itself.',
+  bands: [
+    { status: 'good', from: null, to: LEAN_GOOD },
+    { status: 'warning', from: LEAN_GOOD, to: LEAN_WARN },
+    { status: 'critical', from: LEAN_WARN, to: null },
+  ],
 
   // Active phase: the same rep span lateralRaiseTopHeight uses, but measured
   // continuously frame-by-frame rather than only at each rep's peak — a lean
@@ -1854,6 +1881,9 @@ const lateralRaiseElbowLead = {
     { status: 'warning', from: ELBOW_WARN, to: ELBOW_GOOD },
     { status: 'good', from: ELBOW_GOOD, to: null },
   ],
+  // rule(id)'s words; its bands are the zones
+  unitNoun: '% of torso length',
+  verdictBasis: 'The lowest margin of the elbow over the wrist in the set decides.',
 
   phase(samples, scale, ax) {
     const notes = [];
@@ -1999,6 +2029,9 @@ const lateralRaiseTempo = {
     { status: 'warning', from: TEMPO_GOOD, to: TEMPO_WARN },
     { status: 'critical', from: TEMPO_WARN, to: null },
   ],
+  // rule(id)'s words; its bands are the zones
+  unitNoun: '× faster down than up',
+  verdictBasis: 'The rep lowered fastest against its own raise decides.',
 
   phase(samples, scale, ax) {
     const notes = [];
@@ -2149,6 +2182,14 @@ const lateralRaiseSymmetry = {
   provisional: true,   // SYM_GOOD/SYM_WARN
   worstRule: 'summary-last',   // the decline is measured to the last rep
   zones: null,   // the verdict reads the decline, first rep minus last, which the plot (each rep's height) doesn't show
+  // rule(id)'s words and the bands of the value verdict() reads (the decline)
+  unitNoun: '% of torso length lost',
+  verdictBasis: 'The drop in height from the first rep to the last decides.',
+  bands: [
+    { status: 'good', from: null, to: SYM_GOOD },
+    { status: 'warning', from: SYM_GOOD, to: SYM_WARN },
+    { status: 'critical', from: SYM_WARN, to: null },
+  ],
 
   phase(samples, scale, ax) {
     const notes = [];
@@ -2576,6 +2617,32 @@ function cueZones(d) {
   });
 }
 
+// The words A1's rule line and A2's "How it's scored" are built from (s45): the
+// unit's noun, the text after a number ("% of torso length"), the one sentence
+// saying what the verdict reads (`verdictBasis`), and the verdict's bands. The bands
+// are the zones where the plot shows the value the verdict reads; a cue whose
+// zones are null declares `bands` for that value instead (the SD, the decline,
+// the deficit), from the same constants and in the same shape. A cue missing
+// any of them, or declaring both zones and bands, throws, so a new cue brings
+// its own words.
+function cueRule(d) {
+  for (const f of ['unitNoun', 'verdictBasis']) {
+    if (typeof d[f] !== 'string' || !d[f]) throw new Error('Cue ' + d.id + ' declares no ' + f + ' for rule(id)');
+  }
+  const zones = cueZones(d);
+  if (zones && d.bands !== undefined) {
+    throw new Error('Cue ' + d.id + ' declares both zones and bands: its zones are its bands');
+  }
+  if (!zones && !Array.isArray(d.bands)) {
+    throw new Error('Cue ' + d.id + ' has no zones, so it declares the bands of the value its verdict reads');
+  }
+  return {
+    noun: d.unitNoun,
+    basis: d.verdictBasis,
+    bands: zones || cueZones({ id: d.id, zones: d.bands }),
+  };
+}
+
 function overlaySize(ctx) {
   return ctx.canvas.height || 720;
 }
@@ -2990,6 +3057,18 @@ function buildSections() {
 //       on something its series doesn't plot (the back angles' and the torso
 //       lean's SD, the symmetry's decline, the triple extension's deficits;
 //       contract 4's VERDICT_VALUE), where bands on the plot would mislead.
+//   rule(id) -> { noun, basis, bands }
+//       The words for A1's rule line and A2's "How it's scored" (s45), plain
+//       text next to the cue's thresholds: noun is what follows a number in
+//       the cue's unit, the unit's symbol first ('% of torso length', '° of
+//       sway (SD)', '× faster down than up'); basis is one sentence on what
+//       the verdict reads, by the cue's worstRule ('The lowest margin of the
+//       elbow over the wrist in the set decides.'); neither holds a number.
+//       bands are the verdict's good, watch and work-on bands, lowest first,
+//       in zones(id)'s shape and words, from the cue's own constants:
+//       zones(id) itself where it isn't null, else the bands of the value the
+//       verdict reads (the SD, the decline, the larger deficit), so every cue
+//       has them. A cue without its words, or with both zones and bands, throws.
 //
 // Every id is a cue id from any set (unknown ids throw); none of these read the
 // active page or the mounted state.
@@ -3033,6 +3112,10 @@ const Diagnostics = {
 
   zones(id) {
     return cueZones(cueById(id));
+  },
+
+  rule(id) {
+    return cueRule(cueById(id));
   },
 
   drawCue(ctx, id, t, computed, opts) {

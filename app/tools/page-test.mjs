@@ -345,9 +345,17 @@ try {
       const card = `[data-screen="A1"] .cue-card[data-cue="${scoredCue.id}"]`;
       const open = await evaluate(`!!document.querySelector(${JSON.stringify(card + ' .cue-card__more')})`);
       if (!open) await evaluate(`document.querySelector(${JSON.stringify(card + ' .cue-card__head')}).click()`);
+      // s45: the open card's rule line names the unit's noun and the watch band, and A2's "How it's scored" starts
+      // with the sentence on what the verdict reads, both from diagnostics.js's rule(id) in the page
+      const api = await evaluate(`window.Diagnostics.rule(${JSON.stringify(scoredCue.id)})`);
+      const a1Rule = await evaluate(`document.querySelector(${JSON.stringify(card + ' .cue-card__rule')})?.textContent ?? null`);
       if (!await click(`${card} .cue-card__more`)) throw new Error('A1: no "Plot and details" on a scored cue');
       await waitFor(`document.querySelector('[data-screen="A2"]')`, 'A2 after "Plot and details"');
       await waitFor(`document.querySelector('[data-screen="A2"] .detail-play')`, 'A2\'s button, once the cue is loaded');
+      const a2Rule = await evaluate(`document.querySelector('[data-screen="A2"] .detail-rule__sentence')?.textContent ?? null`);
+      one.rule = { cue: scoredCue.id, a1: a1Rule, a2: a2Rule };
+      if (!api || !a1Rule || !a1Rule.includes(api.noun) || !/, watch /.test(a1Rule)) { problems.push(`${l.lift}: A1's rule line for ${scoredCue.id} lacks rule(id)'s noun or the watch band: ${JSON.stringify(a1Rule)}`); one.ok = false; }
+      if (!api || !a2Rule || !a2Rule.startsWith(api.basis)) { problems.push(`${l.lift}: A2's "How it's scored" for ${scoredCue.id} does not start with rule(id)'s sentence: ${JSON.stringify(a2Rule)}`); one.ok = false; }
       if (!await click('[data-screen="A2"] .detail-play', 'Play the rep at ½×')) throw new Error('A2: no "Play the rep at ½×" button');
       await waitFor(`document.querySelector('[data-screen="A1"] .result-speed')`, 'A1 after "Play the rep at ½×"');
       const back = await evaluate(`({ speed: document.querySelector('.result-speed').textContent, open: !!document.querySelector(${JSON.stringify(card + ' .cue-card__body')}), problem: document.querySelector('.result-problem')?.textContent ?? null })`);

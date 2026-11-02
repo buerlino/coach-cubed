@@ -1,11 +1,11 @@
 // A2's texts and numbers as plain functions (package d18): what the cue's view (contract 4) and
 // diagnostics.js's headless API say about one cue, laid out for the screen. No Preact, no DOM, so Node
 // runs them as written (tests/app/cue-detail.test.js). Every word and number comes from the view or
-// from s4's and s39's API (`tiles`, `zones`, `scoringLines`); the screen's own words are its headings.
+// from s4's, s39's and s45's API (`tiles`, `zones`, `scoringLines`, `rule`); the screen's own words are its headings.
 // `computed` is scoreLift()'s: computeResults() on the stored track with the view's own smoothing.
 import { HALF_SPEED } from './player-model.mjs';
 import { lookOf, shortTitle } from './result-model.mjs';
-import { ruleSentence } from './rule-model.mjs';
+import { ruleOf, ruleParagraph, ruleSentence } from './rule-model.mjs';
 
 export { ruleSentence };
 
@@ -44,6 +44,7 @@ export function detailOf({ Diagnostics, view, computed, cueId, range }) {
   const look = lookOf(cue.status);
   const scored = cue.reason === null;
   const zones = scored ? Diagnostics.zones(cue.id) : null;
+  const apiRule = scored ? ruleOf(Diagnostics, cue.id) : null;
   const lines = scored ? Diagnostics.scoringLines(cue.id, computed, { smoothingMs: view.smoothing.sigmaMs }) : [];
   return {
     id: cue.id,
@@ -63,7 +64,10 @@ export function detailOf({ Diagnostics, view, computed, cueId, range }) {
     notes: [...cue.notes],
     tiles: cue.tiles.map(t => ({ label: t.label, value: t.value, sub: t.sub ?? null, cls: tileClass(t.status) })),
     zones,
-    rule: ruleSentence(cue.unit, zones),
+    // "How it's scored": rule(id)'s sentence on what the verdict reads, then the bands with the noun and the
+    // watch band; the shorter sentence from the zones without it (s45)
+    basis: apiRule ? apiRule.basis : null,
+    rule: ruleParagraph(cue.unit, zones, apiRule),
     lines,
     worst: cue.worst,
     playHalf: playHalfOf(cue),
@@ -74,7 +78,7 @@ export function detailOf({ Diagnostics, view, computed, cueId, range }) {
 }
 
 /**
- * S1's "How the cues are scored": per cue of the lift, its words, its rule from zones() and, for a stored
+ * S1's "How the cues are scored": per cue of the lift, its words, its rule from rule() and zones() and, for a stored
  * lift, the scoring lines of that lift's own result (a cue it couldn't score has none). With no stored lift
  * (`view` null) only the lift's cues and their rules, which need no result.
  * @param {Object} o
@@ -94,7 +98,7 @@ export function scoringText({ Diagnostics, lift, view, computed }) {
       fullTitle: d.title,
       cue: d.cue,
       provisional: d.provisional,
-      rule: ruleSentence(d.unit, Diagnostics.zones(d.id)),
+      rule: ruleParagraph(d.unit, Diagnostics.zones(d.id), ruleOf(Diagnostics, d.id)),
       lines,
     };
   });
