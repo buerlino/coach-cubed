@@ -201,6 +201,22 @@ const { view, computed, personId, keypoints } = scoreLift(track, 'snatch', { sig
   shoulder height (its verdict reads the worst rep's size). It is `null` for a
   cue scored on something its series doesn't plot (an SD, a decline, a
   deficit: `VERDICT_VALUE`): draw no bands then.
+- **The rule's words** (`s45`) come from diagnostics.js too, through
+  `Diagnostics.rule(id)`: `{noun, basis, bands}`, plain text declared on each
+  cue next to its threshold constants (`unitNoun`, `verdictBasis`, and `bands`
+  where `zones` is null), so a new cue brings its own. `noun` is what follows a
+  number in the cue's unit, its symbol first ("% of torso length", "° of sway
+  (SD)", "× faster down than up"); `basis` is one sentence on what the verdict
+  reads, by the cue's `worstRule` ("The lowest margin of the elbow over the
+  wrist in the set decides."); neither holds a number. `bands` are the good,
+  watch and work-on bands in `zones(id)`'s shape: `zones(id)` itself where it
+  isn't null, else the bands of the value the verdict reads (the SD, the
+  decline, the larger deficit), from the same constants. So every cue has a
+  rule, the ones with `zones: null` included. A method by id, not new fields
+  of `describe(set)`: `describe`'s fields are the ones contract 4's cue view
+  carries (`CUE_VIEW_SOURCES`), and the rule's words and bands are not stored
+  in `result.json` (they describe the engine, not a lift); A1, A2 and S1b ask
+  by id, as for `zones(id)`.
 - **What the tests pin** (`tests/app/scoring.test.js`): with smoothing off,
   every committed fixture's verdicts, values, series, tiles, notes and
   reasons are its golden's. The goldens score **raw** tracks; with the
@@ -774,11 +790,18 @@ the scoring adapter builds from committed fixture tracks) lays the view model
   cue. A tap on a worst-moment mark seeks to that moment (`seekTime`, 22 px); a drag follows
   the finger, the arrow keys step.
 - **A2** is built (`d18`, [below](#a2-a-cues-detail)); the flow's `detail` state is d17's.
-- **The open card's rule line** (`d18`; nordmu, 2026-11-02) is `rule-model.mjs`'s `ruleSentence(unit, zones(id))`
-  and "Provisional" while the thresholds are: "Good from +5%, work on below −5% · Provisional". `cardsOf(view,
-  zonesOf)` takes `id => Diagnostics.zones(id)`; without it, or for a cue whose `zones` is `null` or that can't
-  be scored, the line is "Provisional" alone. The unit noun of the mockup ("…15% of torso length") is not in
-  the API, so the line stops at the unit.
+- **The open card's rule line** (`d18`, `s45`; nordmu, 2026-11-02) is `rule-model.mjs`'s `ruleSentence(unit,
+  zones(id), rule(id))` and "Provisional" while the thresholds are: "Good from +5% of torso length, watch between
+  +5% and −5%, work on below −5% · Provisional". Where each word comes from: the numbers and the bands are
+  `rule(id).bands` (the cue's constants in diagnostics.js), the unit's noun after the good band's first number is
+  `rule(id).noun`, the other numbers carry the cue's unit (`unit`, `x` as "×"); "Good", "watch", "work on",
+  "from", "up to", "within", "between", "below", "beyond" and "Provisional" are the model's (the status words of
+  contract 4). A watch band reads "between A and B", A the edge it shares with the good band; a pair mirrored
+  about zero (the top height) once, unsigned. `cardsOf(view, zonesOf, ruleOf)` takes `id => Diagnostics.zones(id)`
+  and `id => ruleOf(Diagnostics, id)`; a cue whose `zones` is `null` has its rule from `rule(id)`'s bands. Without
+  `rule(id)` (an API before `s45`, or a null answer) the line is the shorter sentence from the zones, "Good from
+  +5%, work on below −5% · Provisional", and "Provisional" alone for a cue with no zones. A cue that can't be
+  scored has no verdict to explain: "Provisional" alone.
 
 ## A2, a cue's detail
 
@@ -799,8 +822,13 @@ and draws what `detail-model.mjs`'s `detailOf` gives:
   ratio) and holds the zones' own edges.
 - **The tiles** are the view's (s4's `tiles`); a tile's `status` colours its value only when it is a verdict level
   (the snatch's drift tile carries a CSS colour from the engine, which the app does not draw).
-- **"How it's scored"** is the rule sentence and `Diagnostics.scoringLines(id, computed, { smoothingMs:
-  view.smoothing.sigmaMs })`, so "Time smoothing" says the σ the verdicts were scored with.
+- **"How it's scored"** starts with the rule paragraph (`ruleParagraph`, `s45`): `rule(id).basis`, the sentence
+  on what the verdict reads, then A1's sentence with the noun and the watch band, closed with a full stop ("The
+  lowest margin of the elbow over the wrist in the set decides. Good from +5% of torso length, watch between +5%
+  and −5%, work on below −5%."); every word of the first sentence and the noun are diagnostics.js's, the rest
+  as on A1. Without `rule(id)` it is the shorter sentence (none for a cue with no zones). Then
+  `Diagnostics.scoringLines(id, computed, { smoothingMs: view.smoothing.sigmaMs })`, so "Time smoothing" says
+  the σ the verdicts were scored with.
 - A cue that can't be scored shows its reason and the cue's words, no frame, plot or tiles.
 - **"Play the rep at ½×"** (`d46`; nordmu, 2026-11-02: no second player in A2) is a button under the header, drawn
   for a cue with a phase (`detailOf(...).playHalf`; none for a cue that can't be scored). It goes to `result` with
@@ -812,8 +840,8 @@ and draws what `detail-model.mjs`'s `detailOf` gives:
   Back from A1 goes home as always.
 
 **S1b, "How the cues are scored"** (`screens/S1b.mjs`; the flow's `scoring` state, `settings → scoring → settings`):
-`scoringText` lists the cues of the newest analysed lift (else the default lift) with the cue, the rule from `zones`
-and, for a stored lift, the "Measurement", "Time smoothing" and "Caveat" lines of `scoringLines`.
+`scoringText` lists the cues of the newest analysed lift (else the default lift) with the cue, the rule paragraph
+as A2 has it (`rule(id)` and `zones`, `s45`) and, for a stored lift, the "Measurement", "Time smoothing" and "Caveat" lines of `scoringLines`.
 
 ## Q1, analysing
 
@@ -1225,7 +1253,8 @@ worktree: no example clips, no `app/vendor/tfjs/`, no `app/models/`, no GPU.
    (`Network.emulateNetworkConditions` and the server shut down); reload; then per lift H → Import (the lift, the file) → M (Set start, a
    drag of the filmstrip to the end, Set end, Analyse) → Q1 (until "Open the result") → A1. The cue cards (`.cue-card`, per `data-cue`)
    must equal `cardsOf(scoreLift(fixtureTrack).view)`, computed in Node: per cue the status class, the verdict line, the value and the
-   card's label (which carries the status word).
+   card's label (which carries the status word). On the first scored cue, the open card's rule line must hold the page's
+   `Diagnostics.rule(id).noun` and a watch band, and A2's "How it's scored" must start with `rule(id).basis` (`s45`).
 4. **It fails** on a console error, an exception or unhandled rejection, a failed request or an HTTP error (page, workers and the
    service worker), a request that reaches the server after it was taken away, a job that does not finish in its time (60 s,
    `COACH_PAGE_TEST_JOB_S`), an empty cue list, or cards that differ from the adapter's. `--break console|http|rejection|stall|hang|cards`
