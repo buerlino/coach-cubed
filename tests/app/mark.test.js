@@ -54,16 +54,10 @@ test('the filmstrip: 48 px a second, the playhead at the middle of the strip, th
   assert.equal(m.stripLeft(10, 400), 200 - 480, 'the middle follows the strip\'s width');
 });
 
-test('dragging the filmstrip left moves the playhead later, by dx / 48 s, onto the frame at or before that time', async () => {
-  const m = await model();
-  // 96 px left from 1.0 s: 2 s later, 3.0 s: frame 90 does not exist, so the last frame
-  assert.deepEqual(m.dragTarget(T30, { time: 1, dx: -48 }), { index: 59, time: T30[59] }, '1.0 s + 1 s = 2.0 s is frame 60...');
-});
-
 test('dragTarget: frame = last starting at or before the time (float slack), clamped to the first and last frame', async () => {
   const m = await model();
   const at = (time, dx) => m.dragTarget(T30, { time, dx });
-  assert.deepEqual(at(1, -48).index, 60);
+  assert.deepEqual(at(1, -48), { index: 60, time: 2 }, 'dragging left moves later: 1.0 s + 48 px / 48 = 2.0 s');
   assert.deepEqual(at(1, 48).index, 0, 'dragging right moves back: 1.0 s - 1 s = 0');
   assert.equal(at(1, -48 * 0.5).index, 45, '0.5 s later');
   assert.equal(at(1, -(48 / 30) * 0.5).index, 30 + 0, 'half a frame later is still the same frame');
@@ -108,7 +102,7 @@ test('Set start then Set end: the marks are frame indexes, the range is their fr
   const m = await model();
   let marks = m.newMarks();
   assert.equal(m.stepOf(marks), 'start');
-  marks = m.setMark(marks, 228 % 90, T30);          // frame 48
+  marks = m.setMark(marks, 48, T30);
   assert.equal(marks.start, 48);
   assert.equal(marks.end, null);
   assert.equal(marks.error, null);
@@ -305,7 +299,6 @@ test('a thumbnail is the frame at the second\'s middle, held to the last frame',
   const m = await model();
   near(m.thumbTime(0, T30), 0.5);
   near(m.thumbTime(2, T30), 2.5);
-  near(m.thumbTime(2, T30), 2.5);
   near(m.thumbTime(2, [0, 1 / 30, 2 / 30]), 2 / 30, 'a clip shorter than the second: its last frame');
 });
 
@@ -322,7 +315,7 @@ test('the length and its time come from the queue\'s estimate(t1 - t0, {fps})', 
   const m = await model();
   const asked = [];
   const queue = { estimate: async (d, o) => { asked.push([d, o]); return { seconds: 2.9 * d, perSecond: 2.9, measured: false, basis: 'first-run default' }; } };
-  const marks = m.setMark(m.setMark(m.newMarks(), 30, T30), 120 % 90 + 50, T30);   // frames 30 and 80
+  const marks = m.setMark(m.setMark(m.newMarks(), 30, T30), 80, T30);   // frames 30 and 80
   const cost = await m.analyseCost(queue, marks, T30, 30);
   assert.equal(asked.length, 1);
   near(asked[0][0], 50 / 30);
@@ -342,7 +335,7 @@ test('with the real queue the first-run cost is about 2.9 s per second of 30 fps
 test('the view: the three steps as drawn, with the mockup\'s words', async () => {
   const m = await model();
   const view = (marks, index, extra = {}) => m.markView(marks, { index, frameTimes: T30, ...extra });
-  const start = view(m.newMarks(), 216 % 90);               // frame 36: 1.2 s
+  const start = view(m.newMarks(), 36);               // frame 36: 1.2 s
   assert.equal(start.step, 'start');
   assert.equal(start.clock, '0:01.2');
   assert.equal(start.hint, 'Drag the filmstrip until the playhead sits just before the lift starts, then tap Set start.');
@@ -360,8 +353,8 @@ test('the view: the three steps as drawn, with the mockup\'s words', async () =>
   assert.equal(end.setLabel, 'Set end');
   assert.deepEqual(end.steps.map(s => [s.num, s.state]), [['✓', 'done'], ['2', 'now'], ['3', 'todo']]);
   near(end.region.from, 10 / 30); near(end.region.to, 40 / 30);
-  assert.equal(end.starts.at, 10 / 30);
-  assert.equal(end.ends, null);
+  near(end.startAt, 10 / 30);
+  assert.equal(end.endAt, null);
   assert.equal(end.canRedo, false);
 
   const refused = view(m.setMark(m.setMark(m.newMarks(), 10, T30), 10, T30), 10);
