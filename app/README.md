@@ -47,7 +47,7 @@ It logs each request (`200 /index.html`); a `404` there is a broken path.
 | `src/main.mjs` | Boot: the flow, then the shell. |
 | `sw.js`, `src/updates.mjs` | The service worker (`c19`) and the page's side of it: registration outside the APK, and an update that takes over when the queue is idle. See [Offline](#offline-the-service-worker). |
 | `src/flow/flow.mjs` | The state machine (home, import, mark, queued, result, detail, settings, scoring, plus live and replay for milestone B; `d17`: `result → detail` opens A2, `detail → result` or `detail → home`; `d18`: `settings → scoring` opens S1's "How the cues are scored", `scoring → settings` returns). A plain module with no Preact: `createFlow()`, `go(to, params)`, `can(to)`, `subscribe(fn)`; `TRANSITIONS` says what leads where, `SCREEN_OF` which screen each state shows. An illegal transition throws. |
-| `src/ui/` | `app.mjs` (the shell: draws the screen the flow's state names), `screens/` (one component per screen ID: `H`, `Import`, `M`, `Q1`, `A1`, `A2` (`d18`), `S1`, `S1b` ("How the cues are scored", `d18`), `R2`, `R3`), `components/` (shared pieces), `home-model.mjs` (H's and Import's logic as plain functions, `d13`: `liftState`, `rowOf`, `homeView`, `importStep`, `startLift`, `percentOf`; see [H](#h-home-and-the-import-step)), `analysing-model.mjs` (Q1's, `d15`; see [Q1](#q1-analysing)). Screens call the flow and never each other; the queue and the store reach H as props from `main.mjs`. `settings-model.mjs` (S1's, `d24`; see [S1](#s1-settings-and-about)), `mark-model.mjs` (M's, `d14`; see [M](#m1m3-marking-a-lift)). `player.mjs` and `player-model.mjs` (A1's player, `d16`; see [A1, the player](#a1-the-player-and-the-overlay)), `result-model.mjs` (A1's cards and timeline, `d17`; see [A1, the timeline and the cue cards](#a1-the-timeline-and-the-cue-cards)). `detail-model.mjs` and `rule-model.mjs` (A2's and S1b's texts, the rule sentence; `d18`; see [A2, a cue's detail](#a2-a-cues-detail)). `html.mjs` is htm bound to Preact. |
+| `src/ui/` | `app.mjs` (the shell: draws the screen the flow's state names), `screens/` (one component per screen ID: `H`, `Import`, `M`, `Q1`, `A1`, `A2` (`d18`), `S1`, `S1b` ("How the cues are scored", `d18`), `R2`, `R3`), `components/` (shared pieces), `home-model.mjs` (H's and Import's logic as plain functions, `d13`: `liftState`, `rowOf`, `homeView`, `importStep`, `startLift`, `percentOf`; see [H](#h-home-and-the-import-step)), `analysing-model.mjs` (Q1's, `d15`; see [Q1](#q1-analysing)). Screens call the flow and never each other; the queue and the store reach H as props from `main.mjs`. `settings-model.mjs` (S1's, `d24`; see [S1](#s1-settings-and-about)), `mark-model.mjs` (M's, `d14`; see [M](#m1m3-marking-a-lift)). `player.mjs` and `player-model.mjs` (A1's player, `d16`; see [A1, the player](#a1-the-player-and-the-overlay)), `result-model.mjs` (A1's cards and timeline, `d17`; see [A1, the timeline and the cue cards](#a1-the-timeline-and-the-cue-cards)). `detail-model.mjs` and `rule-model.mjs` (A2's and S1b's texts, the rule sentence; `d18`; see [A2, a cue's detail](#a2-a-cues-detail)). `view-options-model.mjs` and `components/view-options.mjs` (A3's sheet and its controller; `d22`; see [A3, view options](#a3-view-options)). `html.mjs` is htm bound to Preact. |
 | `src/credits.mjs`, `licences/` | S1's credits (`d24`): `CREDITS` lists every component of THIRD_PARTY.md's section for the new app, each with where its licence text is in the assembled app. `licences/` holds the texts that have no home beside a component: Apache-2.0 (apache.org's text byte for byte, no holder filled in), Capacitor's MIT and esbuild's MIT (their npm packages' `LICENSE` files); sources in [THIRD_PARTY.md](../THIRD_PARTY.md#in-the-new-app-app). |
 | `src/styles/` | `tokens.css` (every colour, the status colours with their words, the type, the spacing, the 44 px touch target; dark only) and `base.css` (the `@font-face` rules, the reset and the classes every screen shares). A screen styles itself from tokens, never from literal values. |
 | `src/track/` | One-line stubs, see below. |
@@ -669,7 +669,8 @@ await queue.retry(id); await queue.dismiss(id);    // a failed or cancelled job 
 `screens/M.mjs` is one screen in the mockups' three states (start, end, ready:
 `Mark.dc.html`, `MarkEnd`, `MarkReady`); `mark-model.mjs` holds everything it
 decides as plain functions (`tests/app/mark.test.js`). The file and the lift
-arrive in the flow's params from Import (`flow.go('mark', {file, lift})`); the
+arrive in the flow's params from Import (`flow.go('mark', {file, lift})`); from A3's
+"Re-mark this lift" they come with `range` too, the old marks (`marksFromRange`), and M opens in M3 ([A3](#a3-view-options)); the
 queue is injected (`main.mjs`'s `appQueue()`, once, with `warmUp()` after the
 first screen draws), the frame source by `openSource` (default `openFrameSource`).
 
@@ -802,6 +803,44 @@ the scoring adapter builds from committed fixture tracks) lays the view model
   `rule(id)` (an API before `s45`, or a null answer) the line is the shorter sentence from the zones, "Good from
   +5%, work on below −5% · Provisional", and "Provisional" alone for a cue with no zones. A cue that can't be
   scored has no verdict to explain: "Provisional" alone.
+
+## A3, view options
+
+`components/view-options.mjs` is the sheet that opens over A1 from its "View options" button
+(`design/mockups/ViewOptions.dc.html`, package `d22`); `view-options-model.mjs` holds everything it decides, as plain
+functions and one controller, `createViewOptions({store, rec, track, view, Diagnostics, flags, player, flow})`
+(`tests/app/view-options.test.js`). A1 makes the controller when the player exists and gives it its `flags` object, which
+the controller changes in place and the player reads when it paints and plays. The skeleton chip and the speed button on A1
+are two of the controller's controls, the same state.
+
+- **Controls** (the mockup's, in its words): four switches under "On the video" (Skeleton, Cue drawings, Unsure joints,
+  Loop the lift only), the playback speed (¼×, ½×, 1×), "Advanced": Smoothing, a slider from 0 to 300 ms in steps of 5, and
+  "Changes the scores. The thresholds assume the default, 50 ms."; then "Re-mark this lift" and "Delete this lift". Not
+  drawn: the mockup's **Lifter** section. MoveNet SinglePose tracks one person, so there is nothing to choose
+  (`docs/app-plan.md`, "The pieces"); a model that tracks several brings it back.
+- **Kept:** every switch, the speed and the smoothing go to `saveSettings({view})` at once (`skeleton`, `cues`, `unsure`,
+  `loop`, `speed`, `smoothingSigmaMs`). The queue reads `smoothingSigmaMs` for the next analysis, so a change here is also
+  the σ of the next lift. A2's "Play the rep at ½×" sets the player's speed only; the stored speed stays the user's.
+- **Unsure joints** (off by default) draws the joints below the confidence gate (`CONF_THRESHOLD`, 0.3) as hollow rings in
+  `--text-quiet` (`unsureJoints`, `unsureStyle` in `draw/skeleton.mjs`; `overlayStyle` is unchanged). No bone leads to
+  them, and a joint that is missing (null) is not unsure, it is missing.
+- **Loop the lift only:** playing stays inside the lift window (`loopSpan(view, range)`): the window the analysis found,
+  held inside the marked range; for a window with a start and no end (`{t0, t1: null}`, s35) from its start to the range's
+  end; with no span at all, the whole range: a lift without a window (a lateral raise, `hasLiftWindow: false`, s36) or one
+  the analysis found none in. It wraps at the span's end, and playing from outside the span (a seek on the timeline, the
+  walk-in) starts at its start. With the switch off, playing runs the whole range once and stops on its last frame. Seeks
+  and one-frame steps may leave the window either way.
+- **Smoothing** scores the stored raw track again through `scoreLift` with the new σ and the velocity option the stored
+  verdicts used, saves the new `ResultView` with `updateLift(id, {result})` (its `smoothing` says which σ its verdicts
+  used; the notes say nothing about it), then hands the player the new scene (`setScene`: the skeleton and the cues' numbers)
+  and A1 the new view (cards, timeline, notes). The slider shows the σ of the stored verdicts, not the setting's. If
+  `updateLift` fails, nothing changes: the slider goes back, the sheet says why, the setting is not touched. A newer change
+  wins over one that has not begun. The scoring runs on the main thread and takes a few milliseconds.
+- **Re-mark** reads the stored cut and goes `result → mark` with `{file, lift, range}`. M turns `range` back into marks
+  (`marksFromRange`: the frames at its two times) and opens in M3 with the playhead on the start; Analyse then queues a new
+  lift from the cut, as for any file. The old lift stays until it is deleted.
+- **Delete** asks first ("Delete this lift? Its video and result are removed from this phone. This can't be undone.",
+  Delete / Keep it); only the confirm calls `store.deleteLift(id)` and goes home. A delete that fails keeps the lift and says why.
 
 ## A2, a cue's detail
 
@@ -1255,6 +1294,8 @@ worktree: no example clips, no `app/vendor/tfjs/`, no `app/models/`, no GPU.
    must equal `cardsOf(scoreLift(fixtureTrack).view)`, computed in Node: per cue the status class, the verdict line, the value and the
    card's label (which carries the status word). On the first scored cue, the open card's rule line must hold the page's
    `Diagnostics.rule(id).noun` and a watch band, and A2's "How it's scored" must start with `rule(id).basis` (`s45`).
+   Then (`d22`) A3 opens from "View options" with the mockup's switches and speeds and no lifter, a switch flips, a smoothing change
+   scores again and is put back to 50 ms, and "Re-mark this lift" opens M in its ready state.
 4. **It fails** on a console error, an exception or unhandled rejection, a failed request or an HTTP error (page, workers and the
    service worker), a request that reaches the server after it was taken away, a job that does not finish in its time (60 s,
    `COACH_PAGE_TEST_JOB_S`), an empty cue list, or cards that differ from the adapter's. `--break console|http|rejection|stall|hang|cards`
@@ -1270,7 +1311,7 @@ worktree: no example clips, no `app/vendor/tfjs/`, no `app/models/`, no GPU.
 ## The tests
 
 `tests/app/` holds them, because the pipeline's red-first check reads only
-`tests/`: `flow.test.js` (the state machine), `draw.test.js` (the overlay, pinned to the old page) and `player.test.js` (A1's player on fakes), `home.test.js` (H's logic: a lift's state, the lists, the import step, `main.mjs`'s boot), `assemble.test.js` (assemble
+`tests/`: `flow.test.js` (the state machine), `draw.test.js` (the overlay, pinned to the old page) and `player.test.js` (A1's player on fakes), `view-options.test.js` (A3: the options on the player, the re-score, loop, re-mark, delete), `home.test.js` (H's logic: a lift's state, the lists, the import step, `main.mjs`'s boot), `assemble.test.js` (assemble
 into a temporary folder, the manifest and `index.html`), `serve.test.js` (the
 dev server), `contracts.test.js` (the contracts, against the committed tracks
 and `diagnostics.js`'s headless API), `store.test.js` (the store, on `fake-opfs.js`, an in-memory OPFS), `frame-source.test.js` (the frame source and its stepper, on our own clips in `tests/app/clips/` and a fake decoder), `pose-engine.test.js` (the pose engine's client and worker handler, against fakes), `media-phone.test.js` (the check page's media measurements, their driver and the clips' script; the shipped `dist/` without them), `android-shell.test.js` (the Capacitor config, the committed Android project, the pins and `build-apk.sh`), `sw.test.js` (the service worker run as a script on a fake Cache Storage and fetch, the registration module on a fake browser and queue, assemble's version stamp), `page-test.test.js` (the replay engine behind the real pose client, the test build and the shipped `dist/` without it, the script's no-browser line), `build-tfjs.test.js` (the TF.js

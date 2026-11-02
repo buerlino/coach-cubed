@@ -130,8 +130,9 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
 
   const player = () => parts.current.player;
   const options = () => parts.current.options;
-  const skeleton = opts ? opts.skeleton : true;
-  const speed = opts ? opts.speed : 1;
+  // until the controller exists (the frame after the data) the screen shows what the load decided
+  const skeleton = opts ? opts.skeleton : flags.current.skeleton;
+  const speed = opts ? opts.speed : data ? data.speed : 1;
   const toggleSkeleton = () => { if (options()) options().setSwitch('skeleton', !skeleton); };
   const cycleSpeed = () => { if (options()) options().setSpeed(nextSpeed(speed)); };
   const closeSheet = () => { setSheet(false); if (moreRef.current) moreRef.current.focus(); };
