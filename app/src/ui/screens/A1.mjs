@@ -206,7 +206,6 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
               ${open === c.id ? html`
                 <div class="cue-card__body">
                   <p class="cue-card__cue">${c.cue}</p>
-                  ${c.reason ? html`<p class="cue-card__note">${c.reason}</p>` : null}
                   ${c.notes.map(n => html`<p class="cue-card__note">${n}</p>`)}
                   ${c.provisional ? html`<span class="cue-card__rule">Provisional</span>` : null}
                   ${c.scored ? html`<button type="button" class="cue-card__more" onClick=${() => flow.go('detail', { liftId, cue: c.id })}>Plot and details<${ChevronIcon} /></button>` : null}
