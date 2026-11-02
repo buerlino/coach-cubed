@@ -1415,6 +1415,19 @@ check's session, so the pipeline's own kill of a check reaches it too. While a b
 SIGINT and SIGHUP (what `timeout` sends) and on `exit`. A **SIGKILL** to the test can't be caught, so a test killed that way can
 still leave a browser behind; `ps -eo args | grep -c '[-]-user-data-dir=/tmp/coach-'` counts them.
 
+**The temp folder** (`c52`). Chromium makes `org.chromium.Chromium.*` folders in `$TMPDIR`: its singleton folder for the
+profile (`SingletonCookie`, `SingletonSocket`), removed on a clean exit and left when the browser is killed, which is what
+`close()` does; and Brave's component updater's scratch folders (`…BraveComponentUpdater_chrome_url_fetcher_.*`,
+`…_Unpacker_BeginUnzipping.*`: new-tab wallpapers and extensions, 363 MB of the 1,431 folders in `/tmp` on 2026-11-02).
+Brave honours `TMPDIR` for all of them, so `launchBrowser` gives each browser a `$TMPDIR` of its own, `<profile>/t` (short:
+a socket path holds about 108 bytes), and `close()` and the `exit` handler remove it once the processes are gone; nothing
+outside the browser's own folders is touched, and nothing is left in `os.tmpdir()`. A tool that removes its profile
+removes this too; a test killed with SIGKILL leaves the profile (and with it `t/`), never an `org.chromium.*` folder in `/tmp`.
+The component updater is also switched off in every tools' browser (`--disable-component-update`,
+`--disable-background-networking`): a test has no use for Brave's downloads. `tests/app/browser.test.js` checks it with a
+stand-in browser that makes those folders in its `$TMPDIR` (after `close()`, after `killNow()`, after the processes were
+killed from outside) and once with the real one, each in a private `TMPDIR` so nothing else on the machine can count.
+
 ## The page test
 
 `npm --prefix app run test:page` (`tools/page-test.mjs`, package `c21`, plan step 5.6) walks the app the way a person does, in
