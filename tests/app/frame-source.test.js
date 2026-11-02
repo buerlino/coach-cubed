@@ -651,6 +651,43 @@ test('the cache holds at most its budget, evicts the frames farthest from the pl
   src.close();
 });
 
+test('a seek with a full cache to a far frame keeps the frame on screen open until the new one is in', async () => {
+  // the audit of s38's first round: the frame on screen, when it was the costliest
+  // held, was closed before the seek's own frame was made, so for the whole
+  // createImageBitmap st.frame was undefined and the last step's bitmap was closed
+  for (const maxFrames of [2, 1]) {
+    const { openFrameSource } = await media();
+    const fake = createFakeWebCodecs();
+    const target = us(frameTime(80));
+    let st = null, prev = null;
+    const seen = [];
+    const toBitmap = fake.toBitmap;
+    fake.toBitmap = (frame, size) => {
+      if (prev && frame.timestamp === target) seen.push({ prevOpen: !prev.closed, frame: st.frame, index: st.index });
+      return toBitmap(frame, size);
+    };
+    const src = await openFrameSource(clip(H264), { webcodecs: fake, stallMs: 400 });
+    // two frames: 10 and 11 once settled, so frame 10 on screen is the costliest from 80
+    st = await src.stepper(frameTime(10), { height: 36, maxFrames });
+    await st.settled();
+    assert.equal(st.held, maxFrames, `${maxFrames}: the cache is full before the seek`);
+    prev = st.frame;
+    assert.equal(prev.timestamp, us(frameTime(10)));
+    const r = await st.seek(frameTime(80));
+    assert.equal(r.index, 80);
+    assert.equal(r.frame.timestamp, target);
+    assert.equal(seen.length, 1, `${maxFrames}: frame 80 made into a bitmap once`);
+    assert.equal(seen[0].prevOpen, true, `${maxFrames}: the frame on screen is still open while the seek's frame is made`);
+    assert.equal(seen[0].index, 10);
+    assert.equal(seen[0].frame, prev, `${maxFrames}: st.frame is still frame 10 meanwhile, not undefined`);
+    await st.settled();
+    assert.ok(st.held <= maxFrames, `${maxFrames}: within the budget after the seek`);
+    assert.equal(prev.closed, true, `${maxFrames}: frame 10 is dropped once frame 80 is in`);
+    st.close(); src.close();
+    assert.deepEqual(openBitmaps(fake), []);
+  }
+});
+
 test('a step to a held frame returns before the refill does any work for it', async () => {
   // measured in headless Brave (s38's report): a refill started inside the step held a
   // 1080p step at a 150 ms tap rate for 23 ms while its frame was already held

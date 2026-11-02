@@ -16,8 +16,8 @@
 //    missing frame is a quarter of the window away, whichever comes first; a
 //    group longer than the window is decoded again for each window's worth.
 // Every frame held is pinned to a cost (its distance over its side's size); a new
-// frame takes the place of the costliest one, which is closed, and the playhead's
-// frame is never dropped. A step to a frame not held waits for the refill.
+// frame takes the place of the costliest one, which is closed; the playhead's
+// frame is never dropped, nor the frame on screen before the step's frame is in. A step to a frame not held waits for the refill.
 //
 // Errors: a refill that fails (a decoder error, a stall after stallMs) ends; a
 // step waiting then rejects with the MediaError, else the next step does, and the
@@ -107,32 +107,40 @@ export async function openStepper(ctx, t, options = {}) {
     return b >= 0 ? { side: 'behind', index: b } : null;
   }
 
-  // room for frame i, when it is worth holding: false when it isn't
+  // room for frame i, when it is worth holding: false when it isn't, else the
+  // frame to drop once i's bitmap is in (-1: none). The frame on screen stays
+  // until the step's frame is in held, the step's own frame included (contract 5:
+  // it stays valid until the next step or seek settles), so the costliest of the
+  // others is dropped now; with a budget of one frame there is no other, and the
+  // frame on screen is dropped only when the new one takes its place.
   function admit(i) {
     if (held.has(i)) return false;
-    if (held.size < cap) return true;
+    if (held.size < cap) return -1;
     const s = sides(), c = cost(i, s);
-    const pinShown = !held.has(cur);   // the frame on screen stays until the step's frame is in
+    const pinShown = !held.has(cur) && held.has(shown);
     let worst = -1, wc = -1;
     for (const j of held.keys()) {
-      if (j === cur || (pinShown && j === shown && i !== cur)) continue;
+      if (j === cur || (pinShown && j === shown)) continue;
       const cj = cost(j, s);
       if (cj > wc) { wc = cj; worst = j; }
     }
-    if (worst < 0 || !(wc > c)) return false;
+    if (worst < 0) return pinShown && i === cur ? shown : false;
+    if (!(wc > c)) return false;
     closeQuietly(held.get(worst));
     held.delete(worst);
-    return true;
+    return -1;
   }
 
   // a decoded frame: kept as a bitmap at the stepper's size, or closed. Its index.
   async function take(frame) {
     const i = ctx.indexOf(frame.timestamp);
-    if (closed || i === undefined || !admit(i)) { closeQuietly(frame); return i; }
+    const drop = closed || i === undefined ? false : admit(i);
+    if (drop === false) { closeQuietly(frame); return i; }
     let bitmap;
     const up = await ctx.upright(frame);
     try { bitmap = await webcodecs.toBitmap(up, { width, height }); } finally { closeQuietly(up); }
     if (closed) { closeQuietly(bitmap); return i; }
+    if (drop >= 0 && held.has(drop)) { closeQuietly(held.get(drop)); held.delete(drop); }
     held.set(i, bitmap);
     const w = waiters.get(i);
     if (w) { waiters.delete(i); for (const x of w) x.resolve(); }

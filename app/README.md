@@ -358,7 +358,10 @@ st.close();                                           // closes every frame it h
   contract) is 90 frames and 128 MiB: three 1 s groups at 30 fps. A new frame
   takes the place of the one farthest from the playhead (its distance over its
   side of the window), which is closed first, so the budget is never exceeded;
-  the playhead's frame is never dropped.
+  the playhead's frame is never dropped, nor the frame on screen (`st.frame`)
+  while a step or seek waits for its own: it stays open until the new frame is
+  held. With a budget of one frame, the frame on screen is closed only when the
+  new one takes its place.
 - **Errors:** a decoder error or a stall (`stallMs`) in the refill ends it; a
   step waiting for a frame rejects with the source's `MediaError`, else the next
   step does (the playhead stays), and the step after that refills again.
