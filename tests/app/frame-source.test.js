@@ -771,6 +771,42 @@ test('a step to a held frame returns before the refill does any work for it', as
   st.close(); src.close();
 });
 
+test('an idle stepper with a full window holds at most 2 decoded frames beyond its budget (the paused forward decoder)', async () => {
+  // s38's third audit: the forward stream, paused at a yield between steps, used
+  // decodeFrames' default queues (4 frames waiting, 8 chunks fed), and the chunks
+  // already fed still came out as frames: about 12 full-size VideoFrames held
+  // outside maxBytes for as long as the user stays on a frame
+  const idle = async () => { for (let k = 0; k < 20; k++) await new Promise(r => setImmediate(r)); await sleep(5); };
+  for (const [at, maxFrames, steps] of [[10, 10, 0], [10, 20, 0], [20, 10, 6], [50, 20, 3]]) {
+    const { src, fake } = await open(H264);
+    const st = await src.stepper(frameTime(at), { height: 36, maxFrames });
+    await st.settled();
+    for (let k = 0; k < steps; k++) { await st.step(1); await st.settled(); }
+    await idle();
+    assert.equal(st.held, maxFrames, `the window is full (at ${at}, ${maxFrames} frames, ${steps} steps)`);
+    assert.equal(openBitmaps(fake).length, st.held, 'the bitmaps open are the ones the stepper counts');
+    const left = openFrames(fake).length;
+    assert.ok(left <= 2, `${left} decoded frames open beyond the budget (at ${at}, ${maxFrames} frames, ${steps} steps)`);
+    // and it still steps on from the paused decoder: no new keyframe for the next frames
+    const decoders = fake.log.decoders.length;
+    for (let k = 0; k < 3; k++) { await st.step(1); await st.settled(); }
+    if (st.index < 89 && Math.floor(st.index / 30) === Math.floor((st.index + maxFrames) / 30)) {
+      assert.equal(fake.log.decoders.length, decoders, 'stepping on inside a group reuses the paused decoder');
+    }
+    st.close(); src.close();
+  }
+  // the other callers keep decodeFrames' default queues: a range read with a
+  // consumer that holds its first frame still decodes a few frames ahead of it
+  const { src, fake } = await open(H264);
+  const it = src.frames(0, 3)[Symbol.asyncIterator]();
+  const first = await it.next();
+  await idle();
+  assert.ok(openFrames(fake).length > 3, `frames() runs ahead with the default queues (${openFrames(fake).length} open)`);
+  first.value.close();
+  await it.return();
+  src.close();
+});
+
 test('close() closes every frame and stops the refill; the source\'s close() closes its steppers', async () => {
   const { src, fake, base } = await open(H264);
   const { MediaError } = await media();
