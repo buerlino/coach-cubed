@@ -8,6 +8,7 @@
 //   await queue.load();                       // the kept queue back after a restart
 //   const off = queue.subscribe(jobs => …);   // every change: the jobs, copies
 //   const job = await queue.analyse('snatch', file, { t0, t1 });   // the cut kept, then queued
+//   await queue.analyse('snatch', cut, range, { replaces: oldId });   // A3's re-mark: replaces oldId once done (s50)
 //   await queue.cancel(job.id);               // between frames; the engine is reset
 //   await queue.estimate(durationS, { fps }); // M1–M3's cost before Analyse
 //
@@ -22,6 +23,18 @@
 //    `stallMs` without progress the engine is closed and replaced and the job
 //    restarts; the same again fails the job, saying so. An engine that fails
 //    (a refused frame, the worker gone) and a stalled decoder are treated alike.
+//
+// A re-mark replaces the old lift (s50, nordmu 2026-11-02): its job names the old
+// lift (`replaces`, contract 2), and the old lift goes only when the new one is
+// done. The order, so that a crash anywhere leaves at worst both lifts, never neither:
+//   1. the new lift's track, result and record, then the index (store.updateLift);
+//   2. in that same store step, the old lift's record, its folder (cut, track,
+//      result), its index entry: the store's own delete (removeLift);
+//   3. the job marked done, the old lift's ended jobs taken off the list, queue.json written.
+// Cut off before 1 ends, the job is queued again at load() and the old lift is as it
+// was; between 1 and 3, the job runs again and finds the old lift gone (nothing to
+// do). A job that fails or is cancelled never reaches 1: the old lift stays, and a
+// retry still replaces it.
 import { JOB_STAGES, createJob, validateAnalysisJob } from '../contracts/analysis-job.mjs';
 import { EngineError, JobCancelled, runJob } from './job.mjs';
 import { estimateCost, rateOf } from './estimate.mjs';
@@ -214,6 +227,8 @@ export function createQueue({
     job.state = end.state;
     job.error = end.state === 'failed' ? end.error : null;
     if (end.state === 'done' && end.out && end.out.msPerFrame > 0 && end.out.fps > 0) rate = rateOf(end.out.msPerFrame, end.out.fps);
+    // s50: the lift this one replaced is gone from the store (step 2 above); its ended jobs go with it
+    if (end.state === 'done' && job.replaces) jobs = jobs.filter(j => j.liftId !== job.replaces || !ended(j.state));
     running = null;
     stopWatchdog();
     persist();
@@ -223,11 +238,11 @@ export function createQueue({
   }
 
   // ---- what the UI calls ----
-  async function enqueue(lift) {
+  async function enqueue(lift, { replaces = null } = {}) {
     await loaded();
     const live = jobs.find(j => j.liftId === lift.id && !ended(j.state));
     if (live) return copy(live);
-    const job = createJob(`job-${lift.id}`, lift);
+    const job = createJob(`job-${lift.id}`, lift, { replaces });
     const errors = validateAnalysisJob(job, { lift });
     if (errors.length) throw new Error(`job: ${errors.join('; ')}`);
     jobs = [...jobs.filter(j => j.liftId !== lift.id), job];   // an ended job of the same lift makes way
@@ -262,14 +277,15 @@ export function createQueue({
      * Analyse: the marked range of `file` cut and stored as a new lift (s32's
      * keepVideo), then its job queued. Nothing is queued when the cut can't be
      * stored: keepVideo's error (MediaError, or the store's storage-full) comes through.
+     * `opts.replaces` (A3's re-mark, s50): the stored lift the new one replaces once its job is done.
      */
-    async analyse(lift, file, range) {
+    async analyse(lift, file, range, opts = {}) {
       await loaded();
       if (typeof keepVideo !== 'function') throw new Error('analyse: the queue was made without keepVideo');
       const kept = await keepVideo(store, lift, file, range);
-      return enqueue(kept.lift);
+      return enqueue(kept.lift, opts);
     },
-    /** Queues a stored lift (A3's re-mark, a retry): its cut and its range as stored. */
+    /** Queues a stored lift (a retry from H): its cut and its range as stored; `opts.replaces` as for analyse(). */
     enqueue,
     /** Cancels a job: a queued one at once, a running one between frames. Resolves once it has stopped: true if cancelled. */
     cancel(id) { return isLoaded ? cancelNow(id) : loaded().then(() => cancelNow(id)); },

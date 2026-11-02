@@ -3,7 +3,9 @@
 // track, score it. Q1 and H show its state and progress; the store keeps the
 // queue. A job names only stored files, the cut by its path, never a File, a
 // Blob or a URL, and its range is in the cut's own timeline, so a queued job
-// read back after a restart is the same job. Plain module, no DOM.
+// read back after a restart is the same job. A re-mark's job (A3, d22) names
+// the lift it replaces (s50): the queue deletes that one once this one is done.
+// Plain module, no DOM.
 import {
   checkFields, checkId, checkInteger, checkLift, checkRange, checkStorePath, isNumber, isObject, isString,
 } from './common.mjs';
@@ -25,6 +27,10 @@ export const JOB_STAGES = Object.freeze(['reading', 'pose', 'scoring']);
  * @property {JobProgress|null} progress null until the job starts; while it
  *   runs, the stage it is in (state === progress.stage); after it ends, the last one, or null
  * @property {string|null} error why it failed, in the engine's words; null unless failed
+ * @property {string|null} replaces the stored lift this job's lift replaces once
+ *   the job is done (s50: A3's re-mark, through M); never the job's own lift. The old
+ *   lift is deleted in the step that completes the new one, so a job that fails, is
+ *   cancelled or is still waiting leaves it as it was. null for any other job
  */
 
 /**
@@ -47,13 +53,17 @@ export const JOB_STAGES = Object.freeze(['reading', 'pose', 'scoring']);
 export function validateAnalysisJob(job, { lift } = {}) {
   if (!isObject(job)) return ['job: must be an object'];
   const errors = [];
-  checkFields(errors, '', job, ['id', 'liftId', 'lift', 'source', 'range', 'state', 'progress', 'error']);
+  checkFields(errors, '', job, ['id', 'liftId', 'lift', 'source', 'range', 'state', 'progress', 'error', 'replaces']);
   checkId(errors, 'id', job.id);
   checkId(errors, 'liftId', job.liftId);
   checkLift(errors, 'lift', job.lift);
   const folder = typeof job.liftId === 'string' ? liftPaths(job.liftId).folder : null;
   checkStorePath(errors, 'source', job.source, { folder, suffix: '.mp4' });
   checkRange(errors, 'range', job.range);
+  if (job.replaces !== null && job.replaces !== undefined) {
+    checkId(errors, 'replaces', job.replaces);
+    if (job.replaces === job.liftId) errors.push('replaces: a lift never replaces itself');
+  }
   if (!JOB_STATES.includes(job.state)) errors.push(`state: must be one of ${JOB_STATES.join(', ')}`);
 
   const running = JOB_STAGES.includes(job.state);
@@ -94,13 +104,14 @@ export function validateAnalysisJob(job, { lift } = {}) {
  * A new, queued job for a stored lift: its kind, its cut and its range.
  * @param {string} id
  * @param {import('./stored-lift.mjs').StoredLift} lift
+ * @param {{replaces?: string|null}} [opts] the lift a re-mark replaces (s50)
  * @returns {AnalysisJob}
  */
-export function createJob(id, lift) {
+export function createJob(id, lift, { replaces = null } = {}) {
   return {
     id, liftId: lift.id, lift: lift.lift, source: lift.video,
     range: { t0: lift.range.t0, t1: lift.range.t1 },
-    state: 'queued', progress: null, error: null,
+    state: 'queued', progress: null, error: null, replaces,
   };
 }
 

@@ -136,7 +136,11 @@ export async function runJob(job, ctx) {
     // nobody in any frame: the cues all say so in the engine's words; the job fails with them rather than store a result of nothing
     if (track.meta.tracks.kept_frames === 0) throw new NoPersonError((view.cues.find(c => c.reason) || {}).reason);
     const { model, backend, runtime } = engine.info || {};
-    await guard(store.updateLift(job.liftId, { track, result: view, engine: { model, backend, runtime } }));
+    // s50: a re-mark's lift replaces the old one here, in the step that completes it (the store's
+    // updateLift deletes the old lift through its own delete once the new record is whole), so
+    // nothing in between, H's listing included, sees both as done; the queue marks the job done after
+    const patch = { track, result: view, engine: { model, backend, runtime } };
+    await guard(job.replaces ? store.updateLift(job.liftId, patch, { replaces: job.replaces }) : store.updateLift(job.liftId, patch));
     emit('scoring', { stage: 'scoring', done: 1, total: 1, etaS: 0 });
     return { msPerFrame: median(costs), fps: info.fps, frames: frames.length };
   } finally {

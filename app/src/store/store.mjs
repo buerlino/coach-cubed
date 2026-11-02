@@ -327,11 +327,26 @@ export function createStore({ storage = globalThis.navigator && globalThis.navig
     });
   }
 
-  async function updateLift(id, patch) {
+  /**
+   * Completes or changes a lift. `opts.replaces` (s50, a re-mark's job): the lift
+   * this one replaces, deleted in the same step once the new record and the index
+   * are written, through the delete's own steps (removeLift), so nothing the store
+   * answers in between sees both. A step cut off leaves at worst both lifts, never
+   * neither: the new lift is whole before the old record goes, and a failed update
+   * never touches the old lift. A delete that stops halfway is left for the old
+   * lift's own delete to finish (as deleteLift's), and the update still stands.
+   */
+  async function updateLift(id, patch, opts = {}) {
     const known = ['track', 'result', 'engine', 'range'];
     if (!patch || typeof patch !== 'object') throw invalid('updateLift', ['must be an object']);
     const extra = Object.keys(patch).filter(k => !known.includes(k));
     if (extra.length) throw invalid('updateLift', extra.map(k => `${k}: can't be updated`));
+    if (!opts || typeof opts !== 'object') throw invalid('updateLift', ['options: must be an object']);
+    const odd = Object.keys(opts).filter(k => k !== 'replaces');
+    if (odd.length) throw invalid('updateLift', odd.map(k => `${k}: unknown option`));
+    const { replaces = null } = opts;
+    if (replaces !== null && (typeof replaces !== 'string' || !ID_RE.test(replaces))) throw invalid('updateLift', ['replaces: must be a lift\'s id']);
+    if (replaces === id) throw invalid('updateLift', ['replaces: a lift never replaces itself']);
     return exclusive(async () => {
       const cur = await requireRecord(id);
       const p = liftPaths(id);
@@ -344,6 +359,7 @@ export function createStore({ storage = globalThis.navigator && globalThis.navig
       if (errors.length) throw invalid('lift', errors);
 
       const lifts = await loadIndex();
+      const after = [...lifts.filter(l => l.id !== id), next];
       const folder = await dirAt([LIFTS_DIR, id], false);
       // What the update overwrites or creates, to put back if a step fails: the
       // record must never name a track or a result that is not there.
@@ -357,33 +373,43 @@ export function createStore({ storage = globalThis.navigator && globalThis.navig
         }
         await writeFile(folder, LIFT_RECORD, JSON.stringify(next));
         undo.push({ name: LIFT_RECORD, before: JSON.stringify(cur) });
-        await writeIndex([...lifts.filter(l => l.id !== id), next]);
+        await writeIndex(after);
       } catch (e) {
         // Old contents first, the old record among them, then the files that were new.
         for (const { name, before } of undo.filter(u => u.before !== null).reverse()) await writeFile(folder, name, before).catch(() => {});
         for (const { name, before } of undo) if (before === null) await folder.removeEntry(name).catch(() => {});
         throw e;
       }
+      // s50: the new lift is whole; now the one it replaces goes, in the same step (one gone already is nothing to do)
+      if (replaces !== null) await removeLift(replaces, after).catch(() => { /* both stay; the old one's own delete finishes it */ });
       return next;
     });
+  }
+
+  /**
+   * The delete's steps, inside exclusive(): the record first (without it the
+   * folder is no lift, even if the next step stops), then the folder, to free the
+   * room before the (smaller) index is written, then the index entry.
+   * @returns {Promise<boolean>} false when neither the folder nor the entry was there
+   */
+  async function removeLift(id, lifts) {
+    const lifdir = await dirAt([LIFTS_DIR], false).catch(e => { if (isMissing(e)) return null; throw e; });
+    const folder = lifdir && await lifdir.getDirectoryHandle(id).catch(e => { if (isMissing(e)) return null; throw e; });
+    if (!folder && !lifts.some(l => l.id === id)) return false;
+    if (folder) {
+      await folder.removeEntry(LIFT_RECORD).catch(e => { if (!isMissing(e)) throw e; });
+      await lifdir.removeEntry(id, { recursive: true });
+    }
+    await writeIndex(lifts.filter(l => l.id !== id));
+    return true;
   }
 
   async function deleteLift(id) {
     return exclusive(async () => {
       if (typeof id !== 'string' || !ID_RE.test(id)) throw new StoreError('not-found', `No lift ${JSON.stringify(id)} in the store.`);
-      const lifts = await loadIndex();
-      const lifdir = await dirAt([LIFTS_DIR], false).catch(e => { if (isMissing(e)) return null; throw e; });
-      const folder = lifdir && await lifdir.getDirectoryHandle(id).catch(e => { if (isMissing(e)) return null; throw e; });
       // Idempotent: a delete that stopped halfway (the record gone, the folder or the
       // index entry still there) is finished by the next one.
-      if (!folder && !lifts.some(l => l.id === id)) throw new StoreError('not-found', `No lift ${JSON.stringify(id)} in the store.`);
-      if (folder) {
-        // The record first: without it the folder is no lift, even if the next step stops.
-        // Then the folder, to free the room before the (smaller) index is written.
-        await folder.removeEntry(LIFT_RECORD).catch(e => { if (!isMissing(e)) throw e; });
-        await lifdir.removeEntry(id, { recursive: true });
-      }
-      await writeIndex(lifts.filter(l => l.id !== id));
+      if (!(await removeLift(id, await loadIndex()))) throw new StoreError('not-found', `No lift ${JSON.stringify(id)} in the store.`);
     });
   }
 
@@ -419,7 +445,10 @@ export function createStore({ storage = globalThis.navigator && globalThis.navig
     return exclusive(async () => {
       const j = await readJson(await root(), QUEUE);
       if (!j || j.version !== QUEUE_VERSION) return { jobs: [], rate: null };
-      const jobs = Array.isArray(j.jobs) ? j.jobs.filter(job => validateAnalysisJob(job).length === 0) : [];
+      // a job kept before s50 has no `replaces`: it replaces nothing
+      const jobs = Array.isArray(j.jobs)
+        ? j.jobs.map(job => (job && typeof job === 'object' && !('replaces' in job) ? { ...job, replaces: null } : job)).filter(job => validateAnalysisJob(job).length === 0)
+        : [];
       const rate = validateQueueState({ jobs: [], rate: j.rate ?? null }).length ? null : (j.rate ?? null);
       return { jobs, rate };
     });
