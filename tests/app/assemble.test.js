@@ -6,22 +6,19 @@
 // neither of the gitignored folders (app/vendor/tfjs/, app/models/): a fresh
 // worktree has neither, and the runs that must not have them use a fake app/.
 const test = require('node:test');
-const { after } = test;
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
+const { tempDir } = require('../fixtures.js');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const APP = path.join(ROOT, 'app');
 const ASSEMBLE = path.join(APP, 'tools', 'assemble.mjs');
 
-// Every folder a test makes is recorded; one after() hook removes them all, whether the tests passed or failed.
-const made = [];
-const tmp = (name) => { const dir = fs.mkdtempSync(path.join(os.tmpdir(), `coach-${name}-`)); made.push(dir); return dir; };
-after(() => { for (const dir of made) fs.rmSync(dir, { recursive: true, force: true }); });
+// Every folder a test makes is removed when the process exits (tempDir), whether the tests passed or failed.
+const tmp = (name) => tempDir(`coach-${name}-`);
 const put = (base, rel, text = rel) => {
   fs.mkdirSync(path.dirname(path.join(base, rel)), { recursive: true });
   fs.writeFileSync(path.join(base, rel), text);

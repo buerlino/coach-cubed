@@ -10,11 +10,11 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const vm = require('node:vm');
 const { execFileSync } = require('node:child_process');
 const { pathToFileURL } = require('node:url');
+const { tempDir } = require('../fixtures.js');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const APP = path.join(ROOT, 'app');
@@ -239,7 +239,7 @@ test('sw.js names no host and no absolute path: its scope is where it is served 
 
 // ---- assemble stamps the version into the copy in dist/ ----
 test('assemble stamps sw.js in dist/ with files.json\'s version; the hash covers sw.js as it is in app/', () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'coach-swstamp-'));
+  const root = tempDir('coach-swstamp-');
   try {
     const put = (rel, text) => { fs.mkdirSync(path.dirname(path.join(root, rel)), { recursive: true }); fs.writeFileSync(path.join(root, rel), text); };
     put('app/index.html', '<!doctype html>');

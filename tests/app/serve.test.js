@@ -3,10 +3,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
 const { spawn } = require('node:child_process');
+const { tempDir } = require('../fixtures.js');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const SERVE = path.join(ROOT, 'app', 'tools', 'serve.mjs');
@@ -23,7 +23,7 @@ function get(port, url) {
 
 // Starts the server on a free port (it prints the address) over a folder with one file of each type.
 async function withServer(fn) {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'coach-serve-'));
+  const dir = tempDir('coach-serve-');
   for (const [name, text] of Object.entries({
     'index.html': '<!doctype html>', 'a.mjs': 'export {};', 'a.js': '1', 'm.webmanifest': '{}', 'f.woff2': 'x',
     'w.wasm': 'x', 's.css': 'a{}', 'd.json': '{}', 'i.png': 'x',

@@ -6,10 +6,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { createFakeStorage } = require('./fake-opfs.js');
+const { tempDir } = require('../fixtures.js');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const APP = path.join(ROOT, 'app');
@@ -236,7 +236,7 @@ test('the URLs the screen fetches point at the files assemble ships', async () =
 test('assemble ships the licence texts and THIRD_PARTY.md, so the credits read offline', async (t) => {
   const { assemble, checkLicences } = await load('tools', 'assemble.mjs');
   const { CREDITS } = await load('src', 'credits.mjs');
-  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'coach-d24-'));
+  const out = tempDir('coach-d24-');
   t.after(() => fs.rmSync(out, { recursive: true, force: true }));
   const { files } = assemble({ out, app: APP, src: path.join(ROOT, 'src'), log: () => {} });
   assert.deepEqual(await checkLicences(out, APP), []);
@@ -254,7 +254,7 @@ test('assemble ships the licence texts and THIRD_PARTY.md, so the credits read o
 
 test('checkLicences names a text the credits need and the output lacks', async (t) => {
   const { assemble, checkLicences } = await load('tools', 'assemble.mjs');
-  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'coach-d24-'));
+  const out = tempDir('coach-d24-');
   t.after(() => fs.rmSync(out, { recursive: true, force: true }));
   assemble({ out, app: APP, src: path.join(ROOT, 'src'), log: () => {} });
   fs.rmSync(path.join(out, 'vendor', 'htm', 'LICENSE'));
