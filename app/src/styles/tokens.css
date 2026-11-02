@@ -192,4 +192,21 @@
   --plot-flip-margin: 56px;
   --plot-playhead: 1.5px;
   --plot-ring: 2px;
+
+  /* A3's pieces (the mockup's): the sheet over A1 (its top, corners, grabber), the switch, the segmented
+     speed buttons, the sheet's buttons. --line-mid is the off switch, the grabber and the outlined button. */
+  --line-mid: #3A3F46;
+  --scrim-sheet: rgba(0, 0, 0, 0.6);
+  --sheet-top: 96px;
+  --radius-sheet: 24px;
+  --grabber-w: 40px;
+  --grabber-h: 5px;
+  --switch-row: 56px;
+  --switch-w: 48px;
+  --switch-h: 28px;
+  --switch-knob: 22px;
+  --switch-pad: 3px;
+  --radius-segment: 10px;
+  --button-sheet: 52px;
+  --slider-h: 32px;
 }

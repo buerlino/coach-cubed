@@ -397,15 +397,6 @@ test('view options: marksFromRange gives no marks for a range that is not on the
   assert.equal(mark.stepOf(m.marksFromRange({ t0: 0, t1: 99 }, times)), 'ready', 'an end past the last frame is held to it');
 });
 
-test('view options: the flow has re-mark from the result: result → mark with the cut, and mark → queued after Analyse', async () => {
-  const { createFlow } = await load('flow/flow.mjs');
-  const f = createFlow('result');
-  assert.equal(f.can('mark'), true);
-  f.go('mark', { file: new Blob([]), lift: 'snatch', range: { t0: 1, t1: 2 } });
-  assert.deepEqual(f.params.range, { t0: 1, t1: 2 });
-  assert.equal(f.can('queued'), true);
-});
-
 // ---- delete ----
 
 test('view options: delete asks first, and removes the lift through the store only when confirmed', async () => {

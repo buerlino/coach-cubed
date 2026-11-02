@@ -34,6 +34,14 @@ export function skeletonShapes(points, bones) {
   return out;
 }
 
+/**
+ * The joints the model was unsure of (A3's "Unsure joints"): a joint below the gate, as canvas
+ * coordinates. A joint that is missing (null) is not unsure, it is missing: nothing to draw.
+ * @param {Array<[number, number, number]|null>} points
+ * @returns {Array<[number, number]>}
+ */
+export const unsureJoints = points => points.filter(p => Array.isArray(p) && p[2] < CONF_THRESHOLD).map(p => [p[1], p[0]]);
+
 const px = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
 
 /**
@@ -56,14 +64,26 @@ export function overlayStyle(read, scale = 1) {
 }
 
 /**
+ * The unsure joints' look, read from the tokens like overlayStyle's: a ring in the quiet text colour,
+ * the joints' size and the ring's width. Kept apart from overlayStyle so its shape stays what it was.
+ * @param {(name: string) => string} read
+ * @param {number} [scale]
+ */
+export function unsureStyle(read, scale = 1) {
+  const v = name => String(read(name) || '').trim();
+  return { color: v('--text-quiet'), radius: px(v('--joint-size')) * scale / 2, width: px(v('--joint-ring')) * scale };
+}
+
+/**
  * Draws every person of a pose: bones first, then joints with a ring in the
- * ground colour so they read on any picture.
+ * ground colour so they read on any picture. With `unsure` (and style.unsure, unsureStyle()),
+ * the joints below the gate are drawn too, as hollow rings: no bone leads to them.
  * @param {CanvasRenderingContext2D} ctx
  * @param {Object<string, Array>} pose { personId: points }, or null (draws nothing)
  * @param {ReadonlyArray<ReadonlyArray<number>>} bones bonesOf(meta)
  * @param {ReturnType<typeof overlayStyle>} style
  */
-export function drawSkeleton(ctx, pose, bones, style) {
+export function drawSkeleton(ctx, pose, bones, style, { unsure = false } = {}) {
   if (!pose) return;
   for (const points of Object.values(pose)) {
     const shapes = skeletonShapes(points, bones);
@@ -84,6 +104,15 @@ export function drawSkeleton(ctx, pose, bones, style) {
       ctx.arc(x, y, style.jointRadius, 0, 2 * Math.PI);
       ctx.fill();
       ctx.stroke();
+    }
+    if (unsure && style.unsure) {
+      ctx.strokeStyle = style.unsure.color;
+      ctx.lineWidth = style.unsure.width;
+      for (const [x, y] of unsureJoints(points)) {
+        ctx.beginPath();
+        ctx.arc(x, y, style.unsure.radius, 0, 2 * Math.PI);
+        ctx.stroke();
+      }
     }
   }
 }

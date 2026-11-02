@@ -158,6 +158,21 @@ export function setMark(marks, index, frameTimes) {
 export const redo = () => newMarks();
 
 /**
+ * The marks of a range already marked (A3's re-mark opens M with the lift's old ones): the frames at the
+ * range's two times, an end past the last frame held to it. No marks (M1) for a range that is missing or
+ * shorter than MIN_MARK_FRAMES frames: M would refuse such an end.
+ * @param {{t0: number, t1: number}|null|undefined} range in the video's own timeline
+ * @param {readonly number[]} frameTimes
+ * @returns {Readonly<Marks>}
+ */
+export function marksFromRange(range, frameTimes) {
+  if (!range || !Number.isFinite(range.t0) || !Number.isFinite(range.t1) || !frameTimes.length) return newMarks();
+  const start = frameIndexAt(frameTimes, range.t0), end = frameIndexAt(frameTimes, range.t1);
+  if (end < start + MIN_MARK_FRAMES) return newMarks();
+  return Object.freeze({ start, end, error: null });
+}
+
+/**
  * The marked range: the times of the start and end frames, the length between
  * them, and the frames the job poses (every frame starting in [t0, t1]).
  * @returns {{t0: number, t1: number, length: number, frames: number}|null} null until both marks are set

@@ -362,8 +362,37 @@ try {
       one.playHalf = back;
       if (back.speed !== '½×' || !back.open || back.problem) { problems.push(`${l.lift}: "Play the rep at ½×" opened A1 with ${JSON.stringify(back)}`); one.ok = false; }
     }
-    // back to H for the next lift
-    if (!await click('button[aria-label="Back"]')) throw new Error('A1: no Back button');
+    // d22: A3 opens over A1 with the mockup's controls, a switch changes at once, a smoothing change scores again,
+    // and Re-mark opens M on the stored cut with the old marks (M3)
+    await waitFor(`document.querySelector('[data-screen="A1"] .result-header__more:not([disabled])')`, 'A1\'s View options button');
+    if (!await click('[data-screen="A1"] .result-header__more')) throw new Error('A1: no View options button');
+    await waitFor(`document.querySelector('.vo-sheet')`, 'A3 after "View options"');
+    const sheet = await evaluate(`(() => {
+      const q = s => [...document.querySelectorAll(s)];
+      return { title: document.querySelector('.vo-title')?.textContent, switches: q('.vo-switch').map(e => e.querySelector('.vo-switch__name').textContent + ':' + e.getAttribute('aria-checked')),
+        speeds: q('.vo-segment').map(e => e.textContent), slider: document.querySelector('.vo-slider')?.value, lifter: /Lifter/.test(document.querySelector('.vo-sheet').textContent) };
+    })()`);
+    one.sheet = sheet;
+    const wantSwitches = ['Skeleton:true', 'Cue drawings:true', 'Unsure joints:false', 'Loop the lift only:true'];
+    if (sheet.title !== 'View options' || JSON.stringify(sheet.switches) !== JSON.stringify(wantSwitches) || JSON.stringify(sheet.speeds) !== JSON.stringify(['¼×', '½×', '1×']) || sheet.lifter) {
+      problems.push(`${l.lift}: A3 opened with ${JSON.stringify(sheet)}`); one.ok = false;
+    }
+    await click('.vo-switch', 'Skeleton');
+    await waitFor(`document.querySelector('.vo-switch[aria-checked="false"]')`, 'the Skeleton switch off');
+    await click('.vo-switch', 'Skeleton');
+    await evaluate(`(() => { const i = document.querySelector('.vo-slider'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, '0'); i.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await waitFor(`document.querySelector('.vo-sigma__value')?.textContent === '0 ms' && !document.querySelector('.vo-slider').disabled`, 'the smoothing scored again');
+    // the choice is kept in the settings and the next lift is analysed with it: back to the standard 50 ms
+    await evaluate(`(() => { const i = document.querySelector('.vo-slider'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, '50'); i.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await waitFor(`document.querySelector('.vo-sigma__value')?.textContent === '50 ms' && !document.querySelector('.vo-slider').disabled`, 'the standard smoothing back');
+    const sigma = await evaluate(`document.querySelector('.vo-error')?.textContent ?? null`);
+    if (sigma) { problems.push(`${l.lift}: A3's smoothing change said ${sigma}`); one.ok = false; }
+    if (!await click('.vo-action', 'Re-mark this lift')) throw new Error('A3: no Re-mark button');
+    await waitFor(`document.querySelector('[data-screen="M"][data-step="ready"]')`, 'M3 after "Re-mark this lift"');
+    one.remark = 'M3 with the old marks';
+    // M's Close goes home
+    if (!await click('[data-screen="M"] button[aria-label="Close"]')) throw new Error('M: no Close button');
+    await waitFor(`document.querySelector('[data-screen="H"]')`, 'H after closing M');
   }
 
   // 6. what went wrong anywhere: console, exceptions, rejections, failed requests (page, workers, service worker)

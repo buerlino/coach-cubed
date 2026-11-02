@@ -360,7 +360,7 @@ test('result: the rule line follows what zones() answers: other bands, other sen
 
 test('result: A1 draws the card\'s rule line and passes the API\'s zones to the model', () => {
   const src = fs.readFileSync(path.join(APP, 'src', 'ui', 'screens', 'A1.mjs'), 'utf8');
-  assert.match(src, /cardsOf\(data\.view, [^)]*zones/);
+  assert.match(src, /cardsOf\(view, [^)]*zones/);
   assert.match(src, /c\.rule/);
   assert.ok(!src.includes('>Provisional<'), 'the word is not typed on the screen');
 });
@@ -419,7 +419,7 @@ test('result: the rule line is the API\'s words, whatever they are; with no rule
 
 test('result: A1 passes the API\'s rule(id) to the model, and app/src/ types none of its words', () => {
   const src = fs.readFileSync(path.join(APP, 'src', 'ui', 'screens', 'A1.mjs'), 'utf8');
-  assert.match(src, /cardsOf\(data\.view, [^)]*zones\(id\), id => ruleOf\(data\.diagnostics, id\)\)/);
+  assert.match(src, /cardsOf\(view, [^)]*zones\(id\), id => ruleOf\(data\.diagnostics, id\)\)/);
   // the words come from src/diagnostics.js (s45, "Done when": grep -rn "torso length\|decides" app/src/)
   const walk = dir => fs.readdirSync(dir, { withFileTypes: true }).flatMap(e => {
     const p = path.join(dir, e.name);

@@ -17,18 +17,18 @@ import { drawCues } from './cues.mjs';
 
 /**
  * Clears the canvas and paints the overlay at time t. `skeleton` and `cues` are
- * A3's view options (settings.view); `style` is skeleton.mjs's overlayStyle().
+ * A3's view options (settings.view), as `unsure` is (the joints below the gate, drawn as rings); `style` is skeleton.mjs's overlayStyle().
  * @param {CanvasRenderingContext2D} ctx in the track's frame pixels (meta.width × meta.height)
  * @param {OverlayScene} scene
  * @param {number} t seconds, the frame shown
- * @param {{skeleton: boolean, cues: boolean, style: object}} opts
+ * @param {{skeleton: boolean, cues: boolean, unsure?: boolean, style: object}} opts
  * @returns {{pose: object|null, cues: string[]}} what was drawn
  */
-export function paintOverlay(ctx, scene, t, { skeleton, cues, style }) {
+export function paintOverlay(ctx, scene, t, { skeleton, cues, unsure = false, style }) {
   const c = ctx.canvas;
   ctx.clearRect(0, 0, c.width, c.height);
   const pose = skeleton ? poseAtTime(scene.track, t, { smooth: true }) : null;
-  if (skeleton) drawSkeleton(ctx, pose, bonesOf(scene.meta), style);
+  if (skeleton) drawSkeleton(ctx, pose, bonesOf(scene.meta), style, { unsure });
   const drawn = cues ? drawCues(ctx, scene.Diagnostics, scene.view, scene.computed, t) : [];
   return { pose, cues: drawn };
 }

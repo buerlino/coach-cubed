@@ -6,12 +6,14 @@
 // come in the flow's params from H's import; the queue is injected (main.mjs
 // gives the app's one), so tests pass a fake. What to show and what Analyse does
 // is mark-model.mjs's; this draws it and holds the video open while M is up.
+// A3's re-mark (d22) comes with `range` too: the stored cut and the lift's old range, which M turns back
+// into marks (M3, the playhead on the start) so the lift can be marked again from them.
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../html.mjs';
 import { openFrameSource } from '../../media/frame-source.mjs';
 import {
   PX_PER_SECOND, THUMB, analyse, analyseCost, createLatest, createPlayhead, createThumbPlanner, playheadNote, dragTarget, dropFarThumbs, fitSize, liftLabelOf, markView,
-  newMarks, otherLift, redo, setMark, stripLeft, thumbSeconds, thumbTime,
+  marksFromRange, newMarks, otherLift, redo, setMark, stripLeft, thumbSeconds, thumbTime,
 } from '../mark-model.mjs';
 import { ChevronDownIcon, CloseIcon, StepBackIcon, StepForwardIcon } from '../components/icons.mjs';
 
@@ -36,7 +38,7 @@ function Picture({ bitmap }) {
 const clockLabel = s => (s % 2 ? '' : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`);
 
 export function M({ flow, queue, openSource = openFrameSource }) {
-  const { file = null } = flow.params;
+  const { file = null, range = null } = flow.params;
   const [lift, setLift] = useState(flow.params.lift || 'lateral-raise');
   const [source, setSource] = useState(null);     // { frameTimes, info } once the video is open
   const [problem, setProblem] = useState(null);   // the video could not be opened, or a frame could not be decoded
@@ -70,7 +72,8 @@ export function M({ flow, queue, openSource = openFrameSource }) {
       if (!current) { src.close(); return; }
       const box = stageRef.current;
       const size = fitSize(src.info, { width: box ? box.clientWidth : 390, height: box ? box.clientHeight : 440 }, pixelRatio());
-      const stepper = await src.stepper(0, size);
+      const old = marksFromRange(range, src.frameTimes);   // a re-mark starts where the old marks were
+      const stepper = await src.stepper(old.start === null ? 0 : src.frameTimes[old.start], size);
       p.stepper = stepper;
       if (!current) { stepper.close(); src.close(); return; }
       p.head = createPlayhead({
@@ -79,6 +82,7 @@ export function M({ flow, queue, openSource = openFrameSource }) {
         fail: e => { if (current) setProblem(playheadNote({ error: e })); },
       });
       paint(stepper.frame);
+      if (old.start !== null) { setMarks(old); setIndex(old.start); }
       setSource({ frameTimes: src.frameTimes, info: src.info });
     })().catch(e => { if (current) setProblem(e && e.message ? e.message : 'This video could not be opened.'); });
     return () => {

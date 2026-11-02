@@ -4,13 +4,18 @@
 // the cards, one per cue of the view model, which open to the cue and to A2. What plays and steps, and why: player.mjs; what to show:
 // player-model.mjs; the overlay: draw/. The lift's id comes in the flow's params (H, Q1); the store
 // and the diagnostics.js object are injected (main.mjs gives the app's store; tests pass fakes).
-// The skeleton and cue switches and the speed are A3's view options (settings.view), kept in the store.
+// The skeleton and cue switches, loop and the speed are A3's view options (d22: components/view-options.mjs,
+// view-options-model.mjs's controller), kept in the store's settings.view; the skeleton chip and the speed
+// button here are two of its controls, the same state. A smoothing change in A3 scores the track again and
+// the cards, the timeline and the overlay follow.
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../html.mjs';
 import { openFrameSource } from '../../media/frame-source.mjs';
 import { getDiagnostics, scoreLift } from '../../scoring/score.mjs';
 import { overlayStyle, trackSamples } from '../../draw/index.mjs';
 import { fitSize } from '../mark-model.mjs';
+import { ViewOptions } from '../components/view-options.mjs';
+import { createViewOptions, loopSpan } from '../view-options-model.mjs';
 import { createPlayer } from '../player.mjs';
 import { clockOf, fractionAt, headerOf, momentTitle, nextSpeed, playRequest, speedLabel } from '../player-model.mjs';
 import { cardsOf, defaultOpen, provisionalNote, seekTime, summaryOf, timelineOf } from '../result-model.mjs';
@@ -30,11 +35,13 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
   const [data, setData] = useState(null);       // everything the player needs, once loaded
   const [problem, setProblem] = useState(null);
   const [ps, setPs] = useState(null);           // the player's state
-  const [skeleton, setSkeleton] = useState(true);
-  const [speed, setSpeed] = useState(1);
+  const [opts, setOpts] = useState(null);       // A3's controller state: the switches, the speed, the smoothing
+  const [scored, setScored] = useState(null);   // the view scored again after a smoothing change (A3), else data.view
+  const [sheet, setSheet] = useState(false);    // A3 is open
   const [open, setOpen] = useState(null);       // the cue whose card is open: its phase shows on the timeline
   const parts = useRef({});                     // the open video, its stepper, the object URL and the player: closed when A1 closes
-  const flags = useRef({ skeleton: true, cues: true, loop: true });
+  const flags = useRef({ skeleton: true, cues: true, unsure: false, loop: true });   // A3's controller changes it in place
+  const moreRef = useRef(null);
   const frameBox = useRef(null);
   const videoRef = useRef(null);
   const frameRef = useRef(null);
@@ -65,15 +72,12 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
       p.stepper = stepper;
       if (!current) { stepper.close(); src.close(); return; }
       p.url = URL.createObjectURL(blob);
-      const view_ = settings.view;
       // A2's "Play the rep at ½×" (flow params, read once here): that cue's card open, the phase's start, ½×.
       // The speed is the player's only; the stored view options stay the user's (only the buttons write them).
       const want = playRequest(flow.params, view, rec.range);
-      flags.current = { skeleton: view_.skeleton, cues: view_.cues, loop: view_.loop };
-      setSkeleton(view_.skeleton);
-      setSpeed(want ? want.speed : view_.speed);
+      Object.assign(flags.current, { skeleton: settings.view.skeleton, cues: settings.view.cues, unsure: settings.view.unsure, loop: settings.view.loop });
       setOpen(want ? want.cue : defaultOpen(cardsOf(view)));   // the ids and statuses only
-      setData({ rec, view, computed, diagnostics: diagnostics || getDiagnostics(), meta: track.meta, track: trackSamples(keypoints, track.meta), src, stepper, url: p.url, speed: want ? want.speed : view_.speed, playFrom: want ? want.t : null });
+      setData({ rec, view, computed, diagnostics: diagnostics || getDiagnostics(), meta: track.meta, raw: track, settings: settings.view, track: trackSamples(keypoints, track.meta), src, stepper, url: p.url, speed: want ? want.speed : settings.view.speed, playFrom: want ? want.t : null });
     })().catch(e => { if (current) setProblem(e && e.message ? e.message : CANT_SHOW); });
     return () => {
       current = false;
@@ -101,10 +105,18 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
       video: videoRef.current, frame: frameRef.current, overlay: overlayRef.current,
       stepper: data.stepper, frameTimes: data.src.frameTimes, range: data.rec.range,
       scene: { track: data.track, meta: data.meta, Diagnostics: data.diagnostics, view: data.view, computed: data.computed },
-      style: () => style, flags: () => flags.current, speed: data.speed,
+      style: () => style, flags: () => flags.current, speed: data.speed, lift: loopSpan(data.view, data.rec.range),
       onChange: setPs, onError: e => setProblem(e.message || CANT_SHOW),
     });
     p.player = player;
+    // A3's controller: the options, the re-score, re-mark and delete. The speed A2 asked for is the player's only (not stored).
+    const vo = createViewOptions({
+      store, rec: data.rec, track: data.raw, view: data.view, Diagnostics: data.diagnostics, flags: flags.current, player, flow,
+      settings: data.settings, speed: data.speed, onScored: s => setScored({ view: s.view, computed: s.computed }),
+    });
+    p.options = vo;
+    setOpts(vo.state);
+    const unsubscribe = vo.subscribe(setOpts);
     // a request from A2 starts playing at the phase; else the first frame, paused. A refused play() is reported through onError
     if (data.playFrom !== null) player.playFrom(data.playFrom).catch(() => {});
     else player.start();
@@ -113,24 +125,16 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
       watch = new globalThis.ResizeObserver(() => { restyle(); player.repaint(); });
       watch.observe(frameBox.current);
     }
-    return () => { if (watch) watch.disconnect(); player.close(); };
+    return () => { unsubscribe(); if (watch) watch.disconnect(); player.close(); };
   }, [data]);
 
   const player = () => parts.current.player;
-  const keep = view => { if (store && store.saveSettings) Promise.resolve(store.saveSettings({ view })).catch(() => {}); };
-  const toggleSkeleton = () => {
-    const next = !skeleton;
-    flags.current = { ...flags.current, skeleton: next };
-    setSkeleton(next);
-    if (player()) player().repaint();
-    keep({ skeleton: next });
-  };
-  const cycleSpeed = () => {
-    const next = nextSpeed(speed);
-    setSpeed(next);
-    if (player()) player().setSpeed(next);
-    keep({ speed: next });
-  };
+  const options = () => parts.current.options;
+  const skeleton = opts ? opts.skeleton : true;
+  const speed = opts ? opts.speed : 1;
+  const toggleSkeleton = () => { if (options()) options().setSwitch('skeleton', !skeleton); };
+  const cycleSpeed = () => { if (options()) options().setSpeed(nextSpeed(speed)); };
+  const closeSheet = () => { setSheet(false); if (moreRef.current) moreRef.current.focus(); };
   // a tap on a worst-moment mark lands on that moment; a drag follows the finger
   const seekTo = (e, moments) => player().seek(seekTime(e.clientX, barRef.current.getBoundingClientRect(), data.rec.range, moments));
   const down = e => { drag.current = true; if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); seekTo(e, tl.cues.filter(c => c.marked).map(c => c.worst)); };
@@ -143,10 +147,11 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
 
   const head = data ? headerOf(data.rec) : null;
   const range = data ? data.rec.range : null;
-  const tl = data ? timelineOf(data.view, range) : null;
-  const cards = data ? cardsOf(data.view, id => data.diagnostics.zones(id), id => ruleOf(data.diagnostics, id)) : [];
-  const counts = data ? summaryOf(data.view) : [];
-  const note = data ? provisionalNote(data.view) : null;
+  const view = data ? (scored ? scored.view : data.view) : null;   // scored again after A3's smoothing change
+  const tl = data ? timelineOf(view, range) : null;
+  const cards = data ? cardsOf(view, id => data.diagnostics.zones(id), id => ruleOf(data.diagnostics, id)) : [];
+  const counts = data ? summaryOf(view) : [];
+  const note = data ? provisionalNote(view) : null;
   const opened = tl ? tl.cues.find(c => c.id === open) : null;
   const t = ps ? ps.t : range ? range.t0 : 0;
   const clock = range ? clockOf(t, range) : null;
@@ -160,7 +165,7 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
           <h1 class="bar-header__title">${head ? head.title : 'Result'}</h1>
           ${head ? html`<span class="quiet">${head.meta}</span>` : null}
         </div>
-        <button type="button" class="icon-button result-header__more" aria-label="View options" disabled><${MoreIcon} /></button>
+        <button type="button" class="icon-button result-header__more" aria-label="View options" aria-haspopup="dialog" aria-expanded=${sheet} ref=${moreRef} disabled=${!opts} onClick=${() => setSheet(true)}><${MoreIcon} /></button>
       </header>
       ${problem ? html`<p class="error result-problem" role="alert">${problem}</p>` : null}
       ${data ? html`
@@ -188,7 +193,7 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
           ${tl.lift && !tl.lift.span ? tl.lift.marks.map(m => html`<div class="timeline__start" title="Lift starts here" style=${`left: ${pct(m)}`}></div>`) : null}
           ${opened && opened.phase ? html`<div class="timeline__phase" title=${`${cards.find(c => c.id === open).title}: where it was scored`} style=${`left: ${pct(opened.phase.from)}; width: ${pct(opened.phase.to - opened.phase.from)}`}></div>` : null}
           ${tl.cues.filter(c => c.marked).map(m => {
-            const cue = data.view.cues.find(c => c.id === m.id);
+            const cue = view.cues.find(c => c.id === m.id);
             return html`<div class=${`timeline__moment timeline__moment--${m.status === 'work on' ? 'work-on' : 'watch'}`} title=${momentTitle(cue)} style=${`left: ${pct(m.worst.fraction)}`}></div>`;
           })}
           <div class="timeline__knob" style=${`left: ${pct(fractionAt(t, range))}`}></div>
@@ -216,8 +221,9 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
                   ${c.scored ? html`<button type="button" class="cue-card__more" onClick=${() => flow.go('detail', { liftId, cue: c.id })}>Plot and details<${ChevronIcon} /></button>` : null}
                 </div>` : null}
             </div>`)}
-          ${data.view.notes.map(n => html`<p class="cues-window">${n}</p>`)}
+          ${view.notes.map(n => html`<p class="cues-window">${n}</p>`)}
         </div>` : null}
+      ${sheet && opts ? html`<${ViewOptions} options=${opts} controller=${options()} onClose=${closeSheet} />` : null}
     </main>
   `;
 }
