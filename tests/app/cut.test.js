@@ -218,3 +218,29 @@ test('keepVideo refuses what the store would: a lift it does not know', async ()
   await assert.rejects(() => keepVideo(store, 'deadlift', clip(H264), { t0: 0, t1: 1 }), { code: 'invalid' });
   assert.deepEqual(await store.listLifts(), []);
 });
+
+test('the frame source\'s sample table reads the cut as the source\'s frames from the keyframe, from 0', async () => {
+  const { cutVideo } = await load('src/media/cut.mjs');
+  const { buildSampleTable } = await load('src/media/sample-table.mjs');
+  const tableOf = async blob => buildSampleTable((await read(blob)).packets.map(({ type, timestamp, duration }) => ({ type, timestamp, duration })));
+  const whole = await tableOf(clip(VFR));
+  const cut = await cutVideo(clip(VFR), { t0: 1.3, t1: 2.2 });
+  const part = await tableOf(cut.blob);
+  const shifted = whole.times.map(t => t - cut.start);
+  const has = (times, t) => times.some(x => Math.abs(x - t) < 1e-5);
+  // every frame of the cut is a frame of the source, and every source frame from the keyframe to t1 is in the cut
+  // (beyond t1 the cut may hold a later picture a shown-earlier one was predicted from, and not the ones between)
+  part.times.forEach(t => assert.ok(has(shifted, t), `${t} s is not a source frame`));
+  shifted.filter(t => t > -1e-6 && t <= 2.2 - cut.start + 1e-6).forEach(t => assert.ok(has(part.times, t), `${t} s is missing`));
+  near(part.times[0], 0);
+  assert.ok(part.times.at(-1) >= 2.2 - cut.start - 1e-6, 't1 is covered');
+});
+
+test('an HEVC file is cut too: nothing is decoded, so the WebView\'s decoders do not matter', async () => {
+  const { cutVideo } = await load('src/media/cut.mjs');
+  const src = await read(clip('testsrc2-hevc-30fps.mp4'));
+  const got = await read((await cutVideo(clip('testsrc2-hevc-30fps.mp4'), { t0: 1.2, t1: 2.0 })).blob);
+  assert.deepEqual(got.config, src.config);
+  assert.equal(got.codec, 'hevc');
+  assert.equal(got.packets[0].type, 'key');
+});

@@ -42,7 +42,7 @@ It logs each request (`200 /index.html`); a `404` there is a broken path.
 | `src/track/` | One-line stubs, see below. |
 | `src/contracts/` | The shapes the app's parts agree on: JSDoc types, validators, examples. See [Contracts](#contracts). |
 | `src/store/` | The store (`c8`): lifts, their cut videos, tracks and results, the index and the settings, in OPFS. See [The store](#the-store). |
-| `src/media/` | The frame source (`s9`): `openFrameSource(blob)` gives contract 5's source over mediabunny and WebCodecs. See [The frame source](#the-frame-source). |
+| `src/media/` | The frame source (`s9`): `openFrameSource(blob)` gives contract 5's source over mediabunny and WebCodecs. See [The frame source](#the-frame-source). The cut (`s32`): `cutVideo` and `keepVideo` keep the marked range as an MP4. See [Keeping the video](#keeping-the-video). |
 | `src/scoring/` | The scoring adapter (`s11`): `scoreLift(track, lift, opts)` gives contract 4's `ResultView` from a raw track. See [Scoring](#scoring). |
 | `src/pose/` | The pose engine (`s10`): `PoseEngine.create()` gives one async `estimate(frame, tMs)` over a worker running MoveNet Thunder on TF.js. See [The pose engine](#the-pose-engine). |
 | `vendor/` | Third-party files, each with its licence text, byte for byte from its npm package ([THIRD_PARTY.md](../THIRD_PARTY.md#in-the-new-app-app)): `preact/` (Preact 11.1.1 and its hooks), `htm/` (htm 3.1.1), `mediabunny/` (mediabunny 1.61.6, MPL-2.0, the frame source's one demuxer), `fonts/` (Barlow and Barlow Condensed, woff2, with `OFL.txt`). `vendor/tfjs/` is built by `tools/build-tfjs.mjs` (gitignored). |
@@ -289,6 +289,43 @@ canvas turn for a rotated clip at 30 and 60 fps, and an HEVC file's behaviour
 in the APK's WebView. `frameAt` decodes from the keyframe every time, with no
 cache of the last group of pictures, so stepping frame by frame in M1–M3 is
 the first thing to measure.
+
+## Keeping the video
+
+`src/media/cut.mjs` (`s32`, D6) keeps the lift's video: at Analyse the marked
+range is cut to an MP4 and stored with the lift, so the job reads its source
+from the store (a queued job survives a restart) and A1 plays it.
+
+```js
+import { cutVideo, keepVideo } from './media/cut.mjs';
+const cut = await cutVideo(file, { t0, t1 });     // seconds in the file's timeline
+cut.blob; cut.range; cut.start; cut.duration      // the MP4; {t0, t1} in the cut's timeline; the keyframe's source time; its length
+const kept = await keepVideo(store, 'snatch', file, { t0, t1 });  // cutVideo, then c8's saveLift
+kept.lift;                                        // the StoredLift (contract 3): video 'lifts/<id>/cut.mp4', range = kept.range
+```
+
+- **A stream copy, no re-encode.** mediabunny reads the packets and writes
+  them again, byte for byte, with the same codec configuration and the file's
+  rotation. No decoder or encoder is involved (a test scans `cut.mjs` for
+  them), so it is fast, loses no quality, and an HEVC file the WebView can't
+  decode is still kept.
+- **Which packets:** the ones the frame source would decode for the range
+  (the sample table's `plan`): from the keyframe at or before `t0` to the
+  latest-stored frame starting at or before `t1` (a B-frame is stored after a
+  picture shown later, so the cut may hold a picture or two past `t1`). A
+  picture shown before the keyframe (an open group) is left out.
+- **The cut's timeline** starts at 0 on that keyframe: its times are the
+  source's minus `start`. `range` is the marked range in it, so `range.t0` is
+  how far into the cut the mark sits (up to a keyframe interval, about a
+  second on a phone's camera). A range past either end of the video is held to
+  its span; one with no frame in it, or `t1` before `t0`, is a `MediaError`
+  with code `range`.
+- **Errors:** a file that can't be read is a `MediaError`; a full disk is the
+  store's `StoreError` with code `storage-full`, passed through unchanged for
+  d23. The cut is built in memory before it is saved (a minute of phone video
+  is a few tens of MB).
+- **Size:** as big as the range's share of the file plus the extra seconds from
+  the keyframe; see the numbers in the package's report.
 
 ## TF.js from source
 
