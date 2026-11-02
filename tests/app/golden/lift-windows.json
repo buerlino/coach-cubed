@@ -1,0 +1,194 @@
+{
+ "global/example/athlete-a-trim": {
+  "snatch": {
+   "error": null,
+   "startIdx": 0,
+   "endIdx": 99,
+   "t0": 0,
+   "t1": 3.3,
+   "startClamped": true,
+   "clampReason": "head",
+   "truncated": true,
+   "notes": [
+    "The wrists were already rising at the first measurable frame, so the clip probably starts mid-pull and the start marker is clamped to the first frame.",
+    "The clip ends 0.23s into the hold, short of the 0.5s the trigger asks for. The end marker is where the extension started; whether it was held is unknown.",
+    "Joint angles are measured in the image plane, so a limb pointing toward or away from the camera reads straighter than it is. Filmed square to the lifter this is small; filmed down the platform it can turn a soft knee into a locked one."
+   ],
+   "triggers": {
+    "onsetRise": 0.2772349439040065,
+    "setupRise": null,
+    "crossIdx": 15,
+    "crossT": 0.5,
+    "holdSeconds": 0.2333333333333334,
+    "holdSamples": 8,
+    "minAngle": 166.19936281722167,
+    "minElbow": 166.19936281722167,
+    "minKnee": 178.98267486931556,
+    "angles": [
+     166.19936281722167,
+     170.71994535224894,
+     178.98267486931556,
+     179.91754632801155
+    ],
+    "peakSpeed": 0.26742639390464334,
+    "netDrift": 0.07474404612047225,
+    "lockElbow": 150,
+    "lockKnee": 170,
+    "holdRequired": 0.5,
+    "stillSpeed": 0.35,
+    "stillDrift": 0.1
+   }
+  },
+  "clean-and-jerk": {
+   "error": null,
+   "startIdx": 0,
+   "endIdx": 99,
+   "t0": 0,
+   "t1": 3.3,
+   "startClamped": true,
+   "clampReason": "head",
+   "truncated": true,
+   "notes": [
+    "The wrists were already rising at the first measurable frame, so the clip probably starts mid-pull and the start marker is clamped to the first frame.",
+    "The clip ends 0.23s into the hold, short of the 0.5s the trigger asks for. The end marker is where the extension started; whether it was held is unknown.",
+    "Joint angles are measured in the image plane, so a limb pointing toward or away from the camera reads straighter than it is. Filmed square to the lifter this is small; filmed down the platform it can turn a soft knee into a locked one."
+   ],
+   "triggers": {
+    "onsetRise": 0.2772349439040065,
+    "setupRise": null,
+    "crossIdx": 15,
+    "crossT": 0.5,
+    "holdSeconds": 0.2333333333333334,
+    "holdSamples": 8,
+    "minAngle": 166.19936281722167,
+    "minElbow": 166.19936281722167,
+    "minKnee": 178.98267486931556,
+    "angles": [
+     166.19936281722167,
+     170.71994535224894,
+     178.98267486931556,
+     179.91754632801155
+    ],
+    "peakSpeed": 0.26742639390464334,
+    "netDrift": 0.07474404612047225,
+    "lockElbow": 150,
+    "lockKnee": 170,
+    "holdRequired": 0.5,
+    "stillSpeed": 0.35,
+    "stillDrift": 0.1
+   }
+  }
+ },
+ "global/example/lateral-raise-cable-1": {
+  "snatch": {
+   "error": "The bar never sits below knee height in this clip, so there is no start of the lift to mark.",
+   "startIdx": -1,
+   "endIdx": -1,
+   "t0": null,
+   "t1": null,
+   "notes": []
+  },
+  "clean-and-jerk": {
+   "error": "The bar never sits below knee height in this clip, so there is no start of the lift to mark.",
+   "startIdx": -1,
+   "endIdx": -1,
+   "t0": null,
+   "t1": null,
+   "notes": []
+  }
+ },
+ "global/example/lateral-raise-cable-2": {
+  "snatch": {
+   "error": "The bar never sits below knee height in this clip, so there is no start of the lift to mark.",
+   "startIdx": -1,
+   "endIdx": -1,
+   "t0": null,
+   "t1": null,
+   "notes": []
+  },
+  "clean-and-jerk": {
+   "error": "The bar never sits below knee height in this clip, so there is no start of the lift to mark.",
+   "startIdx": -1,
+   "endIdx": -1,
+   "t0": null,
+   "t1": null,
+   "notes": []
+  }
+ },
+ "global/snatch/Session14_01_0h18m07s_made": {
+  "snatch": {
+   "error": null,
+   "startIdx": 28,
+   "endIdx": 181,
+   "t0": 0.5833333333333334,
+   "t1": 3.1333333333333333,
+   "startClamped": false,
+   "clampReason": null,
+   "truncated": false,
+   "notes": [
+    "Joint angles are measured in the image plane, so a limb pointing toward or away from the camera reads straighter than it is. Filmed square to the lifter this is small; filmed down the platform it can turn a soft knee into a locked one."
+   ],
+   "triggers": {
+    "onsetRise": 0.11956690199194057,
+    "setupRise": 0.09043811408828742,
+    "crossIdx": 57,
+    "crossT": 1.0666666666666667,
+    "holdSeconds": 0.5,
+    "holdSamples": 31,
+    "minAngle": 169.37828475052203,
+    "minElbow": 169.37828475052203,
+    "minKnee": 175.28719654872515,
+    "angles": [
+     169.37828475052203,
+     169.70935087427065,
+     175.28719654872515,
+     177.33298910384377
+    ],
+    "peakSpeed": 0.3256206220864527,
+    "netDrift": 0.04869103865471136,
+    "lockElbow": 150,
+    "lockKnee": 170,
+    "holdRequired": 0.5,
+    "stillSpeed": 0.35,
+    "stillDrift": 0.1
+   }
+  },
+  "clean-and-jerk": {
+   "error": null,
+   "startIdx": 28,
+   "endIdx": 181,
+   "t0": 0.5833333333333334,
+   "t1": 3.1333333333333333,
+   "startClamped": false,
+   "clampReason": null,
+   "truncated": false,
+   "notes": [
+    "Joint angles are measured in the image plane, so a limb pointing toward or away from the camera reads straighter than it is. Filmed square to the lifter this is small; filmed down the platform it can turn a soft knee into a locked one."
+   ],
+   "triggers": {
+    "onsetRise": 0.11956690199194057,
+    "setupRise": 0.09043811408828742,
+    "crossIdx": 57,
+    "crossT": 1.0666666666666667,
+    "holdSeconds": 0.5,
+    "holdSamples": 31,
+    "minAngle": 169.37828475052203,
+    "minElbow": 169.37828475052203,
+    "minKnee": 175.28719654872515,
+    "angles": [
+     169.37828475052203,
+     169.70935087427065,
+     175.28719654872515,
+     177.33298910384377
+    ],
+    "peakSpeed": 0.3256206220864527,
+    "netDrift": 0.04869103865471136,
+    "lockElbow": 150,
+    "lockKnee": 170,
+    "holdRequired": 0.5,
+    "stillSpeed": 0.35,
+    "stillDrift": 0.1
+   }
+  }
+ }
+}

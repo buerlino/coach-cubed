@@ -198,6 +198,7 @@ test('scoring: a track too short says "can\'t score" for every cue, in the engin
     }
     assert.equal(view.liftWindow, null);
     assert.equal(view.liftWindowReason, want.lift.error);
+    assert.equal(view.hasLiftWindow, set !== 'lateral-raise', set);
   }
 });
 
@@ -287,14 +288,19 @@ test('scoring: the lift window and the worst moments are in seconds', async () =
 
 test('scoring: the lift window is the engine\'s, or its reason for having none', async () => {
   const { scoreLift } = await scoring;
-  let found = 0, absent = 0;
+  let found = 0, none = 0;
   for (const slug of SLUGS) {
     const D = loadDiagnostics();
     const set = manifest[slug].diagnostics;
     const track = loadTrack(slug);
     const { view, computed } = scoreLift(track, set, { Diagnostics: D, sigmaMs: 0 });
     const lift = computed.lift;
-    if (lift.t0 != null && lift.t1 != null) {
+    assert.equal(view.hasLiftWindow, lift.hasLiftWindow, slug);
+    if (!lift.hasLiftWindow) {
+      none++;
+      assert.deepStrictEqual([view.liftWindow, view.liftWindowReason], [null, null], slug);
+      assert.deepStrictEqual(view.notes, lift.notes, slug);
+    } else if (lift.t0 != null && lift.t1 != null) {
       found++;
       assert.deepStrictEqual(view.liftWindow, { t0: lift.t0, t1: lift.t1 }, slug);
       assert.equal(view.liftWindowReason, null, slug);
@@ -304,10 +310,41 @@ test('scoring: the lift window is the engine\'s, or its reason for having none',
       assert.equal(view.liftWindowReason, lift.notes.at(-1), slug);
     } else {
       assert.equal(view.liftWindow, null, slug);
-      if (lift.error) { absent++; assert.equal(view.liftWindowReason, lift.error, slug); assert.deepStrictEqual(view.notes, lift.notes, slug); }
+      assert.ok(lift.error, `${slug}: a lift with a window and no start says why`);
+      assert.equal(view.liftWindowReason, lift.error, slug);
+      assert.deepStrictEqual(view.notes, lift.notes, slug);
     }
   }
-  assert.ok(found > 0 && absent > 0, `fixtures with a window (${found}) and without (${absent})`);
+  assert.ok(found > 0 && none > 0, `fixtures with a window (${found}) and lifts without one (${none})`);
+});
+
+test('scoring: a lateral raise has no lift window and no reason, and says so; every other lift has one (s36)', async () => {
+  // nordmu, 2026-11-02: the lift window is the barbell's (the bar below knee height, then a held lockout);
+  // a lateral raise has none and no error. diagnostics.js says which set has one (describe(set).hasLiftWindow).
+  const { scoreLift } = await scoring;
+  const { validateResultView } = await cueView;
+  const cases = SLUGS.map(slug => [slug, loadTrack(slug), manifest[slug].diagnostics]);
+  for (const set of ['lateral-raise', 'snatch', 'clean-and-jerk']) {
+    cases.push([`${set}, made-up, 3 frames`, madeUpTrack(3), set], [`${set}, made-up, no body scale`, madeUpTrack(40, { bodyless: true }), set]);
+  }
+  for (const slug of SLUGS) cases.push([`${slug} as a clean and jerk`, loadTrack(slug), 'clean-and-jerk']);
+  let without = 0;
+  for (const [name, track, set] of cases) {
+    for (const sigmaMs of [0, 50]) {
+      const D = loadDiagnostics();
+      const { view } = scoreLift(track, set, { Diagnostics: D, sigmaMs });
+      assert.deepStrictEqual(validateResultView(view), [], name);
+      assert.equal(view.hasLiftWindow, set !== 'lateral-raise', name);
+      assert.equal(view.hasLiftWindow, D.describe(set).hasLiftWindow, `${name}: the flag is diagnostics.js's`);
+      if (set === 'lateral-raise') {
+        without++;
+        assert.equal(view.liftWindow, null, name);
+        assert.equal(view.liftWindowReason, null, name);
+        assert.deepStrictEqual(view.notes, [], name);
+      }
+    }
+  }
+  assert.ok(without >= 6, `${without} lateral raises`);
 });
 
 test('scoring: a start found with no end keeps its start, {t0, t1: null}, and says why in the engine\'s words', async () => {
