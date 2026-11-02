@@ -118,13 +118,19 @@ export const CUE_VIEW_SOURCES = Object.freeze({
  * and the smoothing the verdicts were scored with.
  * @typedef {Object} ResultView
  * @property {'lateral-raise'|'snatch'} lift
+ * @property {boolean} hasLiftWindow whether the lift has a lift window at all
+ *   (computeResults().lift.hasLiftWindow, the set's in diagnostics.js; s36): the
+ *   window is the barbell's (the bar below knee height, then a held lockout), so
+ *   a lateral raise has none. false: liftWindow and liftWindowReason are null,
+ *   there is nothing to find and nothing went wrong
  * @property {{t0: number, t1: number|null}|null} liftWindow the lift found inside the
  *   marked range, in seconds (computeResults().lift t0, t1); t1 null when
- *   diagnostics.js found the start and no held finish (s35); null when no lift was found
+ *   diagnostics.js found the start and no held finish (s35); null when no lift was
+ *   found, or the lift has no window
  * @property {string|null} liftWindowReason why there is no window
  *   (computeResults().lift.error), or why it has no end (diagnostics.js's own
  *   note, the last of computeResults().lift.notes, never a new string); null
- *   when both ends were found
+ *   when both ends were found, or the lift has no window
  * @property {CueView[]} cues
  * @property {string[]} notes the lift window's notes (computeResults().lift.notes,
  *   less the one that is liftWindowReason)
@@ -228,10 +234,16 @@ export function validateCueView(cue, path = '') {
 export function validateResultView(view) {
   if (!isObject(view)) return ['result: must be an object'];
   const errors = [];
-  checkFields(errors, '', view, ['lift', 'liftWindow', 'liftWindowReason', 'cues', 'notes', 'smoothing']);
+  checkFields(errors, '', view, ['lift', 'hasLiftWindow', 'liftWindow', 'liftWindowReason', 'cues', 'notes', 'smoothing']);
   checkLift(errors, 'lift', view.lift);
   const w = view.liftWindow;
-  if (w === null) {
+  if ('hasLiftWindow' in view && typeof view.hasLiftWindow !== 'boolean') {
+    errors.push('hasLiftWindow: must be true or false');
+  } else if (view.hasLiftWindow === false) {
+    // a lift without a window (a lateral raise): nothing to find, nothing went wrong
+    if (w !== null) errors.push('liftWindow: must be null for a lift without a lift window (hasLiftWindow false)');
+    if (view.liftWindowReason !== null) errors.push('liftWindowReason: must be null for a lift without a lift window (hasLiftWindow false)');
+  } else if (w === null) {
     if (!isString(view.liftWindowReason)) errors.push('liftWindowReason: says why no lift was found (a non-empty string)');
   } else if (isObject(w) && w.t1 === null) {
     // the start found, no held finish
@@ -312,17 +324,17 @@ export const CUE_VIEW_EXAMPLES = [
 ];
 
 /**
- * The same lift as a ResultView, with the two example cues only. Its lift
- * window is what computeResults() gives this clip today: none, with the
- * barbell trigger's reason (s11 decides what a lateral raise shows there).
- * The cues are computeResults() on the committed track as it is, so its
- * smoothing is none: σ 0 (keepVelocity is then moot; true is the app's default).
+ * The same lift as a ResultView, with the two example cues only. A lateral
+ * raise has no lift window (diagnostics.js's LIFT_WINDOW_SETS, s36): no window,
+ * no reason. The cues are computeResults() on the committed track as it is, so
+ * its smoothing is none: σ 0 (keepVelocity is then moot; true is the app's default).
  * @type {ResultView}
  */
 export const RESULT_VIEW_EXAMPLE = {
   lift: 'lateral-raise',
+  hasLiftWindow: false,
   liftWindow: null,
-  liftWindowReason: 'The bar never sits below knee height in this clip, so there is no start of the lift to mark.',
+  liftWindowReason: null,
   cues: CUE_VIEW_EXAMPLES,
   notes: [],
   smoothing: { sigmaMs: 0, keepVelocity: true },

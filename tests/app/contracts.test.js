@@ -510,9 +510,9 @@ test('result view: each broken field is named', async () => {
   const v = validateResultView;
   assert.ok(v([]).some(e => e.startsWith('result')));
   assertNames(v, R, 'lift', r => { r.lift = 'deadlift'; });
-  assertNames(v, R, 'liftWindow.t1', r => { r.liftWindow = { t0: 2, t1: 1 }; r.liftWindowReason = null; });
-  assertNames(v, R, 'liftWindowReason', r => { r.liftWindow = null; r.liftWindowReason = null; });
-  assertNames(v, R, 'liftWindowReason', r => { r.liftWindow = { t0: 0, t1: 1 }; r.liftWindowReason = 'both'; });
+  assertNames(v, R, 'liftWindow.t1', r => { r.hasLiftWindow = true; r.liftWindow = { t0: 2, t1: 1 }; r.liftWindowReason = null; });
+  assertNames(v, R, 'liftWindowReason', r => { r.hasLiftWindow = true; r.liftWindow = null; r.liftWindowReason = null; });
+  assertNames(v, R, 'liftWindowReason', r => { r.hasLiftWindow = true; r.liftWindow = { t0: 0, t1: 1 }; r.liftWindowReason = 'both'; });
   assertNames(v, R, 'cues', r => { r.cues = null; });
   assertNames(v, R, 'cues[0].status', r => { r.cues[0].status = 'bad'; });
   assertNames(v, R, 'cues[1].id', r => { r.cues[1].id = r.cues[0].id; });
@@ -540,16 +540,39 @@ test('result view: a lift window with a start and no end is {t0, t1: null}, and 
   const { validateResultView, RESULT_VIEW_EXAMPLE: R } = await load('cue-view.mjs');
   const v = validateResultView;
   const noEnd = 'a stand-in for diagnostics.js\'s note on why the lift has no end marker (scoring.test.js checks the real one)';
-  assert.deepEqual(v({ ...clone(R), liftWindow: { t0: 1.2, t1: null }, liftWindowReason: noEnd }), []);
-  assertNames(v, R, 'liftWindowReason', r => { r.liftWindow = { t0: 1.2, t1: null }; r.liftWindowReason = null; });
-  assertNames(v, R, 'liftWindowReason', r => { r.liftWindow = { t0: 1.2, t1: null }; r.liftWindowReason = ''; });
-  assertNames(v, R, 'liftWindow.t0', r => { r.liftWindow = { t0: null, t1: 2 }; r.liftWindowReason = noEnd; });
-  assertNames(v, R, 'liftWindow.t0', r => { r.liftWindow = { t0: null, t1: null }; r.liftWindowReason = noEnd; });
-  assertNames(v, R, 'liftWindow.t1', r => { r.liftWindow = { t0: 1.2 }; r.liftWindowReason = noEnd; });
-  assertNames(v, R, 'liftWindow.t1', r => { r.liftWindow = { t0: 1.2, t1: NaN }; r.liftWindowReason = noEnd; });
+  // a lift with a window (the example is a lateral raise, which has none: s36)
+  const W = { ...clone(R), hasLiftWindow: true };
+  assert.deepEqual(v({ ...clone(W), liftWindow: { t0: 1.2, t1: null }, liftWindowReason: noEnd }), []);
+  assertNames(v, W, 'liftWindowReason', r => { r.liftWindow = { t0: 1.2, t1: null }; r.liftWindowReason = null; });
+  assertNames(v, W, 'liftWindowReason', r => { r.liftWindow = { t0: 1.2, t1: null }; r.liftWindowReason = ''; });
+  assertNames(v, W, 'liftWindow.t0', r => { r.liftWindow = { t0: null, t1: 2 }; r.liftWindowReason = noEnd; });
+  assertNames(v, W, 'liftWindow.t0', r => { r.liftWindow = { t0: null, t1: null }; r.liftWindowReason = noEnd; });
+  assertNames(v, W, 'liftWindow.t1', r => { r.liftWindow = { t0: 1.2 }; r.liftWindowReason = noEnd; });
+  assertNames(v, W, 'liftWindow.t1', r => { r.liftWindow = { t0: 1.2, t1: NaN }; r.liftWindowReason = noEnd; });
   // both ends found: no reason
-  assert.deepEqual(v({ ...clone(R), liftWindow: { t0: 1.2, t1: 2.4 }, liftWindowReason: null }), []);
-  assertNames(v, R, 'liftWindowReason', r => { r.liftWindow = { t0: 1.2, t1: 2.4 }; r.liftWindowReason = noEnd; });
+  assert.deepEqual(v({ ...clone(W), liftWindow: { t0: 1.2, t1: 2.4 }, liftWindowReason: null }), []);
+  assertNames(v, W, 'liftWindowReason', r => { r.liftWindow = { t0: 1.2, t1: 2.4 }; r.liftWindowReason = noEnd; });
+});
+
+test('result view: a lift without a lift window has no window and no reason, and says so (s36)', async () => {
+  const { validateResultView, RESULT_VIEW_EXAMPLE: R } = await load('cue-view.mjs');
+  const v = validateResultView;
+  // the example is a lateral raise: diagnostics.js gives it no window and no error
+  assert.equal(R.hasLiftWindow, false);
+  assert.equal(R.liftWindow, null);
+  assert.equal(R.liftWindowReason, null);
+  assert.deepEqual(v(R), []);
+  // the flag is required, and a boolean
+  assertNames(v, R, 'hasLiftWindow', r => { delete r.hasLiftWindow; });
+  assertNames(v, R, 'hasLiftWindow', r => { r.hasLiftWindow = 'no'; });
+  assertNames(v, R, 'hasLiftWindow', r => { r.hasLiftWindow = null; });
+  // fields that disagree with it are refused: no window, and no reason for one
+  assertNames(v, R, 'liftWindow', r => { r.liftWindow = { t0: 1.2, t1: 2.4 }; });
+  assertNames(v, R, 'liftWindow', r => { r.liftWindow = { t0: 1.2, t1: null }; });
+  assertNames(v, R, 'liftWindowReason', r => { r.liftWindowReason = 'The bar never sits below knee height in this clip, so there is no start of the lift to mark.'; });
+  assertNames(v, R, 'liftWindowReason', r => { r.liftWindowReason = ''; });
+  // and a lift with a window that has neither window nor reason is refused, as before
+  assertNames(v, R, 'liftWindowReason', r => { r.hasLiftWindow = true; });
 });
 
 // What the view model takes from diagnostics.js, read off the real API on the
@@ -572,9 +595,13 @@ function viewFrom(D, set, out) {
       phase: { t0: out.samples[r.phase.startIdx].t, t1: out.samples[r.phase.endIdx].t },
       worst, reason: null, notes: r.notes };
   });
+  if (out.lift.hasLiftWindow === false) {
+    return { lift: set, hasLiftWindow: false, liftWindow: null, liftWindowReason: null, cues,
+      notes: out.lift.notes, smoothing: { sigmaMs: 0, keepVelocity: true } };
+  }
   const ok = !out.lift.error;
   const end = ok && out.lift.t1 != null;
-  return { lift: set, liftWindow: ok ? { t0: out.lift.t0, t1: end ? out.lift.t1 : null } : null,
+  return { lift: set, hasLiftWindow: true, liftWindow: ok ? { t0: out.lift.t0, t1: end ? out.lift.t1 : null } : null,
     liftWindowReason: ok ? (end ? null : out.lift.notes.at(-1)) : out.lift.error, cues,
     notes: end || !ok ? out.lift.notes : out.lift.notes.slice(0, -1), smoothing: { sigmaMs: 0, keepVelocity: true } };
 }

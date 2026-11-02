@@ -583,7 +583,9 @@ function firstPullWindow(samples, scale, ax) {
 // the clean & jerk finishes overhead after the jerk, and in both the finish
 // position is four extended joints held still. It does NOT describe a lift that
 // finishes with the elbows bent (a clean left in the rack position, a curl),
-// which is why the tickbox in app.py can turn the markers off per clip.
+// which is why the tickbox in app.py can turn the markers off per clip. A lift
+// with no bar has no window at all: its set says so in LIFT_WINDOW_SETS, and
+// computeResults() doesn't run this for it.
 //
 // Four things this trigger is not:
 //
@@ -2247,7 +2249,8 @@ const lateralRaiseSymmetry = {
 // what every function below iterates as DIAGNOSTICS. A set may be empty: a lift
 // whose diagnostics haven't been written yet still gets a fully working page
 // (upload, pose, plot), just no scored cues. To add a lift's diagnostics, write
-// the objects above and list them here under the page's key.
+// the objects above and list them here under the page's key, and say in
+// LIFT_WINDOW_SETS (below) whether the lift has a lift window.
 const DIAGNOSTIC_SETS = {
   'snatch': [firstPullBackAngle, secondPullTripleExtension],
   'lateral-raise': [lateralRaiseTopHeight, lateralRaiseTorsoLean, lateralRaiseElbowLead, lateralRaiseTempo, lateralRaiseSymmetry],
@@ -2255,10 +2258,32 @@ const DIAGNOSTIC_SETS = {
 };
 const DEFAULT_SET = 'snatch';
 
+// Whether each set's lift has a lift window (liftWindow, above): the start of
+// the first pull, then a held lockout. That trigger is the barbell's: the bar
+// below knee height, then four extended joints held still. A lift with no bar
+// has nothing for it to find, so its set says so here rather than getting the
+// trigger's "the bar never sits below knee height" as if the lift were missing
+// (nordmu, 2026-11-02: a lateral raise has no lift window and no error).
+// computeResults() reads it, describe(set) returns it. Every key of
+// DIAGNOSTIC_SETS is listed, true or false (checked just below); a page whose
+// name has no set (setPage's empty set) keeps the trigger, as before.
+const LIFT_WINDOW_SETS = {
+  'snatch': true,
+  'lateral-raise': false,
+  'clean-and-jerk': true,
+};
+for (const name of Object.keys(DIAGNOSTIC_SETS)) {
+  if (typeof LIFT_WINDOW_SETS[name] !== 'boolean') {
+    throw new Error('LIFT_WINDOW_SETS: say whether the set ' + name + ' has a lift window (true or false)');
+  }
+}
+const hasLiftWindow = name => LIFT_WINDOW_SETS[name] !== false;
+
 // The active set. `let`, not `const`: setPage() swaps it (and rebuilds the
 // panel) when the lift tab changes. Everything downstream reads this one array,
 // so nothing else needs to know which lift is selected.
 let DIAGNOSTICS = DIAGNOSTIC_SETS[DEFAULT_SET] || [];
+let liftWindowOn = hasLiftWindow(DEFAULT_SET);   // the active set's LIFT_WINDOW_SETS entry
 
 // Which diagnostics draw on the video. Only gates the overlay — a diagnostic
 // that's switched off is still computed, plotted and scored, since the tickbox
@@ -2283,6 +2308,16 @@ function personIds(kpByFrame) {
   return Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || (+a[0]) - (+b[0]));
 }
 
+// The lift when it can't be looked for: a track too short or without a body
+// scale (its error), or a set that has no lift window (no error, and it says
+// so). The same fields as liftWindow()'s, so every reader finds them.
+function liftOrNone(error) {
+  if (!liftWindowOn) {
+    return { hasLiftWindow: false, error: null, startIdx: -1, endIdx: -1, t0: null, t1: null, notes: [] };
+  }
+  return { error, startIdx: -1, endIdx: -1, t0: null, t1: null, notes: [], hasLiftWindow: true };
+}
+
 // Scores every diagnostic against one person's track. Pure function of its
 // arguments — no DOM, no module state — so it is both what run() below calls
 // and the headless entry point Diagnostics.computeResults() exposes for
@@ -2296,14 +2331,14 @@ function computeResults(keypoints, meta, personId) {
   if (samples.length < FILL_WIN) {
     const err = { error: `Person ${personId} was detected in only ${samples.length} sampled frame(s).` };
     for (const d of DIAGNOSTICS) results[d.id] = err;
-    return { samples, scale: null, axis: null, lift: { error: err.error, startIdx: -1, endIdx: -1, t0: null, t1: null, notes: [] }, results };
+    return { samples, scale: null, axis: null, lift: liftOrNone(err.error), results };
   }
   preparePoints(samples);
   const scale = torsoScale(samples);
   if (!scale) {
     const err = { error: 'No frame had a confident hip and shoulder on the same side, so there is no body scale to work from.' };
     for (const d of DIAGNOSTICS) results[d.id] = err;
-    return { samples, scale: null, axis: null, lift: { error: err.error, startIdx: -1, endIdx: -1, t0: null, t1: null, notes: [] }, results };
+    return { samples, scale: null, axis: null, lift: liftOrNone(err.error), results };
   }
   // One axis for the whole clip, computed here rather than inside any one
   // diagnostic: two diagnostics disagreeing about which way is up would be the
@@ -2319,10 +2354,12 @@ function computeResults(keypoints, meta, personId) {
 
   // The lift's own start/end, independent of which cues this page scores: it is
   // the same window whether the panel is showing two diagnostics or none, so it
-  // is computed here rather than inside the loop below. Whether a given lift
-  // HAS meaningful markers is the page's call (PAGES in app.py), not this
-  // file's — see liftWindow.
-  const lift = liftWindow(samples, scale, axis);
+  // is computed here rather than inside the loop below. Whether a lift HAS a
+  // window is its set's (LIFT_WINDOW_SETS, beside DIAGNOSTIC_SETS): a set
+  // without one gets no window and no error, `hasLiftWindow: false`.
+  const lift = liftWindowOn
+    ? Object.assign(liftWindow(samples, scale, axis), { hasLiftWindow: true })
+    : liftOrNone(null);
 
   for (const d of DIAGNOSTICS) {
     const phase = d.phase(samples, scale, axis);
@@ -2834,7 +2871,12 @@ function buildSections() {
 //       A set's cues in the panel's order (set: a DIAGNOSTIC_SETS key, e.g.
 //       'snatch', 'lateral-raise'); an unknown set throws. phaseLabel is null
 //       for a cue spanning the whole set; provisional is true while its
-//       thresholds aren't checked on real lifts (all of them today).
+//       thresholds aren't checked on real lifts (all of them today). The
+//       array's own `hasLiftWindow` (true or false, LIFT_WINDOW_SETS) says
+//       whether the lift has a lift window; it isn't enumerable, so the array
+//       is still the plain list of cues to map, compare or JSON.
+//   computeResults().lift.hasLiftWindow says the same for the set it scored:
+//       false is a lift with no window and no error (t0, t1 null, no notes).
 //   tiles(id, result) -> [{ label, value, sub, status }]
 //       The tiles the old panel shows above the cue's plot; [] for a result
 //       that can't be scored. `result` is computeResults().results[id].
@@ -2864,11 +2906,12 @@ const Diagnostics = {
     if (!Object.prototype.hasOwnProperty.call(DIAGNOSTIC_SETS, set)) {
       throw new Error('Unknown diagnostic set: ' + set);
     }
-    return DIAGNOSTIC_SETS[set].map(d => ({
+    const cues = DIAGNOSTIC_SETS[set].map(d => ({
       id: d.id, title: d.title, cue: d.cue, unit: d.unit,
       phaseLabel: d.phaseLabel || null,
       provisional: d.provisional === true,
     }));
+    return Object.defineProperty(cues, 'hasLiftWindow', { value: hasLiftWindow(set), enumerable: false });
   },
 
   tiles(id, result) {
@@ -2918,6 +2961,7 @@ const Diagnostics = {
   // module state and mount() will build from it.
   setPage(name) {
     DIAGNOSTICS = DIAGNOSTIC_SETS[name] || [];
+    liftWindowOn = hasLiftWindow(name);
     enabled = new Set(DIAGNOSTICS.map(d => d.id));
     if (!el) return;
     buildToggles();
@@ -2980,9 +3024,11 @@ const Diagnostics = {
   // caching, since the window moves with the smoothing slider like everything
   // else derived from the track. `t1` is null when no finish was found — a
   // clip with a start marker and no end one is a normal outcome, explained by
-  // `notes`.
+  // `notes`. null too for a set without a lift window (LIFT_WINDOW_SETS): the
+  // page then draws no markers and no note, rather than a barbell trigger's
+  // reason on a lift that has no bar.
   liftWindow() {
-    return (state && state.lift) ? state.lift : null;
+    return (state && state.lift && state.lift.hasLiftWindow !== false) ? state.lift : null;
   },
 
   draw(time) {
