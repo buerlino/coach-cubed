@@ -200,6 +200,21 @@ test('keepVideo writes the cut into the lift\'s folder and returns the range in 
   assert.deepEqual(done.range, kept.range);
 });
 
+test('a mark one ulp short of a keyframe keeps range.t0 at 0, and the lift passes the validator', async () => {
+  const { keepVideo, cutVideo } = await load('src/media/cut.mjs');
+  const { validateStoredLift } = await load('src/contracts/stored-lift.mjs');
+  // the sample table accepts a time 1 µs short of a frame, so this starts on the keyframe at 1 s
+  const range = { t0: 1 - Number.EPSILON / 2, t1: 2.0 };
+  const cut = await cutVideo(clip(H264), range);
+  assert.equal(cut.start, 1);
+  assert.equal(cut.range.t0, 0);
+  const { store } = await setup();
+  const kept = await keepVideo(store, 'snatch', clip(H264), range);
+  assert.equal(kept.range.t0, 0);
+  assert.deepEqual(validateStoredLift(kept.lift), []);
+  assert.deepEqual(kept.lift.range, kept.range);
+});
+
 test('"storage full" from the store passes through, and nothing half-saved stays', async () => {
   const { keepVideo } = await load('src/media/cut.mjs');
   const { StoreError, isStorageFull } = await load('src/store/index.mjs');

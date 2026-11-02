@@ -89,7 +89,7 @@ export async function cutVideo(blob, range) {
     return {
       blob: new Blob([target.buffer], { type: 'video/mp4' }),
       // the marked range in the cut's timeline, held to the video's span
-      range: { t0: Math.max(0, range.t0) - start, t1: Math.min(range.t1, table.duration) - start },
+      range: { t0: Math.max(0, Math.max(0, range.t0) - start), t1: Math.min(range.t1, table.duration) - start },
       start,
       duration: end,
     };
