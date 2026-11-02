@@ -17,10 +17,11 @@ node app/tools/assemble.mjs                  # app/ + diagnostics.js + src/track
 node app/tools/serve.mjs --port 8090         # app/dist/ on http://127.0.0.1:8090/ (no COOP/COEP)
 npm --prefix app test                        # the app's tests: tests/app/*.test.js (the root `npm test` runs them too)
 node app/tools/make-icon.mjs                 # rewrites the placeholder icons in app/icons/
-npm --prefix app ci                          # esbuild, long, seedrandom: the TF.js build's inputs (app/node_modules/)
+npm --prefix app ci                          # esbuild, long, seedrandom (the TF.js build's inputs) and npm's TF.js (dev only, for the parity check)
 node app/tools/build-tfjs.mjs                # TF.js and pose-detection from source into app/vendor/tfjs/
 app/tools/fetch-models.sh                    # MoveNet Thunder's weights into app/models/, SHA-256 checked
 pipeline/devlock.sh slice check-tfjs node app/tools/check-tfjs.mjs   # the WebGL bundle in headless Brave
+pipeline/devlock.sh slice parity-tfjs nice node app/tools/parity-tfjs.mjs   # npm's TF.js against the from-source bundle: same keypoints?
 ```
 
 `serve.mjs` serves what `assemble.mjs` made: assemble again after a change.
@@ -185,6 +186,49 @@ runs one fixed random image through it. Headless Brave's WebGL is
 SwiftShader, software: it shows the bundle works, not how fast. With
 `--backend cpu` the check runs in Node, against the same local server: the
 CPU bundle is built for Node and doesn't load in a browser.
+
+## Parity with npm's TF.js
+
+The spike measured every speed and agreement number with npm's TF.js
+([pose-spike.md](../docs/pose-spike.md)); the app runs the from-source
+bundle. `tools/parity-tfjs.mjs` checks that the same input gives the same
+keypoints, on the CPU backend in Node. Rerun it after a change to
+`build-tfjs.mjs`, a patch, or a bump of the TF.js pins:
+
+```sh
+npm --prefix app ci                       # npm's packages (dev-only devDependencies) next to esbuild
+node app/tools/build-tfjs.mjs             # the from-source bundles
+app/tools/fetch-models.sh                 # the weights
+pipeline/devlock.sh slice parity-tfjs nice node app/tools/parity-tfjs.mjs [--calls N] [--json out.json]
+```
+
+It takes a few seconds of CPU (two Node processes, one per build: tfjs-core
+keeps its engine on `globalThis`, so two copies in one process would share
+it). The **npm side** is `@tensorflow/tfjs-core`, `-converter`,
+`-backend-cpu` and `@tensorflow-models/pose-detection` at the spike's
+pinned versions (4.22.0, 2.1.3), bundled in memory the way
+`spike/pose-bench/build-tfjs.mjs` bundles them (esbuild, the packages'
+`module` builds, `@mediapipe/pose` stubbed). They are devDependencies of
+`app/package.json` with the lock file, never in `dist/`;
+`app/.npmrc` sets `legacy-peer-deps` so that pose-detection's peers (the
+closed `@mediapipe/pose`, `-wasm`, `-webgl`) are not installed with them
+(`-webgpu` is, because pose-detection's ES build imports it). The **source side** is
+`vendor/tfjs/tfjs-cpu.mjs`.
+
+Inputs, all drawn by the script (no image from anywhere, no random
+generator): the graph model alone on one fixed `[1,256,256,3]` tensor; a
+640×480 pattern of gradients and hash noise, and a stick figure moved
+a little each frame, each through `estimatePoses()` six times in a row,
+because MoveNet crops each call from the last pose. For each call it keeps
+the model's raw output (`[1,1,17,3]`), the keypoints and the crop region.
+It prints, per output, the maximum and mean absolute difference over all
+calls, and exits 1 if one is beyond float rounding (1e-6 on the raw output,
+1e-4 pixels on keypoints and crops) or a size differs: that is a finding
+(an op, a patch) to settle before the engine builds on the bundle, not a
+tolerance to widen. Exit 2: something it needs is missing.
+
+Not covered: real clips (headless Brave runs WebGL in software), the WebGL
+and WebGPU backends, and speed. They wait for the Fairphone (`c26`).
 
 ## The tests
 
