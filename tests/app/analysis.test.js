@@ -509,7 +509,9 @@ test('the estimate before Analyse: 2.9 s per second of 30 fps video on a first r
 
 // ---- Analyse: the cut first ----
 
-test('at Analyse the cut is stored before the job starts, and the job reads the stored cut in its timeline', async () => {
+test('at Analyse the cut is stored before the job starts, and the job reads the stored cut in its timeline', async t => {
+  // mediabunny stamps the current second into the MP4 header (mvhd, tkhd, mdhd), so both cuts below need one frozen clock
+  t.mock.timers.enable({ apis: ['Date'], now: NOW().getTime() });
   const { keepVideo, cutVideo } = await load('src/media/cut.mjs');
   const file = new Blob([fs.readFileSync(CLIP)], { type: 'video/mp4' });
   const log = [];
