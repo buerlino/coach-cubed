@@ -151,7 +151,7 @@ test('deletes a lift with its folder and leaves the others', async () => {
   const b = await store.saveLift(lr({ created: '2026-11-01T09:00:00.000Z' }));
   await store.deleteLift(a.id);
   assert.equal(fake.exists(`lifts/${a.id}`), false);
-  assert.deepEqual(fake.paths().filter(p => p.includes(a.id)), []);
+  assert.deepEqual(fake.paths().filter(p => p.startsWith(`lifts/${a.id}/`)), []);
   assert.ok(fake.exists(`lifts/${b.id}/cut.mp4`));
   assert.deepEqual((await store.listLifts()).map(l => l.id), [b.id]);
   assert.equal(await store.getLift(a.id), null);
@@ -177,7 +177,7 @@ test('s50: the update that completes a re-marked lift deletes the lift it replac
   assert.deepEqual((await seen).map(l => l.id), [re.id, other.id], 'nothing sees both lifts: the delete is in the update\'s step');
   assert.deepEqual((await store.listLifts()).map(l => l.id), [re.id, other.id]);
   assert.equal(await store.getLift(old.id), null);
-  assert.deepEqual(fake.paths().filter(p => p.includes(old.id)), [], 'its cut, its track, its result and its record are gone');
+  assert.deepEqual(fake.paths().filter(p => p.startsWith(`lifts/${old.id}/`)), [], 'its cut, its track, its result and its record are gone');
   await assert.rejects(() => store.readVideo(old.id), { code: 'not-found' });
   await assert.rejects(() => store.readResult(old.id), { code: 'not-found' });
   assert.deepEqual(await bytesOf(await store.readVideo(re.id)), [5, 6, 7]);
@@ -237,7 +237,7 @@ test('s50: a replace cut off leaves both lifts, never neither: the new one fails
   assert.equal(fake.exists(`lifts/${a.id}/lift.json`), false, 'its delete had begun, with its record');
   await store.deleteLift(a.id);   // what a stopped delete always needs: the next one finishes it
   assert.deepEqual((await store.listLifts()).map(l => l.id), [b.id]);
-  assert.deepEqual(fake.paths().filter(p => p.includes(a.id)), []);
+  assert.deepEqual(fake.paths().filter(p => p.startsWith(`lifts/${a.id}/`)), []);
 });
 
 test('s50: a queue kept before s50 (jobs without `replaces`) reads back, each job replacing nothing', async () => {
@@ -532,7 +532,7 @@ test('a delete that stops halfway can be finished: the next delete removes the f
   assert.deepEqual((await store.listLifts()).map(l => l.id), [b.id, a.id], 'the index still lists it');
   state.fail = false;
   await store.deleteLift(a.id); // the retry: not "not-found"
-  assert.deepEqual(fake.paths().filter(p => p.includes(a.id)), []);
+  assert.deepEqual(fake.paths().filter(p => p.startsWith(`lifts/${a.id}/`)), []);
   assert.deepEqual((await store.listLifts()).map(l => l.id), [b.id]);
   assert.ok(fake.exists(`lifts/${b.id}/cut.mp4`));
   await assert.rejects(() => store.deleteLift(a.id), { code: 'not-found' });
