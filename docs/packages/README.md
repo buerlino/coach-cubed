@@ -62,9 +62,9 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 27 | `d17` | A1's timeline and cue cards | dirac, sonnet | `d16`, `s36` | merged `821593f` |
 | | | **Look A0** (D7): nordmu, about 15 minutes on the Fairphone | | `d13`, `d14`, `d15`, `d17`, `c20` | not a gate |
 | 28 | `c19` | The service worker, the app offline | curie, sonnet | `d3`, `s6`, `s12` | merged `5ccc0a0` |
-| 29 | `c21` | The page test, offline | curie, sonnet | `d13`, `d14`, `d15`, `d17`, `c19` | waits |
+| 29 | `c21` | The page test, offline | curie, sonnet | `d13`, `d14`, `d15`, `d17`, `c19` | merged `7f95223` (by day, nordmu told; one fix round; `test:page` now runs in every app run) |
 | 30 | `s39` | The headless API gives A2's scoring lines and zones | schrödinger, opus | `s35`, `s36` | merged `2b93172` |
-| 31 | `d18` | A2, a cue's detail | dirac, sonnet | `d17`, `s4`, `s39` | waits |
+| 31 | `d18` | A2, a cue's detail | dirac, sonnet | `d17`, `s4`, `s39` | merged `b37cda9` (by day, nordmu told; two fix rounds; adds flow state `scoring`, screen S1b) |
 | 32 | `s44` | scoreLift() returns the smoothed keypoints (A1 smooths only once) | schrödinger, sonnet | `d18` | waits (nordmu, 2026-11-02) |
 | 33 | `d22` | A3, view options | dirac, sonnet | `d17`, `c8`, `d14`, `s35` | waits |
 | 34 | `d23` | The screens v1 doesn't draw | dirac, sonnet | `d17`, `s12`, `c8` | waits |
