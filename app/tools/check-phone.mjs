@@ -24,6 +24,8 @@
 //       the stored lift queued again (the queue's enqueue, H's retry path) and run to
 //       its end: the same job records, a new track; for medians without a new pick.
 //   eval EXPR       an expression in the page, awaited, printed as JSON
+//   files SELECTOR PATH…   the paths set on a file input (DOM.setFileInputFiles), e.g. the check
+//                   page's #media for debug/media.mjs's measurements (window.c34)
 //
 // One JSON object per command, printed and appended (one line) to --out.
 import { appendFileSync, mkdirSync } from 'node:fs';
@@ -390,18 +392,24 @@ async function again(c) {
 }
 
 const run = async () => {
-  if (!['walk', 'again', 'eval'].includes(cmd)) { console.error('usage: check-phone.mjs walk|again|eval --port P [--origin URL] …'); process.exit(2); }
+  if (!['walk', 'again', 'eval', 'files'].includes(cmd)) { console.error('usage: check-phone.mjs walk|again|eval --port P [--origin URL] …'); process.exit(2); }
   const c = await connect();
   let out;
   try {
     if (cmd === 'eval') out = { command: 'eval', value: await c.evaluate(argv[argv.length - 1], { timeout: 600000 }), errors: c.errors };
+    else if (cmd === 'files') {
+      const paths = argv.slice(2).filter((a, i, all) => !a.startsWith('--') && !(i > 0 && all[i - 1].startsWith('--')));
+      const input = await c.evaluate(`document.querySelector(${JSON.stringify(argv[1])})`, { objectId: true });
+      const set = await c.send('DOM.setFileInputFiles', { files: paths, objectId: input.objectId });
+      out = { command: 'files', set: paths.length, error: set.error ? set.error.message : undefined };
+    }
     else out = cmd === 'walk' ? await walk(c) : await again(c);
   } catch (e) {
     out = { command: cmd, error: String((e && e.stack) || e), consoleErrors: c.errors };
   } finally { c.close(); }
   if (OUT) { mkdirSync(dirname(OUT), { recursive: true }); appendFileSync(OUT, JSON.stringify(out) + '\n'); }
   // the whole record is in --out; printed: what to read at a glance
-  const brief = cmd === 'eval' ? out : {
+  const brief = cmd === 'eval' || cmd === 'files' ? out : {
     command: out.command, clip: out.clip, liftId: out.liftId, error: out.error, jobEnd: out.jobEnd, jobError: out.jobError,
     job: out.job && { totalMs: out.job.totalMs, stagesMs: out.job.stagesMs, frames: out.job.frames, msPerFrame: out.job.msPerFrame, longestWait: out.job.longestWait },
     moved: out.mark && out.mark.moved, stepMs: out.mark && out.mark.stepMs.median, drag: out.mark && out.mark.drag,
