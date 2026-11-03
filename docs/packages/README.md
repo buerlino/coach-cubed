@@ -83,7 +83,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 47 | `d54` | M1–M3: the steps are the buttons, and nothing moves | dirac, opus | `d53` | merged `2aad2cf` |
 | 48 | `d55` | Fewer words, symbols, and a cue where a screen goes on below | dirac, sonnet | `d54` | merged `cf69173` (one fix round: README wording) |
 | 49 | `d56` | Q1 offers "Pick another video" wherever another video helps (unreadable, unknown format) | dirac, sonnet | `d53`, `d55` | merged `dcc644b` |
-| 50 | `d57` | The layout check measures Q1's failed panels (No person found, unreadable) | dirac, sonnet | `d56` | waits; laptop only (nordmu, 2026-11-02, on d51's report) |
+| 50 | `d57` | The layout check measures Q1's failed panels (No person found, unreadable) | dirac, sonnet | `d56` | merged `4ccac5d` |
 | | | **Checkpoint A:** nordmu uses milestone A on the Fairphone; feedback by screen ID. Then **2.7 and 2.8** with the queue empty (D8) | | `c26` | passed for laptop rows (nordmu, 2026-11-02: feedback given on the PWA, more to come; `c26` still runs by day; 2.7 and 2.8 wait for the OKs and the clipper repo) |
 | 51 | `c33` | The tester APK: the real name and ID, release signing | curie | checkpoint A, 2.8, question 10, the key's holder | id only: written after checkpoint A |
 | 52 | `c27` | Capture and the rolling buffer: the camera's real rate, H.264 with a keyframe a second, the 60 s ring, snapshots as MP4, the wake lock; on fakes and headless Brave's fake camera | curie, opus | checkpoint A | waits; laptop only (nordmu, 2026-11-02); split point `c27b` |
