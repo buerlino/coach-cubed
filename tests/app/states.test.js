@@ -216,6 +216,13 @@ test('every problem says what happened and what the user can do, and has a way b
     'no-person': 'No person was found in the marked part of the video. x',
     'storage-full': Object.assign(new Error('x'), { name: 'StoreError', code: 'storage-full' }),
     failed: 'x',
+    // d28: the camera's errors (media/capture-error.mjs's codes)
+    'camera-denied': Object.assign(new Error('x'), { name: 'CaptureError', code: 'camera-denied' }),
+    'no-camera': Object.assign(new Error('x'), { name: 'CaptureError', code: 'no-camera' }),
+    'camera-busy': Object.assign(new Error('x'), { name: 'CaptureError', code: 'camera-busy' }),
+    'no-encoder': Object.assign(new Error('x'), { name: 'CaptureError', code: 'no-encoder' }),
+    insecure: Object.assign(new Error('x'), { name: 'CaptureError', code: 'insecure' }),
+    'encoder-failed': Object.assign(new Error('x'), { name: 'CaptureError', code: 'encoder-failed' }),
   };
   assert.deepEqual(Object.keys(samples).sort(), [...PROBLEM_KINDS].sort());
   for (const [kind, input] of Object.entries(samples)) {

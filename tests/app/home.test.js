@@ -165,10 +165,10 @@ test('d55: H, the first run and the row say it in fewer words (the table of roun
   const h = read('src/ui/screens/H.mjs');
   const row = read('src/ui/components/lift-row.mjs');
   const w = read('src/ui/welcome-model.mjs') + read('src/ui/screens/Welcome.mjs');
-  for (const s of ['>Gym session<', 'Coming later', 'Update ready · reload the app', 'Couldn’t read your lifts.', 'Your lifts show up here.', '>Today<', 'Nothing leaves this phone.']) assert.ok(h.includes(s), s);
+  for (const s of ['Update ready · reload the app', 'Couldn’t read your lifts.', 'Your lifts show up here.', '>Today<', 'Nothing leaves this phone.']) assert.ok(h.includes(s), s);
   for (const s of ['Couldn’t analyse', '>Stopped<', '%</span>']) assert.ok(row.includes(s), s);
   for (const s of ['Pick a video, then mark the lift.', 'coach finds the lifter and scores each cue.', 'Nothing leaves this phone.', 'Not now']) assert.ok(w.includes(s), s);
-  for (const s of ['Start gym session', 'Film non-stop', 'Coming in a later version', 'Pick a clip from this phone', 'Update ready.', 'could not be read.', 'Import a video to mark a lift', "Today's session"]) assert.ok(!h.includes(s), s);
+  for (const s of ['Start gym session', 'Film non-stop', 'Coming in a later version', 'Coming later', 'Pick a clip from this phone', 'Update ready.', 'could not be read.', 'Import a video to mark a lift', "Today's session"]) assert.ok(!h.includes(s), s);
   for (const s of ['Analysing ${', 'Not analysed', "Couldn't analyse ·"]) assert.ok(!row.includes(s), s);
   for (const s of ['Pick a video of a lift', 'The app finds the lifter', 'Go to home', 'Everything stays on this phone']) assert.ok(!w.includes(s), s);
   assert.doesNotMatch(read('src/ui/screens/L1.mjs'), /Everything stays on this phone/);

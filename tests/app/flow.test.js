@@ -11,9 +11,9 @@ const { pathToFileURL } = require('node:url');
 const APP = path.resolve(__dirname, '..', '..', 'app');
 const load = () => import(pathToFileURL(path.join(APP, 'src', 'flow', 'flow.mjs')).href);
 
-test('the states: milestone A\'s six and a result\'s detail, plus live and replay for milestone B', async () => {
+test('the states: milestone A\'s six and a result\'s detail, plus setup (R1), live (R2) and replay for milestone B', async () => {
   const { STATES } = await load();
-  assert.deepEqual([...STATES].sort(), ['detail', 'home', 'lift', 'live', 'mark', 'queued', 'replay', 'result', 'scoring', 'settings', 'welcome']);
+  assert.deepEqual([...STATES].sort(), ['detail', 'home', 'lift', 'live', 'mark', 'queued', 'replay', 'result', 'scoring', 'settings', 'setup', 'welcome']);
 });
 
 test('a flow starts at home and keeps what each step carries', async () => {
@@ -52,11 +52,40 @@ test('the other steps milestone A needs: leave and come back to a lift, settings
   step('result', 'mark');   // re-mark (A3)
 });
 
-test('milestone B: H, live, replay, mark, back to live with the lift queued', async () => {
+test('milestone B: H, setup (R1), live, replay, mark, back to live with the lift queued', async () => {
   const { createFlow } = await load();
   const flow = createFlow();
-  for (const to of ['live', 'replay', 'mark', 'live', 'replay', 'live', 'home']) flow.go(to);
+  for (const to of ['setup', 'live', 'replay', 'mark', 'live', 'replay', 'live', 'home']) flow.go(to);
   assert.equal(flow.state, 'home');
+});
+
+test('d28: a session starts on R1: setup is the screen R1, home -> setup -> live, and home -> live is not a step', async () => {
+  const { SCREEN_OF, TRANSITIONS, createFlow } = await load();
+  assert.equal(SCREEN_OF.setup, 'R1');
+  assert.equal(SCREEN_OF.live, 'R2');
+  for (const [from, to] of [['home', 'setup'], ['setup', 'live'], ['setup', 'home'], ['live', 'replay'], ['live', 'home'], ['live', 'queued'], ['queued', 'live']]) {
+    assert.ok(TRANSITIONS[from].includes(to), `${from} -> ${to}`);
+    const f = createFlow(from); f.go(to); assert.equal(f.state, to);
+  }
+  assert.ok(!TRANSITIONS.home.includes('live'), 'home -> live is not a transition');
+  assert.throws(() => createFlow().go('live'), /home.*live/);
+  assert.equal(createFlow().can('live'), false);
+  assert.deepEqual([...TRANSITIONS.setup].sort(), ['home', 'live']);
+});
+
+test('d28: H\'s "Back to the session" is the one way home reaches live, and only while a session runs', async () => {
+  const { createFlow } = await load();
+  let running = false;
+  const flow = createFlow('home', { sessionRunning: () => running });
+  assert.equal(flow.can('live'), false);
+  assert.throws(() => flow.go('live'), /home.*live/);
+  running = true;
+  assert.equal(flow.can('live'), true);
+  flow.go('live');
+  assert.equal(flow.state, 'live');
+  const other = createFlow('lift', { sessionRunning: () => true });
+  assert.equal(other.can('live'), false, 'the exception is for home only');
+  assert.equal(createFlow('home', { sessionRunning: () => false }).can('live'), false);
 });
 
 test('an illegal transition throws, names both states and leaves the state alone', async () => {
