@@ -125,7 +125,7 @@ export function S1({ flow, store, queue }) {
           <h2 class="section__title" id="rec-h">Gym session</h2>
           ${rec ? html`
             <div class="segmented" role="group" aria-label="How the replay shows up">
-              ${rec.modes.map(m => html`<button type="button" key=${m.id} aria-pressed=${m.on} disabled=${rec.modesDisabled} class=${m.on ? 'segmented__on' : ''}>${m.label}</button>`)}
+              ${rec.modes.map(m => html`<button type="button" key=${m.id} aria-pressed=${m.on} disabled=${rec.modesDisabled} class=${m.on ? 'segmented__on' : ''} onClick=${() => pick('replayMode', m.id)}>${m.label}</button>`)}
             </div>
             <div class="group">${rec.rows.map(r => html`<${Choice} key=${r.field} row=${r} onPick=${pick} />`)}</div>
             <p class="quiet">${rec.note}</p>

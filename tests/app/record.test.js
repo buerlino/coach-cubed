@@ -240,6 +240,7 @@ test('S1: a choice in the recording rows is saved within RANGES, and one outside
   assert.equal(s.bufferS, 120);
   const s1 = read('src/ui/screens/S1.mjs');
   assert.match(s1, /\['defaultLift', 'camera', 'quality', 'replayMode'\]/, 'the text fields are not turned into numbers');
+  assert.match(s1, /onClick=\$\{\(\) => pick\('replayMode', m\.id\)\}/, "the mode switch's buttons save the mode");
 });
 
 // ---- the screens' sources ----
