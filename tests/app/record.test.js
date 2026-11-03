@@ -280,3 +280,48 @@ test('d28: new sizes are tokens, and base.css has R1\'s and R2\'s sections', () 
   assert.ok(at > 0, 'base.css has R1\'s section');
   assert.ok(base.indexOf('R2, Recording') > at, 'and R2\'s');
 });
+
+// ---- the tools' walks ----
+
+test('d28 layout-check: R2 at the four portrait sizes has no vertical scroll and every control inside the window', async () => {
+  const { M_NO_SCROLL, LIVE_CONTROLS, SETUP_CONTROLS, fitsWindow } = await load('..', 'tools', 'layout-check.mjs');
+  const page = (scrollHeight, boxes) => {
+    globalThis.document = {
+      documentElement: { scrollHeight },
+      querySelector: sel => { const b = boxes[sel]; return b ? { getBoundingClientRect: () => b } : null; },
+    };
+  };
+  const inside = controls => Object.fromEntries(controls.map(([, sel], i) => [sel, { left: 12, top: 20 + 50 * i, right: 340, bottom: 60 + 50 * i }]));
+  const fits = (controls, name, vw, vh) => fitsWindow(vw, 980, vh, M_NO_SCROLL, controls, name);
+  try {
+    for (const { width, height } of M_NO_SCROLL) {
+      page(height, inside(LIVE_CONTROLS));
+      assert.deepEqual(fits(LIVE_CONTROLS, 'R2', width, height), [], `${width}×${height}`);
+    }
+    page(700, inside(LIVE_CONTROLS));
+    assert.deepEqual(fits(LIVE_CONTROLS, 'R2', 360, 640), ['R2 scrolls: the page is 700 px high in a 640 px window']);
+    assert.deepEqual(fits(LIVE_CONTROLS, 'R2', 800, 360), [], 'phone landscape may scroll');
+    const replay = LIVE_CONTROLS.find(([n]) => n === 'Replay')[1];
+    page(640, { ...inside(LIVE_CONTROLS), [replay]: { left: 16, top: 560, right: 344, bottom: 660 } });
+    assert.deepEqual(fits(LIVE_CONTROLS, 'R2', 360, 640), ['R2: Replay is not inside the window (16,560 to 344,660 in 360×640)']);
+    page(640, { ...inside(LIVE_CONTROLS), [replay]: undefined });
+    assert.deepEqual(fits(LIVE_CONTROLS, 'R2', 360, 640), ['R2: Replay is not on the screen']);
+    page(640, inside(SETUP_CONTROLS));
+    assert.deepEqual(fits(SETUP_CONTROLS, 'R1', 412, 760), []);
+  } finally { delete globalThis.document; }
+  const src = fs.readFileSync(path.join(APP, 'tools', 'layout-check.mjs'), 'utf8');
+  assert.match(src, /check\('R1', fitsWindow, null, M_SIZES, SETUP_CONTROLS, 'R1'\)/);
+  assert.match(src, /check\('R2', fitsWindow, null, M_SIZES, LIVE_CONTROLS, 'R2'\)/);
+});
+
+test('d28: the page test and the layout check launch their browser on the fake camera, from browser.mjs\'s one list, and the page test walks the session', async () => {
+  const { FAKE_CAMERA } = await load('..', 'tools', 'browser.mjs');
+  assert.deepEqual([...FAKE_CAMERA], ['--use-fake-device-for-media-stream=fps=30', '--use-fake-ui-for-media-stream']);
+  for (const f of ['page-test.mjs', 'layout-check.mjs']) {
+    const src = fs.readFileSync(path.join(APP, 'tools', f), 'utf8');
+    assert.match(src, /\.\.\.FAKE_CAMERA/, f);
+    assert.doesNotMatch(src, /use-fake-device-for-media-stream/, `${f} takes the flags from browser.mjs`);
+  }
+  const page = fs.readFileSync(path.join(APP, 'tools', 'page-test.mjs'), 'utf8');
+  for (const s of ['[data-card="session"]', '[data-record="start"]', '[data-record="end"]', 'readyState !== \'ended\'', 'page-test: session walk']) assert.ok(page.includes(s), s);
+});

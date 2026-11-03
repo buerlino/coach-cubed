@@ -18,7 +18,7 @@
 //      status word). Not empty, not different;
 //   3b. (d28) the session walk: H → the gym card → R1 (the camera's preview, a lift tapped) → Start → R2 (the clock moves, the
 //      real rate reads 30 fps ± 1) → End session → H, and every camera track has ended (checked in the page). The browser has
-//      a fake camera (--use-fake-device-for-media-stream=fps=30 --use-fake-ui-for-media-stream).
+//      a fake camera at 30 fps (browser.mjs's FAKE_CAMERA).
 // It fails on a console error, a failed request (any HTTP error or network failure, in the page or a
 // worker), an unhandled rejection or exception, a job that does not finish in its time (60 s,
 // $COACH_PAGE_TEST_JOB_S), cards that differ from the adapter's, or an empty cue list.
