@@ -41,8 +41,8 @@ mockups and what they propose, and what is still open. What binds is in
 | --- | --- | --- |
 | H | Home | Start a gym session, import a video (round 1: the card opens the phone's picker), today's lifts and their state (analysing, ready, waiting), earlier sessions, "nothing leaves this phone". |
 | L1 | Which lift? (round 1) | After the picker: one tile per lift from the registry (icon, name, "provisional"), S1's default lift ringed in the accent; a tap goes on to M; ‹ back to H. The lift is chosen here and nowhere else in milestone A. |
-| R1 | Set up the camera | A framing guide, the lift (lateral raise or snatch) with a framing tip each, the replay mode, start. |
-| R2 | Recording | REC and the session time, the camera's real frame rate, the queue, a large Replay button, end session; the screen stays on. |
+| R1 | Set up the camera | A framing guide, the lift (one button per lift of the registry) with its framing tip, the replay mode (`d29b`), start. Built in `d28` ([app/README.md](../app/README.md#r1-and-r2-the-session)). |
+| R2 | Recording | REC and the session time, the camera's real frame rate, the queue, a large Replay button, end session; the screen stays on. Built in `d28`. |
 | R3 | Replay (nordmu's idea) | The last 20 s play at once: pause, scrub, ½×. Keep and mark, or back to live (by itself after a while); recording never stops. |
 | R3b | Delayed view (proposed) | The screen shows the camera 5–20 s late, a small live view in the corner; Keep this lift; nothing to touch until then. |
 | M1–M3 | Mark the lift | One screen in three states (start, end, ready): the filmstrip moves under a fixed playhead. Round 1: the buttons are the steps, 1 Start, 2 End, 3 Analyse, in the bottom row; a set step turns green with its time, and pressed again moves its mark to the playhead; ↶ undoes the last mark from the first mark on. One text line between the one-frame steps carries the hint, the length and the time to analyse. Fixed positions: only the video takes what's left, so nothing moves and it fits a portrait phone from 640 px high. The lift is shown in the header, not switched. |
@@ -166,7 +166,7 @@ check that nothing breaks.
 
 Built beyond the mockups and kept (nordmu, 2026-11-02, from d13's, d15's,
 d24's and c19's reports): Import as built until `d53` replaces it with
-L1 (round 1); the gym card's "Coming later" tag; the snatch marked "provisional" until step
+L1 (round 1); the snatch marked "provisional" until step
 3.6 closes; earlier days expanded in place on H; Q1's "Paused" in the
 background and "Analyse again" after a failed or stopped analysis, with
 M handing Q1 the lift's id (d14); H's percent from Q1's bands (d41); S1's
