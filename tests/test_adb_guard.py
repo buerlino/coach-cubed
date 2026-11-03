@@ -32,6 +32,13 @@ class AdbGuard(unittest.TestCase):
                   "ANDROID_SERIAL=4d42e62f ./gradlew installDebug"]:
             self.assertAllowed(c)
 
+    def test_the_s8_named(self):
+        for c in ["adb -s ce011711cdc8a10c05 shell getprop ro.product.model",
+                  "timeout 60 adb -s ce011711cdc8a10c05 install -r app.apk",
+                  "ANDROID_SERIAL=ce011711cdc8a10c05 ./gradlew installDebug"]:
+            self.assertAllowed(c)
+        self.assertBlocked("adb -s ce011711cdc8a10c05 kill-server", "kill-server")
+
     def test_commands_that_touch_no_device(self):
         for c in ["adb devices -l", "ls && adb version", "pipeline/stay-awake.sh 4d42e62f"]:
             self.assertAllowed(c)

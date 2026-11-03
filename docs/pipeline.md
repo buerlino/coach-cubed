@@ -60,7 +60,8 @@ A package is one concern a fresh session finishes in one run: a few hours of age
 1. **Bundle:** the package file from `phase-0`'s commit, the first 400 lines of every file it names (2000 in all), and
    this file's "Your report" and "Definition of done", written to `.tasks/<n>-<id>/spec.md`.
 2. **Worker:** one fresh headless `claude -p --agent <agent>` in its own worktree `.claude/worktrees/wp-<n>-<id>` on the
-   package branch from `phase-0` (or resumed from the branch's last commit, with `phase-0` merged in first), the bundle
+   package branch from `phase-0` (or resumed from the branch's last commit, with `phase-0` merged in first, the worker told
+   to continue from the commits it finds), the bundle
    on stdin, no Agent tool, three hours at most. It commits small and ends with the report commit. A worker that ends
    without a commit, or says its package is missing or wrong, ends the run (NOT MERGED).
 3. **The queue:** the run takes the `integ` lock, merges `phase-0` into the branch (a conflict is a resolve round for
@@ -86,6 +87,15 @@ A package is one concern a fresh session finishes in one run: a few hours of age
    checkout, excluded from git through `.git/info/exclude`), one job counter, one dev-server port per run
    (`COACH_PORT` = 8100 + n % 100). Stdout is one line: `RESULT #<n> <id>: MERGED <commit> | NOT MERGED (<why>) |
    LIMIT`; exit 0, 1, 2 (not started) or 75 (usage limit: rerun later; the branch is kept).
+
+**A run started from a session** (by day, a phone package): `pipeline/detach.sh <id> <id>` (the first `<id>` names the
+unit `coach-<id>.service`), never `systemd-run --scope` or a background Bash command. A run is a child of the shell that
+starts it, scope or not, and dies when that session ends: c26 (run 60) died that way on 2026-11-03 after 33 minutes and
+left the phone in airplane mode. `detach.sh` makes it a systemd user service with `OOMPolicy=continue`; its stdout is in
+`.coord/detached-<id>.log`; `systemctl --user stop coach-<id>.service` ends it cleanly. A curie run that dies anyway
+leaves the phone as it was: check `settings get global airplane_mode_on` and put the screen back with
+`pipeline/stay-awake.sh 4d42e62f --restore-real`. faraday's runs stay its own children: the night lives as long as its
+session does.
 
 **Locks** (`pipeline/devlock.sh`): `integ` (the merge queue) and `branch-<branch>` (one run per branch) are coach's;
 `host-cpu` and the phone's serial are the machine's, shared with pascaline's nights. Lock order: `integ` before

@@ -27,7 +27,7 @@ research package goes to einstein, a phone measurement to curie.
 Kept by the coordinating session; workers never edit it ([../pipeline.md](../pipeline.md#package-files)). Phase 5's
 packages are cut from [../app-plan.md](../app-plan.md), which says what each one builds and why; `s1` and `s2` are backlog
 fixes. Runs go one at a time: almost every package edits app/README.md and tests/README.md. Phone packages (`c20`,
-`c34`, `c26`, `c30`, `c30b`, `c31`, `c33`) run by day, with nordmu told. Before each run the coordinating session checks the package against
+`c34`, `c26`, `c30`, `c30b`, `c60`, `c31`, `c33`) run by day, with nordmu told. Before each run the coordinating session checks the package against
 what merged since it was written (paths, the contracts' real names, what earlier reports asked for) and fixes its file
 in a docs commit first. After a merge the row gets the merge commit; the file goes in a later docs commit.
 
@@ -74,7 +74,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 38 | `d23` | The screens v1 doesn't draw | dirac, sonnet | `d17`, `s12`, `c8`, `c47` | merged `2ec0c35` (one fix round: the report hidden behind the queue's merge of phase-0) |
 | 39 | `d24` | S1, settings and about | dirac, sonnet | `c8` | merged `5d33a32` |
 | 40 | `d25` | A4 and the responsive check | dirac, sonnet | `d18`, `c21`, `c47` | merged `ee43c27` (two fix rounds: the app tests, then A4's video column in a wide window) |
-| 41 | `c26` | Milestone A on the Fairphone | curie, opus | `d13`, `d14`, `d18`, `c19`, `c20`, `c34`, `c43` | waits; phone: by day on 2026-11-04 from the morning (nordmu, 2026-11-03: too long to start at 18:00), on Opus, nordmu told (airplane mode; Brave's clips through Downloads and an adb-driven picker); its numbers set s12's stall time and time left (nordmu, 2026-11-02); file checked against phase-0 on 2026-11-03 (d53/d54/d55's and d58's phone checks added; d58's A1 and A2 fit and the list fade under fast flicks) |
+| 41 | `c26` | Milestone A on the Fairphone | curie, opus | `d13`, `d14`, `d18`, `c19`, `c20`, `c34`, `c43` | held: run 60 (started 2026-11-03 19:24) died at 19:57 with the session that started it, no report; its branch keeps three commits (check-phone.mjs, media.mjs's idle count, the `files` command) and resumes; rerun by day with `pipeline/detach.sh c26 c26`, on Opus, nordmu told (airplane mode; Brave's clips through Downloads and an adb-driven picker); its numbers set s12's stall time and time left (nordmu, 2026-11-02); file checked against phase-0 on 2026-11-03 (d53/d54/d55's and d58's phone checks added; d58's A1 and A2 fit and the list fade under fast flicks) |
 | 42 | `d51` | Q1's "Pick another video", and smoothing capped at 300 ms | dirac, sonnet | `d22`, `d23` | merged `d37d6f6`; its two follow-ups are `d56` and `d57` |
 | 43 | `s50` | A re-marked lift replaces the old one once its analysis is done | schrödinger, opus | `d22` | merged `8d03665`; its four answers accepted as built (nordmu, 2026-11-02); FIX `s50f1` (its tests' path check matched the new lift's id; run 45's checks read an uncommitted tree, now refused) merged `4687875` |
 | 44 | `c52` | The tools' browser leaves no org.chromium.Chromium folders in /tmp | curie, sonnet | `c47`, `c48` | NOT MERGED in run 47 (two fix rounds; branch `wp/curie-chromium-tmp` kept at `3b0c477`); laptop only (nordmu, 2026-11-02, on c48's report); FIX `c52f1` (`exec sleep` in the test's fake browser, `removeTmp()` best-effort; nordmu, 2026-11-03) merged `6835b2f` (round 0) |
@@ -91,12 +91,14 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 54 | `d29` | R3, the replay, and marking a kept lift (back to R2 with it queued) | dirac, sonnet | `d28`, `d14`, `d54` | merged `1e180ca` (two fix rounds: a page-test `home -> home` once, guarded, cause unproven; then the queue-line tap) |
 | 55 | `d29b` | R3b, the delayed view, as a setting | dirac, opus | `d29` | merged `adbc83e` |
 | 56 | `d58` | A1 and A2 fit the window, A1's cue list fades, Welcome says it once (d54's and d55's follow-ups; nordmu, 2026-11-03) | dirac, sonnet | `d54`, `d55` | merged `1721b24` |
-| 57 | `s59` | s12's watchdog from c26's numbers: the stall time, restarts, tick and Q1's time left | schrödinger, sonnet | `c26` | id only: written from c26's report (nordmu, 2026-11-02); laptop only, can run the night after `c26` |
-| 58 | `c30` | The camera on the Fairphone: the permission, the real rate, the ring's memory | curie, opus | `d28`, `c26` | waits; phone: by day, nordmu told (after `c26`, by day); file checked against c27, d28, d29 and d29b on 2026-11-03 |
-| 59 | `c30b` | Recording and analysis together on the Fairphone: a job beside recording, the screen kept on, the app in the background | curie, opus | `c30`, `d29b` | waits; phone: by day, nordmu told; file checked against c27, d29 and d29b on 2026-11-03 |
-| 60 | `c31` | A session on the Fairphone, 30–60 minutes: heat, battery, storage, memory | curie, sonnet | `c30b` | waits; phone: by day, nordmu present; the phone films the laptop playing an example clip (nordmu, 2026-11-02) |
+| 57 | `c61` | One camera at a time, a Start that says when it didn't, a failed camera that keeps the lift (the milestone B review, 2026-11-03) | curie, opus | `d29b` | ready; laptop only (nordmu, 2026-11-03: Try again and keep the lift) |
+| 58 | `s59` | s12's watchdog from c26's numbers: the stall time, restarts, tick and Q1's time left | schrödinger, sonnet | `c26` | id only: written from c26's report (nordmu, 2026-11-02); laptop only, can run the night after `c26` |
+| 59 | `c30` | The camera on the Fairphone: the permission, the real rate, the ring's memory | curie, opus | `d28`, `c26` | waits; phone: by day, nordmu told (after `c26`, by day); file checked against c27, d28, d29 and d29b on 2026-11-03 |
+| 60 | `c30b` | Recording and analysis together on the Fairphone: a job beside recording, the screen kept on, the app in the background | curie, opus | `c30`, `d29b` | waits; phone: by day, nordmu told; file checked against c27, d29 and d29b on 2026-11-03 |
+| 61 | `c60` | Milestone A on the Samsung S8+ (`ce011711cdc8a10c05`, Android 9, Chrome 101 as the WebView, kept: nordmu won't update it): the PWA in Chrome and the APK (question 3); what an old Chrome lacks gets a fallback (`100vh` before `100dvh`, Chrome 108+) | curie, opus | `c26` | id only: written from c26's report; phone: by day, nordmu told (nordmu, 2026-11-03) |
+| 62 | `c31` | A session on the Fairphone, 30–60 minutes: heat, battery, storage, memory | curie, sonnet | `c30b` | waits; phone: by day, nordmu present; the phone films the laptop playing an example clip (nordmu, 2026-11-02) |
 | | | **Checkpoint B:** nordmu runs a real gym session | | `c31` | |
-| 61 | `c40` | The handover: the pipeline runnable for Noah | curie | checkpoint B | id only; laptop only |
+| 63 | `c40` | The handover: the pipeline runnable for Noah | curie | checkpoint B | id only; laptop only |
 
 Gates outside the queue ([../app-plan.md](../app-plan.md#gates-outside-the-sessions)): no APK goes to testers before
 `c33`, which needs the name and the package ID (question 10) and the signing key's holder.
