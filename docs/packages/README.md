@@ -86,7 +86,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 50 | `d57` | The layout check measures Q1's failed panels (No person found, unreadable) | dirac, sonnet | `d56` | merged `4ccac5d` |
 | | | **Checkpoint A:** nordmu uses milestone A on the Fairphone; feedback by screen ID. Then **2.7 and 2.8** with the queue empty (D8) | | `c26` | passed for laptop rows (nordmu, 2026-11-02: feedback given on the PWA, more to come; `c26` still runs by day; 2.7 and 2.8 wait for the OKs and the clipper repo) |
 | 51 | `c33` | The tester APK: the real name and ID, release signing | curie | checkpoint A, 2.8, question 10, the key's holder | id only: written after checkpoint A |
-| 52 | `c27` | Capture and the rolling buffer: the camera's real rate, H.264 with a keyframe a second, the 60 s ring, snapshots as MP4, the wake lock; on fakes and headless Brave's fake camera | curie, opus | checkpoint A | waits; laptop only (nordmu, 2026-11-02); split point `c27b` |
+| 52 | `c27` | Capture and the rolling buffer: the camera's real rate, H.264 with a keyframe a second, the 60 s ring, snapshots as MP4, the wake lock; on fakes and headless Brave's fake camera | curie, opus | checkpoint A | merged `34b6ba8` (one fix round: the ring's dropped chunks; no `c27b`) |
 | 53 | `d28` | R1 and R2: setting up the camera, recording; the session | dirac, sonnet | `c27`, `s49`, `d53`, `d55` | waits; laptop only; R1's tips from s49's registry (nordmu, 2026-11-02) |
 | 54 | `d29` | R3, the replay, and marking a kept lift (back to R2 with it queued) | dirac, sonnet | `d28`, `d14`, `d54` | waits; laptop only; marks through d54's reworked M1–M3 |
 | 55 | `d29b` | R3b, the delayed view, as a setting | dirac, opus | `d29` | waits; laptop only |
