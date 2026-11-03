@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /** Shared pose adapter. No exercise-specific forward kinematics.
  * Image coordinates are preserved; missing joints stay missing.
  * Regional spine anchors are inferred reference points unless manually marked.

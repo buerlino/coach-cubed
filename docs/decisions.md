@@ -165,7 +165,8 @@ restructuring window, merged packages' details) are in [decisions-archive.md](de
 - **2026-10-31, Noah: coach is GPL-3.0-or-later** (question 1; reported by
   nordmu, who picked "-or-later"). All four authors agreed ([authors.md](authors.md));
   nordmu collects a one-line written OK from each before the LICENSE commit
-  (step 2.7).
+  (step 2.7). **2026-11-03, nordmu:** their spoken OK is enough; LICENSE
+  and the headers went in without the written ones.
 
 ### Data and privacy
 

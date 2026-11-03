@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The pose at a playhead time, ported from the old page (INDEX_HTML in src/app.py:
 // monoTangent, cubicAt, slotForTime, poseAtTime; tests/app/draw.test.js pins each to
 // it). The track has poses only at the processed frames; the overlay is evaluated at

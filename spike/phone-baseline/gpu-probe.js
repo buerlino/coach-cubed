@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 (async () => {
   const out = { ua: navigator.userAgent, secure: isSecureContext, gpu: !!navigator.gpu,
                 cores: navigator.hardwareConcurrency, memoryGB: navigator.deviceMemory ?? null,

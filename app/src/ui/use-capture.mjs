@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The capture's status for a screen (package d28): R1 and R2 follow the session's capture. The capture appears
 // when R1 opens the camera (after the settings load) and changes state at any time, so the screen reads it
 // four times a second and redraws only when what it shows has changed. Also puts a MediaStream on a <video>.

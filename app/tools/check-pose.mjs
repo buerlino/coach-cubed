@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // node app/tools/check-pose.mjs [--frames N] [--resets N] [--browser <path>]
 //
 // The pose engine (app/src/pose/) at work in a real page: serves app/ on

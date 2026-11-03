@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The pose engine's worker: one model, one frame at a time. Messages:
 //   init     { opts }            → ready { info } | error
 //   estimate { id, frame, tMs }  → result { id, keypoints, box?, ms }

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // app/tools/build-tfjs.mjs and app/tools/fetch-models.sh (package s6): the
 // parts that run without the network, the cache or app/node_modules. The
 // full build (two clones, three bundles) runs by hand: app/README.md.

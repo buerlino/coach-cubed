@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // The 3D viewer is an inline <script type="module"> inside src/app.py's HTML
 // template, so unlike diagnostics.js there is no file to require. It is pulled

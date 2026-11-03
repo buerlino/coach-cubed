@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // A cue's plot over time against its zones (A2's "Over time", A4's panel): one canvas, drawn at its own width
 // and again when that changes. `detail` is detail-model's detailOf() for a scored cue; `at` is the time marked
 // with the playhead line (the cut's timeline, seconds); `onTap(t)` hears the time under a tap. The drawing is

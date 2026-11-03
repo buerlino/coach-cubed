@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // src/track/: smoothing and the lift window, pinned to the old page they were
 // ported from (restructure-plan step 3.2). The old code is taken out of

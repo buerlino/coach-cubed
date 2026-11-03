@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // The app's flow: one small state machine owns which screen shows
 // (docs/ui-design.md, "Keeping the UI maintainable"). app/src/flow/ is a plain

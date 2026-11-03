@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Capture and the rolling buffer (package c27, milestone B; D2: a 60 s buffer, a 20 s
 // replay, several lifts per session). The camera's frames are encoded to H.264 as they
 // come, with a keyframe a second, into a ring that holds the last `bufferS` seconds;

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // One run: a clip through demux, WebCodecs decode, the pose engine (worker),
 // then smoothing and diagnostics.js the way the old page scores
 // (src/track/), timed end to end. Writes a track.json in the fixture format

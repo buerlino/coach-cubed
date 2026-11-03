@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Starts (or restarts) coach and everything it needs, and nothing else.
 #
 #   app.py/waitress (8080, loopback) ──▶ gateway

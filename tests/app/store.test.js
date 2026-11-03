@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // The store (c8): lifts, their cut videos, tracks and results, the index and
 // the settings record, in OPFS (app/src/store/). Run against an in-memory

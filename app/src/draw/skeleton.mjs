@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The skeleton on a 2D canvas, as the old page draws it (drawOverlay in INDEX_HTML,
 // src/app.py), in the mockup's look (design/mockups/Result.dc.html): a bone between
 // two joints and a dot on each joint, but only where the model was sure. A joint

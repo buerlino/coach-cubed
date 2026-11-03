@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // d25: A4, the wide result (design/mockups/Desktop.dc.html), and the responsive check. The model's plain functions, the
 // breakpoint's two spellings agreeing, the tokens rule, and layout-check.mjs's own behaviour (its faults, no browser).

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Run coach's pose pipeline over a clip and cache the track as JSON.
 
     python extract_track.py examples/athlete-a-trim.mp4 [size]

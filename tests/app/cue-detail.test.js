@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // A2, a cue's detail (package d18): the plot as plain functions (app/src/draw/plot.mjs) against a fake 2D
 // context, and the screen's texts (app/src/ui/detail-model.mjs): the tiles, the cue and "How it's scored"

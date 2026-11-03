@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """scripts/sync_clipper_fixtures.py: clipper's clip names, 2 digits or 3."""
 from pathlib import Path
 import runpy

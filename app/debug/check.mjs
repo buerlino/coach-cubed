@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The debug APK's check page (package c20): what the WebView gives the app,
 // and s10's pose engine on s9's test clip, on the phone. Debug build only
 // (assemble.mjs --debug); tools/check-apk.mjs drives it over DevTools.

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # phone-sample.sh OUT.csv [PACKAGE] [SECONDS_BETWEEN]
 # Samples the Fairphone (always 4d42e62f) until killed: battery level and
 # temperature (tenths of °C), the thermal status and the hottest CPU and GPU sensor, and the package's processes' RSS plus their GPU memory

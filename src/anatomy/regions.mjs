@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /** Atlas attachment rules. Names are anatomical names from the source OBJ.
  * Word boundaries matter: tibialis is not tibia; subscapularis is not scapula.
  */

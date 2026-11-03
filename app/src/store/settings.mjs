@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The settings record: S1's defaults and A3's view options, one small JSON
 // file in the store (settings.json). Plain module, no DOM, no storage: the
 // store reads and writes it. Defaults are v1's (docs/decisions.md, D2): a

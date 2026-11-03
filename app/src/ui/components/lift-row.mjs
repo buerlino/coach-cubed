@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // One lift in H's lists: the lifter, the lift, the clock and length, and its
 // state in words (design/mockups/Main.dc.html). `row` is home-model.mjs's rowOf.
 // A lift that can be opened is a button that asks the flow for `row.open`.

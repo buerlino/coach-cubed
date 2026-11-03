@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // A1's timeline and cards as plain functions (package d17): what the view model (contract 4) says,
 // laid out for the screen. No Preact, no DOM, so Node runs them as written (tests/app/result.test.js);
 // screens/A1.mjs draws what they give. The cards come from view.cues, in diagnostics.js's order and

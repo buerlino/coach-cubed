@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The flow: one small state machine owns which screen shows, so screens never
 // call each other (docs/ui-design.md, "Keeping the UI maintainable"). A plain
 // module with no UI library and no DOM: it runs in Node, in the tests, as

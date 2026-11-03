@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // The docs' own checks (docs/decisions.md, "Rules and docs"): the
 // always-loaded agent files stay lean, the big docs stay within a byte

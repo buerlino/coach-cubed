@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // S1's credits: every component THIRD_PARTY.md lists in "In the new app (app/)",
 // in the table's order, with its licence and where the licence text is in the
 // assembled app (a path from the app's root, so the service worker caches it

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 const test=require('node:test'),assert=require('node:assert/strict');
 const deps=Promise.all([import('../src/anatomy/stability.mjs'),import('../src/anatomy/pose-rig.mjs'),import('../src/anatomy/barbell.mjs')]);
 function clip(R,n=90){return Array.from({length:n},(_,i)=>({time:i/30,points:structuredClone(R.REST),confidence:Object.fromEntries(Object.keys(R.REST).map(k=>[k,1])),jointSources:Object.fromEntries(Object.keys(R.REST).map(k=>[k,'tracked']))}));}

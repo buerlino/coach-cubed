@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The errors of the media module. One class, with a `code` the UI can switch on
 // (d23's "a video that can't be read") and a message that is fit to show.
 // A frame source never hangs: every failure ends as one of these.

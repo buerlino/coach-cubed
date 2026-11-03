@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // cdp.mjs PORT URL_SUBSTRING EXPRESSION_FILE OUT_FILE
 // Evaluates the expression (an async IIFE) in the first page whose URL
 // contains URL_SUBSTRING, awaits it, and writes the returned value as JSON.

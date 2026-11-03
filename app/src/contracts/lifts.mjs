@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The lifts the app offers (s49): one entry per lift, the one place in app/ a
 // lift is written out. Everything that names a lift reads it from here: the
 // contracts' checks (common.mjs's LIFTS and checkLift), the import step's

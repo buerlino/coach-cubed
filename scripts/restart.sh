@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Restarts just coach's backend (app.py) — for picking up a code change without
 # the full coach_launch.sh path (model checks, GPU priority claim, gateway).
 # The gateway keeps reverse-proxying straight through the few-second gap.

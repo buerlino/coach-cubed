@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // The frame source (package s9), app/src/media/: mediabunny demuxes, WebCodecs
 // decodes (contract 5, app/src/contracts/frame-source.mjs). Node has no

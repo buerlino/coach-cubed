@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // A4, the wide result (package d25, design/mockups/Desktop.dc.html), as plain functions: what the wide layout
 // says that the stacked one does not. No Preact, no DOM, so Node runs them as written (tests/app/wide.test.js).
 // A4 is not a screen of its own: A1 draws it when the window is wide, the same elements in the same place of the

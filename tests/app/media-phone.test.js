@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // The phone's media measurements (package c34): the check page's media.mjs
 // (debug builds only), its driver tools/check-media-apk.mjs and the clips'

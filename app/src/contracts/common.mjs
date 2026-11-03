@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // What the contracts share: the lifts (lifts.mjs's registry), ids, store paths, time ranges, and the
 // small checks every validator is built from. Plain module, no dependencies,
 // no DOM: a worker can import it.

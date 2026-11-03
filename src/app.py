@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """coach's dev server: Flask + waitress, behind Caddy on Noah's tailnet.
 
 It serves the old analysis page (INDEX_HTML, frozen as the reference viewer)

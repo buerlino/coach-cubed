@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The sample table: what a video's packets say about its frames, without
 // decoding any. Built from the demuxer's packets in decode (storage) order, each
 // { type: 'key'|'delta', timestamp, duration } in seconds. Answers the frame

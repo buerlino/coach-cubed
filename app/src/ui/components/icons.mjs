@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The icons H draws, from the mockups (design/mockups/Main.dc.html): inline
 // SVG in currentColor, so a colour comes from the CSS around it.
 import { html } from '../html.mjs';

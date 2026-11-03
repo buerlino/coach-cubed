@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Guess snatch vs. clean-and-jerk from an already-extracted pose track,
 instead of clip duration (see scripts/sync_clipper_fixtures.py — duration
 turned out not to track lift type at all on real footage: a clip's length is

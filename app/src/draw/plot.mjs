@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // A2's plot: a cue's measurement over time against its verdict's zones (design/mockups/CueDetail.dc.html),
 // the app's own, mobile-first and on a plain canvas (the old panel's mount() and drawChart are not reused).
 // What it shows, from the view model (contract 4) and diagnostics.js's zones(id): the zones as washes,

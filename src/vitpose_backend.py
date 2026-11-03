@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """In-process ViTPose backend: image in -> keypoints + annotated image out.
 
 Why in-process rather than a separate server (unlike tecna's comfy_backend.py /

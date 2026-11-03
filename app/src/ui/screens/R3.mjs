@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // R3, Replay (design/mockups/Replay.dc.html; package d29, D2: the last 20 s). The replay plays at once, as the
 // session's snapshot (media/capture.mjs, `snapshot(replayS)`) through A1's player (ui/player.mjs, no overlay:
 // a replay has no track): REPLAY and how long ago, "Still recording", the bar (a drag scrubs), play/pause, ½×,

@@ -171,6 +171,9 @@ Then reply as the pipeline's prompt asks (at most five lines).
 - New behaviour has tests; a fixed bug has a regression test that fails on `phase-0`.
 - The docs that describe the change are updated in the same branch; every path stays relative; every new dependency that
   ships is open source, licence-compatible and in `THIRD_PARTY.md`.
+- Every new source file of our own (.js, .mjs, .cjs, .py, .sh, .css, .html; not under a `vendor/` folder) starts with
+  `SPDX-License-Identifier: AGPL-3.0-or-later` in its comment style, after a `#!` line or an HTML doctype
+  (tests/spdx.test.js fails without it).
 - Every commit carries the trailer of the model that ran; the last one is the report.
 
 ## What the audit checks

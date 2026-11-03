@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /** A visual barbell estimate, never input to movement diagnostics or load. */
 import {add,sub,mul,mix,dist,unit} from './pose-rig.mjs';
 export function barbellPose(pose,{mode='auto',length=2.2,plates=false}={}){

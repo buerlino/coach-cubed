@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Time smoothing of a pose track, ported from the old page (smoothKeypoints
 // and its helpers in src/app.py's INDEX_HTML, frozen). tests/track.test.js
 // pins this file to the old code: same input, bit-identical output.

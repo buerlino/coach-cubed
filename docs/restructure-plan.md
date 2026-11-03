@@ -14,8 +14,8 @@ finish (git keeps the history). Decisions and open questions are in
   checkpoint A, with the queue empty
   (D8, [app-plan.md](app-plan.md#decided-2026-11-01)):
   - 2.7's LICENSE and SPDX headers (AGPL-3.0-or-later, all four authors
-    agreed, 2026-11-02: [decisions.md](decisions.md#licence)), by day on
-    2026-11-03 after `c52f1` and before `c26` (nordmu);
+    agreed, 2026-11-02: [decisions.md](decisions.md#licence)): done
+    2026-11-03 (see 2.7 below);
   - 2.8, the history rewrite, with nordmu's explicit OK (clipper's history
     isn't kept, so nothing else waits), in its own session after `c26`
     (nordmu, 2026-11-03): it prepares, dry-runs on a copy and asks before
@@ -93,9 +93,9 @@ finish (git keeps the history). Decisions and open questions are in
 - **The example clips are not in git** (since step 2.4): they sit under the
   gitignored `tests/fixtures/local/` on machines that have them, this laptop
   included. A fresh clone runs every test but has no example gallery.
-- **Test counts** (the only place they're kept): `npm test` runs 859 JS
-  tests, the app's included (855 pass, 4 skipped), and there are 26 Python
-  tests (2026-11-03, after `d29b`; packages change them nightly, so a
+- **Test counts** (the only place they're kept): `npm test` runs 867 JS
+  tests, the app's included (863 pass, 4 skipped), and there are 26 Python
+  tests (2026-11-03, after `c52f1` and 2.7; packages change them nightly, so a
   report's numbers are newer). Update them here when a docs commit passes
   by.
 - **AGENTS.md stays lean** (step 2.9): status, history and reasoning go in
@@ -218,11 +218,12 @@ Finished steps keep one line each; the details are in their commits.
 - [x] 2.4 The example videos out of git, the athletes pseudonymized (`0c7825a`).
 - [x] 2.5 `.auth_password` and two `.DS_Store` files untracked (`d0d98cc`).
 - [x] 2.6 The docs describe the repo as it is now (`e5d3d60`).
-- [~] 2.7 [THIRD_PARTY.md](../THIRD_PARTY.md) and [authors.md](authors.md)
-      (`cc72cc8`); LICENSE and the SPDX headers run at checkpoint A (D8).
-      The licence is AGPL-3.0-or-later, all four authors agreed
-      ([decisions.md](decisions.md#licence)), so LICENSE is
-      <https://www.gnu.org/licenses/agpl-3.0.txt>.
+- [x] 2.7 [THIRD_PARTY.md](../THIRD_PARTY.md) and [authors.md](authors.md)
+      (`cc72cc8`); on 2026-11-03 the root LICENSE (the AGPL-3.0 text from
+      <https://www.gnu.org/licenses/agpl-3.0.txt>, SHA-256 `0d96a4ff…abcb0`)
+      and the SPDX header in all 290 own source files (vendored code keeps
+      its own), held by `tests/spdx.test.js`. All four authors agreed;
+      nordmu ruled their spoken OK enough ([decisions.md](decisions.md#licence)).
 - [ ] 2.8 One history rewrite at the end of the window, at checkpoint A
       (D8) with the queue empty, before Noah resumes, with nordmu's
       explicit OK. Clipper's history goes with it: nordmu doesn't keep it
@@ -245,8 +246,26 @@ Finished steps keep one line each; the details are in their commits.
         and `origin/feature/keypoint-plotting` are deleted or moved to a
         private backup, or they keep the old files reachable;
       - every old clone is re-cloned (Noah, Nicola, JMLuner);
+      - `origin/phase-0` on GitHub carries the old history too (it was
+        pushed on 2026-11-02): force-push the rewritten `phase-0`, or
+        delete it, along with `main`;
+      - commits no longer on any ref stay reachable by hash on GitHub until
+        it collects them (the repo is private, no forks, no PRs); purging
+        them at once needs GitHub Support;
       - branch protection on `main` (question 9) stops one push from an old
         clone bringing everything back.
+      **Before it runs:** no pipeline run alive, faraday not running, no
+      kept `wp/*` branch (a failed package would be stranded on the old
+      history), and nordmu's and, for `main`, Noah's OK. Rewrite in place
+      (`git filter-repo` in the main checkout, phase-0 worktree checked out
+      again after), never by re-cloning over it: the worktree holds
+      untracked work (`tests/fixtures/local/`, `spike/` results and models,
+      `node_modules`, the Android build), the main checkout holds `.coord/`
+      and `.tasks/`, and the adb guard hook calls the phase-0 worktree's
+      script by absolute path. **After it:** hashes inside files don't
+      change (the queue's merge hashes, this file, decisions-archive.md,
+      package files citing report commits): rewrite them in one commit
+      from filter-repo's `commit-map`.
 - [x] 2.9 A lean AGENTS.md, its rules moved to rules-core, and
       `tests/docs.test.js` (`0aaf936`).
 

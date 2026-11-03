@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // Package d55: the words of Q1, A1, A2, A3 and S1 after round 1's wording pass (design/checkpoint-a/round-1.html,
 // window.WORDING; nordmu approved it in full). Each "after" is in the code and each "before" is gone; strings that

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The rule sentence of a cue, built from diagnostics.js's headless API: with rule(id) (s45) the unit's noun, the
 // watch band and, for A2 and S1b, the API's own sentence on what the verdict reads, before it; without it the
 // shorter sentence from zones(id) (s39), "Good from +5%, work on below −5%". The bands are the API's, the same

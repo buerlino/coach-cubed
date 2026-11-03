@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // H's logic as plain functions (app/src/ui/home-model.mjs, package d13): what
 // to show from the store's lifts and the queue's jobs, and what the import

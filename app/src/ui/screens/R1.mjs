@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // R1, Set up the camera (design/mockups/RecordSetup.dc.html; package d28): the camera's live preview with the framing
 // guide over it, the lift (one button per lift of the registry, S1's default ringed, the chosen one pressed), the lift's
 // framing tip, the replay mode (d29b: Replay button or Delayed view, saved as the settings' replayMode, in the place d28

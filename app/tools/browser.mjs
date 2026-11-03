@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The tools' browser (package c47): find a headless Brave or Chromium, launch it, and end it with the test.
 //
 //   import { findBrowser, launchBrowser } from './browser.mjs';

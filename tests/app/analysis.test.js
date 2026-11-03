@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // The analysis job and its queue (package s12, app/src/analysis/): a stored
 // cut read back, every frame of the marked range through the pose engine, the

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The page's side of the service worker (package c19): registers app/sw.js in
 // a browser, and lets a new version take over only when the analysis queue is
 // idle. A plain module, no DOM of its own: the navigator and window are

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The errors of the capture (package c27). One class, with a `code` the screens can
 // switch on (R1's "the camera can't be used") and a message fit to show; the browser's
 // own error is kept as `cause` and its message in ours.

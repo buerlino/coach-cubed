@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Pulls the checkpoints the pose backend expects:
 #
 #   pose      torch/coco/vitpose-{size}-coco.pth (default sizes l + h) and

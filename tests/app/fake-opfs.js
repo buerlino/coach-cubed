@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // An in-memory fake of the OPFS calls the store uses (app/src/store/), for
 // tests/app/store.test.js only: navigator.storage's getDirectory(), persist(),

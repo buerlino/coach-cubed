@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // node app/tools/build-tfjs.mjs [--out <dir>]
 //
 // Builds TensorFlow.js and pose-detection (MoveNet only) from the TypeScript

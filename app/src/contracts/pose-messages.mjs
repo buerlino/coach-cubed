@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Contract 1, the pose worker's messages: what the engine's client
 // (app/src/pose/, s10) and its worker say to each other. pose-bench's
 // (spike/pose-bench/pose-worker.mjs and lib/pose-client.mjs), trimmed to

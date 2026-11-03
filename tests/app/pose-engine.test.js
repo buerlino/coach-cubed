@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // The pose engine (package s10), app/src/pose/: the client that talks to the
 // worker (pose-client.mjs) and the worker's message handler (worker-core.mjs),

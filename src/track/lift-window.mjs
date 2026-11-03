@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The lift window and the scores as the old page shows them. The page smooths
 // the raw track (applySmoothing in src/app.py's INDEX_HTML), hands it to
 // diagnostics.js (setTrack), which picks the lifter and scores the lift's cue

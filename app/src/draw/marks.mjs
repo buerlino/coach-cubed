@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The timeline's marks, from the view: where the lift was found (the old page's
 // lift markers, liftMarkHtml in INDEX_HTML, whose placement src/track/lift-window.mjs's
 // liftMarks already pins) and where a cue went wrong (a cue's worst moment).

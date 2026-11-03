@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // node app/tools/page-test.mjs [--browser PATH] [--break KIND] [--real CLIP]     (npm --prefix app run test:page)
 //
 // The page test (package c21, plan step 5.6): the app offline in a real page, walked the way a person

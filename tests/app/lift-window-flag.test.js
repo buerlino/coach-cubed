@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // Whether a lift has a lift window (package s36). diagnostics.js's lift window
 // is the barbell's: the bar below knee height, then a held lockout

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Bundled MediaPipe Pose, processed entirely in this browser.
 let scriptPromise;
 function loadRuntime(){

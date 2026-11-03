@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // Pulls named top-level declarations out of the frozen old page (INDEX_HTML in
 // src/app.py) or out of src/diagnostics.js, and evaluates them, so a port can

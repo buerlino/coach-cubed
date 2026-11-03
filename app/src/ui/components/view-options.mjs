@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // A3, View options (design/mockups/ViewOptions.dc.html): the sheet that opens over A1. Four switches (the
 // skeleton, the cue drawings, the unsure joints, loop the lift only), the playback speed, smoothing under
 // "Advanced", then re-mark and delete. The lifter choice of the mockup is left out: MoveNet SinglePose tracks

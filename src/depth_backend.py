@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """3D depth-detection framework: many anchors, one that gets to run.
 
 Recovering a 3D pose/mesh of the athlete from a single camera is ambiguous, and

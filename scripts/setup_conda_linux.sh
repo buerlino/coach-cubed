@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Builds the 'coach' conda env: python 3.12 + torch + this app's deps.
 # Mirrors tecna/setup_conda_linux.sh (same box, same GPU, same reasoning) but
 # a separate env — coach's dependency set is much smaller than tecna's and

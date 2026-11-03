@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // One analysis job (contract 2), run once: the stored cut read back from the
 // store, every frame of the marked range through the pose engine, the track
 // in the fixture format (contracts/track.mjs), the scoring adapter (s11), and

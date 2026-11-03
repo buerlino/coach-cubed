@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // M1–M3's logic as plain functions (package d14; d54, checkpoint A round 1): the
 // playhead from the drag, the steps as buttons (1 Start and 2 End set or move a mark,
 // ↶ undoes the last one), the one-frame steps, the length and its cost, and

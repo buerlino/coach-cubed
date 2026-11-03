@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // R3b, the delayed view, as a setting (package d29b, milestone B; D2): the delayed frames
 // (app/src/media/delayed.mjs) on the capture's real ring, fake-webcodecs.js's decoder and a fake clock; R3b's logic

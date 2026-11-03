@@ -43,8 +43,11 @@ covers is in [decisions.md](decisions.md); how the repo gets there is in
 - No analytics, crash reporters or trackers.
 
 ### Licence-compatible dependencies
-- coach is AGPL-3.0-or-later, pending Noah and the four authors' OK
-  ([decisions.md](decisions.md#licence)). Every dependency that ships in the
+- coach is AGPL-3.0-or-later: the root [LICENSE](../LICENSE), all four
+  authors agreed ([decisions.md](decisions.md#licence)). Every source file
+  of our own starts with `SPDX-License-Identifier: AGPL-3.0-or-later` (after
+  a `#!` line or a doctype); `tests/spdx.test.js` fails on one without it.
+  Vendored code keeps its own licence. Every dependency that ships in the
   app is permissive or AGPL-3.0-compatible.
 - YOLOv8 (`ultralytics`) never ships in the app: the app doesn't need it
   ([decisions.md](decisions.md#licence)). It stays on the dev server.

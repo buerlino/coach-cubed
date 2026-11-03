@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The stepper (package s38): M1–M3's one-frame steps from a cache, contract 5's
 // `stepper` (app/src/contracts/frame-source.mjs). frameAt decodes again from the
 // keyframe before the frame on every call (0.4 s a step on the Fairphone with a

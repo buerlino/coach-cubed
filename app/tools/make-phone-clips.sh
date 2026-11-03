@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # app/tools/make-phone-clips.sh <dir> [clip...]
 #
 # The clips for the phone's media measurements (package c34), made with ffmpeg

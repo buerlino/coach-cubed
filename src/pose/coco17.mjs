@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // MediaPipe BlazePose-33 → COCO-17, the keypoint layout diagnostics.js reads.
 // Entry k is the BlazePose landmark index for COCO-17 keypoint k (nose, eyes,
 // ears, shoulders, elbows, wrists, hips, knees, ankles; left before right).

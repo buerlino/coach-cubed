@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // R2, Recording (design/mockups/RecordLive.dc.html; package d28): the camera fills the stage, with REC and the clock, the
 // camera's real rate and the queue line (a tap opens Q1, whose "Back to the session" comes back here) over it, the lift
 // and the buffer, the large Replay button (R3 is d29's), End session and the wake-lock line. The session is the app's

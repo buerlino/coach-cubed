@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // node drive.mjs DEVTOOLS_PORT URL_PART 'EXPRESSION' [OUT.json] [--grant ORIGIN] [--nowait]
 // Evaluates one expression in the page whose URL contains URL_PART, over the
 // DevTools protocol (Brave or a WebView through `adb forward`), awaits it and

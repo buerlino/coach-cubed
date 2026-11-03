@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // A1's player (package d16): the controller (app/src/ui/player.mjs) and its plain functions
 // (player-model.mjs) on fakes: a <video> with requestVideoFrameCallback, s38's stepper from

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // M, Mark the lift (design/mockups/Mark.dc.html, MarkEnd, MarkReady; reworked by
 // d54 after checkpoint A's round 1, design/checkpoint-a/round-1.html): one screen
 // in three states. The filmstrip of thumbnails moves under a fixed playhead; the

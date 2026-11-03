@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """The adb guard (.claude/hooks/adb_guard.py): every adb command names 4d42e62f, nothing names the tablet."""
 import json
 from pathlib import Path

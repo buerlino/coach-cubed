@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Downloads the spike's model weights into models/ (gitignored) and checks
 # each against its SHA-256. Pinned URLs only; licences in README.md.
 #   ./fetch-models.sh            every model

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // M's shift check (package d54; nordmu at checkpoint A, point 9: "the button for analysis moves down a bit so the
 // placement is now off"): the boxes of M's controls, read in the page after each press of the walk, must stay where
 // they were in M1 before any mark, to half a pixel. page-test.mjs runs it on every walk; layout-check.mjs uses the

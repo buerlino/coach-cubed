@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // rules-core.md, "Paths stay relative", as a test: no new absolute path
 // ('/...') where the app loads or links something. The deploy mounts coach

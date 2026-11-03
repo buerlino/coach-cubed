@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // Keeping the lift's video (package s32, D6): the marked range cut to MP4 by
 // mediabunny at Analyse, a stream copy from the keyframe at or before the start

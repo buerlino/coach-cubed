@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The app shell: draws the screen the flow's state names. The only place that
 // knows every screen; the screens know the flow and nothing else.
 import { html } from './html.mjs';

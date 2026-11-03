@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // node check-heatmap.mjs [PYTHON] [EASY_VITPOSE_DIR]
 // Compares lib/heatmap.mjs with easy_ViTPose's own decoding (the reference
 // tracks' VitInference.postprocess) on synthetic heatmaps: Gaussian blobs at

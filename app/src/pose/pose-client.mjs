@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The pose engine as the app sees it: one async interface over a worker.
 //
 //   const engine = await PoseEngine.create({ backend: 'webgl' });   // loads, warms up

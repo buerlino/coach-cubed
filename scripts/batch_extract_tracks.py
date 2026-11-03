@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Drive a running coach app through a pile of clips and cache each one's
 pose track as a test fixture.
 

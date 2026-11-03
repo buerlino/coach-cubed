@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Converts MediaPipe Pose Landmarker full's two TF Lite models to ONNX.
 
 python convert-blazepose.py   (with TensorFlow, tf2onnx, onnx and

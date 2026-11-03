@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // Where fixtures and their golden snapshots live, shared by the test and the
 // golden updater so the two can never disagree about a path.

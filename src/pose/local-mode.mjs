@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import {analyseVideo} from './pose.mjs';
 import {toCoco17} from './coco17.mjs';
 const EDGES=[[15,13],[13,11],[16,14],[14,12],[11,12],[5,11],[6,12],[5,6],[5,7],[6,8],[7,9],[8,10],[0,5],[0,6]];

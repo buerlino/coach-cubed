@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // A2, a cue's detail (design/mockups/CueDetail.dc.html, package d18): the frame at the cue's worst moment with
 // the cue drawn over the skeleton, the cue's plot over time against its zones (a tap on it shows that moment),
 // its tiles, the cue and how it's scored. A1's "Details" opens it with the lift's id and the cue's id

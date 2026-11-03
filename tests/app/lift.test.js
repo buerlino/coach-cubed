@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // L1, "Which lift?" (package d53): the lift is chosen once, after the video, and M shows it. The model
 // (app/src/ui/lift-model.mjs) is a plain module; the screens' files are read as text. Built-ins only.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Contract 4, the cue view model: what the UI draws for a scored lift (A1's
 // cards, A2's detail, the timeline). The scoring adapter (app/src/scoring/,
 // s11) makes it from diagnostics.js: computeResults() and s4's headless API

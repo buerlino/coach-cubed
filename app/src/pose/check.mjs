@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // What the pose engine lets through (contract 1, app/src/contracts/): keypoints
 // that are COCO-17 [y, x, conf] and in the frame's pixels. Both sides use it:
 // the worker before it posts a result, the client before it believes one.

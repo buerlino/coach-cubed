@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // The Capacitor shell (package c20): app/capacitor.config.json, the committed
 // app/android/ project, the pinned Capacitor packages and tools/build-apk.sh.

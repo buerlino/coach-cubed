@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // R3, the replay, and marking a kept lift (package d29, milestone B): app/src/ui/lookback-model.mjs, the plain
 // module behind screens/R3.mjs, on fakes (a session whose capture hands out a snapshot, a player that logs

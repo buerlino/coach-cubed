@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # app/tools/build-apk.sh [all|web|apk]
 #
 # The debug APK of the app (package c20), from a clean checkout:

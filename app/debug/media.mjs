@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The check page's media measurements (package c34): s9's frame source and
 // s32's cut on clips the driver (tools/check-media-apk.mjs) copies into the
 // app's own files/ and sets on #media, over the WebView's DevTools. Debug build

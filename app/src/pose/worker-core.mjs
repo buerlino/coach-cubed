@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The worker's message handler, apart from the worker: contract 1's messages in,
 // contract 1's messages out, the engine behind `load`. pose-worker.mjs wires it
 // to `self`; the tests drive it with a fake engine. Plain module, no DOM.

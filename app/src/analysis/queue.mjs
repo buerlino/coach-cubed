@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The analysis queue (package s12): Analyse doesn't block. A marked lift's cut
 // is stored first (s32's keepVideo), then its job (contract 2) joins the queue
 // and the user carries on; the queue runs one job at a time, in order, on one

@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Kept as a name people and docs already type (tests/README.md,
 # scripts/batch_extract_tracks.py). It used to be a near-copy of
 # coach_launch.sh that preferred .venv over conda — and, being a copy, it also

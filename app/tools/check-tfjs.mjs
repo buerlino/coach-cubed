@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // node app/tools/check-tfjs.mjs [--backend webgl|webgpu|cpu] [--browser <path>]
 //
 // The from-source bundle at work: serves app/ on 127.0.0.1 (a free port),

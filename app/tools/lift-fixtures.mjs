@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The page test's fixtures, one per lift (s49): the committed track the replay
 // engine answers with (tests/fixtures/global/example/) and the clip it is
 // matched to (tests/app/clips/, the same frame count and fps). assemble.mjs

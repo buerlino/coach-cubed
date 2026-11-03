@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // c48: the app tests leave no temp folders behind. The four files that make temp
 // folders run in a child `node --test` with TMPDIR (os.tmpdir() reads it) set to a

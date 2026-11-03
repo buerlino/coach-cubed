@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The browser's side of the frame source: WebCodecs' decoder and chunk, the
 // canvas turn that makes a frame upright, and a thumbnail as an ImageBitmap.
 // Everything the frame source needs from the browser comes through the object

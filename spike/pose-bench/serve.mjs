@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // node serve.mjs [PORT]: dev tooling for the spike only (the app has no
 // server). Serves, read-only, from the repo root so the page reaches the
 // app's own modules by relative paths:

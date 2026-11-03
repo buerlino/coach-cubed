@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // The app's contracts (package s5; docs/app-plan.md, "The contracts"): the
 // pose worker's messages, an analysis job, a stored lift, the cue view model,

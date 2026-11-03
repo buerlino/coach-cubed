@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /** Adapter for squat review. Uses detector landmarks only, never the display's
  * occlusion fill, fitted limbs, or manually edited spine points. */
 import {COCO17_FROM_MP33 as COCO_TO_MP,toCoco17} from '../pose/coco17.mjs';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // H's logic as plain functions (package d13): what to show from the store's
 // lifts and the queue's jobs, and what the pick step hands the flow. No
 // Preact and no DOM, so Node runs it as written (tests/app/home.test.js); the

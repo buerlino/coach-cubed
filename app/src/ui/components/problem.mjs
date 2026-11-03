@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // An error as a screen's body (package d23): what happened, the raising module's own words, what the user can
 // do, and the buttons (children) that lead on. The words are problem-model.mjs's; this only lays them out, in
 // v1's tokens: the "work on" colour and its triangle, so it is never colour alone.

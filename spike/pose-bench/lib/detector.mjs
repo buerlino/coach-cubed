@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Person detectors for the top-down models: detect(frame, W, H) →
 // [[x0, y0, x1, y1, score], ...] in frame pixels, people only, best first.
 //

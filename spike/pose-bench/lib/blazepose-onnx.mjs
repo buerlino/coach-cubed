@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // BlazePose (MediaPipe Pose Landmarker full's own two .tflite models,
 // converted to ONNX by convert-blazepose.py) on ONNX Runtime Web, with the
 // detector and the landmark ROI tracking written here in plain JS. Ported

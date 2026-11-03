@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // S1, Settings and about (package d24): the settings model (app/src/ui/settings-model.mjs),
 // the credits (app/src/credits.mjs) against THIRD_PARTY.md, and what assemble ships. The screen

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // A3, View options (package d22), as plain functions and one controller (design/mockups/ViewOptions.dc.html):
 // the sheet's words and controls, what each option does to the player, the re-score a smoothing change
 // makes, re-mark and delete. No Preact and no DOM, so Node runs it as written (tests/app/view-options.test.js);

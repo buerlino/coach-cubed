@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // node app/tools/check-media-apk.mjs --serial <serial> --clips <dir> [--runs N] [--only a,b] [--out FILE] [--apk PATH] [--port P] [--keep]
 //
 // s9's frame source and s32's cut on a phone (package c34), from the debug

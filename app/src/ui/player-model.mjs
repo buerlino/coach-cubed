@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // A1's player as plain functions (package d16): the labels, the speeds, which frames are
 // the marked range's, where a drag on the timeline points. No Preact, no DOM, so Node runs
 // them as written (tests/app/player.test.js); screens/A1.mjs draws what they give and

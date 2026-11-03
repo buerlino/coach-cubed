@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Runs the existing MediaPipe prototype (src/pose/pose.mjs, the code
 // local-mode.mjs uses) on every example clip, the way local-mode does
 // (fps 20), and returns timings plus COCO-17 tracks in the fixture format.

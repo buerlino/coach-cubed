@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Fetches MoveNet SinglePose Thunder v4's TF.js weights into app/models/
 # (gitignored), checked against their SHA-256: Google's upload on Kaggle,
 # the spike's pinned source (spike/pose-bench/fetch-models.sh), licence

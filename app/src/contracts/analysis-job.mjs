@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Contract 2, an analysis job: one stored lift's way through the queue
 // (app/src/analysis/, s12): read the stored cut, pose every frame, build the
 // track, score it. Q1 and H show its state and progress; the store keeps the

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The "more below" cue's rule (package d55) as plain functions, so Node runs it as written (tests/app/more-below.test.js);
 // components/more-below.mjs draws the cue. The cue is a fade and a ⌄ button at the bottom edge of the window,
 // shown while the page can scroll further down (design/checkpoint-a/round-1.html, H).

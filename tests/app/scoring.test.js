@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // The scoring adapter (package s11, app/src/scoring/): a track in, contract 4's
 // ResultView out. diagnostics.js is the classic script it is, loaded here by

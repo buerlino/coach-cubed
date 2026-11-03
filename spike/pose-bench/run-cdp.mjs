@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // node run-cdp.mjs DEVTOOLS_PORT PLAN.json OUT.json [URL_PART] [COOLDOWN_S]
 // Drives the bench page over the DevTools protocol (the page must be open,
 // in Brave on the phone through `adb forward`, or in a local browser): for

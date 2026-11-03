@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Each cue's drawing over the skeleton: s4's drawCue(ctx, id, t, computed, opts) from
 // diagnostics.js's headless API, with `smooth: true` and the ported interpolator
 // (interpolate.mjs's cubicAt), so the marks move on the clock the skeleton moves on

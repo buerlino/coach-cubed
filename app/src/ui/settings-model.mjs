@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // S1's logic as plain functions (package d24): what the settings screen shows
 // from the settings record, the lifts and the store's storage figures, the
 // values it offers, and the delete-all step. No Preact, no DOM, so Node runs it

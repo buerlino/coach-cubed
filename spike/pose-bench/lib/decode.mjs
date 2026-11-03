@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Demux an MP4/MOV with mp4box.js and decode it with WebCodecs, in
 // presentation order, without a <video> element (the old prototype's seeking
 // cost 0.2–0.5 s per frame on the Fairphone).

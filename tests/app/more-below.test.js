@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // The "more below" cue (package d55, design/checkpoint-a/round-1.html's H): a fade and a ⌄ button at the bottom
 // edge of the window while the page can scroll further down. The rule is a plain function

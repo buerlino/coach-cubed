@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // pose-detection's MoveNet keypoints -> COCO-17 [y, x, conf] (principle 4).
 // Plain module, no DOM.
 

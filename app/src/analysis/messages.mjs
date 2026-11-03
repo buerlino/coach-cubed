@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The words a failed job starts with, so a screen can tell what failed from the job's `error`
 // (contract 2 keeps one string, "in the engine's words"; d23). The raising modules (job.mjs, queue.mjs) use
 // these, and ui/problem-model.mjs reads them back; the rest of each message is the engine's own.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // MoveNet SinglePose Thunder on TF.js, through pose-detection, in the worker.
 // Copied from pose-bench's engines.mjs (the TF.js path) and trimmed: one model,
 // no ONNX, no model choice. Runs where there is a WebGL context for the

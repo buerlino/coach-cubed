@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The track: one lift's keypoints, frame by frame, in the fixture format
 // (docs/fixture-data-contract.md, `<stem>.track.json`), so the app's tracks,
 // the committed fixtures and the dev server's output read the same, and

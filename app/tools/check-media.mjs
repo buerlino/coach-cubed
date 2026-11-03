@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // node app/tools/check-media.mjs [--browser <path>] [--clips <dir>]
 //
 // The frame source (app/src/media/) on a real WebCodecs decoder: serves the

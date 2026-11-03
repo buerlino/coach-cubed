@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The scoring adapter (package s11): a track in, contract 4's ResultView out
 // (contracts/cue-view.mjs). The job's scoring stage calls scoreLift(); the
 // screens only ever see the view.

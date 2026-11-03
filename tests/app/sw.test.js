@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // The service worker (package c19): app/sw.js precaches assemble's files.json
 // under a versioned cache, answers the app's own files from it and never from

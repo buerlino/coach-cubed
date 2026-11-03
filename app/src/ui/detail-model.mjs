@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // A2's texts and numbers as plain functions (package d18): what the cue's view (contract 4) and
 // diagnostics.js's headless API say about one cue, laid out for the screen. No Preact, no DOM, so Node
 // runs them as written (tests/app/cue-detail.test.js). Every word and number comes from the view or

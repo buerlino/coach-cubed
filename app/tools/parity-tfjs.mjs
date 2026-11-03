@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // node app/tools/parity-tfjs.mjs [--calls N] [--json <file>]
 //
 // s7: does the from-source bundle (build-tfjs.mjs) give npm's numbers?

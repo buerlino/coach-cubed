@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Welcome, the first run (package d23, built in v1's style; not drawn in the mockups): what the app does, that
 // everything stays on this phone, and the way to import. Shown once before home (welcome-model.mjs); both buttons
 // keep that it was shown and go on. The store is injected (main.mjs gives the app's).

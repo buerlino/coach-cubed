@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Frees the ONE port coach binds (8080 by default), so coach_launch.sh can
 # rebind it cleanly. Safe to run anytime, including when nothing is in the way.
 #

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // S1, Settings and about (design/mockups/Settings.dc.html): the replay mode and
 // lengths, camera, quality and default lift (d28, d29b: all enabled but the quality, one
 // value), storage, and about: the version, the privacy

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Q1's logic as plain functions (package d15): the view state of the
 // Analysing screen from the queue's jobs (contract 2), as the mockup draws it
 // (design/mockups/Analysing.dc.html). No Preact and no DOM, so Node runs it as

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // R1 and R2, setting up and recording (package d28, milestone B): the screens' logic as plain functions
 // (app/src/ui/record-model.mjs), the camera's errors as problems (problem-model.mjs), H's gym card, S1's

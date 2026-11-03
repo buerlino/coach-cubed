@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // diagnostics.js's headless API for the new UI (package s4; docs/app-plan.md,
 // "The contracts", item 4): each cue's descriptor, its tiles and reference

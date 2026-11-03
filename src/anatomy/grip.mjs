@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /** Display-only bar/grip constraint. Raw landmarks and diagnostic inputs are
  * never modified. Precomputed clip references make scrubbing deterministic. */
 import {REST,add,sub,mul,mix,dist,unit,dot,cross,clamp} from './pose-rig.mjs';

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /* coach: lifting diagnostics — one coaching cue -> one number, computed from
  * the pose track the frontend already has.
  *

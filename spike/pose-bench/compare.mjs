@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // node compare.mjs [RESULTS_DIR] [--json OUT.json] [--tag TAG]
 // Step 3.6: scores every candidate track in results/ and the ViTPose-L
 // reference of the same clip with the same diagnostics.js, the way the old

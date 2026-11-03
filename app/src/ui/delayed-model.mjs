@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // R3b's logic (package d29b, milestone B; D2: the delayed view as a setting beside the replay): what the delayed view
 // shows and does, as plain functions with no Preact and no DOM, so Node runs them as written (tests/app/delayed.test.js).
 // screens/R3b.mjs draws what `delayedView()` gives; the frames themselves are media/delayed.mjs's.

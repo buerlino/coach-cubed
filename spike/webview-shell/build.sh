@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # ./build.sh MODE [MODEL ...]   MODE: bundled | bundled-isolated | server
 # A throwaway debug APK (org.coach.spike) that runs pose-bench and the
 # capture check inside Android's WebView (steps 3.4 and 3.5). Not shipped.

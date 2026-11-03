@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Q1, Analysing (design/mockups/Analysing.dc.html): the progress by stage, the
 // time left, the next lifts in the queue, cancel, back to H while it runs, and
 // the way on to the result when it is done. Leaving doesn't stop the job: the

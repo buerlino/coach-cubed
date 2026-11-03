@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Contract 5, a frame source: one video opened for reading (app/src/media/,
 // s9: mediabunny demuxes, WebCodecs decodes). M1–M3 step through it and draw
 // the filmstrip, A1 plays it, the job reads a range of it into the pose

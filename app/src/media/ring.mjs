@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The capture's rolling buffer (package c27, D2): the encoded chunks of the last
 // `bufferS` seconds, in memory, as whole groups of pictures (a keyframe and the
 // chunks after it). No decoder and no encoder here: a snapshot is a stream copy of

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The gym session (package d28, milestone B): the app's one session, made once in main.mjs like the queue and
 // the store, so it outlives the screens. R1 opens the camera for the preview and starts the session; R2 and H
 // read it; End session stops and closes the capture. A plain module: no DOM and no camera of its own, the

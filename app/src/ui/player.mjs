@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // A1's player (package d16): the stored cut played with the skeleton over the frame shown.
 //
 // What plays and what steps, and why:

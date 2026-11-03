@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // Regenerates a golden snapshot from the current diagnostics.js against a
 // fixture. Run after a deliberate change to phase()/measure()/verdict() logic

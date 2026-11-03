@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // compare.js REPO MP_RESULTS: scores each fixture's ViTPose-L track and the
 // phone's MediaPipe track with the same diagnostics.js, and prints verdict,

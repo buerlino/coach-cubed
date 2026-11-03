@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // A resolve hook that gives Node app/index.html's import map, so a test can
 // import a module that draws with Preact (html.mjs: 'preact', 'htm') as the
 // browser does. Read from index.html itself, so the two can't drift.

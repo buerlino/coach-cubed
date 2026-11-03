@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The page test's replay engine (package c21): a pose engine that answers the
 // k-th frame it is given with the k-th frame of a committed fixture track
 // (tests/fixtures/global/…track.json), through contract 1's messages, so the

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // The screens v1 doesn't draw (package d23): the errors (a video that can't be read, no person found,
 // the engine failing, storage full), the first run, and a snatch result. Each error is raised by the

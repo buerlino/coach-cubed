@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // H, home (design/mockups/Main.dc.html): the gym session (opens R1; while one runs it is "Back to the session" with
 // the clock and goes to R2, d28), import a video (the card opens the phone's picker; L1 asks the lift next), today's lifts with their state, earlier
 // sessions, and the privacy line. H changes the flow's state only; the queue

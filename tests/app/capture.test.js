@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // Capture and the rolling buffer (package c27, milestone B; D2: a 60 s buffer, a 20 s
 // replay): app/src/media/capture.mjs on fakes. Node has no camera, no VideoEncoder and

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // The skeleton overlay (package d16, plan step 5.5): app/src/draw/, pinned to the old page.
 // The old page's own code is taken out of src/app.py's INDEX_HTML as it is

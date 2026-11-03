@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Launch routes: python -m unittest discover -s tests -p 'test_*.py'."""
 import contextlib
 import functools

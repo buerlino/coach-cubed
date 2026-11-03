@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // node build-tfjs.mjs: bundles TensorFlow.js and @tensorflow-models/pose-detection
 // into one ES module per backend, bundles/tfjs-<backend>.mjs (gitignored), so
 // the worker can import them by a relative URL (module workers have no

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Run the project's geometric depth/profile routes without loading ViTPose.
 
 The route bodies and validators come directly from app.py so the lightweight

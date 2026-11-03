@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // node summarize.mjs RUNS.json SAMPLES.csv [--md]
 // One row per configuration (model × runtime × fps × tag) of a run-cdp.mjs
 // output, with what phone-sample.sh saw inside each run's window: engine

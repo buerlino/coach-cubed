@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The browser's side of the capture (package c27): the camera, the frames' reader, the
 // H.264 encoder, the wake lock and the page's visibility. Everything createCapture()
 // needs from the browser comes through the object this returns, so Node tests hand it a

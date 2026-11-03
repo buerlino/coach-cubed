@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The one async interface the app's pose engine would have: a Worker behind
 //   const engine = await PoseEngine.create({ model, ep, detector, detEvery });
 //   const { keypoints, ms } = await engine.estimate(videoFrame, tMs);

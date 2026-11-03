@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // Q1's logic as plain functions (app/src/ui/analysing-model.mjs, package d15):
 // the view state from the queue's jobs. No Preact, no DOM; the screen draws it.

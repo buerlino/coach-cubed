@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // app/tools/assemble.mjs: app/ (without tools/, android/, dist/, debug/, node_modules/,
 // capacitor.config.json; debug/ and the test clip only with --debug),

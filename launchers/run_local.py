@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Local coach preview: existing exercise UI, cached examples and browser pose.
 Python 3.9+. Geometric 3D needs requirements-preview.txt. The production Flask/ViTPose entry point is intact.
 """

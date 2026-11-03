@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The "more below" cue (package d55): drawn once by the app's shell, for every screen. While the page can scroll
 // further down, a fade at the bottom edge of the window with a ⌄ button that scrolls down by most of a window.
 // It goes at the bottom, with nothing to scroll, and while a sheet (A3, aria-modal) is open. It follows

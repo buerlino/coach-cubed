@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // node app/tools/check-apk.mjs --serial <serial> [--engine N] [--apk PATH] [--port P] [--keep]
 //
 // The debug APK on a phone (package c20): installs app/out/coach-debug.apk

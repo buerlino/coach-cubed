@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The decode loop: chunks in, decoded frames out, in presentation order, over
 // WebCodecs' VideoDecoder (or whatever stands in for it, see `webcodecs` in
 // frame-source.mjs). An async generator, so the consumer's pace is the

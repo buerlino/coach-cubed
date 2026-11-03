@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // What a marked range will cost (M1–M3, "the time to analyse it"), before
 // Analyse: seconds of processing per second of video, from the last measured
 // rate, or on a first run from the Fairphone's. Plain module, no DOM.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // A fixture says which lift's cues it is scored against, in its manifest
 // entry's "diagnostics" field. Without the field the tests used to score it as

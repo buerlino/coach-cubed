@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Heatmaps → keypoints, as easy_ViTPose decodes them for the reference
 // tracks: keypoints_from_heatmaps(unbiased=True, use_udp=True), i.e. the
 // argmax refined by one Newton step on the log of the heatmap blurred with an

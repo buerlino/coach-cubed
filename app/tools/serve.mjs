@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Serves the assembled app (app/dist/) for development:
 //
 //   node app/tools/serve.mjs [--port N] [--dir DIR]

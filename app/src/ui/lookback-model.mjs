@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // R3's logic (package d29, milestone B; D2: the replay is the last 20 s): what the replay screen shows and
 // does, as a plain module with no Preact and no DOM, so Node runs it as written (tests/app/replay.test.js).
 // screens/R3.mjs draws what `view()` gives and forwards the player's changes and the bar's drag.

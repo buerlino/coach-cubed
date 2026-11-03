@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /** Display pose continuity. Raw detector data and diagnostic input are never
  * changed. Invisible joints remain an explicitly ESTIMATED anatomical pose.
  */

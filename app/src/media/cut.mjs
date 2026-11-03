@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Keeping the lift's video (package s32, D6): the marked range cut to MP4 at
 // Analyse and stored with the lift, so the job reads its source from the store
 // (a queued job survives a restart) and A1 plays it.

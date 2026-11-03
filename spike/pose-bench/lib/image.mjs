@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Pixels for a model's input: draws a region of a frame (VideoFrame or
 // ImageBitmap) into a canvas the size of the model's input and reads it back
 // as normalised planar RGB. drawImage resamples bilinearly, like the

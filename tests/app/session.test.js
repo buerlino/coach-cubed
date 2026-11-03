@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // The session (package d28, milestone B): app/src/session.mjs, the app's one gym session. A plain module
 // that holds the capture across screens: R1 opens the camera, Start begins the session, R2 and H read it,

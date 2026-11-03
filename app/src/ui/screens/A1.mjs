@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // A1, Result (design/mockups/Result.dc.html), the player half (package d16): the stored cut with the
 // skeleton and the cue drawings over the frame shown, play and pause, one frame back or on, the
 // speed, and a timeline with the lift the analysis found and where a cue went wrong; under it (package d17)

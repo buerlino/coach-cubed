@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // What the error screens say (package d23): an error from anywhere in the app as a problem a screen can
 // draw, with what happened, what the user can do and which ways on it offers. Plain module, no Preact, no
 // DOM. The errors come from the modules that raise them:

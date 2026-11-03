@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Contract 3, a stored lift: the store's record of one lift (app/src/store/,
 // c8), written at Analyse and completed when its job is done. Its files sit
 // in one folder per lift: the cut video (D6: the marked range cut to MP4 at

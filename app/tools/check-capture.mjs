@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // node app/tools/check-capture.mjs [--browser <path>] [--seconds 12]
 // npm --prefix app run check:capture
 //

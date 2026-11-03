@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // R1's and R2's logic as plain functions (package d28, milestone B): what the camera setup and the recording
 // screen show from the settings, the capture's status and the queue's jobs, and H's gym card. No Preact and no
 // DOM, so Node runs it as written (tests/app/record.test.js); screens/R1.mjs and screens/R2.mjs draw what these

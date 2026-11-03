@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # PARKED (2026-10-31, restructuring step 2.3): scripts/download_models.sh as it
 # was when bar detection was parked, Grounding DINO and SAM 3 sections
 # included. The live script keeps only the pose part. Unmaintained; kept so

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // A fake of the WebCodecs calls the frame source makes (app/src/media/), for
 // tests/app/frame-source.test.js: Node has no VideoDecoder. It is shaped like

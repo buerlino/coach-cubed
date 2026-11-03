@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // node app/tools/layout-check.mjs [--browser PATH] [--shots DIR] [--break KIND]     (npm --prefix app run check:layout)
 //
 // The responsive check (package d25, plan step 5.7): every screen of the app at seven window sizes, in the page

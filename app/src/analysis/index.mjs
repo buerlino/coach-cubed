@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The analysis (package s12): the job (job.mjs), the queue (queue.mjs) and the
 // cost shown while marking (estimate.mjs). appQueue() is the app's one queue,
 // made on first use with the browser's parts: it outlives screen changes, so

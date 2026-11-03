@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Pull newly-cut clips out of clipper's output and turn them
 into coach test fixtures, end to end — no manual clips_inbox/ copying.
 

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // The lift registry (app/src/contracts/lifts.mjs, s49): one entry per lift, and
 // everything in app/ that names a lift reads it from there. A third lift,

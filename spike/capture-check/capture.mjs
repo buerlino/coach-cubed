@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Step 3.4's capture checks for the gym recording session (milestone B),
 // each one async and returning plain JSON for the CDP driver (drive.mjs):
 //

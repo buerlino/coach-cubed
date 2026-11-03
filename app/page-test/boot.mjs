@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The page test's boot (package c21), test build only: assemble.mjs --test puts it before main.mjs in
 // index.html. It sets the app queue's defaults (setAppQueueDefaults): the replay engine in place of MoveNet,
 // and the fixture's size and rate on the job's source (replay.mjs). It makes no queue: main.mjs's

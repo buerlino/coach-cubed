@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // c47: a test's browser ends with the test. /usr/bin/brave-browser is a bash wrapper whose last line is
 // `"$HERE/brave" "$@" || true` (no exec): killing the spawned wrapper orphans the real browser. app/tools/browser.mjs

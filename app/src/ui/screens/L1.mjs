@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // L1, Which lift? (round 1: design/checkpoint-a/round-1.html; package d53): after the phone's picker, the
 // lift is chosen here and nowhere else. One big tile per lift from the registry (lift-model.mjs's liftTiles),
 // S1's default lift ringed in the accent; one tap goes on to M with the file and the lift. ‹ goes back to H

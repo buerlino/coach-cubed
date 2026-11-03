@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The pose engines the spike compares, each behind the same call:
 // estimate(frame, tMs) → { keypoints: 17 × [y, x, conf] in frame pixels
 // (COCO-17, y down) or null, ms: { stage: milliseconds } }.

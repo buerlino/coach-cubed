@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The service worker (package c19): the app offline. A classic script, scope
 // ./ (where it is served from; no host and no absolute path in it).
 //

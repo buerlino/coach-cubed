@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """SAM3-backed equipment detection — the same contract as equipment_backend,
 behind the COACH_SAM3 flag, so the DINO default is untouched.
 

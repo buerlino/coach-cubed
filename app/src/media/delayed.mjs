@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // R3b's delayed frames (package d29b, milestone B; D2: the delayed view as a setting beside the replay): the
 // capture's chunks, followed from `delayS` behind its newest frame (capture.mjs's `follow` and `liveUs`), decoded
 // with the decode loop (decode.mjs), and handed to the screen once each frame's time has come: its capture time

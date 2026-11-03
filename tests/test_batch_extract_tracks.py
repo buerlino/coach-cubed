@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """scripts/batch_extract_tracks.py: the manifest entry's "diagnostics" field.
 
 process_clip runs with the server calls (start_job, wait_for_result) faked: no

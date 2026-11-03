@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /** Squat prototype. Transparent, provisional rules; not a trained activation model.
  * All angles are projected camera-plane angles. Self-report is deliberately
  * absent from frame metrics and activation estimation. See METHOD.md.

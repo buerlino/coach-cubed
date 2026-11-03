@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // app/tools/serve.mjs: app/dist/ on a port option, no COOP/COEP, the right types.
 const test = require('node:test');

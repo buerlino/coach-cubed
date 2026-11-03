@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Boot: the app's one session, the flow, the app's one queue and store, then the shell. The engine
 // (4.35 s cold on the Fairphone, c20) is warmed after the first screen draws,
 // so it is ready by Analyse (s12).

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The frame source (package s9), contract 5 (app/src/contracts/frame-source.mjs):
 // a video opened from a Blob, read with mediabunny (the one demuxer in the app,
 // vendored in app/vendor/mediabunny/) and decoded with WebCodecs. No <video>

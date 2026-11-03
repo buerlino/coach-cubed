@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Text-prompted barbell/plate detection: frame in -> boxes out.
 
 In-process and lazily loaded, same contract as vitpose_backend (see its module

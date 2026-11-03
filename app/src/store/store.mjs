@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The store (c8): the lifts, their cut videos, tracks and results, the
 // settings and the quota, all in OPFS (navigator.storage.getDirectory()) and
 // nowhere else. Plain module, no DOM; `storage` is injectable, so tests run it

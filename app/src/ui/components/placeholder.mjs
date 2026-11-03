@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // What a screen shows until its package builds it: its ID and name, and one
 // button per step the flow allows from it, so the whole milestone A walk
 // (H, import, mark, queued, result, H) can be clicked through. A screen's

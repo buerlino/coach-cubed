@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import {GROUPS,clamp,analyseSession,explainRep,demoSession,validateSession} from './analysis.mjs';
 import {AnatomyViewer,activationColour} from './anatomy.mjs';
 import {analyseVideo} from '../pose/pose.mjs';

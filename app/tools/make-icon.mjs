@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Writes the placeholder icons (app/icons/icon-192.png and icon-512.png): the
 // ground colour with an accent disc, plain, drawn here with no dependency. A
 // stand-in until the name and the logo exist (docs/branding.md, question 10).

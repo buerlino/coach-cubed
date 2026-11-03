@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // A1's timeline and cards (package d17): app/src/ui/result-model.mjs, the plain functions screens/A1.mjs
 // draws from. The views are built by the scoring adapter from committed fixture tracks, never typed in:

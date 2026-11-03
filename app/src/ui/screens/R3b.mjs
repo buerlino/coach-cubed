@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // R3b, Delayed view (design/mockups/DelayedView.dc.html; package d29b, D2: the delayed view as a setting beside R3's
 // replay). The screen shows the camera `delayS` late (media/delayed.mjs: the capture's chunks followed and decoded, each
 // frame drawn once its time has come) on a canvas that fills the stage, fitted with its aspect kept, and the camera live

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The capture's snapshot writer (c27): encoded packets in, an MP4 Blob out, through
 // mediabunny, as s32's cut.mjs writes its cut (the same Output, format and track
 // options; cut.mjs keeps its own copy, because its test pins the packet source in its

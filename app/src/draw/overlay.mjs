@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The overlay for one instant: the skeleton and, over it, each cue's drawing, on the
 // pose at the playhead's time (the old page's drawOverlay, minus its readouts and panels).
 // One call paints what the frame shown at t needs; the player calls it for the frame

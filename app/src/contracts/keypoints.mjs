@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The one keypoint format (docs/rules-core.md, principle 4): every pose model
 // hands diagnostics.js COCO-17 [y, x, conf], in the frame's pixels, y pointing
 // down; null when the model found nobody. Plain module, no DOM.

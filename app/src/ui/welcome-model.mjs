@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The first run (package d23): one screen, shown once, before home. What it says is data here; the flow's
 // `welcome` state draws it (screens/Welcome.mjs). That it was shown is `introSeen` in the store's settings. Plain
 // module, no Preact, no DOM. The words are the app's own and add no claim: what the app does is H's import card

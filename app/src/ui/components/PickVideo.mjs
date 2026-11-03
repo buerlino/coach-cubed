@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // The button that opens the phone's picker (package d53): a real button, and a hidden file input it clicks.
 // The pick step (home-model.mjs's pickStep) takes the file to L1; a refused file's words show right under the
 // button, where the picker was. Used by H's and the first run's import cards and by the problem screens'

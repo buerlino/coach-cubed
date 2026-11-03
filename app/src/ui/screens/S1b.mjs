@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // S1b, "How the cues are scored" (S1's row, package d18; nordmu 2026-11-02): a short text on how each cue
 // of a lift is scored, built from diagnostics.js through the same API as A2's "How it's scored" block:
 // each cue's words, the rule from zones(id) and, from the newest lift that was analysed, scoringLines

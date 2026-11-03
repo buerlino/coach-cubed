@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // M1–M3, marking a lift (package d14): the marking state as plain functions
 // (app/src/ui/mark-model.mjs). No Preact, no DOM; the screen (screens/M.mjs)

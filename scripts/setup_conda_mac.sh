@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Builds the 'coach' conda env on macOS (Apple Silicon): python 3.12 + torch
 # (MPS) + this app's deps. macOS counterpart to setup_conda_linux.sh.
 #

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // L1's logic as plain functions (package d53): the tiles of "Which lift?" and the step to M. The lift is
 // chosen here and nowhere else (nordmu, 2026-11-02, checkpoint A's point 5). No Preact and no DOM, so Node
 // runs it as written (tests/app/lift.test.js); screens/L1.mjs only draws what these give.

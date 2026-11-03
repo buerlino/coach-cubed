@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // A3, view options (package d22): app/src/ui/view-options-model.mjs, the plain module the sheet (components/view-options.mjs)
 // draws, and the two changes it needs in the player (loop inside the lift window, a new scene after a re-score) and

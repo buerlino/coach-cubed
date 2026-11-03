@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // app/tools/parity-tfjs.mjs (package s7): the parts that run without the
 // from-source bundle, the weights or npm's packages: the inputs the script
 // draws, the weights handler, the comparison, and the pins. The run itself

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // node app/tools/check-offline.mjs [--browser <path>]
 //
 // The app offline (package c19), in a real page: assembles app/ into a

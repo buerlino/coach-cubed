@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // The page test's parts that run in Node (package c21): the replay engine behind the real pose client, the test
 // build (assemble.mjs --test) and that the shipped dist/ has none of it, and the script's no-browser behaviour.

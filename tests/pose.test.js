@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // In-browser pose (src/pose/): the BlazePose-33 → COCO-17 mapping that every
 // on-device track goes through before diagnostics.js scores it.
 const test = require('node:test'), assert = require('node:assert/strict');

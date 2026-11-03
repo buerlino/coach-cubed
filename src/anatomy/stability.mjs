@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /** Display-only continuity. The diagnostic track never passes through here. */
 import {REST,add,sub,mul,mix,dist,unit,cross,dot,clamp} from './pose-rig.mjs';
 export const median=a=>{const s=a.filter(Number.isFinite).sort((a,b)=>a-b);return s.length?s[Math.floor(s.length/2)]:0;};

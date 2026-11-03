@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // node difftrack.mjs NEW.json [SLUG] [SET] [--ref OTHER.json]
 // Step 3.0's precondition: a freshly extracted ViTPose-L track (the JSON of
 // /api/pose/video/result) against the committed track of the same clip, or

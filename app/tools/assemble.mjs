@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 // Assembles the app into one folder, app/dist/ by default: what the PWA host
 // and Capacitor get, and what serve.mjs serves.
 //

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // One subtest per fixture listed in tests/fixtures/{global,local}/manifest.json
 // — adding a new stance/clip needs nothing wired up here, only a golden
