@@ -211,7 +211,11 @@ try {
   await send('Page.navigate', { url: `${origin}/${realClip ? '?real' : ''}` });
   // d23: the first run shows the intro once; leaving it by "Not now" keeps that it was shown, so the reloads go straight to H
   await waitFor(`document.querySelector('[data-screen="Welcome"]')`, 'the intro on the first run');
-  await click('.welcome__skip', 'Not now');
+  // the tap is repeated until H shows: on a loaded machine the first tap can land before the button's handler is attached
+  for (let tries = 0; tries < 40 && !await evaluate(`!!document.querySelector('[data-screen="H"]')`); tries++) {
+    await click('.welcome__skip', 'Not now');
+    await sleep(250);
+  }
   await waitFor(`document.querySelector('[data-screen="H"]')`, 'H after the intro');
   if (breakKind === 'http') await evaluate(`fetch('./no-such-file.txt').then(() => 0, () => 0)`);   // online: the server says 404
   if (!realClip) {
