@@ -24,6 +24,7 @@ pipeline/devlock.sh slice check-tfjs node app/tools/check-tfjs.mjs   # the WebGL
 pipeline/devlock.sh slice parity-tfjs nice node app/tools/parity-tfjs.mjs   # npm's TF.js against the from-source bundle: same keypoints?
 pipeline/devlock.sh slice check-pose node app/tools/check-pose.mjs   # the pose engine (client, worker, MoveNet) in headless Brave on synthetic frames
 node app/tools/check-media.mjs               # the frame source on a real WebCodecs decoder, in headless Brave, on tests/app/clips/
+npm --prefix app run check:capture           # the capture (c27) in headless Brave on its fake camera, at 30 and 20 fps, ~1 min; see "Capture and the rolling buffer"
 pipeline/devlock.sh slice check-media node app/tools/check-media.mjs --clips ~/.cache/coach/c34-clips   # the same, plus the step timings on c34's 1080p clips and the decoded frames an idle stepper holds
 pipeline/devlock.sh slice check-offline node app/tools/check-offline.mjs   # the app offline (c19): load, go offline over CDP, reload; needs the TF.js bundle and the weights
 npm --prefix app run test:page               # the page test (c21): the app offline in headless Brave/Chromium, a lateral raise and a snatch, ~5 s; see "The page test"
@@ -54,13 +55,13 @@ It logs each request (`200 /index.html`); a `404` there is a broken path.
 | `src/track/` | One-line stubs, see below. |
 | `src/contracts/` | The shapes the app's parts agree on: JSDoc types, validators, examples. See [Contracts](#contracts). |
 | `src/store/` | The store (`c8`): lifts, their cut videos, tracks and results, the index and the settings, in OPFS. See [The store](#the-store). |
-| `src/media/` | The frame source (`s9`): `openFrameSource(blob)` gives contract 5's source over mediabunny and WebCodecs. See [The frame source](#the-frame-source). The cut (`s32`): `cutVideo` and `keepVideo` keep the marked range as an MP4. See [Keeping the video](#keeping-the-video). |
+| `src/media/` | The frame source (`s9`): `openFrameSource(blob)` gives contract 5's source over mediabunny and WebCodecs. See [The frame source](#the-frame-source). The cut (`s32`): `cutVideo` and `keepVideo` keep the marked range as an MP4. See [Keeping the video](#keeping-the-video). The capture (`c27`): `createCapture(settings)` records the camera into the rolling buffer, `snapshot` and `follow` read it. See [Capture and the rolling buffer](#capture-and-the-rolling-buffer). |
 | `src/scoring/` | The scoring adapter (`s11`): `scoreLift(track, lift, opts)` gives contract 4's `ResultView` from a raw track. See [Scoring](#scoring). |
 | `src/draw/` | The skeleton overlay (`d16`): the pose at a playhead time, the bones and the confidence gate, each cue's drawing through `drawCue`, the timeline's marks. A plain canvas module, ported from the old page and pinned to it. See [A1, the player](#a1-the-player-and-the-overlay). |
 | `src/analysis/` | The analysis job and its queue (`s12`): `appQueue()` is the app's one queue; Analyse keeps the cut (`s32`), then queues the job, which poses every frame of the range, builds the track and scores it. See [The analysis](#the-analysis). |
 | `src/pose/` | The pose engine (`s10`): `PoseEngine.create()` gives one async `estimate(frame, tMs)` over a worker running MoveNet Thunder on TF.js. See [The pose engine](#the-pose-engine). |
 | `vendor/` | Third-party files, each with its licence text, byte for byte from its npm package ([THIRD_PARTY.md](../THIRD_PARTY.md#in-the-new-app-app)): `preact/` (Preact 11.1.1 and its hooks), `htm/` (htm 3.1.1), `mediabunny/` (mediabunny 1.61.6, MPL-2.0, the frame source's one demuxer), `fonts/` (Barlow and Barlow Condensed, woff2, with `OFL.txt`). `vendor/tfjs/` is built by `tools/build-tfjs.mjs` (gitignored). |
-| `tools/` | `assemble.mjs`, `serve.mjs`, `make-icon.mjs`, and the TF.js build: `build-tfjs.mjs`, `fetch-models.sh`, `check-tfjs.mjs`, `patches/` ([below](#tfjs-from-source)), `check-media.mjs` (the frame source on a real decoder, [above](#the-frame-source)), and the debug APK's `build-apk.sh` and `check-apk.mjs` ([The Android shell](#the-android-shell)), and `make-phone-clips.sh` and `check-media-apk.mjs`, the frame source and the cut on the phone ([On the phone](#on-the-phone)). Node only; only `build-tfjs.mjs` needs `app/node_modules/` (esbuild). Not copied into `dist/`. `page-test.mjs` is the page test ([below](#the-page-test)), `lift-fixtures.mjs` its fixture per lift (`s49`). `browser.mjs` is the one place a tool finds, launches and ends a headless browser (`c47`, [below](#the-tools-browser)). `layout-check.mjs` is the responsive check ([below](#a4-and-the-responsive-check)). |
+| `tools/` | `assemble.mjs`, `serve.mjs`, `make-icon.mjs`, and the TF.js build: `build-tfjs.mjs`, `fetch-models.sh`, `check-tfjs.mjs`, `patches/` ([below](#tfjs-from-source)), `check-media.mjs` (the frame source on a real decoder, [above](#the-frame-source)), `check-capture.mjs` (the capture on headless Brave's fake camera, [above](#capture-and-the-rolling-buffer)), and the debug APK's `build-apk.sh` and `check-apk.mjs` ([The Android shell](#the-android-shell)), and `make-phone-clips.sh` and `check-media-apk.mjs`, the frame source and the cut on the phone ([On the phone](#on-the-phone)). Node only; only `build-tfjs.mjs` needs `app/node_modules/` (esbuild). Not copied into `dist/`. `page-test.mjs` is the page test ([below](#the-page-test)), `lift-fixtures.mjs` its fixture per lift (`s49`). `browser.mjs` is the one place a tool finds, launches and ends a headless browser (`c47`, [below](#the-tools-browser)). `layout-check.mjs` is the responsive check ([below](#a4-and-the-responsive-check)). |
 | `dist/` | The assembled app (gitignored): what the PWA host and Capacitor get. `files.json` lists every file in it, with a version hash, for the service worker. |
 | `android/`, `capacitor.config.json` | The Capacitor shell (`c20`): the Android project `npx cap add android` generated, committed; Gradle's outputs and the copied web assets are gitignored. See [The Android shell](#the-android-shell). |
 | `debug/` | The check page (`c20`), assembled only into the debug APK (`assemble.mjs --debug`), never into the shipped `dist/`. |
@@ -596,6 +597,120 @@ decoder reads every frame of it, in order. The cut's peak memory is about 2.6
 to 2.8 times its size (the packets read, the MP4 built in a growing buffer,
 then the `Blob`); a minute of 1080p fits easily in a phone with 8 GB, and a
 marked lift of a few seconds is a few tens of MB.
+
+## Capture and the rolling buffer
+
+`src/media/capture.mjs` (`c27`, milestone B; D2: a 60 s buffer, a 20 s replay, several lifts per
+session) records the camera continuously: its frames are encoded to H.264 as they come, a keyframe
+a second, into a ring in memory that holds the last `bufferS` seconds. R3's replay is a snapshot of
+the ring as an MP4; R3b's delayed view (`d29b`) follows it. Step 3.4's spike showed the way
+([spike/capture-check/](../spike/capture-check/README.md): WebCodecs and mediabunny); the screens are
+`d28`, `d29` and `d29b`.
+
+```js
+import { createCapture } from './media/capture.mjs';
+const cap = createCapture({ camera: 'back', quality: '1080p30', bufferS: 60 });  // the settings' fields
+await cap.open();              // R1: the camera for the preview; cap.stream is its MediaStream; nothing recorded
+await cap.start();             // R1's Start: frames -> H.264 -> the ring; the wake lock
+const off = cap.subscribe(s => …);  // now and at each change; cap.status is the latest:
+                                    //   { state, fps, width, height, rotation, sinceS, heldS, bytes, dropped, wakeLock, error }
+const snap = await cap.snapshot(20);   // R3: { blob, duration, start }, the last 20 s as an MP4 (null when nothing is held)
+for await (const c of cap.follow(t)) …  // R3b: { type, timestamp, duration, data, decoderConfig? }, from the keyframe at or before t, then live
+await cap.resume(); await cap.stop(); cap.close();
+```
+
+| File | What |
+| --- | --- |
+| `capture.mjs` | `createCapture(settings, { api, now })`, the one entry; re-exports `CaptureError` and `CAPTURE_ERROR_CODES`; the encoder's choices (`CODECS`, `BITRATE_1080P30`, `KEYFRAME_US`, `MAX_ENCODE_QUEUE`). |
+| `ring.mjs` | `createRing({ bufferS })`: the chunks in whole groups, `snapshot(seconds)`, `follow(t)`. No decoder, no encoder. |
+| `mp4-writer.mjs` | The snapshot's writer: packets into an MP4 through mediabunny, as `cut.mjs` writes a cut (which keeps its own copy: its test pins the packet source in its module). |
+| `capture-browser.mjs` | `browserCaptureApi()`: `getUserMedia`, `MediaStreamTrackProcessor`'s reader, `VideoEncoder`, `navigator.wakeLock` and the page's visibility, behind one object the tests replace (`tests/app/fake-webcodecs.js`'s `createFakeCapture`). A part the browser lacks is `null`. Nothing else in `app/src` touches the camera or the encoder (`tests/app/capture.test.js` scans for it). |
+| `capture-error.mjs` | `CaptureError` and its codes. |
+
+- **The states:** `closed` → `open()` → `preview` → `start()` → `recording`; the camera's loss makes
+  `interrupted`, `resume()` goes back; `stop()` returns to `preview` (the camera stays open for R1),
+  `close()` to `closed` from anywhere. `failed` is an error at `open()`, `start()` or while
+  recording; `error` holds it. `sinceS` is the time since `start()` (R2's clock).
+- **The camera:** `getUserMedia` with the `camera` setting's `facingMode` (`environment` for `back`,
+  `user` for `front`) and the `quality` setting's size and rate (`1080p30`: 1920×1080 at 30 fps),
+  all as `ideal`, no audio. The frames come from a clone of the track through
+  `MediaStreamTrackProcessor`, so the preview's track is never the reader's.
+- **The frame rate** is the frames' own: the median interval of their timestamps over the last 2 s,
+  never the track's settings (headless Brave's fake camera says 30 and gives 20).
+- **The encoder:** H.264 Baseline (`avc1.42002A`, then Main and High if a device lacks it; the
+  spike's, checked on the phone; no B-frames, so the output order is the frames' order, which the
+  ring's groups rely on), at the frames' own size and the quality's rate, `hardwareAcceleration:
+  'no-preference'`, `latencyMode: 'realtime'`, `avc: { format: 'avc' }`, **10 Mbit/s at 1080p30**
+  (scaled by pixels per second for other sizes): what `c34`'s phone-like clips have, so the frame
+  source's and the cut's phone numbers hold for what the capture writes; 60 s of it is 75 MB.
+  A **keyframe** is asked for at the first frame 1 s or more after the last one (by the frames'
+  times, 1 ms of slack for their rounding), never every N frames, so a camera that slows down
+  still gets one a second. While more than 4 frames wait in the encoder's queue a frame is
+  **dropped** and counted (`dropped`), never queued. A frame's `rotation` (where the browser sets
+  one on a `VideoFrame`) goes into the MP4 track's rotation, as `s32` keeps a file's; a change of
+  size or rotation configures the encoder again.
+- **The ring** holds whole groups of pictures (a keyframe and the chunks after it). After each
+  chunk it drops the oldest group while the next group still starts `bufferS` or more behind the
+  newest chunk, so it holds at least `bufferS` and less than `bufferS` plus one group (about a
+  second). `heldS` (newest minus oldest chunk's time) and `bytes` (the chunks' data) are in the
+  state. A chunk belongs to a segment: one decoder config (which only the encoder's first output
+  after a configure carries) and one rotation.
+- **`snapshot(seconds)`** writes the chunks from the keyframe at or before the newest chunk's time
+  minus `seconds` (the ring's oldest if it holds less) to the newest, byte for byte, into an MP4:
+  no decoder and no re-encode. The first packet carries the decoder config, times start at 0 on
+  that keyframe, `start` is its time on the recording's clock (0 at the first recorded frame) and
+  `duration` the MP4's length. The frame source (`s9`) opens it and the cut (`s32`) cuts it like
+  any file. It never spans a change of decoder config: after the camera came back at another size
+  it starts at the first keyframe after the change.
+- **`follow(t)`** yields the chunks (times in µs on the recording's clock) from the keyframe at or
+  before `t`, then each new chunk as it is encoded, `decoderConfig` on the first one and again at
+  a change. It ends at `stop()` or `close()`, or when its caller stops reading (`break`). A
+  follower the ring has overtaken goes on from the oldest keyframe left.
+- **Errors** are `CaptureError`s with a `code`: `insecure` (no `navigator.mediaDevices`: not https
+  or localhost), `no-camera` (`NotFoundError`, `OverconstrainedError`), `camera-denied`
+  (`NotAllowedError`), `camera-busy` (`NotReadableError`), `no-encoder` (no `VideoEncoder` or
+  `MediaStreamTrackProcessor`, or no H.264 config it supports), `encoder-failed`. Each keeps the
+  browser's error as `cause` and its message in its own. An encoder that fails while recording
+  leaves the ring as it was: a snapshot still works.
+- **The wake lock** (`navigator.wakeLock`, the screen kept on) is asked at `start()`, asked again
+  when the page becomes visible (the browser drops it when hidden), released at `stop()`.
+  `wakeLock` is `off`, `held` or `refused`; a refusal, or a browser without it, is never an error.
+- **Interruptions:** the camera track's `ended` or `mute` (another app took the camera, the phone
+  locked) puts the capture in `interrupted`: the encoder is flushed (its last chunks reach the
+  ring) and closed, the ring is kept. `resume()` opens the camera again and records on into the
+  same ring from a new keyframe; the recording's clock goes on by the wall time between, so a
+  snapshot across the gap (same size, same config) has a long frame there.
+
+**The laptop check** (`npm --prefix app run check:capture`, `tools/check-capture.mjs`) runs the real
+capture with `bufferS` 5 in headless Brave on its fake camera (`--use-fake-device-for-media-stream`,
+`--use-fake-ui-for-media-stream`, a page on 127.0.0.1), twice: at `fps=30`, and at the fake device's
+own 20 fps. Open, start, 12 s, `snapshot(3)`, `snapshot(5)`, a `follow` read for 2 s, stop, close. It
+checks the rate (within 1 fps of the device's, as documented and as counted by the page), the
+keyframes (1 s apart ± 1 frame), the ring (5 s or more, less than 6 s), each snapshot on the real
+decoder (`openFrameSource`: every frame, in order; its length within a keyframe interval of what was
+asked), a cut of one, the follower, the wake lock (held or refused) and every track ended after
+`close()`, and no console error. It prints JSON and exits 1 on a failed check.
+
+**On the laptop** (headless Brave 156.0.8078.48, `Chrome/156.0.8078.48`, its fake camera at 1920×1080, a
+software encoder; laptop numbers, nothing about the phone): three runs, all passed, medians. The rate
+reported 29.94 fps at `fps=30` and 20 at the default (the page counted 29.82 and 20.1; the track's
+settings say 30 and 20); keyframes 999.0–1000.9 ms apart, once 1032.5 ms (a late frame: 1 s plus one);
+the ring held 5.967 s (30 fps) and 5.950 s (20 fps); no frame dropped; the wake lock held.
+`snapshot(3)` took 14 ms (30 fps) and 17 ms (20 fps) and was 4.0 s long (from the keyframe at or
+before 3 s back), `snapshot(5)` 7 and 4 ms, 5.17 and 5.15 s, 155 and 103 frames, each opened and
+decoded whole by the real decoder (`openFrameSource` 14 and 19 ms, all frames in 152 and 104 ms). The
+encoder's real bitrate on the fake camera's simple picture was 0.97 Mbit/s at 30 fps (0.68 at 20),
+a tenth of the 10 Mbit/s asked: so its snapshots were 0.48 MB (3 s) and 0.63 MB (5 s), and 60 s of
+it would be 7.3 MB. A phone's camera picture is what fills the 10 Mbit/s: 75 MB a minute, `c30`'s to
+measure.
+
+**What waits for the phone (`c30`):** the real camera (its rate in a dim gym, its timestamps'
+jitter, the back camera's `facingMode`), the hardware encoder (whether it takes Baseline at
+10 Mbit/s, its real bitrate on a lifter, its keyframes on demand, dropped frames under the pose
+engine's load), the frames' `rotation` in portrait, the ring's memory at 60 s and at S1's largest
+buffer (the provisional ranges in `settings.mjs` wait for it), the snapshot's time on the phone,
+the wake lock in the APK, an interruption by another app or the lock screen, and Android's camera
+permission.
 
 ## The analysis
 
@@ -1489,7 +1604,7 @@ loads and the engine answers, not how fast. The worker itself is tested in
 ## The tools' browser
 
 `tools/browser.mjs` (package `c47`) is how `page-test.mjs`, `check-tfjs.mjs`, `check-offline.mjs`, `check-pose.mjs` and
-`check-media.mjs` (and, since `d25`, `layout-check.mjs`) get their headless Brave or Chromium: `findBrowser()` (`--browser PATH`, then `COACH_BROWSER`, then
+`check-media.mjs` (and, since `d25`, `layout-check.mjs`, and since `c27`, `check-capture.mjs`) get their headless Brave or Chromium: `findBrowser()` (`--browser PATH`, then `COACH_BROWSER`, then
 Brave/Chromium/Chrome on `PATH`) and `launchBrowser(profile, args)`, which returns the child, its DevTools port and
 `close()`. No tool spawns a browser itself (`tests/app/browser.test.js` checks the source).
 
@@ -1557,7 +1672,7 @@ worktree: no example clips, no `app/vendor/tfjs/`, no `app/models/`, no GPU.
 `tests/`: `flow.test.js` (the state machine), `draw.test.js` (the overlay, pinned to the old page) and `player.test.js` (A1's player on fakes), `view-options.test.js` (A3: the options on the player, the re-score, loop, re-mark, delete), `home.test.js` (H's logic: a lift's state, the lists, the pick step, `main.mjs`'s boot), `lift.test.js` (L1: the tiles from the registry, the default ring, the step to M, the pickers, `d53`), `assemble.test.js` (assemble
 into a temporary folder, the manifest and `index.html`), `serve.test.js` (the
 dev server), `contracts.test.js` (the contracts, against the committed tracks
-and `diagnostics.js`'s headless API), `lifts.test.js` (the lift registry: a test-only third lift reaches H, the settings, the store and the icons; every shipped lift has its set in `diagnostics.js`; the fixtures per lift; `tests/app/import-map.mjs` gives Node `index.html`'s import map, so it draws `LiftIcon` with Preact), `store.test.js` (the store, on `fake-opfs.js`, an in-memory OPFS), `frame-source.test.js` (the frame source and its stepper, on our own clips in `tests/app/clips/` and a fake decoder), `pose-engine.test.js` (the pose engine's client and worker handler, against fakes), `media-phone.test.js` (the check page's media measurements, their driver and the clips' script; the shipped `dist/` without them), `android-shell.test.js` (the Capacitor config, the committed Android project, the pins and `build-apk.sh`), `sw.test.js` (the service worker run as a script on a fake Cache Storage and fetch, the registration module on a fake browser and queue, assemble's version stamp), `page-test.test.js` (the replay engine behind the real pose client, the test build and the shipped `dist/` without it, the script's no-browser line), `build-tfjs.test.js` (the TF.js
+and `diagnostics.js`'s headless API), `lifts.test.js` (the lift registry: a test-only third lift reaches H, the settings, the store and the icons; every shipped lift has its set in `diagnostics.js`; the fixtures per lift; `tests/app/import-map.mjs` gives Node `index.html`'s import map, so it draws `LiftIcon` with Preact), `store.test.js` (the store, on `fake-opfs.js`, an in-memory OPFS), `frame-source.test.js` (the frame source and its stepper, on our own clips in `tests/app/clips/` and a fake decoder), `capture.test.js` (the capture and its ring, `c27`, on `fake-webcodecs.js`'s fake camera, encoder and wake lock: the rate, the keyframes, the drops, the ring, snapshots that the frame source and the cut open, `follow`, the errors, the wake lock, interruptions, stop and close), `pose-engine.test.js` (the pose engine's client and worker handler, against fakes), `media-phone.test.js` (the check page's media measurements, their driver and the clips' script; the shipped `dist/` without them), `android-shell.test.js` (the Capacitor config, the committed Android project, the pins and `build-apk.sh`), `sw.test.js` (the service worker run as a script on a fake Cache Storage and fetch, the registration module on a fake browser and queue, assemble's version stamp), `page-test.test.js` (the replay engine behind the real pose client, the test build and the shipped `dist/` without it, the script's no-browser line), `build-tfjs.test.js` (the TF.js
 build's pins, cache, op lists and patch notices, the MoveNet entry's
 refusal of a config without `modelUrl`, and `fetch-models.sh`'s checks and
 clean-up, all without the network). Every test runs in a fresh worktree, which has neither
