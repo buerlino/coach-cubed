@@ -102,7 +102,10 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .lift-row__top { display: flex; justify-content: space-between; gap: var(--space-2); }
 .lift-row__title { font-size: var(--size-row); font-weight: var(--weight-semibold); }
 .lift-row__meta { font-size: var(--size-small); color: var(--text-quiet); }
-.lift-row__state { font-size: var(--size-small); color: var(--text-soft); display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); }
+.lift-row__state { font-size: var(--size-small); color: var(--text-soft); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); }
+.lift-row__state svg { flex: none; width: var(--icon-inline); height: var(--icon-inline); }
+.lift-row__count { display: inline-flex; align-items: center; gap: var(--space-1); font-variant-numeric: tabular-nums; }
+.lift-row__state.count--work-on { gap: var(--space-1h); }
 .lift-row__chevron { flex: none; color: var(--text-quiet); }
 .lift-row__progress { display: flex; align-items: center; gap: var(--space-2h); font-size: var(--size-small); color: var(--text-soft); }
 .bar { flex: 1; height: var(--bar); border-radius: var(--radius-xs); background: var(--line); overflow: hidden; }
@@ -394,6 +397,13 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .welcome { gap: var(--space-4); }
 .welcome__points { display: flex; flex-direction: column; gap: var(--space-3); margin: 0; padding-left: var(--space-5); font-size: var(--size-row); line-height: 1.4; }
 .welcome__skip { min-height: var(--button-quiet); border: 0; background: transparent; color: var(--text-soft); }
+
+/* The "more below" cue (d55, components/more-below.mjs): a fade and a button at the bottom edge of the window while the page scrolls further.
+   The fade lets taps through; only the button is touched. */
+.more-below { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; height: var(--more-fade); display: flex; align-items: flex-end; justify-content: center; padding-bottom: calc(var(--space-2h) + env(safe-area-inset-bottom, 0px)); background: linear-gradient(transparent, var(--ground) 62%); pointer-events: none; transition: opacity 0.2s ease; }
+.more-below[hidden] { display: none; }
+.more-below button { pointer-events: auto; width: var(--touch); height: var(--touch); padding: 0; border: 1px solid var(--line-strong); border-radius: var(--radius-xl); background: var(--surface); color: var(--text); display: flex; align-items: center; justify-content: center; }
+@media (prefers-reduced-motion: reduce) { .more-below { transition: none; } }
 
 /* A4, the wide result (package d25, design/mockups/Desktop.dc.html): A1's elements, arranged side by side from
    WIDE_MIN_PX (ui/wide-model.mjs) up. Stacked, the two wrappers add no box, so the phone's layout is A1's own.

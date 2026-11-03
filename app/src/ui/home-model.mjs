@@ -85,29 +85,32 @@ export function liftState(lift, jobs) {
 }
 
 /**
- * The words for a waiting lift: the mockup's "starts after the one above" when
- * one job is ahead, the plural for more, nothing more when none is.
+ * The words for a waiting lift (d55): "Waiting · next" when one job is ahead, the number
+ * for more ("Waiting · 2 ahead"), nothing more when none is.
  * @param {number} ahead
  */
-export const waitingText = ahead => (ahead === 1 ? 'Waiting · starts after the one above'
-  : ahead > 1 ? 'Waiting · starts after the ones ahead' : 'Waiting');
+export const waitingText = ahead => (ahead === 1 ? 'Waiting · next' : ahead > 1 ? `Waiting · ${ahead} ahead` : 'Waiting');
 
-// Mockup order: the worst first.
-const SUMMARY = [['work on', 'work-on'], ['watch', 'watch'], ['good', 'good'], ["can't score", 'cant-score']];
+// Mockup order: the worst first. The third is A1's StatusIcon name (components/icons.mjs).
+const SUMMARY = [['work on', 'work-on', 'work'], ['watch', 'watch', 'watch'], ['good', 'good', 'good'], ["can't score", 'cant-score', 'cant']];
 
 /**
- * A result's cues counted by status word: [{status, count, text}], worst
+ * A result's cues counted by status word: [{status, count, text, icon}], worst
  * first, a status with no cue left out. `status` is the CSS modifier of
- * base.css's `.status--…`.
+ * base.css's `.count--…`; `icon` is A1's StatusIcon name, which H's rows draw
+ * with the count (d55); `text` is the words, for screen readers.
  * @param {{cues: Array<{status: string}>}|null} result
  */
 export function summariseResult(result) {
   const cues = result && Array.isArray(result.cues) ? result.cues : [];
   return SUMMARY
-    .map(([word, status]) => ({ status, count: cues.filter(c => c.status === word).length, word }))
+    .map(([word, status, icon]) => ({ status, count: cues.filter(c => c.status === word).length, word, icon }))
     .filter(s => s.count > 0)
-    .map(({ status, count, word }) => ({ status, count, text: `${count} ${word}` }));
+    .map(({ status, count, word, icon }) => ({ status, count, text: `${count} ${word}`, icon }));
 }
+
+/** A row's counts in words, for a screen reader: "1 work on, 3 good". */
+export const summaryLabel = summary => summary.map(c => c.text).join(', ');
 
 const pad = n => String(n).padStart(2, '0');
 export const clock = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -128,13 +131,15 @@ const lifts = n => `${n} ${n === 1 ? 'lift' : 'lifts'}`;
  */
 export function rowOf(lift, jobs, { result = null } = {}) {
   const state = liftState(lift, jobs);
+  const summary = state.kind === 'ready' ? summariseResult(result) : [];
   return {
     id: lift.id,
     lift: lift.lift,
     title: liftLabel(lift.lift),
     meta: `${clock(new Date(lift.created))} · ${(lift.range.t1 - lift.range.t0).toFixed(1)} s`,
     state,
-    summary: state.kind === 'ready' ? summariseResult(result) : [],
+    summary,
+    summaryLabel: summaryLabel(summary),
     open: { to: state.kind === 'ready' ? 'result' : 'queued', params: { liftId: lift.id } },
   };
 }
@@ -158,7 +163,7 @@ export function homeView(grouped, jobs, results = {}) {
   }
   return {
     empty: grouped.today.length === 0 && grouped.earlier.length === 0,
-    today: grouped.today.length ? { count: `${lifts(grouped.today.length)} kept`, rows: grouped.today.map(row) } : null,
+    today: grouped.today.length ? { count: lifts(grouped.today.length), rows: grouped.today.map(row) } : null,
     earlier: days.map(d => ({
       day: d.day,
       heading: `${d.name} · ${lifts(d.rows.length)}`,

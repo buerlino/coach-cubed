@@ -36,7 +36,7 @@ test('S1 shows v1\'s defaults from the store, in the mockup\'s words', async () 
     ['Quality', '1080p · 30 fps'], ['Default lift', 'Lateral raise'],
   ]);
   assert.deepEqual(v.modes.map(m => [m.label, m.on]), [['Replay button', true], ['Delayed view', false]]);
-  assert.match(v.note, /up to 30 fps/);
+  assert.equal(v.note, 'Up to 30 fps; less in dim light.');
 });
 
 test('the delayed view swaps the replay length for the delay, 10 s by default', async () => {

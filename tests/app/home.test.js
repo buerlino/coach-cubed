@@ -213,9 +213,9 @@ test('home: today\'s lifts keep the store\'s order (newest first), with the coun
   assert.deepEqual(view.earlier[0].rows.map(r => r.id), [e1.id, e2.id, e3.id], 'a day keeps the store\'s order');
 });
 
-test('home: one lift is "1 lift kept"; no lift today hides the section; no lift at all is the empty state', async () => {
+test('home: one lift is "1 lift"; no lift today hides the section; no lift at all is the empty state', async () => {
   const { homeView } = await model();
-  assert.equal(homeView({ today: [TODAY_B], earlier: [] }, []).today.count, '1 lift kept');
+  assert.equal(homeView({ today: [TODAY_B], earlier: [] }, []).today.count, '1 lift');
   const none = homeView({ today: [], earlier: [analysed('20261029-160000-lr', 'lateral-raise', iso(2026, 9, 29, 16, 0))] }, []);
   assert.equal(none.today, null);
   assert.equal(none.empty, false);

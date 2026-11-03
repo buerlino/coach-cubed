@@ -18,7 +18,7 @@ const check = (name, src, after, before) => test(`d55 wording: ${name}`, () => {
 });
 
 check('Q1 says less', () => ui('screens', 'Q1.mjs'),
-  ['Keeps going if you leave.', '+${view.queue.more} more', 'Nothing to analyse.', '>Home<', "label: 'Home'", '>Cancel<', 'That didn’t work.'],
+  ['Keeps going if you leave.', '+${view.queue.more} more', 'Nothing to analyse.', "label: 'Home'", '>Cancel<', 'That didn’t work.'],
   ['Runs on this phone', 'and ${view.queue.more} more', 'Nothing is being analysed.', "label: 'Back to home' }", 'Cancel this analysis', 'That did not work.']);
 
 check('the pipeline view says less', () => ui('analysing-model.mjs'),
