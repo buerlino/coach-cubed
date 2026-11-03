@@ -70,7 +70,7 @@ test('d28: a session starts on R1: setup is the screen R1, home -> setup -> live
   assert.ok(!TRANSITIONS.home.includes('live'), 'home -> live is not a transition');
   assert.throws(() => createFlow().go('live'), /home.*live/);
   assert.equal(createFlow().can('live'), false);
-  assert.deepEqual([...TRANSITIONS.setup].sort(), ['home', 'live']);
+  assert.deepEqual([...TRANSITIONS.setup].sort(), ['delayed', 'home', 'live'], 'd29b: or delayed, by the replay mode');
 });
 
 test('d28: H\'s "Back to the session" is the one way home reaches live, and only while a session runs', async () => {
