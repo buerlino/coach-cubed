@@ -6,11 +6,10 @@ import { RANGES } from '../store/settings.mjs';
 import { liftChoices } from './home-model.mjs';
 
 /**
- * The settings that need the camera, so milestone B: S1 shows them disabled
- * until then (the same as H's "Gym session"), because the mockup shows
- * them and a user can see what is coming; their stored values are v1's defaults.
+ * The settings S1 still shows disabled (d28 enabled the rest, which R1 and R2 use): the delay waits for
+ * the delayed view (`d29b`), and the quality is information, its one value (1080p · 30 fps).
  */
-export const MILESTONE_B = Object.freeze(['replayMode', 'replayS', 'delayS', 'bufferS', 'camera', 'quality']);
+export const NOT_YET = Object.freeze(['delayS', 'quality']);
 
 export const MODES = Object.freeze([
   Object.freeze({ id: 'replay', label: 'Replay button' }),
@@ -56,11 +55,11 @@ const row = (field, label, value, options, disabled) => ({ field, label, value, 
 
 /**
  * The recording settings: the mode switch, then the rows the mode shows. Each row says which
- * field it sets, the values it offers and whether it is disabled (milestone B).
+ * field it sets, the values it offers and whether it is disabled (NOT_YET).
  * @param {import('../store/settings.mjs').Settings} s
  */
 export function recordingView(s) {
-  const off = f => MILESTONE_B.includes(f);
+  const off = f => NOT_YET.includes(f);
   const rows = [
     s.replayMode === 'delayed'
       ? row('delayS', 'Delay', s.delayS, lengthOptions('delayS', s.delayS), off('delayS'))
@@ -75,7 +74,7 @@ export function recordingView(s) {
     modesDisabled: off('replayMode'),
     rows: rows.map(r => ({ ...r, shown: (r.options.find(o => o.value === r.value) || { label: String(r.value) }).label })),
     note: 'Up to 30 fps; less in dim light.',
-    laterNote: 'These come with the gym session, later.',
+    laterNote: s.replayMode === 'delayed' ? 'The delay comes later.' : null,
   };
 }
 

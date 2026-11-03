@@ -1,6 +1,6 @@
 // S1, Settings and about (design/mockups/Settings.dc.html): the replay mode and
-// lengths, camera, quality and default lift (all but the default lift are
-// milestone B's, shown disabled), storage, and about: the version, the privacy
+// lengths, camera, quality and default lift (d28: all enabled but the delay, which waits
+// for the delayed view, and the quality, one value), storage, and about: the version, the privacy
 // text, the credits and licences. "Keep the video of each analysed lift" is
 // not drawn in 0.1.0 (nordmu, 2026-11-02): contract 3 needs every lift's cut,
 // so videos are always kept; `keepVideos` stays in the store. The logic is in
@@ -129,7 +129,7 @@ export function S1({ flow, store, queue }) {
             </div>
             <div class="group">${rec.rows.map(r => html`<${Choice} key=${r.field} row=${r} onPick=${pick} />`)}</div>
             <p class="quiet">${rec.note}</p>
-            <p class="quiet">${rec.laterNote}</p>` : null}
+            ${rec.laterNote ? html`<p class="quiet">${rec.laterNote}</p>` : null}` : null}
         </section>
         <section class="settings__section" aria-labelledby="st-h">
           <h2 class="section__title" id="st-h">Storage</h2>
