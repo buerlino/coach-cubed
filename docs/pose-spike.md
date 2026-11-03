@@ -152,6 +152,85 @@ Smoothed (what counts) / raw; coverage 100% in every row.
 - Same day, MediaPipe full repeats the first round's 8/8 and 4/4 smoothed,
   at 57 against 55 ms/frame.
 
+## The app itself on the Fairphone (c26, 2026-11-03)
+
+The numbers above come from the bench page. These come from the app: the debug APK (`app/tools/build-apk.sh`,
+built 2026-11-03 from this branch, whose `app/` is phase-0's plus the check page's idle count; Android System WebView
+153.0.8010.36) and the PWA from the same `dist/` installed in Brave 1.98.63 (Chromium 156), Fairphone 6, LineageOS
+(Android 16, build BP2A.250805.005), on USB power, 79 % battery, CPU at most 54 °C, thermal status 0 throughout.
+**Offline:** both were installed while online; then the laptop's server was stopped, every `adb reverse` removed and
+airplane mode switched on (no default network, Wi-Fi off) before the first clip. Only DevTools went through `adb
+forward` (laptop to phone). The engine is the shipped one: MoveNet Thunder, TF.js 4.22.0 WebGL, every frame.
+
+**How:** `app/tools/check-phone.mjs walk` drives each clip the way a person does: H, L1's tile, M's 1 / ten › / a drag of
+the filmstrip to the end / 2 / ↶ / 2 / 3 Analyse, Q1 to the end, A1. Each touch is a CDP `Input.dispatchTouchEvent`.
+In the APK the clip is set on H's input (`DOM.setFileInputFiles`, from the app's own `files/`). In Brave each clip was
+picked by hand through Android's photo picker (Albums, Downloads) with `adb shell input tap`. `again` queues the stored
+lift again (H's retry path): run 1 is the walk, the first `again` follows a fresh app start, the next three come back
+to back. Times come from the app's own queue (every progress event, `performance.now()`); memory from
+`spike/pose-bench/phone-sample.sh` (RSS of the shell's processes plus their GPU memory, every 2 s). Medians of 5 runs
+per clip and shell.
+
+| Clip (frames) | APK: job, s | APK: ms/frame (p90) | Brave: job, s | Brave: ms/frame (p90) | Bench, same Brave: s, ms/frame p50 |
+| --- | --- | --- | --- | --- | --- |
+| `lateral-raise-cable-1` (75, 25 fps) | 6.5 | 81.5 (85.6) | 5.6 | 70.0 (72.9) | 6.4, 69.0 |
+| `lateral-raise-cable-2` (179 of 180, 60 fps) | 14.9 | 80.5 (84.3) | 13.0 | 70.6 (73.4) | 13.9, 69.1 |
+| `athlete-a-trim` (108, 30 fps) | 9.4 | 82.5 (86.6) | 8.0 | 71.1 (74.0) | 9.0, 69.6 |
+| `Session14_01_0h18m07s_made` (444, 60 fps) | 37.4 | 82.7 (86.7) | 31.6 | 70.3 (73.0) | 32.9, 69.3 |
+
+- **Stages** (medians, both shells): reading the cut 110–190 ms; the engine 1–3 ms when it was already warm or
+  reset (the reset is a message, s35); the first frame 197–232 ms (282–382 ms on the first job after a page load);
+  scoring and saving 60–145 ms. After an app restart the first job waited 768–1,044 ms (APK) for the engine's
+  warm-up, already under way when the job started. The full cold create stays c20's 4.35 s (1.0 s warm).
+- **Every job's longest wait between two progress events** was the first frame (197–382 ms), or the engine
+  right after a restart (768–1,044 ms, APK). No job stalled, restarted or failed: 40 of 40 done, no console error or
+  exception in the page or its workers.
+- **Time left:** M's estimate before Analyse was within 1 s of the real time ("about 15 s" for 15.8 s; the first
+  guess "about 7 s" for 6.5–7.5 s). Q1's time left was within 0.6 s of the real time from the moment the cut was
+  open. Only in the ~130 ms before that it showed the last rate unscaled for this clip's frame rate ("~19 s left"
+  for 9.8 s, "~7 s left" for 15.6 s).
+- **Memory** (RSS plus GPU): in the APK 940–960 MB during an analysis, 1.1–1.4 GB while M is open (the stepper's
+  frames, the decoder and the engine); 172 MB just after a cold start. Brave's whole process set (other tabs included)
+  1.39–1.44 GB during an analysis, 1.5–1.7 GB with M. The bench in the same Brave: 321 MB above idle.
+- **M on the phone** (one walk per clip; the frame step is a tap until the stage canvas draws again): steps of
+  70–92 ms (median, ten taps 150 ms apart), except the first walk after each shell's start (`cable-1` in both):
+  ~320 ms each. M opened 219–348 ms after L1's tile (636 ms on that first walk). A 1.3–1.7 s drag of the filmstrip
+  drew 10–15 frames a second on the 1080 × 1920 clips and about 4 on `Session14` (1080p60, a keyframe at 0 and
+  4.17 s), whose last frame came 516–525 ms after the finger lifted.
+- **s38's stepper on c34's 1080p clips** (APK, `app/tools/check-media-apk.mjs`, hardware decoder
+  `c2.qti.avc.decoder`, 5 runs, seeded): frames held at 2347 × 1320 (pixel ratio 3), a budget of 10. A step to a
+  held frame at a tap every 150 ms: 0.3 ms (30 of 30 held), backwards 0.2–0.3 ms (p90 127 ms with keyframes 2–5 s
+  apart, 26–28 of 30 held). As fast as the steps come: 4.1–4.8 ms (p90 14 ms). Against `frameAt` on the next frame:
+  165 ms (keyframe every 1 s) and 429 ms (every 2–5 s). A seek: 188 and 393 ms against `frameAt`'s 151 and 383 ms.
+  The stepper's open: about 180 and 410–470 ms.
+- **The decoder's frames left open while the stepper sits on a frame** (s38f1's count, `idleDecoded`): 14 at 440 px
+  (opened, and again after ten steps; every run, both clips); at 1320 px 10 when opened, 6–11 after ten steps; none
+  after the source is closed. Headless Brave's software decoder kept at most 2 (s38f1).
+
+**Agreement with ViTPose-L, the app's tracks** (spike/pose-bench/compare.mjs over every stored track, written as the
+bench's results by `check-phone.mjs tracks`): smoothed and raw, **lateral raise 40/40 and snatch 20/20 in each shell**
+(5 runs × 8 and × 4 verdicts), coverage 100%. The bench's own MoveNet Thunder WebGL rows above say the same: 8/8 and 4/4.
+
+**Parity of the from-source bundle with npm's on real clips** (step 5.3; `spike/pose-bench/difftrack.mjs --ref`,
+the bench's track of the clip in the same Brave, Thunder WebGL every frame, served after the offline runs on another
+port than the PWA). Each cell is mean / max px per keypoint (COCO-17 order):
+
+| Clip | The app in Brave against the bench in Brave | The APK (WebView 153) against the bench in Brave (156) |
+| --- | --- | --- |
+| `lateral-raise-cable-1` | 0.00 / 0.00 for all 17 | nose 12.32/63.52, l-eye 11.32/68.49, r-eye 12.23/61.89, l-ear 9.44/53.76, r-ear 7.06/37.11, l-shoulder 6.78/17.94, r-shoulder 5.20/17.18, l-elbow 7.34/24.07, r-elbow 11.46/224.83, l-wrist 5.50/17.42, r-wrist 8.69/62.34, l-hip 6.32/21.37, r-hip 6.16/19.78, l-knee 7.06/25.42, r-knee 9.33/34.32, l-ankle 7.65/20.30, r-ankle 6.85/16.93 |
+| `lateral-raise-cable-2` | 0.00 / 0.00 for all 17 | nose 0.92/4.19, l-eye 0.84/5.10, r-eye 0.75/4.08, l-ear 0.83/3.01, r-ear 1.08/4.50, l-shoulder 1.32/5.54, r-shoulder 1.10/4.57, l-elbow 2.28/15.16, r-elbow 1.45/8.48, l-wrist 5.15/27.33, r-wrist 1.95/11.97, l-hip 1.84/6.63, r-hip 1.63/6.39, l-knee 1.39/5.01, r-knee 1.32/5.89, l-ankle 3.82/17.38, r-ankle 2.66/13.97 |
+| `athlete-a-trim` | 0.00 / 0.00 for all 17 | nose 1.08/5.50, l-eye 1.06/5.25, r-eye 1.04/5.05, l-ear 2.28/9.24, r-ear 1.32/4.99, l-shoulder 3.15/18.84, r-shoulder 1.84/5.96, l-elbow 13.69/100.22, r-elbow 4.49/57.53, l-wrist 12.02/106.66, r-wrist 4.54/42.72, l-hip 2.44/9.31, r-hip 2.69/7.70, l-knee 2.77/10.59, r-knee 3.38/40.07, l-ankle 1.82/9.31, r-ankle 2.43/12.95 |
+| `Session14_01_0h18m07s_made` | 0.00 / 0.00 for all 17 | nose 0.29/3.08, l-eye 0.23/1.89, r-eye 0.23/2.12, l-ear 0.29/1.95, r-ear 0.27/3.48, l-shoulder 0.34/5.34, r-shoulder 0.26/2.07, l-elbow 0.50/5.27, r-elbow 0.40/3.98, l-wrist 0.54/5.82, r-wrist 0.50/6.86, l-hip 0.34/4.21, r-hip 0.32/3.70, l-knee 0.34/5.65, r-knee 0.37/4.25, l-ankle 0.53/7.08, r-ankle 0.62/14.96 |
+
+- **In the same browser the app's keypoints are npm's, bit for bit:** 0.000 px and a confidence difference of 0 on
+  every frame of all four clips. Two runs of the app agree the same way. So the from-source bundle and the app's
+  decoding change nothing; the WebView against Brave does (mean 0.4–8.3 px over all points, a few points far apart
+  where the confidence is low: 1–25 cross the 0.3 gate per clip). No verdict differs, raw or smoothed.
+- **`lateral-raise-cable-2`:** the app's track has 179 of the clip's 180 frames, in both shells. M's range ends on the
+  last frame (t1 = 2.98632 s, frame 179), but the track stops at frame 178. The likely cause: the stored cut's frame
+  times are rounded (the track's rate is 59.93999 fps against the source's 59.94006), so the last frame falls just
+  after t1. The other three clips have every frame, the last included.
+
 ## The first round: speed, memory, download (Brave)
 
 Engine ms/frame is the p50 over every processed frame, averaged over the
