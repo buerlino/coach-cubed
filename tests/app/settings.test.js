@@ -102,11 +102,14 @@ test('the provisional ranges are said in settings.mjs above FIELDS and in the RE
   assert.ok(at > 0);
   const above = src.slice(src.lastIndexOf('\n\n', at), at);
   assert.match(above, /PROVISIONAL/);
-  assert.match(above, /c27/);
+  // c27 runs on the laptop alone (nordmu, 2026-11-02): c30 measures the buffer's memory on the phone
+  assert.match(above, /c30/);
+  assert.doesNotMatch(src, /c27/);
   const readme = read('app', 'README.md');
   const store = readme.slice(readme.indexOf('## The store'), readme.indexOf('## The frame source'));
   assert.match(store, /provisional/i);
-  assert.match(store, /c27/);
+  assert.match(store, /c30/);
+  assert.doesNotMatch(store, /until `c27`/);
 });
 
 // ---- storage ----
