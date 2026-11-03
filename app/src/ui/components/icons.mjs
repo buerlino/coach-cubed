@@ -31,11 +31,13 @@ export const FilmIcon = () => html`<svg viewBox="0 0 24 24" width="18" height="1
 
 export const BackIcon = () => html`<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round"><path d="M15 5l-7 7 7 7"></path></svg>`;
 
-// M's (design/mockups/Mark.dc.html): close, the frame steps
+// M's (design/mockups/Mark.dc.html): close, the frame steps, undo
 const thick = 'fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round';
 export const CloseIcon = () => html`<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style=${thick}><path d="M6 6l12 12M18 6L6 18"></path></svg>`;
 export const StepBackIcon = () => html`<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style=${thick}><path d="M16 6l-6 6 6 6M8 6v12"></path></svg>`;
 export const StepForwardIcon = () => html`<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style=${thick}><path d="M8 6l6 6-6 6M16 6v12"></path></svg>`;
+// ↶, undo the last mark (round 1's page, design/checkpoint-a/round-1.html: UNDO_ARROW), in the colour around it
+export const UndoIcon = () => html`<svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><path d="M9 14L4 9l5-5"></path><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"></path></svg>`;
 
 // A1's (design/mockups/Result.dc.html): play, pause, the options menu
 const solid = 'fill: currentColor';

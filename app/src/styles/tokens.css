@@ -105,11 +105,11 @@
   --size-lift: 24px;
   --lift-figure-small: 28px;
 
-  /* Sizes of M's pieces (the mockup's): the video stage, the filmstrip, a thumbnail,
-     the playhead, a step's mark, the frame-step buttons. The strip's 48 px a second
-     is PX_PER_SECOND in ui/mark-model.mjs. */
-  --stage: 440px;
-  --stage-min: 200px;
+  /* Sizes of M's pieces (the mockup's, and round 1's page for the rows under the strip: design/checkpoint-a/round-1.html):
+     the stage's least height (it takes what the fixed rows leave), the filmstrip, a thumbnail, the playhead, the marks
+     on the strip; the text row (the frame steps, the text line two lines high), the steps row (↶ and the three steps,
+     a step's disc). The strip's 48 px a second is PX_PER_SECOND in ui/mark-model.mjs. */
+  --mark-stage-min: 140px;
   --strip: 100px;
   --strip-label: 40px;
   --strip-thumb-w: 47px;
@@ -120,7 +120,6 @@
   --mark-pole: 4px;
   --mark-flag-w: 20px;
   --mark-flag-h: 18px;
-  --step-mark: 24px;
   --mark-ring: 2px;
   --strip-tick-top: 14px;
   --strip-thumb-top: 26px;
@@ -130,7 +129,15 @@
   --strip-playhead-top: 22px;
   --strip-playhead-h: 78px;
   --strip-knob-top: 14px;
-  --step-button: 56px;
+  --mark-read: 56px;
+  --mark-fine-w: 52px;
+  --mark-fine-h: 48px;
+  --mark-text-line: 20px;
+  --mark-text-h: 40px;   /* two lines of --mark-text-line */
+  --mark-undo-w: 52px;
+  --mark-tile-h: 68px;
+  --mark-disc: 26px;
+  --disabled-opacity: 0.35;   /* ↶ with nothing to undo: greyed out, never hidden */
 
   /* The stage's black, the clock chip's scrim and the marked range's wash */
   --stage-ground: #000000;

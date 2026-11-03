@@ -10,8 +10,9 @@
 //      over the DevTools protocol, loads the app, waits for the service worker's full cache, then takes
 //      the network away (emulation, and the server shut down) and reloads;
 //   3. per lift with a fixture (app/tools/lift-fixtures.mjs; a lift of the registry without one is listed in
-//      the output, `untested`, and in a line after it): H → the picker (a clip of tests/app/clips/) → L1 (the lift's tile) → M (decoded for real) (set start,
-//      drag to the end, set end, Analyse) → Q1 (waits for the job) → A1; reads the cue cards and
+//      the output, `untested`, and in a line after it): H → the picker (a clip of tests/app/clips/) → L1 (the lift's tile) → M (decoded for real) (1 Start,
+//      a refused 2, drag to the end, 2 End, ↶, 2 again, Analyse; d54's shift check after each press: every control of M where it
+//      was in M1, to 0.5 px, shift-check.mjs) → Q1 (waits for the job) → A1; reads the cue cards and
 //      compares each with the view model of s11's adapter (scoreLift) computed in Node from the same
 //      fixture track: per cue its id, status class, verdict line, value and the card's label (with the
 //      status word). Not empty, not different.
@@ -24,7 +25,8 @@
 //                request that 404s, made online), rejection (an unhandled rejection), stall (the replay
 //                engine has no tracks, so the job fails), hang (the replay engine never answers: the job
 //                does not finish in its time, 5 s here), cards (a fixture track altered in the test build, so the
-//                cards differ from the adapter's).
+//                cards differ from the adapter's), shift (a row of M grows once the start is set, so the controls
+//                move: the shift check names each control and the step).
 // --real CLIP    off by default: the real engine (MoveNet on TF.js; its WebGL backend, which headless Brave runs in software, on the CPU: the app has no other) on one example clip,
 //                CLIP being lateral-raise-cable-1 or athlete-a-trim, read from the phase-0 worktree's
 //                tests/fixtures/local/example/ (found with `git worktree list`; read in place, never copied;
@@ -43,6 +45,7 @@ import { assemble, TEST_TRACKS } from './assemble.mjs';
 import { fixtureCoverage } from './lift-fixtures.mjs';
 import { createApp } from './serve.mjs';
 import { BROWSERS, findBrowser, launchBrowser } from './browser.mjs';
+import { MARK_CONTROLS, SHIFT_BREAK, compareBoxes, readBoxes } from './shift-check.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const APP = resolve(HERE, '..');
@@ -58,7 +61,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // ---- the browser: found and launched by browser.mjs, which also ends its whole process tree ----
 const breakKind = arg('--break');
-if (breakKind && !['console', 'http', 'rejection', 'stall', 'hang', 'cards'].includes(breakKind)) { console.error(`page-test: --break wants console, http, rejection, stall, hang or cards (got ${breakKind})`); process.exit(2); }
+if (breakKind && !['console', 'http', 'rejection', 'stall', 'hang', 'cards', 'shift'].includes(breakKind)) { console.error(`page-test: --break wants console, http, rejection, stall, hang, cards or shift (got ${breakKind})`); process.exit(2); }
 const browserPath = findBrowser();
 if (!browserPath) {
   if (process.env.COACH_PAGE_TEST_SKIP === '1') { say('page-test: SKIPPED: no Brave or Chromium found (COACH_PAGE_TEST_SKIP=1)'); process.exit(0); }
@@ -253,11 +256,27 @@ try {
     await waitFor(`document.querySelector('[data-screen="L1"]')`, 'L1 after the picker');
     if (!await click(`[data-screen="L1"] [data-lift=${JSON.stringify(l.lift)}]`)) throw new Error(`L1 has no tile for ${l.lift}`);
 
-    // M: set start at the first frame, drag the filmstrip to the end, set end, Analyse
-    await waitFor(`document.querySelector('[data-screen="M"][data-step="start"] .mark-main--set:not([disabled])')`, 'M with the video open (the clip decoded)');
+    // M: 1 at the first frame, a refused 2 there, the filmstrip dragged to the end, 2, ↶, 2 again, Analyse; after each
+    // press every control of M is where it was in M1 before any mark (d54's shift check, shift-check.mjs)
+    const markButton = kind => `button[data-mark="${kind}"]`;   // in [data-screen="M"]
+    await waitFor(`document.querySelector('[data-screen="M"][data-step="start"] ${markButton('start')}:not([disabled])')`, 'M with the video open (the clip decoded)');
     one.importMs = lap();
-    if (!await click('.mark-main--set')) throw new Error('M: Set start was not there');
-    await waitFor(`document.querySelector('[data-screen="M"][data-step="end"]')`, 'M asking for the end');
+    if (breakKind === 'shift') await evaluate(`(() => { const s = document.createElement('style'); s.textContent = ${JSON.stringify(SHIFT_BREAK)}; document.head.appendChild(s); })()`);
+    const boxes = () => evaluate(`(${readBoxes.toString()})(${JSON.stringify(MARK_CONTROLS)})`);
+    const base = await boxes();
+    one.shift = [];
+    const shift = async step => {
+      const moved = compareBoxes(base, await boxes(), step);
+      one.shift.push(step);
+      for (const p of moved) problems.push(`${l.lift}: ${p}`);
+      if (moved.length) one.ok = false;
+    };
+    if (!await click('[data-screen="M"] ' + markButton('start'))) throw new Error('M: 1 Start was not there');
+    await waitFor(`document.querySelector('[data-screen="M"][data-step="end"] ${markButton('end')}:not([disabled])')`, 'M asking for the end');
+    await shift('after 1');
+    if (!await click('[data-screen="M"] ' + markButton('end'))) throw new Error('M: 2 End was not there');
+    await waitFor(`document.querySelector('[data-screen="M"][data-step="end"] .mark-text--error')`, 'the refusal of an end on the start');
+    await shift('after a refused 2');
     const strip = await evaluate(`(() => { const r = document.querySelector('.strip').getBoundingClientRect(); return { x: r.left, y: r.top + r.height / 2, w: r.width }; })()`);
     const mouse = (type, x) => send('Input.dispatchMouseEvent', { type, x, y: strip.y, button: 'left', buttons: type === 'mouseReleased' ? 0 : 1, clickCount: 1, pointerType: 'mouse' });
     await mouse('mousePressed', strip.x + strip.w - 10);
@@ -276,10 +295,18 @@ try {
     const lastAt = ((l.meta.frame_count - 1) / l.meta.fps).toFixed(1);   // the strip's aria-valuenow, to a tenth
     if (!realClip && seen !== lastAt) throw new Error(`the playhead stopped at ${seen} s, not at the last frame (${lastAt} s)`);
     await sleep(300);   // the frame under the playhead settles
-    if (!await click('.mark-main--set')) throw new Error('M: Set end was not there');
-    await waitFor(`document.querySelector('[data-screen="M"][data-step="ready"] .mark-main.button--primary:not([disabled])')`, 'M ready to analyse');
+    const ready = `document.querySelector('[data-screen="M"][data-step="ready"] ${markButton('analyse')}:not([disabled])')`;
+    if (!await click('[data-screen="M"] ' + markButton('end'))) throw new Error('M: 2 End was not there after the drag');
+    await waitFor(ready, 'M ready to analyse');
+    await shift('after 2');
+    if (!await click('[data-screen="M"] ' + markButton('undo'))) throw new Error('M: ↶ was not there, or disabled, after 2');
+    await waitFor(`document.querySelector('[data-screen="M"][data-step="end"]')`, 'M back to the end after ↶');
+    await shift('after ↶');
+    if (!await click('[data-screen="M"] ' + markButton('end'))) throw new Error('M: 2 End was not there after ↶');
+    await waitFor(ready, 'M ready to analyse again');
+    await shift('after 2 again');
     one.markMs = lap();
-    if (!await click('.mark-main.button--primary')) throw new Error('M: Analyse was not there');
+    if (!await click('[data-screen="M"] ' + markButton('analyse'))) throw new Error('M: 3 Analyse was not there');
 
     // Q1: the job, to its end
     await waitFor(`document.querySelector('[data-screen="Q1"]')`, 'Q1 after Analyse', 30000);

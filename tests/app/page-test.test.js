@@ -146,6 +146,39 @@ test('page-test.mjs: no browser fails with one clear line, and COACH_PAGE_TEST_S
   assert.equal(bad.status, 2);
 });
 
+test('d54 the shift check: the same boxes to 0.5 px pass; a control that moved, or is gone, fails naming the control and the step', async () => {
+  const { MARK_CONTROLS, SHIFT_STEPS, SHIFT_TOLERANCE_PX, compareBoxes, readBoxes, SHIFT_BREAK } = await load('app', 'tools', 'shift-check.mjs');
+  assert.deepEqual(MARK_CONTROLS.map(c => c[0]), ['the header', 'the strip', '‹', 'the text line', '›', '↶', '1 Start', '2 End', '3 Analyse']);
+  assert.deepEqual(SHIFT_STEPS, ['M1 before any mark', 'after 1', 'after a refused 2', 'after 2', 'after ↶', 'after 2 again']);
+  assert.equal(SHIFT_TOLERANCE_PX, 0.5);
+  const base = Object.fromEntries(MARK_CONTROLS.map(([name], i) => [name, { x: 16, y: 60 + 50 * i, w: 84, h: 44 }]));
+  assert.deepEqual(compareBoxes(base, structuredClone(base), 'after 1'), []);
+  const nudged = structuredClone(base);
+  nudged['the strip'].y += 0.4;
+  assert.deepEqual(compareBoxes(base, nudged, 'after 1'), [], 'under half a pixel is the same place');
+  const moved = structuredClone(base);
+  moved['3 Analyse'].y += 6;
+  moved['the text line'].h += 20;
+  const problems = compareBoxes(base, moved, 'after 2');
+  assert.equal(problems.length, 2);
+  assert.match(problems[0], /^M moved after 2: the text line .*h 44 → 64/);
+  assert.match(problems[1], /^M moved after 2: 3 Analyse .*y 460 → 466/);
+  const gone = structuredClone(base);
+  gone['↶'] = null;
+  assert.deepEqual(compareBoxes(base, gone, 'after ↶'), ['M moved after ↶: ↶ is not on the screen']);
+  // the page side reads each control's box by its selector, as stringified for the page
+  const boxes = { '.a': { left: 1, top: 2, width: 3, height: 4 } };
+  globalThis.document = { querySelector: s => (boxes[s] ? { getBoundingClientRect: () => boxes[s] } : null) };
+  try { assert.deepEqual(readBoxes([['a', '.a'], ['b', '.b']]), { a: { x: 1, y: 2, w: 3, h: 4 }, b: null }); } finally { delete globalThis.document; }
+  assert.match(SHIFT_BREAK, /data-step="end"/, '--break shift: a row that grows once the start is set');
+  // the page test runs it in every walk, and --break shift is one of its faults
+  const script = fs.readFileSync(path.join(APP, 'tools', 'page-test.mjs'), 'utf8');
+  assert.match(script, /'console', 'http', 'rejection', 'stall', 'hang', 'cards', 'shift'/);
+  for (const step of ['after 1', 'after a refused 2', 'after 2', 'after ↶', 'after 2 again']) assert.ok(script.includes(`shift('${step}')`), `the walk compares ${step}`);
+  assert.match(script, /button\[data-mark="\$\{kind\}"\]/, 'the walk presses the steps by their hooks');
+  assert.doesNotMatch(script, /mark-main/);
+});
+
 test('setAppQueueDefaults: the queue made after it uses the store its caller passes, with the defaults\' parts', async () => {
   const { appQueue, setAppQueueDefaults } = await load('app', 'src', 'analysis', 'index.mjs');
   const engine = async () => ({ info: {}, estimate: async () => null, reset: async () => {}, close() {} });

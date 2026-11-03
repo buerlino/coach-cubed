@@ -382,8 +382,10 @@ test('view options: re-mark opens M with the stored cut and the lift\'s old mark
   near(v.endAt, 2.2);
   assert.equal(v.canAnalyse, true);
   assert.deepEqual(mark.markedRange(marks, r.src.frameTimes), { t0: 0.4, t1: 2.2, length: 2.2 - 0.4, frames: 46 });
-  // Redo clears them, as in M3
-  assert.equal(mark.stepOf(mark.redo()), 'start');
+  // d54: a re-mark opens with nothing to undo; ↶ takes back only what is pressed on M
+  assert.deepEqual(marks.history, []);
+  assert.equal(v.canUndo, false);
+  assert.equal(mark.stepOf(mark.undo(mark.pressStep(marks, 'start', 12, r.src.frameTimes))), 'ready');
   // and M reads them from the flow's params
   assert.match(read('ui/screens/M.mjs'), /flow\.params\.range|marksFromRange/);
 });
