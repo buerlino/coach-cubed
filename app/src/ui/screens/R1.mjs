@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../html.mjs';
 import { BackIcon, InfoIcon, LiftIcon, RetryIcon } from '../components/icons.mjs';
 import { Problem } from '../components/problem.mjs';
-import { captureProblem, setupView } from '../record-model.mjs';
+import { captureProblem, goHome, setupView } from '../record-model.mjs';
 import { useCapture, useStream } from '../use-capture.mjs';
 import { DEFAULT_SETTINGS } from '../../store/settings.mjs';
 
@@ -37,7 +37,7 @@ export function R1({ flow, store, session }) {
   const view = setupView({ settings, status, chosen });
   const problem = captureProblem(status);
   const again = () => session.open(settings || { ...DEFAULT_SETTINGS });
-  const back = async () => { await session.end(); flow.go('home'); };
+  const back = async () => { await session.end(); goHome(flow); };
   const start = async () => {
     if (!view.canStart || starting) return;
     setStarting(true); setRefused(null);

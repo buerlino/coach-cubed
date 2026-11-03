@@ -90,3 +90,13 @@ export function gymCard(session) {
   if (session && session.active) return { title: 'Back to the session', clock: clockText(session.elapsedS), to: 'live' };
   return { title: 'Gym session', clock: null, to: 'setup' };
 }
+
+/**
+ * Home after End session (R2) or R1's back. A second tap while the capture is still stopping (or a click that lands after the
+ * first one finished) finds the flow at home already, and home does not lead to home: the `illegal transition home -> home`
+ * was an uncaught exception in the page. So the flow goes home only when it is not there.
+ * @param {{state: string, go: (to: string) => void}} flow
+ */
+export function goHome(flow) {
+  if (flow.state !== 'home') flow.go('home');
+}

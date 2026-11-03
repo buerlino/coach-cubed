@@ -752,7 +752,7 @@ high); and the bar with the line from the settings (`1080p · 30 fps · last 60 
 capture's `sinceS`), the camera's **real** rate (`29 fps`, rounded, `– fps` until the frames give one; never the asked one), the lift and
 the buffer (`Lateral raise · last 60 s`) and, in a row of its own that stays free when the queue is empty, the queue line (`1 analysing · 1
 waiting`; a tap opens Q1). Under it the large Replay button (`button[data-record="replay"]`, the replay's length from the settings,
-`20 s`; it opens [R3](#r3-the-replay)), End session (`button[data-record="end"]`: ends the session, goes home) and the wake-lock
+`20 s`; it opens [R3](#r3-the-replay)), End session (`button[data-record="end"]`: ends the session, goes home; `goHome` in record-model.mjs sends the flow home only if it is not there, so a second tap throws no `home -> home`) and the wake-lock
 line (`Screen stays on` when held, `Screen may turn off` when refused, nothing before it is asked). The clock and the rate have a width of their
 own and the queue and the wake-lock line sit at an edge, so nothing moves when they change; at 360×640, 360×800, 412×760 and 412×915 the screen
 does not scroll vertically and every control is inside the window (the layout check). The window's height is a least height: a phone in

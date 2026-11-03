@@ -582,7 +582,7 @@ try {
   for (const e of events) if (e.method === 'Network.requestWillBeSent') sent.set(`${e.sessionId ?? ''}/${e.params.requestId}`, e.params.request.url);
   for (const e of events) {
     const p = e.params;
-    if (e.method === 'Runtime.exceptionThrown') problems.push(`exception: ${(p.exceptionDetails.exception?.description ?? p.exceptionDetails.text).split('\n')[0]} (${p.exceptionDetails.url ?? ''}:${p.exceptionDetails.lineNumber ?? ''})`);
+    if (e.method === 'Runtime.exceptionThrown') problems.push(`exception: ${(p.exceptionDetails.exception?.description ?? p.exceptionDetails.text).split('\n').slice(0, 6).join(' | ')} (${p.exceptionDetails.url ?? ''}:${p.exceptionDetails.lineNumber ?? ''})`);
     else if (e.method === 'Runtime.consoleAPICalled' && (p.type === 'error' || p.type === 'assert')) problems.push(`console.${p.type}: ${p.args.map(a => a.value ?? a.description).join(' ').slice(0, 300)}`);
     else if (e.method === 'Log.entryAdded' && p.entry.level === 'error') problems.push(`log error: ${p.entry.text} ${p.entry.url ?? ''}`.slice(0, 300));
     else if (e.method === 'Network.loadingFailed' && !(p.canceled && preReload.has(p.requestId))) problems.push(`request failed: ${sent.get(`${e.sessionId ?? ''}/${p.requestId}`) ?? p.requestId}: ${p.errorText}`);
