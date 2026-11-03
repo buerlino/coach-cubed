@@ -293,6 +293,18 @@ for (const [code, fakeOptions, step, kept] of ERRORS) {
   });
 }
 
+test('open() after a failure starts afresh: the camera the failed start() held is stopped, not leaked', async () => {
+  const { cap, fake, last } = await setup({ supported: false });
+  await cap.open();
+  await assert.rejects(cap.start(), { code: 'no-encoder' });
+  const first = fake.camera;
+  await cap.open();
+  assert.equal(last().state, 'preview');
+  assert.notEqual(fake.camera, first);
+  assert.ok(first.tracks.every(t => t.readyState === 'ended'), 'the first camera\'s tracks are stopped');
+  cap.close();
+});
+
 test('an encoder that fails while recording: encoder-failed with its message, the state failed, the ring kept', async () => {
   const { CaptureError } = await load('src/media/capture.mjs');
   const { cap, fake, last } = await recording();

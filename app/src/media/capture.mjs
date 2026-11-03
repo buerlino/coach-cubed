@@ -265,6 +265,15 @@ export function createCapture(settings = {}, { api = browserCaptureApi(), now = 
     set({ state: 'interrupted' });
   }
 
+  /** Everything held let go: the session, the ring, the wake lock, the camera. */
+  function teardown() {
+    if (session) endSession(session, { flush: false });
+    if (ring) ring.close();
+    ring = null; startedAt = null;
+    releaseWake();
+    releaseCamera();
+  }
+
   const cap = {
     /** The latest state: { state, fps, width, height, rotation, sinceS, heldS, bytes, dropped, wakeLock, error }. */
     get status() { return status(); },
@@ -277,9 +286,10 @@ export function createCapture(settings = {}, { api = browserCaptureApi(), now = 
       return () => listeners.delete(fn);
     },
 
-    /** R1: the camera for the preview. Nothing is recorded. */
+    /** R1: the camera for the preview. Nothing is recorded. After a failure it starts afresh. */
     async open() {
       if (state === 'preview' || state === 'recording' || state === 'interrupted') return;
+      teardown();
       error = null;
       try { adoptCamera(await openCamera()); } catch (e) { releaseCamera(); fail(e); }
       set({ state: 'preview', error: null });
@@ -347,11 +357,7 @@ export function createCapture(settings = {}, { api = browserCaptureApi(), now = 
 
     /** Releases the camera: every track stopped. */
     close() {
-      if (session) endSession(session, { flush: false });
-      if (ring) ring.close();
-      ring = null; startedAt = null;
-      releaseWake();
-      releaseCamera();
+      teardown();
       set({ state: 'closed', error: null });
     },
   };
