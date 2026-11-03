@@ -88,34 +88,12 @@ window.check = (async () => {
     for (const r of Object.values(steps[name])) { delete r.each; delete r.times; delete r.got; }
   }
   // the decoder's VideoFrames still open while a stepper sits on a frame (s38f1):
-  // the paused forward decoder's, outside the budget; counted by wrapping the
-  // decoder's output, at the default budget 440 px high, opened at a third of the
-  // clip, then after 10 steps forwards, each time once the refill has settled
-  const { browserWebCodecs } = await import('./app/src/media/webcodecs.mjs');
+  // the paused forward decoder's, outside the budget; counted by media.mjs's
+  // idleDecoded (the decoder's output wrapped), at the default budget 440 px high,
+  // opened at a third of the clip, then after 10 steps forwards, each time once the
+  // refill has settled (the phone runs the same call, c26)
   const idle = out.idle = {};
-  for (const name of ${JSON.stringify(STEP_CLIPS)}) {
-    const url = name.startsWith('testsrc2') ? './clips/' + name + '.mp4' : './extra/' + name + '.mp4';
-    const live = new Set(), wc = browserWebCodecs();
-    const counting = { ...wc, createDecoder: init => wc.createDecoder({ ...init, output: f => {
-      live.add(f);
-      const close = f.close.bind(f);
-      f.close = () => { live.delete(f); close(); };
-      init.output(f);
-    } }) };
-    const r = idle[name] = {};
-    try {
-      const src = await openFrameSource(await (await fetch(url)).blob(), { webcodecs: counting });
-      const st = await src.stepper(src.frameTimes[Math.floor(src.frameTimes.length / 3)], { height: 440 });
-      const look = async () => { await st.settled(); await new Promise(res => setTimeout(res, 300)); return { index: st.index, held: st.held, decodedOpen: live.size }; };
-      r.opened = await look();
-      for (let k = 0; k < 10; k++) { await st.step(1); await st.settled(); }
-      r.stepped = await look();
-      r.decodedSize = src.info.width + 'x' + src.info.height;
-      st.close(); src.close();
-      await new Promise(res => setTimeout(res, 100));
-      r.afterClose = live.size;
-    } catch (e) { r.error = { code: e.code, message: e.message }; }
-  }
+  for (const name of ${JSON.stringify(STEP_CLIPS)}) idle[name] = await c34.idleDecoded(name, { height: 440, at: 1 / 3, steps: 10 });
   return out;
 })();
 </script>`;

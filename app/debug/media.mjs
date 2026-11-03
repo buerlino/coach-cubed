@@ -15,6 +15,8 @@
 //   window.c34.rotateCost(name, {t0, t1, rotation})     the canvas turn on each decoded frame, timed alone
 //   window.c34.cut(name, {t0, t1, keep})                cutVideo, the store's write (saveLift), the cut read back,
 //                                                       opened and decoded end to end, then the lift deleted
+//   window.c34.idleDecoded(name, {height, at, steps})  the decoder's frames still open while a stepper sits on a
+//                                                       frame (s38f1), opened, then after `steps` steps (c26)
 //
 // Each returns a plain object (JSON); a failure is `{error: {code, message}}`,
 // never thrown. Times are performance.now() wall times in ms. Every call also
@@ -60,6 +62,25 @@ export function spacing(times) {
   for (let i = 1; i < times.length; i++) d.push((times[i] - times[i - 1]) * 1000);
   const distinct = new Set(d.map(v => Math.round(v * 10) / 10));
   return { frames: times.length, ms: stats(d), distinctSpacings: distinct.size, first: d.slice(0, 8).map(r3) };
+}
+
+// The decoder's VideoFrames still open (s38f1, moved here from check-media.mjs for the
+// phone, c26): wc's createDecoder wrapped so every output frame is counted until closed.
+export function countingWebCodecs(wc) {
+  const live = new Set();
+  const webcodecs = {
+    ...wc,
+    createDecoder: init => wc.createDecoder({
+      ...init,
+      output: f => {
+        live.add(f);
+        const close = f.close.bind(f);
+        f.close = () => { live.delete(f); close(); };
+        init.output(f);
+      },
+    }),
+  };
+  return { webcodecs, live };
 }
 
 const files = new Map();
@@ -234,6 +255,29 @@ export const c34 = {
       };
     } finally { st.close(); }
   })),
+
+  // The decoded frames a stepper keeps open while it sits on a frame (s38f1: the paused
+  // forward decoder's, outside the budget, at most 2 in headless Brave): the stepper
+  // opened at `at` (a fraction of the clip) at M1–M3's height (440 px unless `height`),
+  // counted once the refill has settled, then again after `steps` steps forwards, and
+  // after the source is closed.
+  idleDecoded: (name, { height = 440, at = 1 / 3, steps = 10 } = {}) => measured(async () => {
+    const { webcodecs, live } = countingWebCodecs(browserWebCodecs());
+    const src = await openFrameSource(file(name), { webcodecs });
+    let st = null;
+    try {
+      st = await src.stepper(src.frameTimes[Math.floor(src.frameTimes.length * at)], { height });
+      const look = async () => { await st.settled(); await sleep(300); return { index: st.index, held: st.held, decodedOpen: live.size }; };
+      const opened = await look();
+      for (let k = 0; k < steps; k++) { await st.step(1); await st.settled(); }
+      const stepped = await look();
+      const decodedSize = `${src.info.width}x${src.info.height}`;
+      st.close(); st = null;
+      src.close();
+      await sleep(100);
+      return { height, steps, decodedSize, opened, stepped, afterClose: live.size };
+    } finally { if (st) st.close(); src.close(); }
+  }),
 
   // The canvas turn alone (webcodecs.rotate, what the frame source does for a rotated
   // file) on each decoded frame of a file with no rotation: the call, then the turned
