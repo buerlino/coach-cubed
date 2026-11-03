@@ -12,6 +12,8 @@ import { createReplay } from './replay.mjs';
 const real = new URLSearchParams(globalThis.location.search).has('real');
 
 if (!real) {
+  // d57: `globalThis.coachReplay.mode` = 'no-person' or 'unreadable' makes the next job end that way (replay.mjs); null replays the track
+  const control = (globalThis.coachReplay = { mode: null });
   const manifest = fetch('./page-test/tracks.json').then(r => {
     if (!r.ok) throw new Error(`page-test/tracks.json: ${r.status}`);
     return r.json();
@@ -22,7 +24,7 @@ if (!real) {
       if (!r.ok) throw new Error(`page-test/${t.file}: ${r.status}`);
       return { id: t.id, lift: t.lift, track: await r.json() };
     }));
-    return createReplay(tracks);
+    return createReplay(tracks, control);
   });
   loaded.catch(() => { /* the first Analyse reports it */ });
   setAppQueueDefaults({

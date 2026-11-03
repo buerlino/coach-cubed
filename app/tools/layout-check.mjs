@@ -3,7 +3,8 @@
 // The responsive check (package d25, plan step 5.7): every screen of the app at seven window sizes, in the page
 // test's build (assemble.mjs --test, app/README.md "The page test") in headless Brave or Chromium over the
 // DevTools protocol. It walks the app the way the page test does (first-run intro, H, S1, S1's credits, S1b,
-// L1 (Which lift?), M in its three steps and its error, Q1, A1, A3's sheet, A2) and at each screen sets each size in turn:
+// L1 (Which lift?), M in its three steps and its error, Q1 running, done and failed ("No person found", unreadable: d57),
+// A1, A3's sheet, A2) and at each screen sets each size in turn:
 //   phone portrait 360×800 and 412×915, phone landscape 800×360, tablet 768×1024, laptop 1280×800, and above A4's
 //   breakpoint a landscape tablet 1024×768 and a narrow window 980×720 (the video column has to give way there).
 // It fails on
@@ -437,6 +438,36 @@ async function main() {
     await click('button', 'Back');
     await waitFor(`document.querySelector('[data-screen="H"]')`, 'H after the result');
 
+    // d57: Q1's failed panels, made by the replay engine's modes (app/page-test/replay.mjs): the job finds nobody in any
+    // frame ("No person found"), or the clip it opens is refused (unreadable). Each is walked from H, as a person would.
+    for (const [mode, label, title] of [['no-person', 'Q1 (No person found)', 'No person found'], ['unreadable', 'Q1 (unreadable)', "This video can't be read"]]) {
+      await setViewport(VIEWPORTS[0]);
+      await evaluate(`globalThis.coachReplay.mode = ${JSON.stringify(mode)}`);
+      const pick = await evaluate(`document.querySelector('[data-screen="H"] input[type="file"]')`, { objectId: true });
+      await send('DOM.setFileInputFiles', { files: [clip], objectId: pick.objectId });
+      await waitFor(`document.querySelector('[data-screen="L1"] [data-lift]')`, `L1 (${mode})`);
+      await click('[data-screen="L1"] [data-lift="lateral-raise"]');
+      await waitFor(`document.querySelector('[data-screen="M"][data-step="start"] button[data-mark="start"]:not([disabled])')`, `M (${mode})`);
+      await click('[data-screen="M"] button[data-mark="start"]');
+      await waitFor(`document.querySelector('[data-screen="M"][data-step="end"]')`, `M asking for the end (${mode})`);
+      const bar = await evaluate(`(() => { const r = document.querySelector('.strip').getBoundingClientRect(); return { x: r.left, y: r.top + r.height / 2, w: r.width }; })()`);
+      const drag = (type, x) => send('Input.dispatchMouseEvent', { type, x, y: bar.y, button: 'left', buttons: type === 'mouseReleased' ? 0 : 1, clickCount: 1, pointerType: 'mouse' });
+      await drag('mousePressed', bar.x + bar.w - 10);
+      for (let k = 1; k <= 10; k++) await drag('mouseMoved', bar.x + bar.w - 10 - (bar.w - 20) * k / 10);
+      await drag('mouseReleased', bar.x + 10);
+      await sleep(1500);
+      await click('[data-screen="M"] button[data-mark="end"]');
+      await waitFor(`document.querySelector('[data-screen="M"][data-step="ready"] button[data-mark="analyse"]:not([disabled])')`, `M ready (${mode})`);
+      await click('[data-screen="M"] button[data-mark="analyse"]');
+      await waitFor(`document.querySelector('[data-screen="Q1"][data-kind="failed"]')`, `Q1 failed (${mode})`, 60000);
+      await evaluate('globalThis.coachReplay.mode = null');
+      const said = await evaluate(`document.querySelector('[data-screen="Q1"]').innerText`);
+      if (!said.includes(title) || !said.includes('Pick another video')) problems.push(`${label}: Q1 says ${JSON.stringify(said.replace(/\s+/g, ' ').slice(0, 200))}, not "${title}" with "Pick another video"`);
+      await check(label);
+      await click('[data-screen="Q1"] button', 'Home');
+      await waitFor(`document.querySelector('[data-screen="H"]')`, `H after ${label}`);
+    }
+
     // a file that is not a video: the error screen
     writeFileSync(junk, 'this is not a video\n');
     const input2 = await evaluate(`document.querySelector('[data-screen="H"] input[type="file"]')`, { objectId: true });
@@ -465,7 +496,7 @@ async function main() {
   say(`layout-check: ${walked.length} checks (${screens.size} screens × ${VIEWPORTS.length} sizes, M at ${M_SIZES.length}) in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
   say(`screens: ${[...screens].join(', ')}`);
   for (const p of unique) say(`  ✗ ${p}`);
-  const ok = unique.length === 0 && (breakKind ? true : screens.size >= 15);
+  const ok = unique.length === 0 && (breakKind ? true : screens.size >= 17);
   if (!breakKind && unique.length === 0 && !ok) say(`layout-check: too few screens walked (${screens.size})`);
   say(unique.length === 0 && ok ? 'layout-check: PASSED' : `layout-check: FAILED: ${unique[0] ?? 'too few screens walked'}`);
   return unique.length === 0 && ok ? 0 : 1;
