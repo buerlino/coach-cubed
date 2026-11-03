@@ -172,6 +172,7 @@ test('d58: A1 and A2 are 100dvh screens that keep their height: .screen\'s flex:
     assert.match(rule(sel), /height:\s*100dvh/, `${sel} is 100dvh high`);
   }
   assert.match(css, /@media \(min-width: 980px\) \{\s*\.result \{ height: auto; min-height: 100dvh;/, 'A1\'s wide layout is unchanged');
+  assert.match(css, /@media \(max-height: 519px\) \{ \.result \{ height: auto; min-height: 100dvh; \} \}/, 'a phone in landscape keeps A1 as high as its content (the list would be 28 px high)');
 });
 
 test('layout-check: no browser is one clear line (exit 1), or a skip with COACH_PAGE_TEST_SKIP=1', () => {

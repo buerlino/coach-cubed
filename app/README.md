@@ -1131,6 +1131,23 @@ the scoring adapter builds from committed fixture tracks) lays the view model
   window, the worst moments of cues to watch or work on, and the phase of the open card's
   cue. A tap on a worst-moment mark seeks to that moment (`seekTime`, 22 px); a drag follows
   the finger, the arrow keys step.
+- **A1 fits its window** (`d58`). `.result` is `flex: none; height: 100dvh`, as M's `.mark` (`d54`): `.screen`'s `flex: 1` is a flex
+  basis of 0% that overrode the height, and on phase-0 A1 took its content's height (1,185 px at 360×640, 1,148 px at 412×915), so the
+  *page* scrolled and the cue list did not. Now the header, the video (`flex: 0 1 var(--result-stage)`, shrinking to
+  `--result-stage-min`), the player's bar and the timeline keep their places and the list takes what is left and scrolls inside (the
+  page does not, and `d55`'s page cue does not show). A phone in landscape (a window under 520 px high: the media query cannot read a
+  token) keeps A1 as it was, as high as its content, because the list would get 28 px at 800×360. From 980 px, A4's `height: auto;
+  min-height: 100dvh` is as it was.
+- **The list's fade** (`d58`, `ui/components/list-fade.mjs`): the page cue follows the page and A1's list scrolls inside, so the list has
+  a fade of its own at its bottom edge, the page cue's rule on the list's scroller: `moreBelow(list)` (`more-below-model.mjs`, the
+  same function), shown while the list has more than 8 px to go below, hidden at its end and when nothing scrolls. `ListFade` is the
+  last child of the `<aside class="cues">` and reads its parent: scroll, a `ResizeObserver`, a `MutationObserver` (a card opens, the
+  cues are scored again). The fade is `.list-fade`, a zero-high sticky box (the list's gap taken back) with a `--more-fade` high
+  `::before` from transparent to `--ground`, so showing it never changes the list's size (no flicker at the edge of the 8 px);
+  `pointer-events: none`, `transition: none` under `prefers-reduced-motion`; no new colour. **No ⌄ button** on it: the page cue's
+  button is for a thing the finger is not on, and here the finger is on the list; a button would sit over a card's text and a
+  second button would need its own name. In the wide layout the list does not scroll and the fade stays hidden. Tests:
+  `tests/app/list-fade.test.js`; the check: `layout-check.mjs` at 360×640.
 - **A2** is built (`d18`, [below](#a2-a-cues-detail)); the flow's `detail` state is d17's.
 - **The open card's rule line** (`d18`, `s45`; nordmu, 2026-11-02) is `rule-model.mjs`'s `ruleSentence(unit,
   zones(id), rule(id))` and "Provisional" while the thresholds are: "Good from +5% of torso length, watch between
@@ -1190,6 +1207,9 @@ are two of the controller's controls, the same state.
 ## A2, a cue's detail
 
 **Words (`d55`):** "No lift to show.", "No result yet.", "No such cue.", "Couldn’t show this cue." (A1 has "Couldn’t show this lift." and the card's button "Details"); the plot's line says "band: both sides". Cue texts, verdicts and reasons are `diagnostics.js`'s and unchanged.
+
+**It fits its window (`d58`):** `.detail` is `flex: none; height: 100dvh` (as A1 and M: `.screen`'s `flex: 1` had made the page scroll, 2,000 px at
+360×800), so the header stays and `.detail-body` (the frame, the plot, the tiles, the text) scrolls inside. The page cue does not show.
 
 `d18`. `screens/A2.mjs` (design/mockups/CueDetail.dc.html) is `detail` in the flow, opened by A1's "Details"
 with `liftId` and `cue`; Back returns to `result`. It loads the stored result, track and cut, scores the
@@ -1276,6 +1296,13 @@ window 980×720. A1 is walked twice, as the test clips are portrait (a narrow st
 - R1 and R2 (`d28`), checked at the same nine sizes as M: at 360×640, 360×800, 412×760 and 412×915 no vertical scroll and every control (`SETUP_CONTROLS`, `LIVE_CONTROLS`) fully inside the window (`fitsWindow`), and at 360×800 the rate and the wake-lock line changing moves no other control; the queue line's row has to be a touch target high, so a queue chip moves nothing;
 - R3 (`d29`), reached from R2's Replay and paused (a playing replay counts its 25 s down while the nine sizes are walked): the same no-scroll rule at the four portrait sizes with every control (`REPLAY_CONTROLS`: the chips, the time ago, play, the bar, the position, ½×, Keep and mark, Not this one) inside the window; "Not this one" then returns to R2;
 - R3b (`d29b`), reached by a second session started in the delayed view: the same no-scroll rule at the four portrait sizes with every control (`DELAYED_CONTROLS`: REC and the clock, the delay, the live view, the delay's choices, Keep this lift, End session) inside the window; End session then ends it;
+- A1 and A2 (`d58`), checked at the nine sizes of M too: at 360×640, 360×800, 412×760 and 412×915 no vertical page scroll (the lists scroll
+  inside), no page cue, and every control fully inside the window (`RESULT_CONTROLS`: back, View options, the skeleton chip, play, the speed, the
+  timeline and the cue list; `DETAIL_CONTROLS`: back and the detail's body), by `fitsWindow`. On phase-0 every one of those sizes failed
+  (A1's page 1,148–1,185 px high, A2's 1,880–2,000 px); phone landscape (800×360) still scrolls, as for M. "A1 list fade" at 360×640:
+  the fade shows at the top of the list, is zero high in the flow, lets taps through and is gone once the list is scrolled to its end
+  and back at the top. The summary line counts them: `fit (no vertical page scroll, controls inside the window) at 360×640, 360×800,
+  412×760, 412×915: M 4, R1 4, R2 4, R3 4, R3b 4, A1 4, A2 4 of 4 sizes`;
 - M (`d54`), checked at 360×640 and 412×760 too: at 360×640, 360×800, 412×760 (about the Fairphone in Brave) and 412×915,
   a vertical page scroll, or a control of M (`shift-check.mjs`'s list) not fully inside the window (`markFits`). Phone
   landscape may scroll there (`d55`'s cue shows there), but the checks above still hold: nothing cut off, 44 px targets, and
@@ -1294,7 +1321,7 @@ the bottom edge of the window with a ⌄ button (44 px, `aria-label="More below"
 (A3, `aria-modal`) is open; it follows scrolling, resizing and content that grows (a `ResizeObserver` on the app, a `MutationObserver`
 for the sheet), lets taps through the fade (`pointer-events: none`) and keeps the safe-area inset. M fits its window in portrait
 (`d54`), so it shows there only in landscape. It follows the *page's* scroll: A1's cue list scrolls inside its own area, and the cue
-does not look at that.
+does not look at that; the list has its own fade (`d58`, `ui/components/list-fade.mjs`, [above](#a1-the-timeline-and-the-cue-cards)).
 
 **What it does not say:** at phone
 landscape (800×360) the video, M's stage and the like are as tall as the window, so their buttons are under the fold and the page
@@ -1329,7 +1356,7 @@ nordmu in the app. Screenshots stay out of git; this is what each looks like.
 - **The first run.** `ui/welcome-model.mjs` and `screens/Welcome.mjs`: the flow's `welcome` state, entered at boot
   once (`introSeen` in the settings, default false; `startState(store)` in `main.mjs`) and leading to `lift` (with the picked file) or
   `home`; nothing leads back to it. One screen: the wordmark, "Feedback on your lift, cue by cue", three lines (what
-  the app does: "Pick a video, then mark the lift.", "coach finds the lifter and scores each cue.", "Nothing leaves this phone."), the "Import a video" card (a button that opens the phone's picker; `PickVideo`, below) and a quiet "Not
+  the app does: "Pick a video, then mark the lift.", "coach finds the lifter and scores each cue.", "Nothing leaves this phone."; `d58`: that is all it says of it, the screen has no footer line, H's and L1's keep theirs), the "Import a video" card (a button that opens the phone's picker; `PickVideo`, below) and a quiet "Not
   now". (`d55`: the words of round 1's wording pass.) Either saves `introSeen` (the card once a video is picked, `finishWelcome(store, flow, 'lift', { file })`); a store that can't be read starts at home, and a save that fails does not
   stop the app (the intro then shows again).
 - **A snatch result.** A1 already draws the cards from the view, so the snatch's two cues need no new code; the header
