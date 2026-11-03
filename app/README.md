@@ -1782,7 +1782,9 @@ profile (`SingletonCookie`, `SingletonSocket`), removed on a clean exit and left
 Checked: the singleton folder lands in `TMPDIR` under Brave. The updater folders never appeared in the runs here, so they
 could not be reproduced and are only expected to follow `TMPDIR`. So `launchBrowser` gives each browser a `$TMPDIR` of its own,
 `<profile>/t` (short: a socket path holds about 108 bytes); `close()` removes it once the processes are gone, and the `exit`
-handler (`killNow()`) removes it right after sending SIGKILL, without waiting for the processes to end (best effort). Nothing
+handler (`killNow()`) removes it right after sending SIGKILL, without waiting for the processes to end. The removal is best
+effort (`c52f1`): a folder that can't be removed (`EACCES`, or `ENOTEMPTY`/`EBUSY` once its retries run out) stays inside the
+profile, and `close()` still resolves and the `exit` handler still kills the other open browsers. Nothing
 outside the browser's own folders is touched, and nothing is left in `os.tmpdir()`. A tool that removes its profile
 removes this too; a test killed with SIGKILL leaves the profile (and with it `t/`), never an `org.chromium.*` folder in `/tmp`.
 The component updater is also switched off in every tools' browser (`--disable-component-update`,

@@ -109,7 +109,9 @@ export async function launchBrowser(profile, args = [], { browser = findBrowser(
   if (!browser) throw new Error(`no Brave or Chromium found (looked for ${BROWSERS.join(', ')} on PATH; --browser PATH or COACH_BROWSER)`);
   const tmp = join(profile, 't');
   mkdirSync(tmp, { recursive: true });
-  const removeTmp = () => rmSync(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  // best effort: rmSync can still throw once its retries run out (EACCES, ENOTEMPTY, EBUSY while a just-killed process
+  // finishes a write); a throw would stop the exit handler's loop or skip close()'s unguard. The folder then stays in the profile.
+  const removeTmp = () => { try { rmSync(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); } catch { /* best effort */ } };
   let child;
   try {
     child = spawn(browser, [`--user-data-dir=${profile}`, '--remote-debugging-port=0',
