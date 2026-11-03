@@ -118,8 +118,9 @@ export function analysingView(jobs, { liftId, lift = null, rate = null, visible 
     actions: {
       cancel: ongoing,
       retry: (kind === 'failed' && problem.actions.retry) || kind === 'cancelled',
-      // d51: only "No person found" offers another video here; the other problems keep their buttons
-      another: !!problem && problem.kind === 'no-person',
+      // d51, d56: another video wherever the problem says it can help (problem-model.mjs: unreadable,
+      // unsupported-codec, no-person); the other problems keep their buttons
+      another: !!problem && problem.actions.another,
       open: kind === 'done' && id ? { to: 'result', params: { liftId: id } } : null,
     },
     jobId: job ? job.id : null,

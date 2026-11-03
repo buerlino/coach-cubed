@@ -1038,10 +1038,10 @@ nordmu in the app. Screenshots stay out of git; this is what each looks like.
 
   | Kind | Raised by | Title | Ways on |
   | --- | --- | --- | --- |
-  | `unreadable` | s9's `MediaError` `unreadable`, `no-video`, `decode-failed`, `decode-stalled` | This video can't be read | pick another video |
-  | `unsupported-codec` | s9's `unsupported-codec` (names the codec) | This phone can't play this video | pick another video |
+  | `unreadable` | s9's `MediaError` `unreadable`, `no-video`, `decode-failed`, `decode-stalled` | This video can't be read | pick another video (from M and, since `d56`, from Q1) |
+  | `unsupported-codec` | s9's `unsupported-codec` (names the codec) | This phone can't play this video | pick another video (from M and, since `d56`, from Q1) |
   | `no-webcodecs` | s9's `no-webcodecs` | This app can't read videos here | back |
-  | `no-person` | s12's job: a track nobody is in (`kept_frames` 0) fails with `NO_PERSON` and diagnostics.js's reason | No person found | pick another video (from M and, since `d51`, from Q1: `queued → import`); back to home |
+  | `no-person` | s12's job: a track nobody is in (`kept_frames` 0) fails with `NO_PERSON` and diagnostics.js's reason | No person found | pick another video (from M and, since `d51`, from Q1: `queued → lift`); back to home |
   | `engine-failed` | s12: `EngineError` (`ENGINE_FAILED` and the worker's message) and the watchdog's `StallError` | The pose engine stopped | analyse again |
   | `storage-full` | c8's `StoreError` `storage-full`, at Analyse (`saveLift`) and in the job (`updateLift`, as the job's string) | Storage is full | try again after deleting lifts |
   | `failed` | anything else, in its own words | That didn't work | try again |
@@ -1097,8 +1097,9 @@ plain functions that Node runs (`tests/app/analysing.test.js`):
   (failed or stopped: the queue's `retry`, or `enqueue(lift)` when the queue
   no longer holds the job), Home (to `live` with `from: 'live'` in
   the params, "Back to the session"), Cancel (`queue.cancel`), and
-  (`d51`, `d53`) Pick another video (`actions.another`, a `PickVideo` button that opens the phone's picker and goes on to L1: `queued → lift` is legal) on the "No person found"
-  panel only, a big primary button like "Analyse again"; the other problems keep their buttons.
+  (`d51`, `d53`) Pick another video (`actions.another`, a `PickVideo` button that opens the phone's picker and goes on to L1: `queued → lift` is legal) on the panel of every problem whose
+  `actions.another` is true (`d56`, taken from the problem: "This video can't be read", "This phone can't play this video", "No person found"), a big primary
+  button like "Analyse again"; the other problems keep their buttons.
 
 ## H, home, the picker and L1
 
