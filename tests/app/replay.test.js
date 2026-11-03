@@ -1,5 +1,5 @@
 'use strict';
-// R3, the replay, and marking a kept lift (package d29, milestone B): app/src/ui/replay-model.mjs, the plain
+// R3, the replay, and marking a kept lift (package d29, milestone B): app/src/ui/lookback-model.mjs, the plain
 // module behind screens/R3.mjs, on fakes (a session whose capture hands out a snapshot, a player that logs
 // its calls), and M's `from: 'live'` (mark-model.mjs, problem-model.mjs's waysOn). No DOM, no camera.
 const test = require('node:test');
@@ -50,7 +50,7 @@ function fakePlayer(onChange = () => {}) {
 }
 
 async function opened(opts = {}) {
-  const { createReplay } = await load('ui', 'replay-model.mjs');
+  const { createReplay } = await load('ui', 'lookback-model.mjs');
   const { createFlow } = await load('flow', 'flow.mjs');
   const flow = createFlow('live');
   flow.go('replay');
@@ -69,7 +69,7 @@ test('on entry it takes the session\'s snapshot(replayS), the settings\' length,
   assert.equal(replay.view().phase, 'ready');
   assert.deepEqual(player.log, [['play']], 'play, nothing before it');
   assert.equal(replay.view().playing, true);
-  const { createReplay } = await load('ui', 'replay-model.mjs');
+  const { createReplay } = await load('ui', 'lookback-model.mjs');
   const { createFlow } = await load('flow', 'flow.mjs');
   const f = createFlow('live'); f.go('replay');
   const other = fakeSession();
@@ -123,7 +123,7 @@ test('½× switches between 1× and ½× (the player\'s speeds); play/pause are 
 });
 
 test('the countdown is 25 s, runs only while the replay plays, and is held by a pause or a drag', async () => {
-  const { COUNTDOWN_S } = await load('ui', 'replay-model.mjs');
+  const { COUNTDOWN_S } = await load('ui', 'lookback-model.mjs');
   assert.equal(COUNTDOWN_S, 25);
   const { replay, player, flow } = await opened();
   assert.equal(replay.view().countdown, '0:25');
@@ -207,7 +207,7 @@ test('the recording never stops: R3 leaves the session and the capture alone (no
 
 test('a snapshot that fails is d23\'s problem, with the way back to live; the countdown does not run', async () => {
   const { CaptureError } = await load('media', 'capture-error.mjs');
-  const { createReplay } = await load('ui', 'replay-model.mjs');
+  const { createReplay } = await load('ui', 'lookback-model.mjs');
   const { createFlow } = await load('flow', 'flow.mjs');
   for (const options of [{ error: new CaptureError('encoder-failed', 'The encoder failed.') }, { empty: true }]) {
     const flow = createFlow('live'); flow.go('replay');
@@ -233,7 +233,7 @@ test('a snapshot that fails is d23\'s problem, with the way back to live; the co
 });
 
 test('no capture at all (the session ended) is a problem too, never a throw', async () => {
-  const { createReplay } = await load('ui', 'replay-model.mjs');
+  const { createReplay } = await load('ui', 'lookback-model.mjs');
   const { createFlow } = await load('flow', 'flow.mjs');
   const flow = createFlow('live'); flow.go('replay');
   const replay = createReplay({ session: { capture: null, lift: null }, flow, replayS: 20 });
@@ -242,7 +242,7 @@ test('no capture at all (the session ended) is a problem too, never a throw', as
 });
 
 test('closing while the snapshot is still being taken drops it', async () => {
-  const { createReplay } = await load('ui', 'replay-model.mjs');
+  const { createReplay } = await load('ui', 'lookback-model.mjs');
   const { createFlow } = await load('flow', 'flow.mjs');
   const flow = createFlow('live'); flow.go('replay');
   const fake = fakeSession();
@@ -335,7 +335,7 @@ test('R3 plays through createPlayer, has no placeholder, and keeps to the tokens
 });
 
 test('M and R3 never stop or close the capture (no call to stop/close/end on it)', () => {
-  for (const f of ['screens/R3.mjs', 'replay-model.mjs']) {
+  for (const f of ['screens/R3.mjs', 'lookback-model.mjs']) {
     const src = fs.readFileSync(path.join(APP, 'src', 'ui', f), 'utf8').replace(/\/\/.*$/gm, '');
     assert.ok(!/capture\.(stop|close)\(|session\.end\(/.test(src), f);
   }

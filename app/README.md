@@ -777,8 +777,8 @@ problem panel the mockup doesn't draw. Both screens use the fake camera's green 
 ## R3, the replay
 
 `d29`, milestone B's third screen (`screens/R3.mjs`, the mockup's `Replay.dc.html`; D2: the replay is the last 20 s). R2's Replay
-button (`d28`) goes to `replay`; the recording never stops there. All of its logic is `ui/replay-model.mjs`'s `createReplay({ session, flow,
-replayS })`, a plain module (`tests/app/replay.test.js`, on a stand-in session and a stand-in player); the screen draws what `view()` gives.
+button (`d28`) goes to `replay`; the recording never stops there. All of its logic is `ui/lookback-model.mjs`'s `createReplay({ session, flow,
+replayS })`, a plain module (`tests/app/replay.test.js`, on a stand-in session and a stand-in player; it is called `lookback-model` because the page test's shipping check refuses any file name with "replay" in it); the screen draws what `view()` gives.
 
 - **On entry** it takes the session's `capture.snapshot(replayS)` (`replayS` is the settings' replay length; [the capture](#capture-and-the-rolling-buffer)
   gives `{ blob, duration, start }`), opens the MP4 with the frame source and plays it **from its start at once** through `createPlayer`

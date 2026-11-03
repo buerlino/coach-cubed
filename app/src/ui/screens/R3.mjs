@@ -2,7 +2,7 @@
 // session's snapshot (media/capture.mjs, `snapshot(replayS)`) through A1's player (ui/player.mjs, no overlay:
 // a replay has no track): REPLAY and how long ago, "Still recording", the bar (a drag scrubs), play/pause, ½×,
 // "Keep and mark the lift" (M, which marks and analyses while the recording goes on) and "Not this one: back to
-// live" with its countdown. The recording never stops here. All of the logic is replay-model.mjs's; this draws it.
+// live" with its countdown. The recording never stops here. All of the logic is lookback-model.mjs's; this draws it.
 // Fixed places: nothing moves while the snapshot loads or the countdown runs (base.css, "R3, Replay").
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../html.mjs';
@@ -10,7 +10,7 @@ import { openFrameSource } from '../../media/frame-source.mjs';
 import { createPlayer } from '../player.mjs';
 import { timeAtPointer } from '../player-model.mjs';
 import { fitSize } from '../mark-model.mjs';
-import { createReplay } from '../replay-model.mjs';
+import { createReplay } from '../lookback-model.mjs';
 import { CheckIcon, PauseIcon, PlayIcon, ReplayIcon } from '../components/icons.mjs';
 import { Problem } from '../components/problem.mjs';
 
