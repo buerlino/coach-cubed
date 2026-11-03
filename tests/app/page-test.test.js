@@ -175,7 +175,7 @@ test('d54 the shift check: the same boxes to 0.5 px pass; a control that moved, 
   const script = fs.readFileSync(path.join(APP, 'tools', 'page-test.mjs'), 'utf8');
   assert.match(script, /'console', 'http', 'rejection', 'stall', 'hang', 'cards', 'shift'/);
   for (const step of ['after 1', 'after a refused 2', 'after 2', 'after ↶', 'after 2 again']) assert.ok(script.includes(`shift('${step}')`), `the walk compares ${step}`);
-  assert.match(script, /button\[data-mark="start"\]/);
+  assert.match(script, /button\[data-mark="\$\{kind\}"\]/, 'the walk presses the steps by their hooks');
   assert.doesNotMatch(script, /mark-main/);
 });
 
