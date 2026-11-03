@@ -103,7 +103,10 @@ export function createCapture(settings = {}, { api = browserCaptureApi(), now = 
   });
   const emit = () => { const s = status(); for (const fn of [...listeners]) fn(s); };
   const set = (patch) => { if ('state' in patch) state = patch.state; if ('error' in patch) error = patch.error; emit(); };
-  const fail = (e) => { set({ state: 'failed', error: e }); throw e; };
+  // Every move to `failed` lets the wake lock and the visibility handler go (a failed capture
+  // records nothing, so it must not keep the screen on); the ring stays, for snapshot().
+  const toFailed = (e) => { releaseWake(); set({ state: 'failed', error: e }); };
+  const fail = (e) => { toFailed(e); throw e; };
 
   // ---- the camera ----
   const constraints = () => ({
@@ -142,14 +145,14 @@ export function createCapture(settings = {}, { api = browserCaptureApi(), now = 
     wakePending = (async () => {
       try {
         const s = await api.requestWakeLock();
-        if (!ring) { quietly(() => s.release()); return; }   // stopped meanwhile
+        if (!ring || state === 'failed') { quietly(() => s.release()); return; }   // stopped or failed meanwhile
         sentinel = s;
         wake = 'held';
         if (typeof s.addEventListener === 'function') {
           s.addEventListener('release', () => { if (sentinel === s) { sentinel = null; wake = 'off'; emit(); } });
         }
       } catch {
-        wake = 'refused';
+        if (ring && state !== 'failed') wake = 'refused';   // stopped or failed meanwhile: it stays off
       } finally {
         wakePending = null;
         emit();
@@ -244,7 +247,7 @@ export function createCapture(settings = {}, { api = browserCaptureApi(), now = 
   function onEncoderError(s, e) {
     if (s.ended || s.discard || session !== s) return;
     endSession(s, { flush: false });
-    set({ state: 'failed', error: asCaptureError(e, 'encoder-failed', 'The video encoder failed while recording') });
+    toFailed(asCaptureError(e, 'encoder-failed', 'The video encoder failed while recording'));
   }
 
   /** Ends a session: the reader, the track's clone and the encoder; with flush, what the encoder holds reaches the ring first. */

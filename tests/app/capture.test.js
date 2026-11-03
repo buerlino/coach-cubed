@@ -109,6 +109,35 @@ test('frames are dropped and counted while the encoder\'s queue is backed up (ab
 
 // ---- the ring ----------------------------------------------------------------------------
 
+test('the ring lets go of each chunk it drops: no dropped chunk is still referenced (not only at a compaction)', async () => {
+  const { createRing } = await load('src/media/ring.mjs');
+  // a full collection on demand: the flag set at run time, gc() taken from a fresh context
+  require('node:v8').setFlagsFromString('--expose-gc');
+  const gc = require('node:vm').runInNewContext('gc');
+  const seg = { decoderConfig: { codec: 'avc1.42002A' }, rotation: 0, key: 'a' };
+  const ring = createRing({ bufferS: 1 });
+  const refs = [];
+  // 600 chunks at 30 fps, a keyframe every 30: 20 s pushed, about 1 s held, 500+ dropped,
+  // fewer than the 1024 that make the ring compact its array
+  (() => {
+    for (let i = 0; i < 600; i++) {
+      const data = new Uint8Array(1000);
+      refs.push(new WeakRef(data));
+      ring.push({ type: i % 30 ? 'delta' : 'key', ts: Math.round(i * 1e6 / 30), dur: 0, data, seg });
+    }
+  })();
+  const held = ring.size;
+  assert.ok(held <= 90 && 600 - held > 500, `${held} chunks held`);
+  assert.equal(ring.bytes, held * 1000);
+  // a WeakRef read in this job stays alive until the job ends: collect after a turn
+  for (let k = 0; k < 3; k++) { await new Promise(r => setImmediate(r)); gc(); }
+  const live = refs.map(r => r.deref() !== undefined);
+  const droppedLive = live.slice(0, 600 - held).filter(Boolean).length;
+  assert.equal(droppedLive, 0, `${droppedLive} dropped chunks are still referenced by the ring`);
+  assert.ok(live.slice(600 - held).every(Boolean), 'the held chunks are all there');
+  ring.close();
+});
+
 test('the ring holds at least bufferS behind its newest frame, drops whole groups from the front, and says its seconds and bytes', async () => {
   const { cap, fake, last } = await recording({}, { bufferS: 3 });
   for (let k = 0; k < 180; k++) {
@@ -317,6 +346,62 @@ test('an encoder that fails while recording: encoder-failed with its message, th
   assert.equal(last().error.code, 'encoder-failed');
   assert.match(last().error.message, /Encoder hardware gone/);
   assert.equal((await readMp4((await cap.snapshot(5)).blob)).packets.length, 40);
+  cap.close();
+});
+
+/** The wake lock let go on a move to failed: off, the sentinel released, the visibility handler gone. */
+function assertWakeLetGo(fake, last, asked) {
+  assert.equal(last().wakeLock, 'off');
+  assert.equal(fake.wakeLock.released, true, 'the sentinel was released');
+  assert.equal(fake.wakeLock.releasedBy, 'page');
+  fake.setVisible(false); fake.setVisible(true);
+  assert.equal(fake.log.wakeLocks.length, asked, 'a failed capture asks for no new lock when the page is visible again');
+}
+
+test('an encoder that fails while recording lets the wake lock go and asks for no new one, the ring kept', async () => {
+  const { cap, fake, last } = await recording();
+  await fake.deliver(40);
+  await fake.settle();
+  assert.equal(last().wakeLock, 'held');
+  fake.encoder.fail('Encoder hardware gone');
+  await fake.settle();
+  assert.equal(last().state, 'failed');
+  assertWakeLetGo(fake, last, 1);
+  await fake.settle();
+  assert.equal(last().wakeLock, 'off');
+  assert.equal((await readMp4((await cap.snapshot(5)).blob)).packets.length, 40, 'the ring kept for snapshot');
+  cap.close();
+});
+
+test('resume() whose camera fails lets the wake lock go and asks for no new one, the ring kept', async () => {
+  const { cap, fake, last } = await recording();
+  await fake.deliver(30);
+  fake.camera.end();
+  await fake.settle();
+  assert.equal(last().state, 'interrupted');
+  fake.api.getUserMedia = async () => { const e = new Error('Could not start video source'); e.name = 'NotReadableError'; throw e; };
+  await assert.rejects(cap.resume(), { code: 'camera-busy' });
+  assert.equal(last().state, 'failed');
+  assertWakeLetGo(fake, last, 1);
+  assert.equal((await readMp4((await cap.snapshot(5)).blob)).packets.length, 30, 'the ring kept for snapshot');
+  cap.close();
+});
+
+test('a wake lock granted after the capture failed is released at once, never held', async () => {
+  const { cap, fake, last } = await setup();
+  let grant;
+  const request = fake.api.requestWakeLock;
+  fake.api.requestWakeLock = () => new Promise(res => { grant = () => res(request()); });
+  await cap.open();
+  const started = cap.start();
+  await fake.settle();
+  fake.encoder.fail('Encoder hardware gone');
+  await fake.settle();
+  assert.equal(last().state, 'failed');
+  grant();
+  await started;
+  assert.equal(last().wakeLock, 'off');
+  assert.equal(fake.wakeLock.released, true, 'the late sentinel was released');
   cap.close();
 });
 

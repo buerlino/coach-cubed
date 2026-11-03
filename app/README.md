@@ -653,7 +653,8 @@ await cap.resume(); await cap.stop(); cap.close();
   chunk it drops the oldest group while the next group still starts `bufferS` or more behind the
   newest chunk, so it holds at least `bufferS` and less than `bufferS` plus one group (about a
   second). `heldS` (newest minus oldest chunk's time) and `bytes` (the chunks' data) are in the
-  state. A chunk belongs to a segment: one decoder config (which only the encoder's first output
+  state. A dropped chunk is let go of at once (its slot cleared), so `bytes` is what the ring
+  keeps alive, not half of it. A chunk belongs to a segment: one decoder config (which only the encoder's first output
   after a configure carries) and one rotation.
 - **`snapshot(seconds)`** writes the chunks from the keyframe at or before the newest chunk's time
   minus `seconds` (the ring's oldest if it holds less) to the newest, byte for byte, into an MP4:
@@ -671,7 +672,9 @@ await cap.resume(); await cap.stop(); cap.close();
   (`NotAllowedError`), `camera-busy` (`NotReadableError`), `no-encoder` (no `VideoEncoder` or
   `MediaStreamTrackProcessor`, or no H.264 config it supports), `encoder-failed`. Each keeps the
   browser's error as `cause` and its message in its own. An encoder that fails while recording
-  leaves the ring as it was: a snapshot still works.
+  (or a camera that fails at `resume()`) leaves the ring as it was: a snapshot still works.
+  Every move to `failed` lets the wake lock go (`wakeLock` is `off`) and asks for none again when
+  the page becomes visible: a capture that records nothing doesn't keep the screen on.
 - **The wake lock** (`navigator.wakeLock`, the screen kept on) is asked at `start()`, asked again
   when the page becomes visible (the browser drops it when hidden), released at `stop()`.
   `wakeLock` is `off`, `held` or `refused`; a refusal, or a browser without it, is never an error.

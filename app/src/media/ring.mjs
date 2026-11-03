@@ -41,8 +41,10 @@ export function createRing({ bufferS }) {
   const at = seq => chunks[head + seq - firstSeq];
   const lastSeq = () => firstSeq + size() - 1;
 
-  function dropTo(index) {   // drop every chunk before chunks[index]
-    for (let i = head; i < index; i++) bytes -= chunks[i].data.byteLength;
+  // Drops every chunk before chunks[index]. Each slot is cleared as it goes, so a dropped
+  // chunk's data is free at once (nothing reads below `head`), not only at the next compaction.
+  function dropTo(index) {
+    for (let i = head; i < index; i++) { bytes -= chunks[i].data.byteLength; chunks[i] = undefined; }
     firstSeq += index - head;
     head = index;
     if (head >= COMPACT_AT && head * 2 >= chunks.length) {
