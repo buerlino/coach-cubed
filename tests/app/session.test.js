@@ -232,3 +232,70 @@ test('d29b: a start that is refused leaves no live state', async () => {
   await assert.rejects(() => session.start('lateral-raise', { replayMode: 'delayed' }));
   assert.equal(session.liveState, null);
 });
+
+// ---- c61: a Start that says when it didn't ----
+
+/** The session on the real capture over the fake camera, with the flow at R1 and the encoder's check held until `release()`. */
+async function startHeld({ hold = 'check' } = {}) {
+  const { createSession } = await load('src', 'session.mjs');
+  const { createCapture } = await load('src', 'media', 'capture.mjs');
+  const { createFlow } = await load('src', 'flow', 'flow.mjs');
+  const { startSession } = await load('src', 'ui', 'record-model.mjs');
+  const fake = await createFakeCapture({ fps: 30 });
+  const session = createSession({ makeCapture: s => createCapture(s, { api: fake.api, now: fake.now }) });
+  const flow = createFlow('setup', { sessionRunning: () => session.active });
+  const cap = await session.open(SETTINGS);
+  const name = hold === 'wake' ? 'requestWakeLock' : 'isEncoderConfigSupported';
+  const real = fake.api[name];
+  let release;
+  const ready = new Promise(r => { release = r; });
+  fake.api[name] = (...a) => ready.then(() => real(...a));
+  const started = startSession({ session, flow, lift: 'lateral-raise', mode: 'replay' });
+  started.catch(() => {});
+  for (let k = 0; k < 10; k++) await new Promise(r => setImmediate(r));
+  return { session, flow, cap, fake, started, release: () => { release(); fake.api[name] = real; } };
+}
+
+test('c61: Back during Start (the capture closed while it checks the encoder): no session runs, the flow stays home, H has no "Back to the session"', async () => {
+  const { gymCard } = await load('src', 'ui', 'record-model.mjs');
+  const { session, flow, cap, fake, started, release } = await startHeld();
+  await session.end();          // R1's back
+  flow.go('home');
+  release();
+  await assert.rejects(started, { name: 'CaptureError' });
+  assert.equal(session.active, false);
+  assert.equal(session.liveState, null);
+  assert.equal(flow.state, 'home');
+  assert.equal(flow.can('live'), false, 'home does not lead to live');
+  assert.equal(gymCard({ active: session.active, elapsedS: session.elapsedS(), liveState: session.liveState }).title, 'Gym session');
+  assert.equal(cap.status.state, 'closed');
+  for (const t of fake.cameras.flatMap(c => c.tracks)) assert.equal(t.readyState, 'ended');
+});
+
+test('c61: the camera lost during Start: no session runs, the flow stays on R1, which shows "Camera stopped"; resumed, Start works', async () => {
+  const { setupView } = await load('src', 'ui', 'record-model.mjs');
+  const { session, flow, cap, fake, started, release } = await startHeld();
+  fake.camera.end();
+  release();
+  await assert.rejects(started, { name: 'CaptureError', code: 'stopped' });
+  assert.equal(session.active, false);
+  assert.equal(flow.state, 'setup', 'still R1');
+  assert.equal(cap.status.state, 'interrupted', 'R1 shows "Camera stopped"');
+  assert.equal(setupView({ settings: null, status: cap.status }).canStart, false);
+  await cap.resume();
+  assert.equal(cap.status.state, 'preview');
+  await session.start('lateral-raise');
+  assert.equal(session.active, true);
+  assert.equal(cap.status.state, 'recording');
+  await session.end();
+});
+
+test('c61: End session while Start waits for the wake lock: no session runs afterwards', async () => {
+  const { session, flow, started, release } = await startHeld({ hold: 'wake' });
+  await session.end();
+  flow.go('home');
+  release();
+  await assert.rejects(started, { name: 'CaptureError' });
+  assert.equal(session.active, false);
+  assert.equal(flow.state, 'home');
+});
