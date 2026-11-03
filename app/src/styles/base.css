@@ -320,6 +320,41 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .live-wake { min-width: 0; padding-right: var(--space-2); color: var(--text-quiet); font-size: var(--size-small); text-align: right; }
 
 
+/* R3, Replay (design/mockups/Replay.dc.html; d29). The snapshot plays full window under the chips on top and the controls
+   below (REPLAY and how long ago, "Still recording"; the bar row, Keep and mark, Not this one with its countdown). The
+   position and the countdown have widths of their own: nothing moves while they change. It fits a portrait phone from
+   640 px high without a vertical scroll. */
+.replay { flex: none; min-height: 100dvh; position: relative; display: flex; flex-direction: column; background: var(--stage-ground); }
+.replay-stage { position: absolute; inset: 0; background: var(--stage-ground); }
+.replay-layer { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.replay-layer[hidden] { display: none; }
+.replay-note { position: absolute; left: var(--space-4); right: var(--space-4); top: 50%; margin: 0; transform: translateY(-50%); text-align: center; color: var(--text-soft); }
+.replay > :not(.replay-stage) { position: relative; }
+.replay-top { flex: none; display: flex; align-items: center; gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--fade-top); background: linear-gradient(var(--scrim), transparent); }
+.replay-chip { height: var(--live-chip-h); display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-3); border-radius: calc(var(--live-chip-h) / 2); font-size: var(--size-small); font-weight: var(--weight-semibold); white-space: nowrap; }
+.replay-chip--name { padding: 0 var(--space-3h); background: var(--text); color: var(--on-accent); font-family: var(--font-display); font-size: var(--size-heading); font-weight: var(--weight-bold); letter-spacing: var(--tracking-wordmark); }
+.replay-chip--name svg { width: var(--replay-chip-icon); height: var(--replay-chip-icon); }
+.replay-chip--rec { margin-left: auto; background: var(--scrim); color: var(--text); }
+.replay-chip__dot { width: calc(var(--rec-dot) - 2px); height: calc(var(--rec-dot) - 2px); border-radius: 50%; background: var(--record); flex: none; }
+.replay-ago { min-width: var(--live-clock-w); font-size: var(--size-label); font-weight: var(--weight-semibold); text-shadow: 0 1px 3px var(--ground); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.replay-problem { flex: 1; display: flex; align-items: center; justify-content: center; padding: var(--space-4); }
+.replay-controls { margin-top: auto; flex: none; display: flex; flex-direction: column; gap: var(--space-3); padding: var(--fade-top) var(--space-4) calc(var(--space-5) + env(safe-area-inset-bottom, 0px)); background: linear-gradient(transparent, var(--scrim) 35%); }
+.replay-bar-row { display: flex; align-items: center; gap: var(--space-2h); }
+.replay-play { width: var(--touch); height: var(--touch); flex: none; padding: 0; border: 0; border-radius: 50%; background: var(--scrim); color: var(--text); display: flex; align-items: center; justify-content: center; }
+.replay-bar { flex: 1; min-width: 0; height: var(--touch); position: relative; cursor: pointer; touch-action: none; }
+.replay-bar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.replay-bar__track, .replay-bar__fill { position: absolute; left: 0; top: calc((var(--touch) - var(--replay-bar-h)) / 2); height: var(--replay-bar-h); border-radius: calc(var(--replay-bar-h) / 2); }
+.replay-bar__track { right: 0; background: var(--line); }
+.replay-bar__fill { background: var(--text); }
+.replay-bar__knob { position: absolute; top: calc((var(--touch) - var(--replay-knob)) / 2); width: var(--replay-knob); height: var(--replay-knob); margin-left: calc(var(--replay-knob) / -2); border-radius: 50%; background: var(--text); }
+.replay-pos { width: var(--replay-pos-w); flex: none; text-align: right; font-size: var(--size-label); font-weight: var(--weight-semibold); color: var(--text-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.replay-speed { width: var(--replay-speed-w); height: var(--touch); flex: none; padding: 0; border-radius: var(--radius-s); background: transparent; font-size: var(--size-label); font-weight: var(--weight-bold); }
+.replay-keep { height: var(--replay-keep-h); width: 100%; display: flex; align-items: center; justify-content: center; gap: var(--space-2h); border: 0; border-radius: var(--radius-xl); background: var(--accent); color: var(--on-accent); font-size: var(--size-subtitle); font-weight: var(--weight-bold); }
+.replay-keep:hover { background: var(--accent-hover); border: 0; }
+.replay-keep:disabled { background: var(--accent); color: var(--on-accent); opacity: var(--disabled-opacity); }
+.replay-live { height: var(--replay-live-h); width: 100%; display: flex; align-items: center; justify-content: center; gap: var(--space-2); border: 1px solid var(--line-mid); border-radius: var(--radius-xl); background: transparent; color: var(--text); font-size: var(--size-row); font-weight: var(--weight-semibold); }
+.replay-live__in { color: var(--text-quiet); font-weight: var(--weight-medium); font-variant-numeric: tabular-nums; }
+
 /* A1, Result: the player (docs/ui-design.md, design/mockups/Result.dc.html) */
 .result { height: 100dvh; }
 .result-header__text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
