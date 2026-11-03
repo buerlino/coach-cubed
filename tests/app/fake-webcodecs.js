@@ -275,13 +275,14 @@ async function createFakeCapture({
       if (this.state === 'closed') throw new DOMException('closed', 'InvalidStateError');
       const clip = clips[`${config.width}x${config.height}`];
       if (!clip) throw new Error(`the fake encoder has no clip of ${config.width}x${config.height}`);
-      this.config = config; this.clip = clip; this.state = 'configured'; this.newConfig = true; this.keyAt = -1; this.deltaAt = -1;
+      this.config = config; this.clip = clip; this.state = 'configured'; this.newConfig = true; this.keyNext = true; this.keyAt = -1; this.deltaAt = -1;
       log.configs.push(config);
     }
     encode(frame, options = {}) {
       if (this.state !== 'configured') throw new DOMException('not configured', 'InvalidStateError');
       if (frame.closed) throw new TypeError('the frame is closed');
-      const key = !!options.keyFrame || this.newConfig;
+      const key = !!options.keyFrame || this.keyNext;   // the first frame after configure() is a keyframe
+      this.keyNext = false;
       const e = { timestamp: frame.timestamp, duration: frame.duration, keyFrame: !!options.keyFrame, key, encoder: log.encoders.indexOf(this) };
       log.encoded.push(e);
       this.pending.push(e);
