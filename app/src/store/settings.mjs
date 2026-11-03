@@ -50,7 +50,7 @@ const oneOf = list => v => list.includes(v);
 
 /**
  * The whole-second ranges of the replay's length, the delayed view's delay and
- * the buffer. PROVISIONAL (nordmu, 2026-11-02): c27 measures the buffer's memory
+ * the buffer. PROVISIONAL (nordmu, 2026-11-02): c30 measures the buffer's memory
  * on the phone, and the replay's and the buffer's limits may move with it. S1
  * offers values only inside these (app/src/ui/settings-model.mjs).
  */
@@ -62,7 +62,7 @@ export const RANGES = Object.freeze({
 const rangeCheck = ([k, unit]) => [intIn(RANGES[k].min, RANGES[k].max), `must be a whole number of ${unit} from ${RANGES[k].min} to ${RANGES[k].max}`];
 
 // PROVISIONAL ranges, replayS 5-60 s, bufferS 10-300 s, delayS 5-20 s (RANGES above), and
-// smoothingSigmaMs 0-300 ms (SMOOTHING_MAX_MS, A3's slider; nordmu capped it at 300 on 2026-11-02): they stay until c27 measures the buffer's memory on
+// smoothingSigmaMs 0-300 ms (SMOOTHING_MAX_MS, A3's slider; nordmu capped it at 300 on 2026-11-02): they stay until c30 measures the buffer's memory on
 // the phone (nordmu, 2026-11-02). Do not read them as settled limits.
 /** Per field: the check, and what it says when it fails. */
 const FIELDS = {

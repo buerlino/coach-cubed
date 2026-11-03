@@ -286,7 +286,8 @@ lifts/<id>/lift.json    the lift's record: contract 3, a StoredLift
   a replay of 5–60 s, a buffer of 10–300 s, a delay of 5–20 s and a smoothing
   of 0–300 ms (`RANGES` and the view fields in `settings.mjs`) stay as `c8`
   chose them (the smoothing's cap was 1000 ms until `d51`, when nordmu set it to A3's
-  slider end, 2026-11-02) until `c27` measures the buffer's memory on the phone. S1
+  slider end, 2026-11-02) until `c30` measures the buffer's memory on the phone (`c27` built
+  the capture on the laptop alone, nordmu, 2026-11-02). S1
   offers values only inside them. A record stored with a smoothing above 300 ms reads
   back as 300 (`readSettings`), not as a damaged field; a patch above 300 is refused.
 - **`persist()`** is asked at the first save, once; the answer is kept in
@@ -313,7 +314,7 @@ nothing acts on it yet, see `s12`'s report).
 
 `screens/S1.mjs` draws `settings-model.mjs`'s view (design/mockups/Settings.dc.html); the store and the queue come in as props.
 
-- **Gym session:** the replay mode, the replay's length or the delay, the buffer, the camera and the quality are **shown disabled** until milestone B (as H's "Gym session"); their values are the stored ones (v1's defaults). The default lift works now and is saved (`defaultLift`); L1 rings it (`startLift(settings)` in `home-model.mjs`, read by `liftTiles`; the first lift while the settings load or if they can't be read; d41, d53). Every value S1 offers lies inside `RANGES` (provisional until `c27`, [The store](#the-store)).
+- **Gym session:** the replay mode, the replay's length or the delay, the buffer, the camera and the quality are **shown disabled** until milestone B (as H's "Gym session"); their values are the stored ones (v1's defaults). The default lift works now and is saved (`defaultLift`); L1 rings it (`startLift(settings)` in `home-model.mjs`, read by `liftTiles`; the first lift while the settings load or if they can't be read; d41, d53). Every value S1 offers lies inside `RANGES` (provisional until `c30`, [The store](#the-store)).
 - **Videos are always kept** (nordmu, 2026-11-02): the mockup's "Keep the video of each analysed lift" switch is not drawn, since contract 3 needs every lift's cut and A1 plays it. `keepVideos` stays in the store; the switch comes back with a contract-3 change that allows a lift without its cut.
 - **Storage** is information: what the lifts hold, what the app uses, the room left (the store's `estimate()`), and whether the system promised to keep the files. `persisted: false` (the APK's WebView, `c20`) shows "No" with a plain sentence, never as an error. "Delete all lifts…" asks first and is held back while the queue has work.
 - **About:** the version, the privacy text (approved by nordmu on 2026-11-02, with no draft tag: it says what the app keeps, where, and that it sends nothing; it holds because the APK has no Android backup, see [The Android shell](#the-android-shell)), "Credits and licences", "How the cues are scored" (enabled since `d18`: S1b, see [A2](#a2-a-cues-detail)) and the source licence.
