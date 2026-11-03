@@ -32,6 +32,7 @@ if (!real) {
       const replay = await loaded;
       return PoseEngine.create({ backend: 'cpu', createWorker: () => replay.createWorker() });
     },
-    openFrameSource: async blob => (await loaded).source(await openFrameSource(blob)),
+    // d29: `coachReplay.hold` (a promise) keeps the next jobs waiting at their clip, so the session walk can cancel the lift it recorded
+    openFrameSource: async blob => { const src = await openFrameSource(blob); if (control.hold) await control.hold; return (await loaded).source(src); },
   });
 }

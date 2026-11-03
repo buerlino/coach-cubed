@@ -9,7 +9,7 @@ import { html } from '../html.mjs';
 import { ReplayIcon, RetryIcon, StopIcon } from '../components/icons.mjs';
 import { Problem } from '../components/problem.mjs';
 import { followQueue } from '../home-model.mjs';
-import { captureProblem, liveView } from '../record-model.mjs';
+import { captureProblem, goHome, liveView } from '../record-model.mjs';
 import { useCapture, useStream } from '../use-capture.mjs';
 
 export function R2({ flow, store, queue, session }) {
@@ -30,7 +30,7 @@ export function R2({ flow, store, queue, session }) {
   const running = session.settings || settings;
   const view = liveView({ status, jobs, lift: session.lift, settings: { ...(running || {}), ...(settings ? { replayS: settings.replayS } : {}) } });
   const problem = captureProblem(status);
-  const end = async () => { await session.end(); flow.go('home'); };
+  const end = async () => { await session.end(); goHome(flow); };
 
   return html`
     <main class="screen live" data-screen="R2" data-state=${status.state}>

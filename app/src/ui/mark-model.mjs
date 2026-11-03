@@ -440,6 +440,9 @@ export function createLatest() {
 
 // ---- Analyse ----
 
+/** Where M's close (✕) goes: back to R2 when R3 opened M for a lift kept in a session (`from: 'live'`), else home. */
+export const closeTarget = from => (from === 'live' ? 'live' : 'home');
+
 const analysing = new WeakSet();   // the flows with an Analyse under way: a second tap does nothing
 
 /**
@@ -448,13 +451,14 @@ const analysing = new WeakSet();   // the flows with an Analyse under way: a sec
  * Nothing is queued without both marks and a file; a cut that can't be stored
  * (the store's or the cutter's error) stays on M with the error's words. A re-mark
  * (A3) passes `replaces`, the old lift's id: the queue deletes that lift once the new
- * one's analysis is done (s50).
+ * one's analysis is done (s50). `from: 'live'` (d29: the lift was kept on R3) goes back to R2, the session,
+ * instead of Q1.
  * @param {{flow: {go: Function}, queue: {analyse: Function}, lift: string, file: Blob|null,
- *   marks: Marks, frameTimes: readonly number[], replaces?: string|null}} args
+ *   marks: Marks, frameTimes: readonly number[], replaces?: string|null, from?: string|null}} args
  * @returns {Promise<{ok: true}|{ok: false, error: string|null, problem?: Object}>} error null for a tap that did nothing;
  *   `problem` (problem-model.mjs's, d23) for an error the store or the cutter raised: M draws it as a screen
  */
-export async function analyse({ flow, queue, lift, file, marks, frameTimes, replaces = null }) {
+export async function analyse({ flow, queue, lift, file, marks, frameTimes, replaces = null, from = null }) {
   const range = markedRange(marks, frameTimes);
   if (!range) return { ok: false, error: MARK_TEXT.bothFirst };
   if (!file) return { ok: false, error: 'There is no video to analyse.' };
@@ -463,7 +467,8 @@ export async function analyse({ flow, queue, lift, file, marks, frameTimes, repl
   try {
     const marked = { t0: range.t0, t1: range.t1 };
     const job = await (replaces ? queue.analyse(lift, file, marked, { replaces }) : queue.analyse(lift, file, marked));
-    flow.go('queued', { liftId: job.liftId });
+    // in a session (R3 marked a kept lift: `from: 'live'`) the recording goes on, so M goes back to R2; the queue line shows the lift
+    if (from === 'live') flow.go('live'); else flow.go('queued', { liftId: job.liftId });
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e && e.message ? e.message : 'That did not work.', problem: problemOf(e) };

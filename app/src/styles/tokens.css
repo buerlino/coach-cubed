@@ -266,4 +266,13 @@
   --guide-line: 2px;
   --radius-guide: 24px;
   --fade-top: 48px;   /* the fade under a camera screen's top chips and over its controls */
+
+  /* R3, Replay (d29): the chips' icon, the position's width, the speed button and the two buttons' heights */
+  --replay-chip-icon: 18px;
+  --replay-pos-w: 76px;
+  --replay-speed-w: 52px;
+  --replay-keep-h: 64px;
+  --replay-live-h: 56px;
+  --replay-knob: 18px;
+  --replay-bar-h: 4px;
 }

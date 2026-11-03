@@ -156,13 +156,15 @@ export function problemOf(error) {
  * there), `another` where another video can help (never because of where the problem came up), `home` always.
  * @param {ReturnType<typeof problemOf>} problem
  * @param {boolean} atAnalyse the problem came up at Analyse, not when the video was opened
+ * @param {string|null} [from] M's `from` param: `'live'` (a lift kept in a session, d29) offers `session`, "Back to the session",
+ *   in place of `another`
  * @returns {string[]}
  */
-export function waysOn(problem, atAnalyse) {
+export function waysOn(problem, atAnalyse, from = null) {
   return [
     ...(atAnalyse && problem.actions.retry ? ['retry'] : []),
     ...(atAnalyse ? ['marks'] : []),
-    ...(problem.actions.another ? ['another'] : []),
+    ...(problem.actions.another ? [from === 'live' ? 'session' : 'another'] : []),
     'home',
   ];
 }

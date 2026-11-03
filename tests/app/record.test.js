@@ -326,3 +326,15 @@ test('d28: the page test and the layout check launch their browser on the fake c
   const page = fs.readFileSync(path.join(APP, 'tools', 'page-test.mjs'), 'utf8');
   for (const s of ['[data-card="session"]', '[data-record="start"]', '[data-record="end"]', 'readyState !== \'ended\'', 'page-test: session walk']) assert.ok(page.includes(s), s);
 });
+
+test('d29 fix: End session tapped twice goes home once, without the illegal home -> home; R1 and R2 use it', async () => {
+  const { goHome } = await model();
+  const { createFlow } = await load('flow', 'flow.mjs');
+  const flow = createFlow('setup');
+  flow.go('live');
+  goHome(flow);
+  assert.equal(flow.state, 'home');
+  assert.doesNotThrow(() => goHome(flow));   // the second tap's session.end() resolved: still home
+  assert.equal(flow.state, 'home');
+  for (const f of ['R1', 'R2']) assert.match(read('src/ui/screens/' + f + '.mjs'), /goHome\(flow\)/, f);
+});

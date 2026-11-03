@@ -752,7 +752,7 @@ high); and the bar with the line from the settings (`1080p · 30 fps · last 60 
 capture's `sinceS`), the camera's **real** rate (`29 fps`, rounded, `– fps` until the frames give one; never the asked one), the lift and
 the buffer (`Lateral raise · last 60 s`) and, in a row of its own that stays free when the queue is empty, the queue line (`1 analysing · 1
 waiting`; a tap opens Q1). Under it the large Replay button (`button[data-record="replay"]`, the replay's length from the settings,
-`20 s`; it goes to the R3 placeholder until `d29`), End session (`button[data-record="end"]`: ends the session, goes home) and the wake-lock
+`20 s`; it opens [R3](#r3-the-replay)), End session (`button[data-record="end"]`: ends the session, goes home; `goHome` in record-model.mjs sends the flow home only if it is not there, so a second tap throws no `home -> home`) and the wake-lock
 line (`Screen stays on` when held, `Screen may turn off` when refused, nothing before it is asked). The clock and the rate have a width of their
 own and the queue and the wake-lock line sit at an edge, so nothing moves when they change; at 360×640, 360×800, 412×760 and 412×915 the screen
 does not scroll vertically and every control is inside the window (the layout check). The window's height is a least height: a phone in
@@ -773,6 +773,40 @@ problem panel the mockup doesn't draw. Both screens use the fake camera's green 
 
 **On the phone (`c30`).** The APK has no `CAMERA` permission yet ([The Android shell](#the-android-shell)): R1 in the APK needs it, and the WebView's
 `getUserMedia` prompt, before the camera screens work there. The browser walks use headless Brave's fake camera.
+
+## R3, the replay
+
+`d29`, milestone B's third screen (`screens/R3.mjs`, the mockup's `Replay.dc.html`; D2: the replay is the last 20 s). R2's Replay
+button (`d28`) goes to `replay`; the recording never stops there. All of its logic is `ui/lookback-model.mjs`'s `createReplay({ session, flow,
+replayS })`, a plain module (`tests/app/replay.test.js`, on a stand-in session and a stand-in player; it is called `lookback-model` because the page test's shipping check refuses any file name with "replay" in it); the screen draws what `view()` gives.
+
+- **On entry** it takes the session's `capture.snapshot(replayS)` (`replayS` is the settings' replay length; [the capture](#capture-and-the-rolling-buffer)
+  gives `{ blob, duration, start }`), opens the MP4 with the frame source and plays it **from its start at once** through `createPlayer`
+  (`ui/player.mjs`, [A1's player](#a1-the-player-and-the-overlay)): a `<video>` on an object URL plays, the stepper (s38) shows the frame when
+  paused or dragged. A replay has no track, so no overlay: the scene is empty and the player's flags draw nothing; it **loops** until the
+  user decides or the countdown ends.
+- **The words.** `REPLAY` with its arrow, the time ago (`12 s ago`: the snapshot's `duration` minus the playhead, rounded; `agoText`), "Still
+  recording" with the REC dot. The position is `m:ss / 0:20` (`clockMS`, seconds floored; the total is the replay length, or the snapshot's own
+  length rounded when the ring holds less). The play/pause button, the bar (a drag scrubs through `timeAtPointer`; ←/→ move a second) and ½×
+  (`replaySpeed`: 1× ↔ ½×, `HALF_SPEED` of `player-model.mjs`) are the player's.
+- **The way back to live.** "Not this one: back to live in 0:25" (`button[data-replay="live"]`). The countdown is `COUNTDOWN_S` = 25
+  (the mockup's; **provisional**, nordmu has not settled it). `tick(dt)` runs it only while the replay plays and no drag holds it: a pause or a
+  drag holds it, playing runs it on; at zero it goes to `live`. "Not this one" goes at once. Both **close the player and drop the snapshot**.
+  A drag that interrupted playing lets it go on after the finger lifts.
+- **Keep and mark the lift** (`button[data-replay="keep"]`) goes to `mark` with `{ file, lift, from: 'live' }`: the snapshot as a
+  `File` named `replay-<hh-mm-ss>.mp4` (local time), type `video/mp4`, and the session's lift. M opens in M1 (no `range`).
+- **A snapshot that fails** (a `CaptureError` from the ring or the encoder, an empty ring, a session whose camera is gone) shows d23's problem
+  panel with one button, "Back to live" (`data-replay="live"`). An empty ring is a plain `Error` ("The recording holds no video yet…") in
+  problem-model's `failed` kind, its words under "Details": no new problem kind. The countdown does not run on a problem.
+- **The recording never stops:** nothing in R3 or M calls `stop()`, `close()` or `end()` on the capture or the session (a test reads the
+  sources for it, and the fake capture of the tests records no such call).
+- **Fixed places** (`base.css`, "R3, Replay"; sizes and colours from `tokens.css`'s `--replay-*`): the snapshot fills the window under the
+  chips on top (REPLAY, the time ago, "Still recording") and the controls at the bottom (the bar row: play 44, the bar, the position at a width
+  of its own, ½× 52×44; Keep and mark 64 high; Not this one 56 high). The time ago, the position and the countdown have widths of their own,
+  so nothing moves while they change. The controls are drawn before the snapshot opens (disabled until it does). They are inside the window at
+  360×640, 360×800, 412×760 and 412×915 with no vertical scroll (the layout check).
+- **Where it departs from the mockup:** the position shows the real length when the ring holds less than 20 s; a problem panel and "Opening
+  the replay…" the mockup does not draw; ←/→ on the bar.
 
 ## The analysis
 
@@ -942,8 +976,13 @@ first screen draws), the frame source by `openSource` (default `openFrameSource`
   `queue.analyse(lift, file, {t0, t1})` (the marked frames' own times; the cut is
   kept first, s32; a re-mark adds `{replaces}`, the old lift's id from the flow's params, `s50`) and then `flow.go('queued', {liftId})` with the new lift's id,
   which Q1 shows when two are queued. A cut that can't be stored shows `d23`'s problem screen, with "Back to the
-  marks"; a second tap while one is working does nothing. M's interface stays `flow.go('mark', {file, lift, range?})`:
-  milestone B's R3 (`d29`) marks through it.
+  marks"; a second tap while one is working does nothing. M's interface is `flow.go('mark', {file, lift, range?, from?})`.
+- **In a session** (`d29`): R3's "Keep and mark the lift" opens M with `from: 'live'` and the replay as the file ([R3](#r3-the-replay)).
+  Only where M leads changes; its layout, buttons and hooks are `d54`'s, and the page test's shift check stays. Analyse queues the lift as
+  it does now, then goes to `live` (R2), not `queued`, so recording goes on while the lift waits in the queue (R2's queue line shows it,
+  and opens Q1 with "Back to the session"). ✕ goes to `live` (`closeTarget(from)`; home without `from`). `d23`'s problem screen offers
+  "Back to the session" (`data-way="session"`, `waysOn(problem, atAnalyse, from)`) in place of "Pick another video". Outside a session
+  nothing differs; the capture and the session are not touched.
 - **The lift** is chosen once, on L1 (nordmu, checkpoint A, 2026-11-02, point 5), and M only shows it
   (`d53`): the header is the close button, then the lift's `LiftIcon`, its name and, for a provisional
   lift, the `provisional` tag; quiet, not a button. M takes the lift from the flow's params and from
@@ -1166,7 +1205,7 @@ window is resized across the breakpoint; CSS arranges them (a grid), and the JS 
 
 **The responsive check** (`tools/layout-check.mjs`, `npm --prefix app run check:layout`): the page test's build (`assemble.mjs
 --test`) served on a free port and opened in headless Brave over CDP, through `browser.mjs`. It walks the app (the first-run intro,
-H, S1, its credits, S1b, L1, M's three steps (pressed by `data-mark`) and its error screen, Q1 while it runs, when it is done and when it failed (`d57`: "Q1 (No person found)" and "Q1 (unreadable)", made by setting `globalThis.coachReplay.mode` before Analyse, see [The page test](#the-page-test); each with its "Pick another video"), A1, A3, A2; since `d28` R1 and R2, walked from H's gym card on the fake camera; R3 is a placeholder that nothing reaches in 0.1.0 without `d29`) and sets each of seven sizes at each screen: phone portrait 360×800 and 412×915,
+H, S1, its credits, S1b, L1, M's three steps (pressed by `data-mark`) and its error screen, Q1 while it runs, when it is done and when it failed (`d57`: "Q1 (No person found)" and "Q1 (unreadable)", made by setting `globalThis.coachReplay.mode` before Analyse, see [The page test](#the-page-test); each with its "Pick another video"), A1, A3, A2; since `d28` R1 and R2, walked from H's gym card on the fake camera; since `d29` R3, reached from R2's Replay, paused so its countdown stays, and left by "Not this one") and sets each of seven sizes at each screen: phone portrait 360×800 and 412×915,
 phone landscape 800×360, tablet 768×1024, laptop 1280×800 (the emulation's own width, since a mobile window grows with a wide
 page), and the range just above A4's breakpoint, where the video column has to give way: a landscape tablet 1024×768 and a narrow
 window 980×720. A1 is walked twice, as the test clips are portrait (a narrow stage): once as it comes and once with a 16:9 video
@@ -1180,6 +1219,7 @@ window 980×720. A1 is walked twice, as the test clips are portrait (a narrow st
 - A1's arrangement: from 980 px the video and the panel in one row, the sidebar beside them, the bar under them, one cue selected, its
   plot drawn; below, one column and no panel; and in the laptop window a card selects its cue and a tap on the plot moves the player;
 - R1 and R2 (`d28`), checked at the same nine sizes as M: at 360×640, 360×800, 412×760 and 412×915 no vertical scroll and every control (`SETUP_CONTROLS`, `LIVE_CONTROLS`) fully inside the window (`fitsWindow`), and at 360×800 the rate and the wake-lock line changing moves no other control; the queue line's row has to be a touch target high, so a queue chip moves nothing;
+- R3 (`d29`), reached from R2's Replay and paused (a playing replay counts its 25 s down while the nine sizes are walked): the same no-scroll rule at the four portrait sizes with every control (`REPLAY_CONTROLS`: the chips, the time ago, play, the bar, the position, ½×, Keep and mark, Not this one) inside the window; "Not this one" then returns to R2;
 - M (`d54`), checked at 360×640 and 412×760 too: at 360×640, 360×800, 412×760 (about the Fairphone in Brave) and 412×915,
   a vertical page scroll, or a control of M (`shift-check.mjs`'s list) not fully inside the window (`markFits`). Phone
   landscape may scroll there (`d55`'s cue shows there), but the checks above still hold: nothing cut off, 44 px targets, and
@@ -1714,7 +1754,15 @@ worktree: no example clips, no `app/vendor/tfjs/`, no `app/models/`, no GPU.
    must equal `cardsOf(scoreLift(fixtureTrack).view)`, computed in Node: per cue the status class, the verdict line, the value and the
    card's label (which carries the status word). On the first scored cue, the open card's rule line must hold the page's
    `Diagnostics.rule(id).noun` and a watch band, and A2's "How it's scored" must start with `rule(id).basis` (`s45`).
-   Then (`d28`) **the session walk**: H → the gym card → R1 (the preview plays; a tap on the last lift presses it and only it; the line under the preview reads `1080p · 30 fps · last 60 s`) → Start → R2 (the clock moves by 2 s or more; the rate reads 30 fps ± 1; the lift line) → End session → H; a hook in the page records every camera track (`getUserMedia`'s and `clone()`'s) and, after End session, every one has `readyState` `ended`. The browser has the fake camera (`--use-fake-device-for-media-stream=fps=30 --use-fake-ui-for-media-stream`, `FAKE_CAMERA` in `browser.mjs`). The output's `session` object and the line `page-test: session walk …` name it.
+   Then (`d28`) **the session walk**: H → the gym card → R1 (the preview plays; a tap on the last lift presses it and only it; the line under the preview reads `1080p · 30 fps · last 60 s`) → Start → R2 (the clock moves by 2 s or more; the rate reads 30 fps ± 1; the lift line) → (`d29`, below) → End session → H; a hook in the page records every camera track (`getUserMedia`'s and `clone()`'s) and, after End session, every one has `readyState` `ended`. The browser has the fake camera (`--use-fake-device-for-media-stream=fps=30 --use-fake-ui-for-media-stream`, `FAKE_CAMERA` in `browser.mjs`). The output's `session` object and the line `page-test: session walk …` name it.
+   **The replay walk** (`d29`), inside the session walk, after the clock and the rate: wait 4 s; R2's Replay → R3 (the snapshot opens, the
+   `<video>` plays; the position `m:ss / …` moves over three seconds; the label reads `N s ago`; ½× sets the video's rate to 0.5 and
+   back to 1×; a pause holds the countdown for 1.6 s and playing runs it on) → Keep and mark → M (M1; 1, a drag of the strip to the
+   end, 2, then 3 Analyse) → R2 with the queue line showing the lift (a page observer records its text, the job being short) → the queue line →
+   Q1 → **the recorded lift's job is cancelled** → Back to the session → R2 → End session. A recording matches none of the fixture tracks
+   (the replay engine picks one by the clip's rate and frame count), so its job would fail at once: `boot.mjs` holds the next jobs at their
+   clip while `globalThis.coachReplay.hold` is a promise, which the walk sets before 3 Analyse and clears after the cancel. The output
+   names each step (`page-test:   R2 → Replay → R3` …, "Q1: the recorded lift's job cancelled (…)").
    Then (`d22`) A3 opens from "View options" with the mockup's switches and speeds and no lifter, a switch flips, a smoothing change
    scores again and is put back to 50 ms, and "Re-mark this lift" opens M in its ready state.
 4. **It fails** on a console error, an exception or unhandled rejection, a failed request or an HTTP error (page, workers and the
