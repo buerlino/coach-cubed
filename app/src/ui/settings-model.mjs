@@ -7,7 +7,7 @@ import { liftChoices } from './home-model.mjs';
 
 /**
  * The settings that need the camera, so milestone B: S1 shows them disabled
- * until then (the same as H's "Start gym session"), because the mockup shows
+ * until then (the same as H's "Gym session"), because the mockup shows
  * them and a user can see what is coming; their stored values are v1's defaults.
  */
 export const MILESTONE_B = Object.freeze(['replayMode', 'replayS', 'delayS', 'bufferS', 'camera', 'quality']);
@@ -74,8 +74,8 @@ export function recordingView(s) {
     modes: MODES.map(m => ({ ...m, on: s.replayMode === m.id })),
     modesDisabled: off('replayMode'),
     rows: rows.map(r => ({ ...r, shown: (r.options.find(o => o.value === r.value) || { label: String(r.value) }).label })),
-    note: "This phone's camera gives up to 30 fps in the app. In dim light it drops; the recording screen shows the real rate.",
-    laterNote: 'Replay mode, lengths, camera and quality come with the camera, in a later version.',
+    note: 'Up to 30 fps; less in dim light.',
+    laterNote: 'These come with the gym session, later.',
   };
 }
 
@@ -94,7 +94,7 @@ export function storageView({ count, liftsBytes, info }) {
     free: info && info.free !== null ? formatBytes(info.free) : 'unknown',
     persisted: persisted === null ? 'unknown' : persisted ? 'Yes' : 'No',
     persistedNote: persisted === false
-      ? "The system hasn't promised to keep these files if the phone runs very low on space. They stay until then, or until you delete them."
+      ? 'If the phone runs very low on space, the system may remove them.'
       : null,
     canDelete: known && count > 0,
     count: count ?? 0,

@@ -38,7 +38,7 @@ export function L1({ flow, store }) {
           </button>`)}
         ${refused ? html`<p class="error" role="alert">${refused}</p>` : null}
       </div>
-      <p class="screen__footer"><${LockIcon} /><span>Everything stays on this phone. No account, no uploads.</span></p>
+      <p class="screen__footer"><${LockIcon} /><span>Nothing leaves this phone.</span></p>
     </main>
   `;
 }

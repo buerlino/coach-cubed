@@ -36,7 +36,7 @@ test('S1 shows v1\'s defaults from the store, in the mockup\'s words', async () 
     ['Quality', '1080p · 30 fps'], ['Default lift', 'Lateral raise'],
   ]);
   assert.deepEqual(v.modes.map(m => [m.label, m.on]), [['Replay button', true], ['Delayed view', false]]);
-  assert.match(v.note, /up to 30 fps/);
+  assert.equal(v.note, 'Up to 30 fps; less in dim light.');
 });
 
 test('the delayed view swaps the replay length for the delay, 10 s by default', async () => {
@@ -272,7 +272,7 @@ test('S1 draws the mockup\'s strings for what this package builds', () => {
   const screen = read('app', 'src', 'ui', 'screens', 'S1.mjs') + read('app', 'src', 'ui', 'settings-model.mjs');
   for (const s of ['Settings and about', 'Gym session', 'How the replay shows up', 'Replay button', 'Delayed view', 'Replay length', 'Delay', 'Keep in memory', 'Camera',
     'Quality', 'Default lift', 'Storage', 'On this phone', 'Delete all lifts…', 'About', 'Credits and licences', 'How the cues are scored', 'Source code', 'AGPL-3.0-or-later',
-    'Back to home', "This phone's camera gives up to 30 fps in the app."]) assert.ok(screen.includes(s), s);
+    'Back to home', 'Up to 30 fps; less in dim light.']) assert.ok(screen.includes(s), s);
 });
 
 test('"Delete all lifts…" is drawn as the destructive action: danger colour, weight 600, quiet when disabled', () => {

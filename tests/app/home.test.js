@@ -10,6 +10,7 @@ const { pathToFileURL } = require('node:url');
 const APP = path.resolve(__dirname, '..', '..', 'app');
 const load = (...p) => import(pathToFileURL(path.join(APP, 'src', ...p)).href);
 const model = () => load('ui', 'home-model.mjs');
+const read = rel => require('node:fs').readFileSync(path.join(APP, rel), 'utf8');
 
 const ENGINE = { model: 'movenet-thunder', backend: 'webgl', runtime: 'tfjs 4.22.0' };
 // Local time, so the day and the clock the rows show don't depend on the machine's zone.
@@ -133,13 +134,44 @@ test('the result summary counts the cues by status word, work on first', async (
   const cue = status => ({ status });
   const s = summariseResult({ cues: [cue('good'), cue('good'), cue("can't score"), cue('work on'), cue('good'), cue('watch')] });
   assert.deepEqual(s, [
-    { status: 'work-on', count: 1, text: '1 work on' },
-    { status: 'watch', count: 1, text: '1 watch' },
-    { status: 'good', count: 3, text: '3 good' },
-    { status: 'cant-score', count: 1, text: "1 can't score" },
+    { status: 'work-on', count: 1, text: '1 work on', icon: 'work' },
+    { status: 'watch', count: 1, text: '1 watch', icon: 'watch' },
+    { status: 'good', count: 3, text: '3 good', icon: 'good' },
+    { status: 'cant-score', count: 1, text: "1 can't score", icon: 'cant' },
   ]);
   assert.deepEqual(summariseResult({ cues: [cue('good')] }).map(x => x.text), ['1 good'], 'a status with no cue is left out');
   assert.deepEqual(summariseResult(null), []);
+});
+
+test('d55: a ready row draws its counts as A1\'s status icons, worst first, and its accessible text says the words', async () => {
+  const { rowOf, summaryLabel } = await model();
+  const cue = status => ({ status });
+  const result = { cues: [cue('good'), cue('good'), cue('work on'), cue('good')] };
+  const row = rowOf(TODAY_B, [], { result });
+  assert.deepEqual(row.summary.map(c => [c.icon, c.count]), [['work', 1], ['good', 3]], 'one icon and count per status, worst first');
+  assert.equal(row.summaryLabel, '1 work on, 3 good');
+  assert.equal(summaryLabel([]), '');
+  assert.equal(summaryLabel(row.summary), '1 work on, 3 good');
+  // the icons are A1's StatusIcon names, so the row draws what the cue cards draw
+  const icons = read('src/ui/components/icons.mjs');
+  for (const c of row.summary) assert.match(icons, new RegExp(`\\b${c.icon}: \\(\\) =>`), c.icon);
+  const lr = read('src/ui/components/lift-row.mjs');
+  assert.match(lr, /StatusIcon/);
+  assert.match(lr, /aria-label=\$\{row\.summaryLabel\}/);
+  assert.doesNotMatch(lr, /\$\{c\.text\}/, 'the words are for screen readers only');
+});
+
+test('d55: H, the first run and the row say it in fewer words (the table of round 1)', () => {
+  const h = read('src/ui/screens/H.mjs');
+  const row = read('src/ui/components/lift-row.mjs');
+  const w = read('src/ui/welcome-model.mjs') + read('src/ui/screens/Welcome.mjs');
+  for (const s of ['>Gym session<', 'Coming later', 'Update ready · reload the app', 'Couldn’t read your lifts.', 'Your lifts show up here.', '>Today<', 'Nothing leaves this phone.']) assert.ok(h.includes(s), s);
+  for (const s of ['Couldn’t analyse', '>Stopped<', '%</span>']) assert.ok(row.includes(s), s);
+  for (const s of ['Pick a video, then mark the lift.', 'coach finds the lifter and scores each cue.', 'Nothing leaves this phone.', 'Not now']) assert.ok(w.includes(s), s);
+  for (const s of ['Start gym session', 'Film non-stop', 'Coming in a later version', 'Pick a clip from this phone', 'Update ready.', 'could not be read.', 'Import a video to mark a lift', "Today's session"]) assert.ok(!h.includes(s), s);
+  for (const s of ['Analysing ${', 'Not analysed', "Couldn't analyse ·"]) assert.ok(!row.includes(s), s);
+  for (const s of ['Pick a video of a lift', 'The app finds the lifter', 'Go to home', 'Everything stays on this phone']) assert.ok(!w.includes(s), s);
+  assert.doesNotMatch(read('src/ui/screens/L1.mjs'), /Everything stays on this phone/);
 });
 
 test('a row: lift, clock, length, state and what opening it does', async () => {
@@ -172,7 +204,7 @@ test('home: today\'s lifts keep the store\'s order (newest first), with the coun
   const e4 = analysed('20261027-090000-sn', 'snatch', iso(2026, 9, 27, 9, 0));
   const view = homeView({ today: [TODAY_C, TODAY_A, TODAY_B], earlier: [e1, e2, e3, e4] }, [job(TODAY_A, 'queued')]);
   assert.deepEqual(view.today.rows.map(r => r.id), [TODAY_C.id, TODAY_A.id, TODAY_B.id]);
-  assert.equal(view.today.count, '3 lifts kept');
+  assert.equal(view.today.count, '3 lifts');
   assert.equal(view.empty, false);
   assert.deepEqual(view.earlier.map(s => [s.heading, s.lifts]), [
     ['Thu 29 Oct · 3 lifts', 'Lateral raise, snatch'],
@@ -181,9 +213,9 @@ test('home: today\'s lifts keep the store\'s order (newest first), with the coun
   assert.deepEqual(view.earlier[0].rows.map(r => r.id), [e1.id, e2.id, e3.id], 'a day keeps the store\'s order');
 });
 
-test('home: one lift is "1 lift kept"; no lift today hides the section; no lift at all is the empty state', async () => {
+test('home: one lift is "1 lift"; no lift today hides the section; no lift at all is the empty state', async () => {
   const { homeView } = await model();
-  assert.equal(homeView({ today: [TODAY_B], earlier: [] }, []).today.count, '1 lift kept');
+  assert.equal(homeView({ today: [TODAY_B], earlier: [] }, []).today.count, '1 lift');
   const none = homeView({ today: [], earlier: [analysed('20261029-160000-lr', 'lateral-raise', iso(2026, 9, 29, 16, 0))] }, []);
   assert.equal(none.today, null);
   assert.equal(none.empty, false);
@@ -295,10 +327,11 @@ test('H follows a queue whose load fails: it passes on what the queue has', asyn
   assert.deepEqual(seen, [0]);
 });
 
-test('a waiting lift says "starts after the one above" for one job ahead, the plural for more', async () => {
+test('a waiting lift says "Waiting · next" for one job ahead, and the number for more (d55)', async () => {
   const { waitingText } = await model();
-  assert.equal(waitingText(1), 'Waiting · starts after the one above');
-  assert.equal(waitingText(2), 'Waiting · starts after the ones ahead');
+  assert.equal(waitingText(1), 'Waiting · next');
+  assert.equal(waitingText(2), 'Waiting · 2 ahead');
+  assert.equal(waitingText(5), 'Waiting · 5 ahead');
   assert.equal(waitingText(0), 'Waiting');
 });
 

@@ -13,7 +13,7 @@ import { APP_VERSION } from '../../store/index.mjs';
 import { CREDITS, creditUrl, thirdPartyUrl } from '../../credits.mjs';
 import { PRIVACY, deleteAllLifts, loadStorage, queueBusy, recordingView, storageView } from '../settings-model.mjs';
 
-const messageOf = e => (e && e.message ? e.message : 'Something went wrong.');
+const messageOf = e => (e && e.message ? e.message : 'That didn’t work.');
 
 /** A licence text, read from the app's own files when its details open: works offline. */
 function LicenceText({ url }) {
@@ -25,8 +25,8 @@ function LicenceText({ url }) {
       .then(t => { if (current) setText(t); }, () => { if (current) setFailed(true); });
     return () => { current = false; };
   }, [url]);
-  if (failed) return html`<p class="quiet" role="status">This licence text couldn't be read from the app's files.</p>`;
-  if (text === null) return html`<p class="quiet" role="status">Reading the licence text…</p>`;
+  if (failed) return html`<p class="quiet" role="status">Couldn’t load this licence.</p>`;
+  if (text === null) return html`<p class="quiet" role="status">Loading…</p>`;
   return html`<pre class="licence">${text}</pre>`;
 }
 
@@ -50,7 +50,7 @@ function Credits({ onBack }) {
         <h1 class="bar-header__title">Credits and licences</h1>
       </header>
       <div class="settings">
-        <p class="soft">coach is made with the components below. Each one's licence text is in the app, so it reads without a connection.</p>
+        <p class="soft">coach is built with these. Their licences are in the app, readable offline.</p>
         <div class="group">
           ${CREDITS.map(c => html`
             <${Disclosure} key=${c.row} title=${c.name} meta=${`${c.version} · ${c.licence}${c.shipped ? '' : ' · build only'}`}>
@@ -137,7 +137,7 @@ export function S1({ flow, store, queue }) {
             <div class="group">
               <div class="row"><span>On this phone</span><span class="row__value">${stor.lifts}</span></div>
               <div class="row"><span>Used by the app</span><span class="row__value">${stor.used}</span></div>
-              <div class="row"><span>Room left for the app</span><span class="row__value">${stor.free}</span></div>
+              <div class="row"><span>Free for the app</span><span class="row__value">${stor.free}</span></div>
               <div class="row"><span>Kept when space is low</span><span class="row__value">${stor.persisted}</span></div>
               ${asking ? html`
                 <div class="row row--stack" role="group" aria-label="Delete all lifts">
@@ -150,7 +150,7 @@ export function S1({ flow, store, queue }) {
                 <button type="button" class="row row--action row--danger" disabled=${!stor.canDelete || busy} onClick=${() => setAsking(true)}>Delete all lifts…</button>`}
             </div>
             ${stor.persistedNote ? html`<p class="quiet">${stor.persistedNote}</p>` : null}
-            ${busy ? html`<p class="quiet">Lifts waiting to be analysed or being analysed can't be deleted. Wait until the queue is empty.</p>` : null}` : null}
+            ${busy ? html`<p class="quiet">Can’t delete while lifts are being analysed.</p>` : null}` : null}
         </section>
         <section class="settings__section" aria-labelledby="ab-h">
           <h2 class="section__title" id="ab-h">About</h2>

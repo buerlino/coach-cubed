@@ -19,13 +19,13 @@ const clock = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 const length = range => (range.t1 - range.t0).toFixed(1);
 
 /**
- * The time as the mockup says it ("about 38 s"): seconds rounded up, at least
+ * The time as round 1 says it ("~38 s"): seconds rounded up, at least
  * one; from two minutes on, whole minutes.
  * @param {number} seconds
  */
 export function aboutTime(seconds) {
-  if (seconds >= 120) return `about ${Math.round(seconds / 60)} min`;
-  return `about ${Math.max(1, Math.ceil(seconds))} s`;
+  if (seconds >= 120) return `~${Math.round(seconds / 60)} min`;
+  return `~${Math.max(1, Math.ceil(seconds))} s`;
 }
 
 // The stage a job stands in: running (or stopped) at `progress.stage`, done past all of them.
@@ -52,7 +52,7 @@ function queueOf(jobs, mine, rate) {
     items.push({ id: j.id, liftId: j.liftId, ahead: i < at, text: parts.join(' · ') });
   });
   if (!items.length) return null;
-  return { label: items[0].ahead ? 'Ahead in the queue' : 'Next in the queue', items, more: items.length - 1 };
+  return { label: items[0].ahead ? 'Before this' : 'Up next', items, more: items.length - 1 };
 }
 
 function leftOf(kind, eta) {
@@ -61,7 +61,7 @@ function leftOf(kind, eta) {
   if (kind === 'paused') return 'paused';
   if (kind !== 'running') return '';
   // never a made-up time: etaS is null until a rate is measured (s12)
-  return eta === null ? 'measuring the speed' : `${aboutTime(eta)} left`;
+  return eta === null ? 'estimating…' : `${aboutTime(eta)} left`;
 }
 
 const HEADING = { done: 'Ready', failed: "Couldn't analyse", cancelled: 'Stopped' };
@@ -71,7 +71,7 @@ const HEADING = { done: 'Ready', failed: "Couldn't analyse", cancelled: 'Stopped
  * @param {import('../contracts/analysis-job.mjs').AnalysisJob[]} jobs queue order
  * @param {Object} [ctx]
  * @param {string} [ctx.liftId] the lift Q1 was opened for (the flow's `liftId`); without one, the job running now
- * @param {import('../contracts/stored-lift.mjs').StoredLift|null} [ctx.lift] its record, for "Kept 14:32"
+ * @param {import('../contracts/stored-lift.mjs').StoredLift|null} [ctx.lift] its record, for "14:32"
  * @param {import('../analysis/estimate.mjs').Rate|null} [ctx.rate] the queue's measured rate, for the other lifts' times
  * @param {boolean} [ctx.visible] false while the app is in the background: a running job is then paused
  * @returns {Object} kind (running, paused, waiting, done, failed, cancelled, idle), heading, lift, percent,
@@ -90,12 +90,8 @@ export function analysingView(jobs, { liftId, lift = null, rate = null, visible 
   const range = job ? job.range : lift ? lift.range : null;
   const kindOfLift = job ? job.lift : lift ? lift.lift : null;
   const p = job ? job.progress : null;
-  const frames = p && p.stage === 'pose' ? p.total : 0;
-  let meta = null;
-  if (range) {
-    meta = [lift ? `Kept ${clock(new Date(lift.created))}` : null, `${length(range)} s marked`, frames > 0 ? `${frames} frames` : null]
-      .filter(Boolean).join(' · ');
-  }
+  // d55: "14:32 · 13.0 s" (when it was kept, the marked length); without the record, the length
+  const meta = range ? [lift ? clock(new Date(lift.created)) : null, `${length(range)} s`].filter(Boolean).join(' · ') : null;
   const eta = kind === 'running' && p && typeof p.etaS === 'number' ? p.etaS : null;
   const percent = !job ? (analysed ? 100 : 0) : percentOf(job);
   const statuses = job ? stageStatuses(job) : STAGES.map(() => (analysed ? 'done' : 'todo'));
@@ -114,7 +110,7 @@ export function analysingView(jobs, { liftId, lift = null, rate = null, visible 
       key: s.key,
       label: s.label,
       status: statuses[i],
-      detail: statuses[i] === 'now' && s.key === 'pose' && p ? `frame ${p.done} of ${p.total}` : '',
+      detail: statuses[i] === 'now' && s.key === 'pose' && p ? `${p.done} / ${p.total}` : '',
     })),
     reason: kind === 'failed' ? job.error : null,
     problem,

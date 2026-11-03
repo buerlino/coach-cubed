@@ -32,9 +32,9 @@ const pixelRatio = () => (globalThis.devicePixelRatio > 0 ? globalThis.devicePix
 const pct = f => `${(f * 100).toFixed(2)}%`;
 
 // What the screen says when it can't show a lift. Not drawn in v1 (ui-design.md): built in its style.
-const NO_LIFT = 'There is no lift to show. Open one from home.';
-const NOT_READY = 'This lift has no result yet.';
-const CANT_SHOW = 'This lift could not be shown.';
+const NO_LIFT = 'No lift to show.';
+const NOT_READY = 'No result yet.';
+const CANT_SHOW = 'Couldn’t show this lift.';
 
 export function A1({ flow, store, openSource = openFrameSource, diagnostics = null }) {
   const liftId = flow.params.liftId || null;
@@ -230,7 +230,7 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
                 </div>` : null}
               ${picked.notes.map(n => html`<p class="cue-card__note">${n}</p>`)}
               ${foot ? html`<span class="result-selected__foot">${foot}</span>` : null}
-              ${picked.scored ? html`<button type="button" class="cue-card__more" onClick=${() => flow.go('detail', { liftId, cue: picked.id })}>Plot and details<${ChevronIcon} /></button>` : null}
+              ${picked.scored ? html`<button type="button" class="cue-card__more" onClick=${() => flow.go('detail', { liftId, cue: picked.id })}>Details<${ChevronIcon} /></button>` : null}
             </section>` : null}
           <div class="result-bar">
             <div class="result-controls">
@@ -274,7 +274,7 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
                     <p class="cue-card__cue">${c.cue}</p>
                     ${c.notes.map(n => html`<p class="cue-card__note">${n}</p>`)}
                     ${c.rule ? html`<span class="cue-card__rule">${c.rule}</span>` : null}
-                    ${c.scored ? html`<button type="button" class="cue-card__more" onClick=${() => flow.go('detail', { liftId, cue: c.id })}>Plot and details<${ChevronIcon} /></button>` : null}
+                    ${c.scored ? html`<button type="button" class="cue-card__more" onClick=${() => flow.go('detail', { liftId, cue: c.id })}>Details<${ChevronIcon} /></button>` : null}
                   </div>` : null}
               </div>`)}
             ${view.notes.map(n => html`<p class="cues-window">${n}</p>`)}

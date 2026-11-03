@@ -55,9 +55,9 @@ export function Q1({ flow, queue, store }) {
 
   const act = async fn => {
     setProblem(null);
-    try { await fn(); } catch (e) { setProblem(e && e.message ? e.message : 'That did not work.'); }
+    try { await fn(); } catch (e) { setProblem(e && e.message ? e.message : 'That didn’t work.'); }
   };
-  const back = fromSession ? { to: 'live', label: 'Back to the session' } : { to: 'home', label: 'Back to home' };
+  const back = fromSession ? { to: 'live', label: 'Back to the session' } : { to: 'home', label: 'Home' };
 
   return html`
     <main class="screen" data-screen="Q1" data-kind=${kind}>
@@ -74,7 +74,7 @@ export function Q1({ flow, queue, store }) {
               <span class="q1-lift__title">${view.lift.title}</span>
               <span class="quiet">${view.lift.meta}</span>
             </span>
-          </div>` : html`<p class="soft">Nothing is being analysed.</p>`}
+          </div>` : html`<p class="soft">Nothing to analyse.</p>`}
         ${view.kind !== 'idle' ? html`
           <div class="q1-progress" role="progressbar" aria-label="Analysis progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${view.percent}>
             <div class="q1-progress__top">
@@ -86,18 +86,18 @@ export function Q1({ flow, queue, store }) {
           </div>` : null}
         ${view.problem ? html`<${Problem} problem=${view.problem} />` : null}
         ${problem ? html`<p class="error" role="alert">${problem}</p>` : null}
-        <p class="q1-note"><${LockIcon} /><span>${view.actions.cancel ? 'Runs on this phone; nothing is uploaded. You can leave this screen: it keeps going.' : 'Runs on this phone; nothing is uploaded.'}</span></p>
+        ${view.actions.cancel ? html`<p class="q1-note"><${LockIcon} /><span>Keeps going if you leave.</span></p>` : null}
         ${view.queue ? html`
           <div class="q1-queue">
             <span class="q1-queue__label">${view.queue.label}</span>
-            <span class="q1-queue__item">${view.queue.items[0].text}${view.queue.more > 0 ? html`<br /><span class="quiet">and ${view.queue.more} more</span>` : null}</span>
+            <span class="q1-queue__item">${view.queue.items[0].text}${view.queue.more > 0 ? html`<br /><span class="quiet">+${view.queue.more} more</span>` : null}</span>
           </div>` : null}
         <div class="q1-actions">
           ${view.actions.open ? html`<button type="button" class="button--primary button-big" onClick=${() => flow.go(view.actions.open.to, view.actions.open.params)}>Open the result</button>` : null}
           ${view.actions.retry ? html`<button type="button" class="button--primary button-big" disabled=${!view.jobId && !lift} onClick=${() => act(() => (view.jobId ? queue.retry(view.jobId) : queue.enqueue(lift)))}>Analyse again</button>` : null}
           ${view.actions.another ? html`<${PickVideo} flow=${flow} class="button--primary button-big">Pick another video</${PickVideo}>` : null}
           <button type="button" class=${`button-wide ${view.kind === 'done' || view.actions.retry ? 'button--raised' : 'button--light'}`} onClick=${() => flow.go(back.to)}>${back.label}</button>
-          ${view.actions.cancel ? html`<button type="button" class="button--quiet" onClick=${() => act(() => queue.cancel(view.jobId))}>Cancel this analysis</button>` : null}
+          ${view.actions.cancel ? html`<button type="button" class="button--quiet" onClick=${() => act(() => queue.cancel(view.jobId))}>Cancel</button>` : null}
         </div>
       </div>` : null}
     </main>

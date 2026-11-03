@@ -29,7 +29,7 @@ export function Welcome({ flow, store }) {
         <//>
         <button type="button" class="welcome__skip" onClick=${() => finishWelcome(store, flow, 'home')}>${WELCOME.skipLabel}</button>
       </div>
-      <p class="screen__footer"><${LockIcon} /><span>Everything stays on this phone. No account, no uploads.</span></p>
+      <p class="screen__footer"><${LockIcon} /><span>Nothing leaves this phone.</span></p>
     </main>
   `;
 }

@@ -82,6 +82,8 @@
 
   /* Touch targets are 44 px or more */
   --touch: 44px;
+  --icon-inline: 18px;   /* a status icon beside a count or a word on a row (d55) */
+  --more-fade: 84px;   /* the height of the fade under the "more below" cue (d55) */
 
   /* Sizes of H's pieces (the mockup's): action card, thumbnail, list row, progress bar */
   --card-min: 88px;

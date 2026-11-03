@@ -309,9 +309,11 @@ nothing acts on it yet, see `s12`'s report).
 
 ## S1, settings and about
 
+**Words (`d55`, round 1's table):** "Up to 30 fps; less in dim light.", "These come with the gym session, later.", "Free for the app", "If the phone runs very low on space, the system may remove them.", "Can’t delete while lifts are being analysed.", "coach is built with these. Their licences are in the app, readable offline.", "Loading…", "Couldn’t load this licence.", "That didn’t work."; the privacy text, the credits and the licences are unchanged.
+
 `screens/S1.mjs` draws `settings-model.mjs`'s view (design/mockups/Settings.dc.html); the store and the queue come in as props.
 
-- **Gym session:** the replay mode, the replay's length or the delay, the buffer, the camera and the quality are **shown disabled** until milestone B (as H's "Start gym session"); their values are the stored ones (v1's defaults). The default lift works now and is saved (`defaultLift`); L1 rings it (`startLift(settings)` in `home-model.mjs`, read by `liftTiles`; the first lift while the settings load or if they can't be read; d41, d53). Every value S1 offers lies inside `RANGES` (provisional until `c27`, [The store](#the-store)).
+- **Gym session:** the replay mode, the replay's length or the delay, the buffer, the camera and the quality are **shown disabled** until milestone B (as H's "Gym session"); their values are the stored ones (v1's defaults). The default lift works now and is saved (`defaultLift`); L1 rings it (`startLift(settings)` in `home-model.mjs`, read by `liftTiles`; the first lift while the settings load or if they can't be read; d41, d53). Every value S1 offers lies inside `RANGES` (provisional until `c27`, [The store](#the-store)).
 - **Videos are always kept** (nordmu, 2026-11-02): the mockup's "Keep the video of each analysed lift" switch is not drawn, since contract 3 needs every lift's cut and A1 plays it. `keepVideos` stays in the store; the switch comes back with a contract-3 change that allows a lift without its cut.
 - **Storage** is information: what the lifts hold, what the app uses, the room left (the store's `estimate()`), and whether the system promised to keep the files. `persisted: false` (the APK's WebView, `c20`) shows "No" with a plain sentence, never as an error. "Delete all lifts…" asks first and is held back while the queue has work.
 - **About:** the version, the privacy text (approved by nordmu on 2026-11-02, with no draft tag: it says what the app keeps, where, and that it sends nothing; it holds because the APK has no Android backup, see [The Android shell](#the-android-shell)), "Credits and licences", "How the cues are scored" (enabled since `d18`: S1b, see [A2](#a2-a-cues-detail)) and the source licence.
@@ -843,7 +845,7 @@ the scoring adapter builds from committed fixture tracks) lays the view model
   the verdict (for a cue that can't be scored, the engine's reason, two lines
   at most) and the value (`valueText`: signed for a worst sample, "1.07×" for
   a ratio, "—" for none). Opened, it shows the cue, the cue's notes (the camera
-  note) in a box, "Provisional", and "Plot and details", which goes to A2 with
+  note) in a box, "Provisional", and "Details", which goes to A2 with
   the lift's id and the cue's. The card that starts open is the first to work on,
   else the first to watch.
 - **Status is an icon and a word, never colour alone:** `StatusIcon` (four icons,
@@ -872,6 +874,8 @@ the scoring adapter builds from committed fixture tracks) lays the view model
   scored has no verdict to explain: "Provisional" alone.
 
 ## A3, view options
+
+**Words (`d55`):** the switches are "Skeleton" (no line under it), "Cue drawings" / "The lines each cue measures", "Unsure joints" / "Under 30 % sure", "Loop the lift only" / "Skips walking in and out"; the group is "Speed"; "Changes the scores. Thresholds assume 50 ms."; "Delete this lift and its video? This can’t be undone."; the errors "Couldn’t save this: …", "Couldn’t change the smoothing: …", "Couldn’t open this lift: …", "Couldn’t delete this lift: …".
 
 `components/view-options.mjs` is the sheet that opens over A1 from its "View options" button
 (`design/mockups/ViewOptions.dc.html`, package `d22`); `view-options-model.mjs` holds everything it decides, as plain
@@ -908,13 +912,15 @@ are two of the controller's controls, the same state.
   lift from the cut, as for any file, with this lift's id as `replaces`: the new lift replaces this one once its
   analysis is done, and a re-mark that fails or is cancelled leaves it as it was (`s50`, [The analysis](#the-analysis)).
   The label stays "Re-mark this lift" (the wording pass after checkpoint A owns it).
-- **Delete** asks first ("Delete this lift? Its video and result are removed from this phone. This can't be undone.",
+- **Delete** asks first ("Delete this lift and its video? This can’t be undone.",
   Delete / Keep it); only the confirm calls `store.deleteLift(id)` and goes home. A delete that fails keeps the lift and says why.
 
 ## A2, a cue's detail
 
-`d18`. `screens/A2.mjs` (design/mockups/CueDetail.dc.html) is `detail` in the flow, opened by A1's "Plot and
-details" with `liftId` and `cue`; Back returns to `result`. It loads the stored result, track and cut, scores the
+**Words (`d55`):** "No lift to show.", "No result yet.", "No such cue.", "Couldn’t show this cue." (A1 has "Couldn’t show this lift." and the card's button "Details"); the plot's line says "band: both sides". Cue texts, verdicts and reasons are `diagnostics.js`'s and unchanged.
+
+`d18`. `screens/A2.mjs` (design/mockups/CueDetail.dc.html) is `detail` in the flow, opened by A1's "Details"
+with `liftId` and `cue`; Back returns to `result`. It loads the stored result, track and cut, scores the
 track again with the view's own `smoothing` (`scoreLift`, so `computed` is what the verdicts were scored on),
 and draws what `detail-model.mjs`'s `detailOf` gives:
 
@@ -961,11 +967,11 @@ window is resized across the breakpoint; CSS arranges them (a grid), and the JS 
 (`use-wide.mjs` asks `matchMedia`):
 
 - **From `WIDE_MIN_PX` (980, `ui/wide-model.mjs`; `base.css`'s one `@media` repeats it, and `tests/app/wide.test.js` checks that
-  the two agree):** the header is the wordmark, a breadcrumb ("Today's session / Lateral raise · 14:27 · 3.0 s": the lift's day,
+  the two agree):** the header is the wordmark, a breadcrumb ("Today / Lateral raise · 14:27 · 3.0 s", or "Earlier": the lift's day,
   its name, its time and length) and the buttons "Re-mark" (A3's `remark()`) and "View options"; the video (at most 480 px tall,
   560 px wide, from its own aspect ratio) and the **selected cue's panel** side by side (the cue's title, the status chip with the
-  verdict, the cue's sentence, its plot, its tiles, the rule's sentence and "Provisional: not yet checked on real lifts.", and "Plot
-  and details" to A2); the player's bar under them (play, steps, the clock, the timeline, the speed); the cues in a 340 px sidebar
+  verdict, the cue's sentence, its plot, its tiles, the rule's sentence and "Provisional: not yet checked on real lifts.", and "Details"
+  to A2); the player's bar under them (play, steps, the clock, the timeline, the speed); the cues in a 340 px sidebar
   under "5 cues", the counts, and one button per cue, the selected one with `aria-pressed` and an accent outline. A card there
   *selects* (it never opens in place: the panel is the open card); the first cue to work on, else to watch, else the first, starts
   selected. The plot is A2's (`components/cue-plot.mjs`, shared: A2 uses it too), with the player's time as its playhead; a tap on
@@ -998,13 +1004,25 @@ window 980×720. A1 is walked twice, as the test clips are portrait (a narrow st
   plot drawn; below, one column and no panel; and in the laptop window a card selects its cue and a tap on the plot moves the player;
 - M (`d54`), checked at 360×640 and 412×760 too: at 360×640, 360×800, 412×760 (about the Fairphone in Brave) and 412×915,
   a vertical page scroll, or a control of M (`shift-check.mjs`'s list) not fully inside the window (`markFits`). Phone
-  landscape may scroll there (`d55` adds the cue), but the checks above still hold: nothing cut off, 44 px targets;
+  landscape may scroll there (`d55`'s cue shows there), but the checks above still hold: nothing cut off, 44 px targets, and
+  in the portrait sizes the cue must not show;
+- **the "more below" cue** (`d55`): on S1 at 360×800 the cue shows at the top of the page, its ⌄ button is 44 px and inside the window and
+  scrolls the page, and at the bottom it is gone (the button is also a touch target of the ordinary check);
 - a console error or exception on the way.
 
 `--shots DIR` writes a PNG per screen and size (keep it out of the repo); `--break scroll|clip|small|cut` puts a fault in on purpose
 (four browser runs of up to a minute: `tests/app/wide.test.js` runs them only with `COACH_LAYOUT_BREAKS=1`, i.e.
 `npm --prefix app run test:layout-breaks`, since inside `npm --prefix app test` they loaded the machine and made other tests fail);
-no browser is one line and exit 1, or a skip with `COACH_PAGE_TEST_SKIP=1`, as the page test. **What it does not say:** at phone
+no browser is one line and exit 1, or a skip with `COACH_PAGE_TEST_SKIP=1`, as the page test. **The "more below" cue** (`d55`, `ui/components/more-below.mjs`, drawn once by `App` for every screen): while the page can scroll
+more than 8 px further down (`moreBelow` in `ui/more-below-model.mjs`, a plain function, `tests/app/more-below.test.js`), a fade at
+the bottom edge of the window with a ⌄ button (44 px, `aria-label="More below"`) that scrolls down by most of a window
+(`scrollStep`: 0.8), without animation under `prefers-reduced-motion`. It goes at the bottom, with nothing to scroll, and while a sheet
+(A3, `aria-modal`) is open; it follows scrolling, resizing and content that grows (a `ResizeObserver` on the app, a `MutationObserver`
+for the sheet), lets taps through the fade (`pointer-events: none`) and keeps the safe-area inset. M fits its window in portrait
+(`d54`), so it shows there only in landscape. It follows the *page's* scroll: A1's cue list scrolls inside its own area, and the cue
+does not look at that.
+
+**What it does not say:** at phone
 landscape (800×360) the video, M's stage and the like are as tall as the window, so their buttons are under the fold and the page
 scrolls to them; nothing is cut off, but landscape has no layout of its own (5.7).
 
@@ -1037,8 +1055,8 @@ nordmu in the app. Screenshots stay out of git; this is what each looks like.
 - **The first run.** `ui/welcome-model.mjs` and `screens/Welcome.mjs`: the flow's `welcome` state, entered at boot
   once (`introSeen` in the settings, default false; `startState(store)` in `main.mjs`) and leading to `lift` (with the picked file) or
   `home`; nothing leads back to it. One screen: the wordmark, "Feedback on your lift, cue by cue", three lines (what
-  the app does, "Everything stays on this phone. No account, no uploads."), the "Import a video" card (a button that opens the phone's picker; `PickVideo`, below) and a quiet "Go
-  to home". Either saves `introSeen` (the card once a video is picked, `finishWelcome(store, flow, 'lift', { file })`); a store that can't be read starts at home, and a save that fails does not
+  the app does: "Pick a video, then mark the lift.", "coach finds the lifter and scores each cue.", "Nothing leaves this phone."), the "Import a video" card (a button that opens the phone's picker; `PickVideo`, below) and a quiet "Not
+  now". (`d55`: the words of round 1's wording pass.) Either saves `introSeen` (the card once a video is picked, `finishWelcome(store, flow, 'lift', { file })`); a store that can't be read starts at home, and a save that fails does not
   stop the app (the intro then shows again).
 - **A snatch result.** A1 already draws the cards from the view, so the snatch's two cues need no new code; the header
   adds the `provisional` tag beside "Snatch" (`headerOf`'s `provisional`, `home-model.mjs`'s `isProvisional`: the
@@ -1065,17 +1083,20 @@ plain functions that Node runs (`tests/app/analysing.test.js`):
 - **Percent** is the mockup's bands: reading to 10 %, the pose frames 10 to
   95 %, scoring 95 to 100 %; only `done` is 100 %. (H's row has its own,
   coarser percent, `home-model.mjs`.)
-- **Time left:** `progress.etaS` as "about N s left" (seconds rounded up,
-  at least 1; whole minutes from two). `etaS` null (no rate measured yet) is
-  "measuring the speed", never a time. The next lift's "about 10 s" is shown
+- **Time left:** `progress.etaS` as "~N s left" (seconds rounded up,
+  at least 1; whole minutes from two; `aboutTime`, shared with the queue line). `etaS` null (no rate measured yet) is
+  "estimating…", never a time. The next lift's "~10 s" is shown
   only when the queue has a measured rate.
+- **Words (`d55`):** the lift card is "14:32 · 13.0 s" (when it was kept, the marked length), the pose stage's detail "120 / 390", the queue
+  "Up next" / "Before this" with "+2 more", the note "Keeps going if you leave." (only while it runs; nothing after it ended), "Nothing to analyse.",
+  and the buttons "Home" and "Cancel".
 - **Paused:** the page is hidden (`document.visibilityState`): a job in a
   running stage reads "paused". The queue itself keeps its own state; this is
   the screen's wording only.
 - **Buttons:** Open the result (done: `go('result', {liftId})`), Analyse again
   (failed or stopped: the queue's `retry`, or `enqueue(lift)` when the queue
-  no longer holds the job), Back to home (to `live` with `from: 'live'` in
-  the params, "Back to the session"), Cancel this analysis (`queue.cancel`), and
+  no longer holds the job), Home (to `live` with `from: 'live'` in
+  the params, "Back to the session"), Cancel (`queue.cancel`), and
   (`d51`, `d53`) Pick another video (`actions.another`, a `PickVideo` button that opens the phone's picker and goes on to L1: `queued → lift` is legal) on the "No person found"
   panel only, a big primary button like "Analyse again"; the other problems keep their buttons.
 
@@ -1093,12 +1114,16 @@ lifts' `readResult` again when a job's state changes, not at every frame.
 `src/ui/home-model.mjs` is plain (Node runs it, `tests/app/home.test.js`):
 
 - `liftState(lift, jobs)`: `ready` (the record `isAnalysed`), `waiting` (job
-  `queued`; `waitingText(ahead)`: "Waiting · starts after the one above" for
-  one job ahead, "…the ones ahead" for more), `analysing` (`reading`, `pose`, `scoring`; `percent` is `percentOf(job)`, the one rule H and Q1 share
+  `queued`; `waitingText(ahead)`: "Waiting · next" for
+  one job ahead, "Waiting · 2 ahead" (the number) for more), `analysing` (`reading`, `pose`, `scoring`; `percent` is `percentOf(job)`, the one rule H and Q1 share
   (d41): reading 0-10 %, pose 10-95 %, scoring 95-100 %, never 100 while it runs; a done job
   whose lift is not yet stored as analysed shows 99), `failed` (the job's `error`),
-  `stopped` (unanalysed with no job, or a cancelled one: "Not analysed ·
-  stopped"; the lift stays stored).
+  `stopped` (unanalysed with no job, or a cancelled one: "Stopped"; the lift stays stored).
+- **H's words (`d55`, round 1's table):** "Gym session" with "Coming later" (no line under it), "Import a video" (no line under it), "Today" with "3 lifts",
+  "Your lifts show up here.", "Couldn’t read your lifts.", "Nothing leaves this phone.", "Update ready · reload the app". A row says "46 %" beside the
+  bar, a failed job a work-on triangle and "Couldn’t analyse" (the reason is on Q1). A ready row draws its counts as **A1's status icons with the
+  count, worst first** (`summariseResult` gives `icon`, the `StatusIcon` name); the words (`summaryLabel`: "1 work on, 3 good") are the row's
+  `aria-label` for screen readers.
 - `rowOf`, `homeView(listByDay(), jobs, results)`: today's rows in the
   store's order, earlier lifts grouped by local day ("Thu 29 Oct · 4 lifts",
   "Lateral raise, snatch"), the empty state. A ready lift opens `result`, every
@@ -1435,8 +1460,7 @@ request and a file not in the list go to the browser untouched.
   `'ready'`. States: `'off'`, `'current'`, `'waiting'`, `'ready'`; `subscribe`
   gives the state now and at each change.
 - **"Update ready"** is a plain line on H (`<p class="update">`, no style yet:
-  `dirac` styles it later): "Update ready. Reload the app to use the new
-  version." A page already running keeps the modules it loaded; the new
+  `dirac` styles it later): "Update ready · reload the app". A page already running keeps the modules it loaded; the new
   version is used from the next load.
 - **Not in the APK** (`c20`'s choice): nothing is registered when
   `window.Capacitor?.isNativePlatform?.()` is true, or when the browser has no
@@ -1521,7 +1545,7 @@ worktree: no example clips, no `app/vendor/tfjs/`, no `app/models/`, no GPU.
 
 ## The tests
 
-`tests/app/` holds them, because the pipeline's red-first check reads only
+`tests/app/` holds them (`d55`: `wording.test.js` pins the words of Q1, A1, A2, A3 and S1, `more-below.test.js` the cue's rule), because the pipeline's red-first check reads only
 `tests/`: `flow.test.js` (the state machine), `draw.test.js` (the overlay, pinned to the old page) and `player.test.js` (A1's player on fakes), `view-options.test.js` (A3: the options on the player, the re-score, loop, re-mark, delete), `home.test.js` (H's logic: a lift's state, the lists, the pick step, `main.mjs`'s boot), `lift.test.js` (L1: the tiles from the registry, the default ring, the step to M, the pickers, `d53`), `assemble.test.js` (assemble
 into a temporary folder, the manifest and `index.html`), `serve.test.js` (the
 dev server), `contracts.test.js` (the contracts, against the committed tracks

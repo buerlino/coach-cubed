@@ -1,6 +1,6 @@
 // A2, a cue's detail (design/mockups/CueDetail.dc.html, package d18): the frame at the cue's worst moment with
 // the cue drawn over the skeleton, the cue's plot over time against its zones (a tap on it shows that moment),
-// its tiles, the cue and how it's scored. A1's "Plot and details" opens it with the lift's id and the cue's id
+// its tiles, the cue and how it's scored. A1's "Details" opens it with the lift's id and the cue's id
 // in the flow's params; Back returns to the result. What to show, and why: detail-model.mjs (every word and
 // number is the view's or diagnostics.js's); the drawing: draw/plot.mjs and draw/overlay.mjs.
 // The store and the diagnostics.js object are injected (main.mjs gives the app's store; tests pass fakes).
@@ -13,10 +13,10 @@ import { PLAY_HALF_LABEL, detailOf } from '../detail-model.mjs';
 import { BackIcon, PlayIcon, StatusIcon } from '../components/icons.mjs';
 import { CuePlot } from '../components/cue-plot.mjs';
 
-const NO_LIFT = 'There is no lift to show. Open one from home.';
-const NOT_READY = 'This lift has no result yet.';
-const NO_CUE = 'This lift has no such cue.';
-const CANT_SHOW = 'This cue could not be shown.';
+const NO_LIFT = 'No lift to show.';
+const NOT_READY = 'No result yet.';
+const NO_CUE = 'No such cue.';
+const CANT_SHOW = 'Couldn’t show this cue.';
 
 const root = () => (globalThis.document ? globalThis.document.documentElement : null);
 const readToken = n => (root() ? globalThis.getComputedStyle(root()).getPropertyValue(n) : '');
@@ -84,7 +84,7 @@ export function A2({ flow, store, openSource = openFrameSource, diagnostics = nu
   const atWorst = d && d.worst && t !== null && Math.abs(t - d.worst.t) < 1e-3;
   const shown = d && t !== null ? (t - d.origin).toFixed(2) : null;
   const plot = d ? d.plot : null;
-  const sub = plot ? [plot.unit, plot.phaseLabel, plot.series.some(s => s.lo != null && s.hi != null) ? 'band: the two sides' : null].filter(Boolean).join(' · ') : '';
+  const sub = plot ? [plot.unit, plot.phaseLabel, plot.series.some(s => s.lo != null && s.hi != null) ? 'band: both sides' : null].filter(Boolean).join(' · ') : '';
 
   return html`
     <main class="screen detail" data-screen="A2">
