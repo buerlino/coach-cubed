@@ -692,13 +692,13 @@ asked), a cut of one, the follower, the wake lock (held or refused) and every tr
 `close()`, and no console error. It prints JSON and exits 1 on a failed check.
 
 **On the laptop** (headless Brave 156.0.8078.48, `Chrome/156.0.8078.48`, its fake camera at 1920×1080, a
-software encoder; laptop numbers, nothing about the phone): three runs, all passed, medians. The rate
-reported 29.94 fps at `fps=30` and 20 at the default (the page counted 29.82 and 20.1; the track's
+software encoder; laptop numbers, nothing about the phone): five runs, all passed, medians. The rate
+reported 30.03 fps at `fps=30` and 20 at the default (the page counted 29.81 and 20.1; the track's
 settings say 30 and 20); keyframes 999.0–1000.9 ms apart, once 1032.5 ms (a late frame: 1 s plus one);
 the ring held 5.967 s (30 fps) and 5.950 s (20 fps); no frame dropped; the wake lock held.
-`snapshot(3)` took 14 ms (30 fps) and 17 ms (20 fps) and was 4.0 s long (from the keyframe at or
-before 3 s back), `snapshot(5)` 7 and 4 ms, 5.17 and 5.15 s, 155 and 103 frames, each opened and
-decoded whole by the real decoder (`openFrameSource` 14 and 19 ms, all frames in 152 and 104 ms). The
+`snapshot(3)` took 14 ms (30 fps) and 15 ms (20 fps) and was 4.0 s long (from the keyframe at or
+before 3 s back), `snapshot(5)` 8 and 4 ms, 5.17 and 5.15 s, 155 and 103 frames, each opened and
+decoded whole by the real decoder (`openFrameSource` 17 and 18 ms, all frames in 159 and 109 ms). The
 encoder's real bitrate on the fake camera's simple picture was 0.97 Mbit/s at 30 fps (0.68 at 20),
 a tenth of the 10 Mbit/s asked: so its snapshots were 0.48 MB (3 s) and 0.63 MB (5 s), and 60 s of
 it would be 7.3 MB. A phone's camera picture is what fills the 10 Mbit/s: 75 MB a minute, `c30`'s to
