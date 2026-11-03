@@ -14,6 +14,9 @@
 //   - a touch target under 44 px (tokens.css --touch) in either direction: buttons, links, inputs, selects,
 //     summaries and sliders that are drawn. A link inside a sentence is exempt (WCAG 2.5.8's inline exception), and a
 //     control inside a <label> is touched through the label, so the label's box counts.
+// M (d54) is also checked at 360×640 and 412×760 (about the Fairphone in Brave), and at 360×640, 360×800, 412×760 and 412×915
+// it must not scroll vertically, with every control of M (shift-check.mjs's MARK_CONTROLS) fully inside the window. Phone
+// landscape may scroll (d55 adds the cue there), but nothing may be cut off and every touch target stays 44 px.
 // R2 and R3 are placeholders no flow step reaches in 0.1.0 (H's gym card is disabled), so they are not walked.
 //
 // --shots DIR   writes a PNG per screen and size into DIR (outside the repo: screenshots stay out of git).
@@ -29,6 +32,7 @@ import { assemble } from './assemble.mjs';
 import { createApp } from './serve.mjs';
 import { BROWSERS, findBrowser, launchBrowser } from './browser.mjs';
 import { WIDE_MIN_PX } from '../src/ui/wide-model.mjs';
+import { MARK_CONTROLS } from './shift-check.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const APP = resolve(HERE, '..');
@@ -45,6 +49,15 @@ export const VIEWPORTS = Object.freeze([
   { name: 'tablet landscape', width: 1024, height: 768, mobile: true },
   { name: 'narrow laptop window, at the breakpoint', width: WIDE_MIN_PX, height: 720, mobile: false },
 ]);
+/** The portrait sizes M fits without a vertical scroll (d54: from 640 px high; 412×760 is about the Fairphone in Brave). */
+export const M_NO_SCROLL = Object.freeze([
+  { name: 'phone portrait, short', width: 360, height: 640, mobile: true },
+  { name: 'phone portrait', width: 360, height: 800, mobile: true },
+  { name: 'phone portrait, the Fairphone in Brave', width: 412, height: 760, mobile: true },
+  { name: 'phone portrait, large', width: 412, height: 915, mobile: true },
+]);
+/** The sizes M is checked at: the seven, and the two portrait sizes of M_NO_SCROLL that are not among them. */
+export const M_SIZES = Object.freeze([...VIEWPORTS, ...M_NO_SCROLL.filter(m => !VIEWPORTS.some(v => v.width === m.width && v.height === m.height))]);
 /** tokens.css --touch */
 export const TOUCH_PX = 44;
 
@@ -151,6 +164,29 @@ export function a4Arrangement(vw, wideMin) {
   return problems;
 }
 
+/**
+ * M at a portrait size of M_NO_SCROLL, page side: no vertical page scroll, and every control fully inside the window.
+ * Other sizes: nothing to say here (pageCheck still runs). Stringified like pageCheck.
+ * @param {number} vw @param {number} _wideMin @param {number} vh
+ * @param {Array<{width: number, height: number}>} sizes M_NO_SCROLL
+ * @param {Array<[string, string]>} controls MARK_CONTROLS
+ */
+export function markFits(vw, _wideMin, vh, sizes, controls) {
+  if (!sizes.some(s => s.width === vw && s.height === vh)) return [];
+  const problems = [];
+  const doc = document.documentElement;
+  if (doc.scrollHeight > vh + 1) problems.push(`M scrolls: the page is ${doc.scrollHeight} px high in a ${vh} px window`);
+  for (const [name, selector] of controls) {
+    const el = document.querySelector(selector);
+    if (!el) { problems.push(`M: ${name} is not on the screen`); continue; }
+    const r = el.getBoundingClientRect();
+    if (r.top < -0.5 || r.left < -0.5 || r.bottom > vh + 0.5 || r.right > vw + 0.5) {
+      problems.push(`M: ${name} is not inside the window (${Math.round(r.left)},${Math.round(r.top)} to ${Math.round(r.right)},${Math.round(r.bottom)} in ${vw}×${vh})`);
+    }
+  }
+  return problems;
+}
+
 const arg = (name, dflt = null) => { const i = process.argv.indexOf(name); return i > 0 && i + 1 < process.argv.length ? process.argv[i + 1] : dflt; };
 const say = s => process.stdout.write(`${s}\n`);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -237,8 +273,8 @@ async function main() {
     const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
     // Check the screen now showing at every size; `label` names it in the report.
-    async function check(label, extra = null, prep = null) {
-      for (const v of VIEWPORTS) {
+    async function check(label, extra = null, prep = null, sizes = VIEWPORTS) {
+      for (const v of sizes) {
         await setViewport(v);
         await sleep(350);   // layout, the ResizeObserver redraws, A1's switch between the stacked and wide arrangements
         await evaluate('document.fonts.ready.then(() => true)').catch(() => {});
@@ -246,7 +282,7 @@ async function main() {
         if (breakKind) await evaluate(BREAKS[breakKind]);
         const found = await evaluate(`(${pageCheck.toString()})(${TOUCH_PX}, ${v.width})`);
         walked.push(`${label} @ ${v.width}×${v.height}`);
-        if (extra) found.push(...await evaluate(`(${extra.toString()})(${v.width}, ${WIDE_MIN_PX})`));
+        if (extra) found.push(...await evaluate(`(${extra.toString()})(${v.width}, ${WIDE_MIN_PX}, ${v.height}, ${JSON.stringify(M_NO_SCROLL)}, ${JSON.stringify(MARK_CONTROLS)})`));
         for (const p of found) problems.push(`${label} @ ${v.width}×${v.height} (${v.name}): ${p}`);
         if (shots) {
           const png = await send('Page.captureScreenshot', { format: 'png' });
@@ -290,9 +326,9 @@ async function main() {
     await waitFor(`document.querySelector('[data-screen="L1"] [data-lift]')`, 'L1');
     await check('L1');
     await click('[data-screen="L1"] [data-lift="lateral-raise"]');
-    await waitFor(`document.querySelector('[data-screen="M"][data-step="start"] .mark-main--set:not([disabled])')`, 'M with the video open');
-    await check('M (set the start)');
-    await click('.mark-main--set');
+    await waitFor(`document.querySelector('[data-screen="M"][data-step="start"] button[data-mark="start"]:not([disabled])')`, 'M with the video open');
+    await check('M (set the start)', markFits, null, M_SIZES);
+    await click('[data-screen="M"] button[data-mark="start"]');
     await waitFor(`document.querySelector('[data-screen="M"][data-step="end"]')`, 'M asking for the end');
     // the filmstrip dragged to the end, as the page test does (at the phone's size)
     await setViewport(VIEWPORTS[0]);
@@ -303,11 +339,11 @@ async function main() {
     for (let k = 1; k <= 10; k++) await mouse('mouseMoved', strip.x + strip.w - 10 - (strip.w - 20) * k / 10);
     await mouse('mouseReleased', strip.x + 10);
     await sleep(1500);
-    await check('M (set the end)');
-    await click('.mark-main--set');
-    await waitFor(`document.querySelector('[data-screen="M"][data-step="ready"] .mark-main.button--primary:not([disabled])')`, 'M ready to analyse');
-    await check('M (ready)');
-    await click('.mark-main.button--primary');
+    await check('M (set the end)', markFits, null, M_SIZES);
+    await click('[data-screen="M"] button[data-mark="end"]');
+    await waitFor(`document.querySelector('[data-screen="M"][data-step="ready"] button[data-mark="analyse"]:not([disabled])')`, 'M ready to analyse');
+    await check('M (ready)', markFits, null, M_SIZES);
+    await click('[data-screen="M"] button[data-mark="analyse"]');
 
     // Q1, then A1
     await waitFor(`document.querySelector('[data-screen="Q1"]')`, 'Q1', 30000);
@@ -398,7 +434,7 @@ async function main() {
 
   const unique = [...new Set(problems)];
   const screens = new Set(walked.map(w => w.split(' @ ')[0]));
-  say(`layout-check: ${walked.length} checks (${screens.size} screens × ${VIEWPORTS.length} sizes) in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+  say(`layout-check: ${walked.length} checks (${screens.size} screens × ${VIEWPORTS.length} sizes, M at ${M_SIZES.length}) in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
   say(`screens: ${[...screens].join(', ')}`);
   for (const p of unique) say(`  ✗ ${p}`);
   const ok = unique.length === 0 && (breakKind ? true : screens.size >= 15);
