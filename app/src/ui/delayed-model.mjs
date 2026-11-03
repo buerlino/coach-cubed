@@ -5,6 +5,7 @@
 //
 //   delayedView({ status, delayS });                  // the clock, '10 s behind', the delays with the chosen one pressed
 //   await saveDelay(store, 15);                       // a delay choice: the settings' delayS
+//   loadedDelay(picked, settings);                    // the delay once the settings are read: a choice made first stays
 //   await keepLift({ session, flow, replayS, delayS }); // → M, { file, lift, from: 'delayed' }
 //
 // The recording never stops: nothing here calls the capture except `snapshot()`.
@@ -42,6 +43,17 @@ export async function saveDelay(store, value) {
   const { min, max } = RANGES.delayS;
   if (!(Number.isInteger(value) && value >= min && value <= max)) throw new RangeError(`The delay must be a whole number of seconds from ${min} to ${max}.`);
   return store.saveSettings({ delayS: value });
+}
+
+/**
+ * The delay R3b shows once its settings are read. A choice the user made before they came in (a tap while the store
+ * was still reading) stays: the settings' older delayS must not overwrite it, or the label and the pressed button say
+ * one delay while the frames run at the one picked (c26's page test, under load: "10 s behind" with 5 s picked).
+ * @param {number|null} picked the delay already chosen on R3b, or null
+ * @param {{delayS: number}} settings the settings read
+ */
+export function loadedDelay(picked, settings) {
+  return picked ?? settings.delayS;
 }
 
 /** The kept lift's file name: delayed-hh-mm-ss.mp4, from the local time. */

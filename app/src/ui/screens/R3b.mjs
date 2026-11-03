@@ -14,7 +14,7 @@ import { CheckIcon, RetryIcon, StopIcon } from '../components/icons.mjs';
 import { Problem } from '../components/problem.mjs';
 import { createDelayedFrames } from '../../media/delayed.mjs';
 import { browserWebCodecs } from '../../media/webcodecs.mjs';
-import { delayedView, keepLift, saveDelay } from '../delayed-model.mjs';
+import { delayedView, keepLift, loadedDelay, saveDelay } from '../delayed-model.mjs';
 import { problemOf } from '../problem-model.mjs';
 import { captureProblem, goHome } from '../record-model.mjs';
 import { useCapture, useStream } from '../use-capture.mjs';
@@ -59,8 +59,9 @@ export function R3b({ flow, store, session, makeWebCodecs = browserWebCodecs }) 
     Promise.resolve().then(() => store.getSettings()).catch(() => null).then(s => {
       if (!current) return;
       const found = s || { ...DEFAULT_SETTINGS };
-      setSettings(found);
-      setDelayS(found.delayS);
+      // a delay picked (and saved) while the settings were read stays: the older settings never overwrite it
+      setSettings(cur => cur ?? found);
+      setDelayS(picked => loadedDelay(picked, found));
     });
     return () => { current = false; };
   }, [store]);

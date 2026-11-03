@@ -20,7 +20,7 @@ const media = () => import(pathToFileURL(path.join(APP, 'debug', 'media.mjs')).h
 
 test('media.mjs loads in Node without a page and exposes the measurements', async () => {
   const m = await media();
-  for (const k of ['open', 'decodeRate', 'frameAtRandom', 'step', 'stepCached', 'seekCached', 'rotateCost', 'cut']) assert.equal(typeof m.c34[k], 'function', k);
+  for (const k of ['open', 'decodeRate', 'frameAtRandom', 'step', 'stepCached', 'seekCached', 'rotateCost', 'cut', 'idleDecoded']) assert.equal(typeof m.c34[k], 'function', k);
 });
 
 test('prng: seeded, so a run\'s random times can be drawn again; values in [0, 1)', async () => {
@@ -47,6 +47,37 @@ test('spacing: the gaps between frame times in ms, with how many distinct ones',
   assert.equal(vfr.ms.max, 100);
 });
 
+test('countingWebCodecs: every frame the decoder outputs is counted until it is closed (s38f1, on the phone in c26)', async () => {
+  const { countingWebCodecs } = await media();
+  const handed = [];
+  let made = null;
+  const fake = {
+    isConfigSupported: () => ({ supported: true }),
+    createDecoder: init => { made = init; return { close() {} }; },
+  };
+  const { webcodecs, live } = countingWebCodecs(fake);
+  assert.equal(webcodecs.isConfigSupported, fake.isConfigSupported, 'the other calls pass through');
+  webcodecs.createDecoder({ output: f => handed.push(f), error() {} });
+  let closed = 0;
+  const frame = () => ({ close() { closed++; } });
+  const a = frame(), b = frame();
+  made.output(a);
+  made.output(b);
+  assert.equal(live.size, 2);
+  assert.deepEqual(handed, [a, b], "the decoder's own output still gets every frame");
+  a.close();
+  assert.equal(live.size, 1);
+  assert.equal(closed, 1, 'the real close runs');
+  b.close();
+  assert.equal(live.size, 0);
+});
+
+test('check-media.mjs counts the idle stepper\'s open frames through media.mjs, as the phone does', () => {
+  const src = read('tools/check-media.mjs');
+  assert.match(src, /c34\.idleDecoded\(name, \{ height: 440/);
+  assert.doesNotMatch(src, /live\.add\(f\)/, 'one copy of the counting, in media.mjs');
+});
+
 test('median: of the finite numbers, null for none', async () => {
   const { median } = await media();
   assert.equal(median([3, 1, 2]), 2);
@@ -62,6 +93,9 @@ test('check-media-apk.mjs runs every measurement of c34 five times and puts the 
   assert.match(src, /consumerMs: 100/, 'the backpressure run: a consumer taking 100 ms a frame');
   assert.match(src, /consumerMs: 0/, 'the plain decode rate');
   assert.match(src, /keep: true/, 'keepVideo itself, into OPFS');
+  // s38f1's count of the decoder's open frames, on the phone (c26): at 440 px and at M1–M3's size
+  assert.match(src, /\[`idle-\$\{c\}`, 'idleDecoded', c, \(\) => \(\{ height: 440 \}\)\]/);
+  assert.match(src, /\[`idle1320-\$\{c\}`, 'idleDecoded', c, \(\) => \(\{ height: 1320 \}\)\]/);
   // the phone named in every adb call, and put back after
   assert.match(src, /execFileSync\('adb', \['-s', SERIAL/);
   assert.match(src, /spawn\('adb', \['-s', SERIAL/);
