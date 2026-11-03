@@ -7,7 +7,7 @@ import { liftChoices } from './home-model.mjs';
 
 /**
  * The settings that need the camera, so milestone B: S1 shows them disabled
- * until then (the same as H's "Start gym session"), because the mockup shows
+ * until then (the same as H's "Gym session"), because the mockup shows
  * them and a user can see what is coming; their stored values are v1's defaults.
  */
 export const MILESTONE_B = Object.freeze(['replayMode', 'replayS', 'delayS', 'bufferS', 'camera', 'quality']);
