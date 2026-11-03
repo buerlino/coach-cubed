@@ -15,7 +15,10 @@
 //      was in M1, to 0.5 px, shift-check.mjs) → Q1 (waits for the job) → A1; reads the cue cards and
 //      compares each with the view model of s11's adapter (scoreLift) computed in Node from the same
 //      fixture track: per cue its id, status class, verdict line, value and the card's label (with the
-//      status word). Not empty, not different.
+//      status word). Not empty, not different;
+//   3b. (d28) the session walk: H → the gym card → R1 (the camera's preview, a lift tapped) → Start → R2 (the clock moves, the
+//      real rate reads 30 fps ± 1) → End session → H, and every camera track has ended (checked in the page). The browser has
+//      a fake camera (--use-fake-device-for-media-stream=fps=30 --use-fake-ui-for-media-stream).
 // It fails on a console error, a failed request (any HTTP error or network failure, in the page or a
 // worker), an unhandled rejection or exception, a job that does not finish in its time (60 s,
 // $COACH_PAGE_TEST_JOB_S), cards that differ from the adapter's, or an empty cue list.
@@ -44,7 +47,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { assemble, TEST_TRACKS } from './assemble.mjs';
 import { fixtureCoverage } from './lift-fixtures.mjs';
 import { createApp } from './serve.mjs';
-import { BROWSERS, findBrowser, launchBrowser } from './browser.mjs';
+import { BROWSERS, FAKE_CAMERA, findBrowser, launchBrowser } from './browser.mjs';
 import { MARK_CONTROLS, SHIFT_BREAK, compareBoxes, readBoxes } from './shift-check.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -158,7 +161,7 @@ try {
   const origin = `http://127.0.0.1:${server.address().port}`;
 
   browser = await launchBrowser(profile, ['--headless=new', '--enable-unsafe-swiftshader', '--use-angle=swiftshader',
-    '--window-size=390,844', 'about:blank'], { browser: browserPath });
+    ...FAKE_CAMERA, '--window-size=390,844', 'about:blank'], { browser: browserPath });
   const port = browser.port;
   const target = await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT' })).json();
   const ws = new WebSocket(target.webSocketDebuggerUrl);
@@ -407,6 +410,58 @@ try {
     await waitFor(`document.querySelector('[data-screen="H"]')`, 'H after closing M');
   }
 
+  // 5a. d28: the session. H → the gym card → R1 (the preview plays, a lift is tapped) → Start → R2 (the clock moves, the real
+  // rate reads 30 fps ± 1) → End session → H; every camera track (the streams' and their clones) has ended.
+  if (!realClip) {
+    await waitFor(`document.querySelector('[data-screen="H"]')`, 'H (the session)');
+    await evaluate(`(() => {
+      if (globalThis.__tracks) return;
+      globalThis.__tracks = [];
+      const keep = t => { globalThis.__tracks.push(t); return t; };
+      const gum = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      navigator.mediaDevices.getUserMedia = async c => { const s = await gum(c); s.getTracks().forEach(keep); return s; };
+      const clone = MediaStreamTrack.prototype.clone;
+      MediaStreamTrack.prototype.clone = function () { return keep(clone.call(this)); };
+    })()`);
+    const session = { walked: true };
+    result.session = session;
+    if (!await click('[data-screen="H"] [data-card="session"]')) throw new Error('H: no gym session card');
+    await waitFor(`document.querySelector('[data-screen="R1"][data-state="preview"] [data-record="start"]:not([disabled])')`, 'R1 with the camera in the preview', 30000);
+    await waitFor(`(() => { const v = document.querySelector('[data-screen="R1"] video'); return v && v.readyState >= 2 && v.videoWidth > 0; })()`, "R1's preview playing", 30000);
+    const lifts = await evaluate(`[...document.querySelectorAll('[data-screen="R1"] [data-lift]')].map(b => b.getAttribute('data-lift') + ':' + b.getAttribute('aria-pressed'))`);
+    session.lifts = lifts;
+    const tap = LIFTS[LIFTS.length - 1].lift;
+    if (!await click(`[data-screen="R1"] [data-lift="${tap}"]`)) throw new Error('R1: no lift button');
+    const pressed = await evaluate(`[...document.querySelectorAll('[data-screen="R1"] [data-lift][aria-pressed="true"]')].map(b => b.getAttribute('data-lift'))`);
+    if (pressed.length !== 1 || pressed[0] !== tap) problems.push(`R1: tapping ${tap} pressed ${JSON.stringify(pressed)}`);
+    session.line = await evaluate(`document.querySelector('[data-screen="R1"] .setup-line')?.textContent ?? null`);
+    if (session.line !== '1080p · 30 fps · last 60 s') problems.push(`R1: the line under the preview says ${JSON.stringify(session.line)}`);
+    if (!await click('[data-screen="R1"] [data-record="start"]')) throw new Error('R1: Start is disabled');
+    await waitFor(`document.querySelector('[data-screen="R2"][data-state="recording"]')`, 'R2 recording', 30000);
+    const clock = () => evaluate(`document.querySelector('[data-live="clock"]')?.textContent ?? null`);
+    const seconds = t => (t || '0:00').split(':').reduce((a, x) => a * 60 + Number(x), 0);
+    const first = seconds(await clock());
+    await waitFor(`/^\\d+ fps$/.test(document.querySelector('[data-live="fps"]')?.textContent ?? '')`, "R2's real rate", 20000);
+    await sleep(2500);
+    const second = seconds(await clock());
+    session.clockS = [first, second];
+    if (!(second >= first + 2)) problems.push(`R2: the clock did not move: ${first} s, then ${second} s`);
+    const fps = Number((await evaluate(`document.querySelector('[data-live="fps"]')?.textContent ?? ''`)).replace(/\D/g, ''));
+    session.fps = fps;
+    if (!(fps >= 29 && fps <= 31)) problems.push(`R2: the rate reads ${fps} fps, not 30 ± 1`);
+    session.lift = await evaluate(`document.querySelector('[data-live="lift"]')?.textContent ?? null`);
+    if (!String(session.lift).includes('last 60 s')) problems.push(`R2: the lift line says ${JSON.stringify(session.lift)}`);
+    // the way back to the session: Q1 from the queue chip is not reachable with an empty queue; H's card is (R2 -> End is the way out)
+    if (!await click('[data-screen="R2"] [data-record="end"]')) throw new Error('R2: no End session button');
+    await waitFor(`document.querySelector('[data-screen="H"]')`, 'H after End session');
+    const ended = await evaluate(`({ n: globalThis.__tracks.length, live: globalThis.__tracks.filter(t => t.readyState !== 'ended').length })`);
+    session.tracks = ended.n;
+    if (ended.n < 1) problems.push('the session: the page saw no camera track');
+    if (ended.live) problems.push(`the session: ${ended.live} of ${ended.n} camera tracks are still live after End session`);
+    const card = await evaluate(`document.querySelector('[data-screen="H"] [data-card="session"]')?.textContent ?? null`);
+    if (!String(card).includes('Gym session')) problems.push(`H: after End session the gym card says ${JSON.stringify(card)}`);
+  }
+
   // 5b. d23: a file that is not a video ends on the error screen, with a way back (the file is outside dist)
   if (!realClip) {
     const junk = join(dist, '..', `coach-page-junk-${process.pid}.mp4`);
@@ -460,5 +515,6 @@ result.ok = result.problems.length === 0 && result.lifts.length > 0 && result.li
 say(JSON.stringify(result, null, 2));
 // a lift the app offers with no fixture: listed every run, so a lift isn't left out of the walk unnoticed
 if (!realClip && COVERAGE.untested.length) say(`page-test: not walked, no fixture in app/tools/lift-fixtures.mjs: ${COVERAGE.untested.join(', ')}`);
+if (!realClip && result.session) say(`page-test: session walk (H, R1, Start, R2, End session, H): ${result.session.fps} fps, clock ${result.session.clockS?.join(' → ')} s, ${result.session.tracks} camera tracks ended`);
 say(result.ok ? `page-test: PASSED in ${result.seconds} s` : `page-test: FAILED: ${result.problems[0] ?? 'a lift did not complete'}`);
 process.exit(result.ok ? 0 : 1);

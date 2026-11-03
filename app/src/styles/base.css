@@ -261,8 +261,9 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 /* R1, Set up the camera (docs/ui-design.md, design/mockups/RecordSetup.dc.html; d28). The camera fills the window; the
    rows over it have fixed places: ‹, the lifts, the tip (its least height three lines), the guide (which takes what is
    left), the place kept for the replay-mode choice (d29b) and the bar with the line and the record disc. Nothing moves
-   when a lift is tapped or the tip changes. `flex: none` and the height as M's (.mark): .screen's `flex: 1` is a basis of 0%. */
-.setup, .live { flex: none; height: 100dvh; position: relative; display: flex; flex-direction: column; overflow: hidden; background: var(--stage-ground); }
+   when a lift is tapped or the tip changes. `flex: none` as M's (.mark): .screen's `flex: 1` is a basis of 0%. The window's
+   height is a least height: a phone in landscape scrolls (nothing is cut off) where the rows do not fit. */
+.setup, .live { flex: none; min-height: 100dvh; position: relative; display: flex; flex-direction: column; background: var(--stage-ground); }
 .camera-stage { position: absolute; inset: 0; background: var(--stage-ground); }
 .camera-stage video { width: 100%; height: 100%; object-fit: cover; display: block; }
 .setup > :not(.camera-stage), .live > :not(.camera-stage) { position: relative; }
@@ -302,7 +303,7 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .live-chip__dot { width: var(--rec-dot); height: var(--rec-dot); border-radius: 50%; background: var(--record); flex: none; }
 .live-clock { min-width: var(--live-clock-w); font-variant-numeric: tabular-nums; }
 .live-fps { min-width: var(--live-fps-w); justify-content: center; font-variant-numeric: tabular-nums; }
-.live-queue { margin-left: auto; font-size: var(--size-small); }
+.live-queue { font-size: var(--size-small); }
 .live-queue__spinner { width: var(--spinner); height: var(--spinner); flex: none; box-sizing: border-box; border: 2px solid var(--accent); border-right-color: transparent; border-radius: 50%; }
 .live-mid { flex: 1 1 0; min-height: 0; margin: var(--space-3); display: flex; align-items: center; justify-content: center; }
 .live-mid .problem { max-height: 100%; overflow: auto; background: var(--surface); }

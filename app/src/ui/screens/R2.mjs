@@ -39,12 +39,14 @@ export function R2({ flow, store, queue, session }) {
         <div class="live-row">
           <span class="live-chip live-chip--rec"><span class="live-chip__dot"></span>REC <span class="live-clock" data-live="clock">${view.clock}</span></span>
           <span class="live-chip live-fps" data-live="fps">${view.fps}</span>
+        </div>
+        <span class="live-chip" data-live="lift">${view.liftLine}</span>
+        <div class="live-row">
           ${view.queue ? html`
             <button type="button" class="chip-button live-queue" data-live="queue" onClick=${() => flow.go('queued', { from: 'live' })}>
               <span class="live-queue__spinner"></span>${view.queue}
             </button>` : null}
         </div>
-        <span class="live-chip" data-live="lift">${view.liftLine}</span>
       </header>
       <div class="live-mid">
         ${problem ? html`<${Problem} problem=${problem} />` : view.canResume ? html`
