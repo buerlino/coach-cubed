@@ -349,7 +349,11 @@ stop_questioned() {  # <reply file>
   echo "RESULT #$n $id: NOT MERGED (the worker questioned its task; branch $branch, worktree $wt kept; reply: $(open_question_lines "$1" | grep -iE "$TASK_QUESTION_RE" | head -n 1 | cut -c1-120))"; exit 1
 }
 if [[ $nowork -eq 0 ]]; then
-  [[ $resumed -eq 0 ]] || merge_integ  # a resumed branch gets today's integration branch first
+  if [[ $resumed -eq 1 ]]; then
+    merge_integ  # a resumed branch gets today's integration branch first
+    # A fresh worker sees only the bundle: without this it starts the package over on top of the earlier run's commits (c26, run 60).
+    worker_prompt+=" This branch already has work from an earlier run that ended before its report: read git log --stat $INTEG_BRANCH..HEAD and git status first, keep what is there and continue from it; redo nothing that is done."
+  fi
   run_agent "wp-$n-$(slug "$agent")" "$run/worker-0.log" "$agent" "$model" "$effort" "$bundle" "$worker_prompt" "${worker_tools[@]}"
   log "pipeline #$n $id: worker done, $(git -C "$wt" log -1 --format=%h) — $(tail -n 1 "$run/worker-0.log" | cut -c1-120)"
   stop_questioned "$run/worker-0.log"

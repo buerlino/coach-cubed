@@ -51,6 +51,7 @@ while [ $# -gt 0 ]; do
 done
 cat > /dev/null
 echo "$agent|$PWD|${prompt:0:30}" >> "$SB/calls"
+case "$prompt" in *"work from an earlier run"*) echo "$agent" >> "$SB/resumed";; esac
 mode="$(cat "$SB/mode" 2>/dev/null || true)"
 commit() { git add -A; git commit -qm "$1" -m "Done: $1"; }
 if [ "$agent" = hillbert ]; then
@@ -197,6 +198,18 @@ git -C "$sb/integ" diff --cached --quiet && fail "staged: the staged change was 
 sb="$(sandbox lock)"; mkdir -p "$sb/coord/locks/branch-wp-dirac-w1"; echo other > "$sb/coord/locks/branch-wp-dirac-w1/owner"
 pl "$sb" w1
 [[ "$(rc "$sb")" -eq 2 ]] && grep -q 'NOT STARTED (branch wp/dirac-w1 is in use by another run (other))' "$sb/out" || fail "lock: $(out "$sb")"
+
+# 9. a branch left by a run that died: resumed in its worktree, the worker told to continue; a fresh run is not told
+sb="$(sandbox resume)"
+git -C "$sb/main" worktree add -q -b wp/dirac-w1 "$sb/old-wt" phase-0
+echo earlier > "$sb/old-wt/earlier.txt"; git -C "$sb/old-wt" add earlier.txt; git -C "$sb/old-wt" commit -qm "earlier run"
+pl "$sb" w1
+[[ "$(rc "$sb")" -eq 0 ]] || fail "resume: $(out "$sb")"
+grep -qx dirac "$sb/resumed" 2>/dev/null || fail "resume: the worker was not told about the earlier work"
+grep -q "|$sb/old-wt|" "$sb/calls" || fail "resume: the worker did not run in the branch's worktree: $(cat "$sb/calls")"
+[[ -f "$sb/integ/earlier.txt" ]] && grep -q feature "$sb/integ/shared.txt" || fail "resume: phase-0 lacks the earlier or the new work"
+sb="$(sandbox fresh)"; pl "$sb" w1
+[[ ! -e "$sb/resumed" ]] || fail "fresh: a fresh worker was told about earlier work"
 
 # 9. adb: curie only reaches the phone, and never kill-server; everyone else is refused, and their ANDROID_SERIAL names
 # no device, so adb by its full path or through Gradle can't fall through to whatever is attached
