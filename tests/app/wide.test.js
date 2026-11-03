@@ -64,8 +64,8 @@ test('crumbOf: the session and the lift\'s name with its time and length', async
   const { crumbOf } = await load('src', 'ui', 'wide-model.mjs');
   const created = new Date(2026, 10, 2, 14, 27, 5).toISOString();
   const lift = { lift: 'lateral-raise', created, range: { t0: 1, t1: 4.04 } };
-  assert.deepEqual(crumbOf(lift, new Date(2026, 10, 2, 20, 0)), { parent: "Today's session", current: 'Lateral raise \u00b7 14:27 \u00b7 3.0 s' });
-  assert.equal(crumbOf(lift, new Date(2026, 10, 5, 9, 0)).parent, 'Earlier sessions');
+  assert.deepEqual(crumbOf(lift, new Date(2026, 10, 2, 20, 0)), { parent: 'Today', current: 'Lateral raise \u00b7 14:27 \u00b7 3.0 s' });
+  assert.equal(crumbOf(lift, new Date(2026, 10, 5, 9, 0)).parent, 'Earlier');
 });
 
 test('selectedOf: the chosen cue, else the first to work on, else to watch, else the first; null with none', async () => {

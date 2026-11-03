@@ -244,7 +244,7 @@ test('the first run shows once: the intro starts the app until it is dismissed, 
   assert.equal(await startState({ getSettings: async () => { throw new Error('no store'); } }), 'home', 'never blocks the app');
   // what it says: what the app does, that everything stays on the phone, and a way to import
   assert.match(WELCOME.title, /\S/);
-  assert.ok(WELCOME.points.some(t => /stays on this phone/i.test(t)));
+  assert.ok(WELCOME.points.some(t => /leaves this phone/i.test(t)));
   assert.equal(WELCOME.importLabel, 'Import a video');
 });
 

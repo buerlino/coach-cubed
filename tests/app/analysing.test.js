@@ -33,7 +33,7 @@ test('the stage and its share: pose is frames over frames inside the mockup\'s 1
   assert.equal(v.percent, 52);   // 10 + 85 * 0.5, floored
   assert.equal(v.pctLabel, '52%');
   assert.deepEqual(v.stages.map(s => [s.label, s.status]), [['Read the video', 'done'], ['Find the pose', 'now'], ['Score the cues', 'todo']]);
-  assert.equal(v.stages[1].detail, 'frame 195 of 390');
+  assert.equal(v.stages[1].detail, '195 / 390');
   assert.equal(v.stages[0].detail, '');
   assert.equal(v.stages[2].detail, '');
 });
@@ -54,18 +54,18 @@ test('reading is the first 10 %, scoring the last 5 %, and a running job is neve
 test('the time left as the mockup rounds it: about N s, rounded up; minutes from two', async () => {
   const { analysingView } = await model();
   const left = eta => analysingView([job(LR, 'pose', { progress: progress('pose', 10, 390, eta) })], { liftId: LR.id }).left;
-  assert.equal(left(37.2), 'about 38 s left');
-  assert.equal(left(9), 'about 9 s left');
-  assert.equal(left(0.2), 'about 1 s left');
-  assert.equal(left(0), 'about 1 s left');
-  assert.equal(left(119), 'about 119 s left');
-  assert.equal(left(150), 'about 3 min left');
+  assert.equal(left(37.2), '~38 s left');
+  assert.equal(left(9), '~9 s left');
+  assert.equal(left(0.2), '~1 s left');
+  assert.equal(left(0), '~1 s left');
+  assert.equal(left(119), '~119 s left');
+  assert.equal(left(150), '~3 min left');
 });
 
 test('etaS null is never a made-up time: the view says it is measuring', async () => {
   const { analysingView } = await model();
   const v = analysingView([job(LR, 'pose', { progress: progress('pose', 10, 390, null) })], { liftId: LR.id });
-  assert.equal(v.left, 'measuring the speed');
+  assert.equal(v.left, 'estimating…');
   assert.ok(!/\d/.test(v.left));
   assert.equal(v.eta, null);
 });
@@ -75,20 +75,20 @@ test('the lift card: its name, when it was kept, the marked length and the frame
   const v = analysingView([job(LR, 'pose', { progress: progress('pose', 1, 390) })], { liftId: LR.id, lift: LR });
   assert.equal(v.lift.title, 'Lateral raise');
   assert.equal(v.lift.lift, 'lateral-raise');
-  assert.equal(v.lift.meta, 'Kept 14:32 · 13.0 s marked · 390 frames');
+  assert.equal(v.lift.meta, '14:32 · 13.0 s');
   const early = analysingView([job(LR, 'reading', { progress: progress('reading', 0, 1) })], { liftId: LR.id, lift: LR });
-  assert.equal(early.lift.meta, 'Kept 14:32 · 13.0 s marked');
+  assert.equal(early.lift.meta, '14:32 · 13.0 s');
   const noRecord = analysingView([job(LR, 'reading', { progress: progress('reading', 0, 1) })], { liftId: LR.id });
-  assert.equal(noRecord.lift.meta, '13.0 s marked');
+  assert.equal(noRecord.lift.meta, '13.0 s');
 });
 
 test('the other lifts in the queue: the next one with its length and time at the measured rate', async () => {
   const { analysingView } = await model();
   const jobs = [job(LR, 'pose', { progress: progress('pose', 1, 390, 30) }), job(SN, 'queued')];
   const v = analysingView(jobs, { liftId: LR.id, rate: RATE });
-  assert.equal(v.queue.label, 'Next in the queue');
+  assert.equal(v.queue.label, 'Up next');
   assert.equal(v.queue.items.length, 1);
-  assert.equal(v.queue.items[0].text, 'Snatch · 3.4 s · about 10 s');
+  assert.equal(v.queue.items[0].text, 'Snatch · 3.4 s · ~10 s');
   assert.equal(v.queue.more, 0);
 });
 
@@ -124,7 +124,7 @@ test('a queued job waits: its place in the queue, nothing to measure, cancel off
   assert.equal(v.percent, 0);
   assert.equal(v.left, 'waiting');
   assert.deepEqual(v.stages.map(s => s.status), ['todo', 'todo', 'todo']);
-  assert.equal(v.queue.label, 'Ahead in the queue');
+  assert.equal(v.queue.label, 'Before this');
   assert.equal(v.queue.items[0].liftId, LR.id);
   assert.equal(v.actions.cancel, true);
   assert.equal(v.actions.retry, false);
