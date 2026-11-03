@@ -26,10 +26,17 @@
 //   eval EXPR       an expression in the page, awaited, printed as JSON
 //   files SELECTOR PATH…   the paths set on a file input (DOM.setFileInputFiles), e.g. the check
 //                   page's #media for debug/media.mjs's measurements (window.c34)
+//   tracks --in FILE --dir DIR --shell NAME
+//       no phone: each record of --in (walk's and again's lines) with a stored track
+//       written to DIR as the bench's result (spike/pose-bench/results/'s shape:
+//       track, opts {slug, set, model, ep, fps, tag}, clip, timings), named
+//       <clip>@<shell>-<n>.json, so compare.mjs scores it against ViTPose-L and
+//       difftrack.mjs (--ref) against the bench's own track of the clip.
 //
 // One JSON object per command, printed and appended (one line) to --out.
-import { appendFileSync, mkdirSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const argv = process.argv.slice(2);
 const cmd = argv[0];
@@ -111,6 +118,48 @@ export function movedBoxes(before, after, tol = 0.5) {
     for (const p of ['x', 'y', 'w', 'h']) if (Math.abs(a[p] - b[p]) > tol) out.push(`${k}: ${p} ${a[p]} → ${b[p]}`);
   }
   return out;
+}
+
+/**
+ * A walk's or an again's record as the bench's result (what compare.mjs reads):
+ * the clip's fixture by its file name in the manifest (`manifest`: tests/fixtures/global's),
+ * the engine as the bench names it, every frame ('full'), the job's own time.
+ */
+export function benchResult(rec, manifest, shell) {
+  if (!rec || !rec.track || !rec.track.keypoints || !rec.job) return null;
+  const entry = Object.entries(manifest).find(([, e]) => e.source_file && e.source_file.replace(/\.[^.]*$/, '') === rec.clip);
+  if (!entry) return null;
+  const [key, e] = entry;
+  const meta = rec.track.meta;
+  const backend = String((rec.engine && rec.engine.backend) || 'webgl');
+  return {
+    track: rec.track,
+    opts: { slug: `global/${key}`, set: e.diagnostics, model: (rec.engine && rec.engine.model) || 'movenet-thunder', ep: `tfjs-${backend}`, fps: 'full', tag: shell },
+    clip: { durationS: meta.frame_count / meta.fps },
+    timings: { clipTotalMs: rec.job.totalMs },
+    ua: rec.ua ?? null,
+    app: { command: rec.command, liftId: rec.liftId, at: rec.at, engine: rec.engine ?? null, range: rec.range ?? null },
+  };
+}
+
+function tracks() {
+  const dir = resolve(arg('--dir'));
+  const shell = arg('--shell', 'app');
+  const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+  const manifest = JSON.parse(readFileSync(join(REPO, 'tests/fixtures/global/manifest.json'), 'utf8'));
+  mkdirSync(dir, { recursive: true });
+  const n = {}, written = [];
+  for (const line of readFileSync(resolve(arg('--in')), 'utf8').split('\n')) {
+    if (!line.trim()) continue;
+    const rec = JSON.parse(line);
+    const res = benchResult(rec, manifest, shell);
+    if (!res) continue;
+    n[rec.clip] = (n[rec.clip] || 0) + 1;
+    const name = `${rec.clip}@${shell}-${n[rec.clip]}.json`;
+    writeFileSync(join(dir, name), JSON.stringify(res));
+    written.push(name);
+  }
+  return { command: 'tracks', dir, written };
 }
 
 // ---- the page ----
@@ -392,7 +441,8 @@ async function again(c) {
 }
 
 const run = async () => {
-  if (!['walk', 'again', 'eval', 'files'].includes(cmd)) { console.error('usage: check-phone.mjs walk|again|eval --port P [--origin URL] …'); process.exit(2); }
+  if (!['walk', 'again', 'eval', 'files', 'tracks'].includes(cmd)) { console.error('usage: check-phone.mjs walk|again|eval|files|tracks …'); process.exit(2); }
+  if (cmd === 'tracks') { console.log(JSON.stringify(tracks())); return; }
   const c = await connect();
   let out;
   try {

@@ -74,3 +74,19 @@ test('check-phone.mjs runs no adb (curie forwards the port and drives the phone\
   assert.match(src, /Input\.dispatchTouchEvent/);
   assert.match(src, /import\('\.\/src\/analysis\/index\.mjs'\)/, "the app's own queue, the module main.mjs imports");
 });
+
+test('benchResult: a stored app track as the bench\'s result, so compare.mjs scores it against ViTPose-L', async () => {
+  const { benchResult } = await load();
+  const manifest = JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'fixtures', 'global', 'manifest.json'), 'utf8'));
+  const track = { keypoints: { 0: { 0: [] } }, meta: { fps: 25, frame_count: 75, tracks: { kept: '0' } } };
+  const rec = { command: 'walk', clip: 'lateral-raise-cable-1', track, job: { totalMs: 9000 }, engine: { model: 'movenet-thunder', backend: 'webgpu', runtime: 'tfjs 4.22.0' }, ua: 'x' };
+  const r = benchResult(rec, manifest, 'apk');
+  assert.deepEqual(r.opts, { slug: 'global/example/lateral-raise-cable-1', set: 'lateral-raise', model: 'movenet-thunder', ep: 'tfjs-webgpu', fps: 'full', tag: 'apk' });
+  assert.equal(r.clip.durationS, 3);
+  assert.equal(r.timings.clipTotalMs, 9000);
+  assert.equal(r.track, track);
+  assert.equal(benchResult({ ...rec, clip: 'Session14_01_0h18m07s_made' }, manifest, 'brave').opts.set, 'snatch');
+  // no track (a failed job), or a clip that isn't a fixture: nothing to score
+  assert.equal(benchResult({ ...rec, track: null }, manifest, 'apk'), null);
+  assert.equal(benchResult({ ...rec, clip: 'k1' }, manifest, 'apk'), null);
+});
