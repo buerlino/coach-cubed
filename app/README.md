@@ -988,7 +988,7 @@ window is resized across the breakpoint; CSS arranges them (a grid), and the JS 
 
 **The responsive check** (`tools/layout-check.mjs`, `npm --prefix app run check:layout`): the page test's build (`assemble.mjs
 --test`) served on a free port and opened in headless Brave over CDP, through `browser.mjs`. It walks the app (the first-run intro,
-H, S1, its credits, S1b, L1, M's three steps (pressed by `data-mark`) and its error screen, Q1 while it runs and when it is done, A1, A3, A2; R2 and R3
+H, S1, its credits, S1b, L1, M's three steps (pressed by `data-mark`) and its error screen, Q1 while it runs, when it is done and when it failed (`d57`: "Q1 (No person found)" and "Q1 (unreadable)", made by setting `globalThis.coachReplay.mode` before Analyse, see [The page test](#the-page-test); each with its "Pick another video"), A1, A3, A2; R2 and R3
 are placeholders no flow step reaches in 0.1.0) and sets each of seven sizes at each screen: phone portrait 360×800 and 412×915,
 phone landscape 800×360, tablet 768×1024, laptop 1280×800 (the emulation's own width, since a mobile window grows with a wide
 page), and the range just above A4's breakpoint, where the video column has to give way: a landscape tablet 1024×768 and a narrow
@@ -1518,6 +1518,12 @@ worktree: no example clips, no `app/vendor/tfjs/`, no `app/models/`, no GPU.
    replay wraps the job's frame source, so the pictures are the clip's decoded for real and only the track's meta is the fixture's.
    The clip picks its track by frame rate and frame count. The shipped `dist/` (assemble without `--test`) has none of this
    (`tests/app/page-test.test.js`).
+   **The two failing modes** (`d57`): `boot.mjs` shares the replay's control as `globalThis.coachReplay`, and its `mode`, read when
+   the next job opens its clip, makes that job fail. `'no-person'`: the engine answers every frame with no keypoints, so the
+   track keeps no frames and `job.mjs` throws `NoPersonError` (problem kind `no-person`, Q1's "No person found"). `'unreadable'`:
+   the replay refuses the clip with a `MediaError` `unreadable` (problem kind `unreadable`, Q1's "This video can't be read").
+   `null` replays the track, as before; the page test never sets a mode. `tests/app/page-test.test.js` pins both through the real
+   queue and job. The responsive check sets them ([below](#a4-and-the-responsive-check)).
 2. **The clips**, `tests/app/clips/testsrc2-lateral-raise-25fps-75f.mp4` and `testsrc2-snatch-30fps-107f.mp4`: ffmpeg `testsrc2`,
    108×192, H.264, 10–12 kB, the frame rate and frame count of their fixtures ([tests/README.md](../tests/README.md#the-test-clips-testsappclips)).
 3. **The walk.** Serve on `127.0.0.1:$COACH_PORT` (a free port without it); load; wait for the service worker's whole cache; go offline
