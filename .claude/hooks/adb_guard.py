@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""PreToolUse hook for Bash (.claude/settings.json): coach's phone is 4d42e62f and nothing else.
+"""PreToolUse hook for Bash (.claude/settings.json): coach's phones are 4d42e62f (the Fairphone 6, the default) and
+ce011711cdc8a10c05 (the Samsung Galaxy S8+, question 3; nordmu, 2026-11-03), nothing else.
 
 Blocks, with exit code 2 and the reason on stderr (Claude Code shows it to the model):
 - any command that names HA24BZ2Y, the tablet pascaline's night shifts run on;
-- an ANDROID_SERIAL set to anything but 4d42e62f or the pipeline's coach-no-device;
-- an adb call that doesn't start with `-s 4d42e62f`, except `adb devices`, `version`, `help` and `start-server`,
+- an ANDROID_SERIAL set to anything but one of coach's phones or the pipeline's coach-no-device;
+- an adb call that doesn't start with `-s <one of coach's phones>`, except `adb devices`, `version`, `help` and `start-server`,
   which touch no device; and kill-server, connect, disconnect or a server option even with the phone named.
 
 The command is split into simple commands (`;`, `&&`, `||`, `|`, `&`, subshells, `$( )`, backticks, newlines), and an
@@ -19,9 +20,11 @@ import re
 import shlex
 import sys
 
-PHONE = "4d42e62f"
+PHONE = "4d42e62f"  # the Fairphone 6, the default phone
+S8 = "ce011711cdc8a10c05"  # the Samsung Galaxy S8+ (SM-G955F): Google's Chrome and WebView, question 3
+PHONES = {PHONE, S8}
 TABLET = "HA24BZ2Y"
-SERIALS_OK = {PHONE, "coach-no-device"}
+SERIALS_OK = PHONES | {"coach-no-device"}
 NO_DEVICE_ARGS = {"devices", "version", "help", "start-server"}
 SERVER_WIDE = {"kill-server", "connect", "disconnect", "-H", "-P", "-L"}
 SEPARATORS = {";", ";;", "&&", "||", "|", "|&", "&", "(", ")"}
@@ -109,7 +112,7 @@ def check(cmd, depth=0):
     for m in re.finditer(r"ANDROID_SERIAL=([^\s;&|)]*)", cmd):
         value = m.group(1).strip("'\"")
         if value and value not in SERIALS_OK:
-            return f"ANDROID_SERIAL may only be {PHONE} in coach (this sets it to {value!r})."
+            return f"ANDROID_SERIAL may only be one of coach's phones ({PHONE}, {S8}) (this sets it to {value!r})."
     for tokens in simple_commands(cmd):
         prog, args = program(tokens)
         if prog in SHELLS or prog == "eval":
@@ -127,9 +130,10 @@ def check(cmd, depth=0):
         if args[:1] and args[0] in NO_DEVICE_ARGS:
             continue
         shown = " ".join(args)
-        if args[:2] != ["-s", PHONE]:
+        if args[:1] != ["-s"] or args[1:2] == [] or args[1] not in PHONES:
             if args[:1] == ["-s"] and len(args) > 1:
-                return f"adb may only reach {PHONE}, not {args[1]!r}: run `adb -s {PHONE} {' '.join(args[2:])}`."
+                return (f"adb may only reach coach's phones ({PHONE}, the default, or {S8}), not {args[1]!r}: "
+                        f"run `adb -s {PHONE} {' '.join(args[2:])}`.")
             return (f"every adb command names the phone: run `adb -s {PHONE} {shown}` "
                     f"(a bare adb reaches whatever is attached, at night pascaline's tablet).")
         bad = SERVER_WIDE.intersection(args[2:])
