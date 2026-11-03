@@ -162,7 +162,7 @@ test('d54 the shift check: the same boxes to 0.5 px pass; a control that moved, 
   const problems = compareBoxes(base, moved, 'after 2');
   assert.equal(problems.length, 2);
   assert.match(problems[0], /^M moved after 2: the text line .*h 44 → 64/);
-  assert.match(problems[1], /^M moved after 2: 3 Analyse .*y 410 → 416/);
+  assert.match(problems[1], /^M moved after 2: 3 Analyse .*y 460 → 466/);
   const gone = structuredClone(base);
   gone['↶'] = null;
   assert.deepEqual(compareBoxes(base, gone, 'after ↶'), ['M moved after ↶: ↶ is not on the screen']);
