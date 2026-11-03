@@ -6,6 +6,19 @@ log is [decisions.md](decisions.md).
 
 ### What 0.1.0 is, done
 
+- **2026-11-03, nordmu, on the second night's reports** (each as the
+  worker recommended): no clean-and-jerk in 0.1.0 (Noah's to add through
+  docs/lifts.md), and `registerLift` stays for the tests (`s49`). M's
+  refusal for a start moved past the end keeps d54's wording. Welcome
+  drops its footer's "Nothing leaves this phone." and keeps the point;
+  A1's cue list gets its own fade; A1 and A2 get d54's no-scroll check:
+  all three in `d58`. As built: the ring's upper bound (`c27`), with
+  10 Mbit/s and Baseline-first provisional until `c30`; H's "Back to the
+  session" goes home → live only while a session runs (`d28`); R3's 25 s
+  countdown until nordmu sees it on the phone (`c30b`); the empty ring
+  under the "failed" problem (`d29`); d29b's six points, a kept lift
+  longer than the buffer and the 0.3 s skip lag included (both measured
+  in `c30`/`c30b`).
 - **2026-11-02, nordmu, on the first night's reports:** one contract
   package (`s35`): `frameTimes` in contract 5, a `reset` message in
   contract 1, contract 4's window may lack its end and the view records

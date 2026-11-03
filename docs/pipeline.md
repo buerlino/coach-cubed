@@ -141,7 +141,9 @@ while runs are queued may hold `integ` too (`pipeline/devlock.sh acquire integ <
   `kill-server`); every other run gets `ANDROID_SERIAL=coach-no-device`, so adb by its full path, Gradle or Capacitor
   finds no device. Every adb command names the phone, `adb -s 4d42e62f …`: the hook `.claude/hooks/adb_guard.py`
   blocks one that doesn't, and any command naming `HA24BZ2Y`, in every session. Take the phone's lock first, `pipeline/devlock.sh acquire 4d42e62f curie-<run> 1800`: pascaline's
-  nights use the same phone and the same lock. If it is busy or the phone is missing, say so in the report.
+  nights use the same phone and the same lock. The 1800 is how long `acquire` waits; the lock has no expiry, so take it
+  once (a second `acquire` waits on your own lock), and release it at the end with
+  `pipeline/devlock.sh release 4d42e62f curie-<run>`. If it is busy or the phone is missing, say so in the report.
 - Install only coach's own app; never touch other apps or the owner's data. Keep the phone awake with
   `pipeline/stay-awake.sh 4d42e62f` and put it back with `pipeline/stay-awake.sh 4d42e62f --restore-real`.
 - Battery under 25 %: lower the brightness; under 10 %: stop. Let it cool above about 35 °C. Numbers are medians of at

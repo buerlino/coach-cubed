@@ -14,10 +14,13 @@ finish (git keeps the history). Decisions and open questions are in
   checkpoint A, with the queue empty
   (D8, [app-plan.md](app-plan.md#decided-2026-11-01)):
   - 2.7's LICENSE and SPDX headers (AGPL-3.0-or-later, all four authors
-    agreed, 2026-11-02: [decisions.md](decisions.md#licence));
+    agreed, 2026-11-02: [decisions.md](decisions.md#licence)), by day on
+    2026-11-03 after `c52f1` and before `c26` (nordmu);
   - 2.8, the history rewrite, with nordmu's explicit OK (clipper's history
-    isn't kept, so nothing else waits); if Noah comes back earlier, the
-    queue drains early for it (question 6).
+    isn't kept, so nothing else waits), in its own session after `c26`
+    (nordmu, 2026-11-03): it prepares, dry-runs on a copy and asks before
+    touching the real repo; if Noah comes back earlier, the queue drains
+    early for it (question 6).
 
   **Phase 3** ran on branch `p3/spike`, merged into `phase-0`; its branch
   and worktree went on 2026-11-02, its gitignored results, models and
@@ -90,9 +93,11 @@ finish (git keeps the history). Decisions and open questions are in
 - **The example clips are not in git** (since step 2.4): they sit under the
   gitignored `tests/fixtures/local/` on machines that have them, this laptop
   included. A fresh clone runs every test but has no example gallery.
-- **Test counts** (the only place they're kept): 82 JS (5 of them the docs
-  and absolute-path checks) and 17 Python tests. Update them here when a
-  commit changes them.
+- **Test counts** (the only place they're kept): `npm test` runs 859 JS
+  tests, the app's included (855 pass, 4 skipped), and there are 26 Python
+  tests (2026-11-03, after `d29b`; packages change them nightly, so a
+  report's numbers are newer). Update them here when a docs commit passes
+  by.
 - **AGENTS.md stays lean** (step 2.9): status, history and reasoning go in
   this file, [backlog.md](backlog.md) or [decisions.md](decisions.md), never
   there. `npm test` fails when AGENTS.md or a big doc passes its budget.
