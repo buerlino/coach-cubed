@@ -132,6 +132,48 @@ test('d54 layout-check: M at 360×640, 360×800, 412×760 and 412×915 has no ve
   assert.doesNotMatch(src, /mark-main/);
 });
 
+test('d58 layout-check: A1 and A2 at the four portrait sizes have no vertical scroll, their lists scroll inside, every control inside the window', async () => {
+  const { M_NO_SCROLL, M_SIZES, RESULT_CONTROLS, DETAIL_CONTROLS, fitsWindow } = await load('tools', 'layout-check.mjs');
+  const page = (scrollHeight, boxes, cueShown = false) => {
+    globalThis.document = {
+      documentElement: { scrollHeight },
+      querySelector: sel => (sel === '.more-below' ? { hidden: !cueShown } : boxes[sel] ? { getBoundingClientRect: () => boxes[sel] } : null),
+    };
+  };
+  const placed = controls => Object.fromEntries(controls.map(([, sel], i) => [sel, { left: 8, top: 10 + 30 * i, right: 300, bottom: 30 + 30 * i }]));
+  try {
+    for (const [controls, name] of [[RESULT_CONTROLS, 'A1'], [DETAIL_CONTROLS, 'A2']]) {
+      const ok = placed(controls);
+      for (const s of M_NO_SCROLL) {
+        page(s.height, ok);
+        assert.deepEqual(fitsWindow(s.width, 980, s.height, M_NO_SCROLL, controls, name), [], `${name} at ${s.width}×${s.height}`);
+      }
+      // A1 as it was on phase-0: .screen's flex: 1 gave it its content's height, and the page scrolled instead of the list
+      page(1185, ok, true);
+      assert.deepEqual(fitsWindow(360, 980, 640, M_NO_SCROLL, controls, name), [`${name} scrolls: the page is 1185 px high in a 640 px window`, `${name}: the "more below" cue shows although ${name} fits its window`]);
+      page(640, { ...ok, [controls[controls.length - 1][1]]: { left: 0, top: 510, right: 360, bottom: 1185 } });
+      assert.match(fitsWindow(360, 980, 640, M_NO_SCROLL, controls, name)[0], new RegExp(`^${name}: the (cue list|detail body) is not inside the window`));
+      page(640, { ...ok, [controls[0][1]]: undefined });
+      assert.deepEqual(fitsWindow(360, 980, 640, M_NO_SCROLL, controls, name), [`${name}: ${controls[0][0]} is not on the screen`]);
+    }
+  } finally { delete globalThis.document; }
+  assert.ok(RESULT_CONTROLS.some(([, sel]) => /\.cues$/.test(sel)) && DETAIL_CONTROLS.some(([, sel]) => /\.detail-body$/.test(sel)), 'the lists that scroll are among the controls');
+  const src = read('tools', 'layout-check.mjs');
+  assert.ok(src.includes("check('A1', [a4Arrangement, fitsWindow], null, M_SIZES, RESULT_CONTROLS, 'A1')"), 'A1 is walked at M_SIZES with the fit check');
+  assert.ok(src.includes("check('A2', fitsWindow, null, M_SIZES, DETAIL_CONTROLS, 'A2')"), 'A2 is walked at M_SIZES with the fit check');
+  assert.equal(M_SIZES.length, 9);
+});
+
+test('d58: A1 and A2 are 100dvh screens that keep their height: .screen\'s flex: 1 (a basis of 0%) overrode it and the page scrolled; the wide A1 stays as it was', () => {
+  const css = read('src', 'styles', 'base.css');
+  const rule = sel => css.match(new RegExp(`^${sel.replace('.', '\\.')} \\{[^}]*\\}`, 'm'))?.[0] ?? '';
+  for (const sel of ['.result', '.detail']) {
+    assert.match(rule(sel), /flex:\s*none/, `${sel} has flex: none`);
+    assert.match(rule(sel), /height:\s*100dvh/, `${sel} is 100dvh high`);
+  }
+  assert.match(css, /@media \(min-width: 980px\) \{\s*\.result \{ height: auto; min-height: 100dvh;/, 'A1\'s wide layout is unchanged');
+});
+
 test('layout-check: no browser is one clear line (exit 1), or a skip with COACH_PAGE_TEST_SKIP=1', () => {
   const run = env => spawnSync(process.execPath, [path.join(APP, 'tools', 'layout-check.mjs')], { encoding: 'utf8', env: { ...process.env, COACH_BROWSER: '/nonexistent/browser', ...env } });
   const failed = run({ COACH_PAGE_TEST_SKIP: '' });

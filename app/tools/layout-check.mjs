@@ -233,13 +233,29 @@ export const DELAYED_CONTROLS = Object.freeze([
   ['End session', '[data-delayed="end"]'],
 ]);
 
+/** A1's controls at the portrait sizes (d58): [name, selector]. The cues scroll inside their own list, so the list itself is one of them. */
+export const RESULT_CONTROLS = Object.freeze([
+  ['‹ back', '[data-screen="A1"] [aria-label="Back"]'],
+  ['View options', '[data-screen="A1"] .result-header__more'],
+  ['the skeleton chip', '[data-screen="A1"] .result-skeleton'],
+  ['play and pause', '[data-screen="A1"] .result-play'],
+  ['the speed', '[data-screen="A1"] .result-speed'],
+  ['the timeline', '[data-screen="A1"] .timeline'],
+  ['the cue list', '[data-screen="A1"] .cues'],
+]);
+/** A2's controls at the portrait sizes (d58): [name, selector]. The detail scrolls inside its body, which is one of them. */
+export const DETAIL_CONTROLS = Object.freeze([
+  ['‹ back', '[data-screen="A2"] [aria-label="Back to the result"]'],
+  ['the detail body', '[data-screen="A2"] .detail-body'],
+]);
+
 /**
- * R1, R2, R3 or R3b at a portrait size of M_NO_SCROLL, page side: no vertical page scroll, no "more below" cue, and every control
+ * R1, R2, R3, R3b, A1 or A2 at a portrait size of M_NO_SCROLL, page side: no vertical page scroll, no "more below" cue, and every control
  * fully inside the window. Other sizes: nothing to say here. Stringified like pageCheck.
  * @param {number} vw @param {number} _wideMin @param {number} vh
  * @param {Array<{width: number, height: number}>} sizes M_NO_SCROLL
- * @param {Array<[string, string]>} controls SETUP_CONTROLS, LIVE_CONTROLS, REPLAY_CONTROLS or DELAYED_CONTROLS
- * @param {string} name 'R1', 'R2', 'R3' or 'R3b'
+ * @param {Array<[string, string]>} controls SETUP_CONTROLS, LIVE_CONTROLS, REPLAY_CONTROLS, DELAYED_CONTROLS, RESULT_CONTROLS or DETAIL_CONTROLS
+ * @param {string} name 'R1', 'R2', 'R3', 'R3b', 'A1' or 'A2'
  */
 export function fitsWindow(vw, _wideMin, vh, sizes, controls, name) {
   if (!sizes.some(s => s.width === vw && s.height === vh)) return [];
@@ -354,7 +370,7 @@ async function main() {
         if (breakKind) await evaluate(BREAKS[breakKind]);
         const found = await evaluate(`(${pageCheck.toString()})(${TOUCH_PX}, ${v.width})`);
         walked.push(`${label} @ ${v.width}×${v.height}`);
-        if (extra) found.push(...await evaluate(`(${extra.toString()})(${v.width}, ${WIDE_MIN_PX}, ${v.height}, ${JSON.stringify(M_NO_SCROLL)}, ${JSON.stringify(controls)}, ${JSON.stringify(name)})`));
+        for (const fn of [].concat(extra || [])) found.push(...await evaluate(`(${fn.toString()})(${v.width}, ${WIDE_MIN_PX}, ${v.height}, ${JSON.stringify(M_NO_SCROLL)}, ${JSON.stringify(controls)}, ${JSON.stringify(name)})`));
         for (const p of found) problems.push(`${label} @ ${v.width}×${v.height} (${v.name}): ${p}`);
         if (shots) {
           const png = await send('Page.captureScreenshot', { format: 'png' });
@@ -452,7 +468,7 @@ async function main() {
     await waitFor(`document.querySelector('[data-screen="A1"] .cue-card')`, 'A1 with cue cards');
     await waitFor(`document.querySelector('[data-screen="A1"] .result-header__more:not([disabled])')`, 'A1 ready');
     await sleep(800);
-    await check('A1', a4Arrangement);
+    await check('A1', [a4Arrangement, fitsWindow], null, M_SIZES, RESULT_CONTROLS, 'A1');   // d58: and A1 fits the four portrait sizes, its cue list scrolling inside
     // the same with a landscape video: the test clips are portrait, whose stage is narrow, but a 16:9 or square video asks
     // for the stage's full width, and the video column has to give way to the panel and the sidebar (1024 and 980 px)
     await check('A1 (landscape video)', a4Arrangement, LANDSCAPE_VIDEO);
@@ -497,7 +513,7 @@ async function main() {
     }
     await waitFor(`document.querySelector('[data-screen="A2"] .detail-play')`, 'A2');
     await sleep(500);
-    await check('A2');
+    await check('A2', fitsWindow, null, M_SIZES, DETAIL_CONTROLS, 'A2');   // d58
     await click('[data-screen="A2"] button', 'Back to the result');
     await waitFor(`document.querySelector('[data-screen="A1"] .result-header__more:not([disabled])')`, 'A1 again');
     await click('[data-screen="A1"] .result-header__more');
@@ -617,7 +633,7 @@ async function main() {
 
   const unique = [...new Set(problems)];
   const screens = new Set(walked.map(w => w.split(' @ ')[0]));
-  say(`layout-check: ${walked.length} checks (${screens.size} screens × ${VIEWPORTS.length} sizes, M at ${M_SIZES.length}) in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+  say(`layout-check: ${walked.length} checks (${screens.size} screens × ${VIEWPORTS.length} sizes; M, R1–R3b, A1 and A2 at ${M_SIZES.length}, no vertical scroll at the ${M_NO_SCROLL.length} portrait ones) in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
   say(`screens: ${[...screens].join(', ')}`);
   for (const p of unique) say(`  ✗ ${p}`);
   const ok = unique.length === 0 && (breakKind ? true : screens.size >= 17);
