@@ -30,6 +30,9 @@ restructuring window, merged packages' details) are in [decisions-archive.md](de
 
 ### What 0.1.0 is
 
+- **2026-11-03, nordmu, on d58:** A1 in phone landscape (a window under
+  520 px high) keeps scrolling the page, as M and A4 do; no landscape
+  mockup.
 - **2026-11-02, nordmu, on milestone B's packages** (`c27` to `c31`,
   [packages/](packages/README.md)): R1–R3b are built from v1's mockups with
   checkpoint A's rules (fewer words, symbols, nothing moves) and reviewed in
