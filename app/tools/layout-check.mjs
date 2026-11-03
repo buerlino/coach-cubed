@@ -209,14 +209,26 @@ export const LIVE_CONTROLS = Object.freeze([
   ['End session', '[data-record="end"]'],
   ['the wake-lock line', '[data-live="wake"]'],
 ]);
+/** R3's controls at the portrait sizes (d29): [name, selector]. */
+export const REPLAY_CONTROLS = Object.freeze([
+  ['REPLAY', '[data-screen="R3"] .replay-chip--name'],
+  ['how long ago', '[data-replay="ago"]'],
+  ['Still recording', '[data-screen="R3"] .replay-chip--rec'],
+  ['play and pause', '[data-replay="play"]'],
+  ['the bar', '[data-screen="R3"] [role="slider"]'],
+  ['the position', '[data-replay="position"]'],
+  ['the speed', '[data-replay="speed"]'],
+  ['Keep and mark', '[data-replay="keep"]'],
+  ['Not this one', '[data-screen="R3"] button[data-replay="live"]'],
+]);
 
 /**
- * R1 or R2 at a portrait size of M_NO_SCROLL, page side: no vertical page scroll, no "more below" cue, and every control
+ * R1, R2 or R3 at a portrait size of M_NO_SCROLL, page side: no vertical page scroll, no "more below" cue, and every control
  * fully inside the window. Other sizes: nothing to say here. Stringified like pageCheck.
  * @param {number} vw @param {number} _wideMin @param {number} vh
  * @param {Array<{width: number, height: number}>} sizes M_NO_SCROLL
- * @param {Array<[string, string]>} controls SETUP_CONTROLS or LIVE_CONTROLS
- * @param {string} name 'R1' or 'R2'
+ * @param {Array<[string, string]>} controls SETUP_CONTROLS, LIVE_CONTROLS or REPLAY_CONTROLS
+ * @param {string} name 'R1', 'R2' or 'R3'
  */
 export function fitsWindow(vw, _wideMin, vh, sizes, controls, name) {
   if (!sizes.some(s => s.width === vw && s.height === vh)) return [];
@@ -547,6 +559,16 @@ async function main() {
     walked.push('R2 (rate and wake-lock lines changed) @ 360×800');
     if (boxesBefore !== boxesAfter) problems.push(`R2 @ 360×800: a control moved when the rate and the wake-lock line changed: ${boxesBefore} -> ${boxesAfter}`);
     if (JSON.parse(boxesBefore)[2][3] < TOUCH_PX) problems.push(`R2 @ 360×800: the queue line's row is under ${TOUCH_PX} px high (${JSON.parse(boxesBefore)[2][3]}), so the chip would move what is under it`);
+    // d29: R3 at every size, no scroll at the four portrait sizes. Paused first: a playing replay counts its 25 s down, and
+    // the walk over nine sizes takes longer. The recording goes on (R2 shows again with its clock).
+    await click('[data-record="replay"]');
+    await waitFor(`document.querySelector('[data-screen="R3"][data-phase="ready"] [data-replay="keep"]:not([disabled])')`, 'R3 with the snapshot open', 30000);
+    await click('[data-replay="play"]');
+    await waitFor(`document.querySelector('[data-replay="play"][aria-label="Play"]')`, 'R3 paused');
+    await check('R3', fitsWindow, null, M_SIZES, REPLAY_CONTROLS, 'R3');
+    await setViewport(VIEWPORTS[0]);
+    await click('[data-screen="R3"] button[data-replay="live"]');
+    await waitFor(`document.querySelector('[data-screen="R2"][data-state="recording"]')`, 'R2 after "Not this one"');
     await click('[data-screen="R2"] [data-record="end"]');
     await waitFor(`document.querySelector('[data-screen="H"]')`, 'H after End session');
 

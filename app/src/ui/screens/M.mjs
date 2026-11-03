@@ -48,7 +48,7 @@ function Picture({ bitmap }) {
 const clockLabel = s => (s % 2 ? '' : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`);
 
 export function M({ flow, queue, openSource = openFrameSource }) {
-  const { file = null, lift = null, range = null, replaces = null, from = null } = flow.params;   // the lift is L1's choice; none: the no video state. from 'live': R3 kept it in a session (d29)
+  const { file = null, lift = null, range = null, from = null, replaces = null } = flow.params;   // the lift is L1's choice; none: the no video state. from 'live': R3 kept it in a session (d29)
   const leave = () => flow.go(closeTarget(from));   // ✕: home, or R2 in a session
   const [source, setSource] = useState(null);     // { frameTimes, info } once the video is open
   const [problem, setProblem] = useState(null);   // the video could not be opened, or a frame could not be decoded

@@ -17,8 +17,11 @@
 //      fixture track: per cue its id, status class, verdict line, value and the card's label (with the
 //      status word). Not empty, not different;
 //   3b. (d28) the session walk: H → the gym card → R1 (the camera's preview, a lift tapped) → Start → R2 (the clock moves, the
-//      real rate reads 30 fps ± 1) → End session → H, and every camera track has ended (checked in the page). The browser has
-//      a fake camera at 30 fps (browser.mjs's FAKE_CAMERA).
+//      real rate reads 30 fps ± 1) → (d29) wait 4 s, Replay → R3 (the position moves, ½× switches, a pause holds the countdown)
+//      → Keep and mark → M (1, a drag, 2, 3 Analyse) → R2 with the queue line showing the lift → Q1 through it, the recorded
+//      lift's job cancelled (the replay engine has no track for a recording), Back to the session → R2 → End session → H, and
+//      every camera track has ended (checked in the page). The output names each step. The browser has a fake camera at 30 fps
+//      (browser.mjs's FAKE_CAMERA).
 // It fails on a console error, a failed request (any HTTP error or network failure, in the page or a
 // worker), an unhandled rejection or exception, a job that does not finish in its time (60 s,
 // $COACH_PAGE_TEST_JOB_S), cards that differ from the adapter's, or an empty cue list.
@@ -455,6 +458,95 @@ try {
     if (!(fps >= 29 && fps <= 31)) problems.push(`R2: the rate reads ${fps} fps, not 30 ± 1`);
     session.lift = await evaluate(`document.querySelector('[data-live="lift"]')?.textContent ?? null`);
     if (!String(session.lift).includes('last 60 s')) problems.push(`R2: the lift line says ${JSON.stringify(session.lift)}`);
+    // d29: R2, wait 4 s, Replay → R3 (the position moves, ½× switches, a pause holds the countdown) → Keep and mark → M (1, a drag,
+    // 2, 3 Analyse) → R2 with the queue line showing the lift → Q1 through that line, the job cancelled, "Back to the session" → R2.
+    // The test build's replay engine picks a fixture track by the clip's rate and frame count and a recording matches none, so
+    // the recorded lift's job is cancelled on Q1 before End session (the output says so).
+    const walk = session.replay = { steps: [] };
+    const stepped = what => { walk.steps.push(what); };
+    const text = sel => evaluate(`document.querySelector(${JSON.stringify(sel)})?.textContent ?? null`);
+    const posS = async () => { const m = /^(\d+):(\d\d) \//.exec(await text('[data-replay="position"]') || ''); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+    const countdownS = async () => seconds(await text('[data-replay="countdown"]'));
+    await sleep(4000);
+    if (!await click('[data-screen="R2"] [data-record="replay"]')) throw new Error('R2: no Replay button');
+    await waitFor(`document.querySelector('[data-screen="R3"][data-phase="ready"] [data-replay="keep"]:not([disabled])')`, 'R3 with the snapshot open', 30000);
+    stepped('R2 → Replay → R3');
+    await waitFor(`(() => { const v = document.querySelector('[data-screen="R3"] video'); return v && v.readyState >= 2 && !v.paused; })()`, 'R3 playing', 20000);
+    const seen = [];
+    for (let k = 0; k < 6; k++) { seen.push(await posS()); await sleep(500); }
+    walk.positions = seen;
+    if (new Set(seen).size < 2) problems.push(`R3: the position did not move: ${JSON.stringify(seen)}`);
+    stepped('R3 plays: the position moves');
+    walk.ago = await text('[data-replay="ago"]');
+    if (!/^\d+ s ago$/.test(walk.ago || '')) problems.push(`R3: the label says ${JSON.stringify(walk.ago)}`);
+    if (!await click('[data-replay="speed"]')) throw new Error('R3: no ½× button');
+    await waitFor(`document.querySelector('[data-replay="speed"]')?.textContent === '½×'`, 'R3 at ½×');
+    walk.rate = await evaluate(`document.querySelector('[data-screen="R3"] video').playbackRate`);
+    if (walk.rate !== 0.5) problems.push(`R3: ½× set the video's rate to ${walk.rate}`);
+    await click('[data-replay="speed"]');
+    await waitFor(`document.querySelector('[data-replay="speed"]')?.textContent === '1×'`, 'R3 back at 1×');
+    stepped('R3: ½× switches to ½× and back');
+    await click('[data-replay="play"]');
+    await waitFor(`document.querySelector('[data-replay="play"][aria-label="Play"]')`, 'R3 paused');
+    const held = await countdownS();
+    await sleep(1600);
+    const heldAfter = await countdownS();
+    walk.held = [held, heldAfter];
+    if (held !== heldAfter) problems.push(`R3: a pause did not hold the countdown: ${held} s, then ${heldAfter} s`);
+    await click('[data-replay="play"]');
+    await waitFor(`document.querySelector('[data-replay="play"][aria-label="Pause"]')`, 'R3 playing again');
+    await sleep(1800);
+    const running = await countdownS();
+    walk.running = running;
+    if (!(running < heldAfter)) problems.push(`R3: the countdown did not run while playing: ${heldAfter} s, then ${running} s`);
+    stepped('R3: a pause holds the countdown, playing runs it');
+    if (!await click('[data-replay="keep"]')) throw new Error('R3: no "Keep and mark" button');
+    await waitFor(`document.querySelector('[data-screen="M"][data-step="start"] button[data-mark="start"]:not([disabled])')`, 'M open on the kept replay', 30000);
+    stepped('R3 → Keep and mark → M (M1)');
+    if (!await click('[data-screen="M"] button[data-mark="start"]')) throw new Error('M (session): no 1 Start');
+    await waitFor(`document.querySelector('[data-screen="M"][data-step="end"] button[data-mark="end"]:not([disabled])')`, 'M (session) asking for the end');
+    const strip = await evaluate(`(() => { const r = document.querySelector('.strip').getBoundingClientRect(); return { x: r.left, y: r.top + r.height / 2, w: r.width }; })()`);
+    const mouse = (type, x) => send('Input.dispatchMouseEvent', { type, x, y: strip.y, button: 'left', buttons: type === 'mouseReleased' ? 0 : 1, clickCount: 1, pointerType: 'mouse' });
+    await mouse('mousePressed', strip.x + strip.w - 10);
+    for (let k = 1; k <= 10; k++) await mouse('mouseMoved', strip.x + strip.w - 10 - (strip.w - 20) * k / 10);
+    await mouse('mouseReleased', strip.x + 10);
+    let before = null, still = 0;
+    for (let i = 0; i < 100 && still < 6; i++) {
+      await sleep(100);
+      const now = await evaluate(`document.querySelector('.strip')?.getAttribute('aria-valuenow') ?? null`);
+      still = now !== null && now === before && Number(now) > 0 ? still + 1 : 0;
+      before = now;
+    }
+    await sleep(300);
+    if (!await click('[data-screen="M"] button[data-mark="end"]')) throw new Error('M (session): no 2 End');
+    await waitFor(`document.querySelector('[data-screen="M"][data-step="ready"] button[data-mark="analyse"]:not([disabled])')`, 'M (session) ready to analyse');
+    // the queue line is watched from the page: the job may end quickly (the replay engine has no track for a recording)
+    await evaluate(`(() => {
+      globalThis.__queueLines = [];
+      new MutationObserver(() => { const q = document.querySelector('[data-live="queue"]'); const t = q ? q.textContent.trim() : null; const a = globalThis.__queueLines; if (t && a[a.length - 1] !== t) a.push(t); })
+        .observe(document.body, { childList: true, subtree: true, characterData: true });
+    })()`);
+    // a recording matches no fixture track, so its job would fail at once: it is held at its clip (boot.mjs) until Q1 cancels it
+    await evaluate(`globalThis.coachReplay.hold = new Promise(() => {})`);
+    if (!await click('[data-screen="M"] button[data-mark="analyse"]')) throw new Error('M (session): no 3 Analyse');
+    const shows = () => evaluate("(document.querySelector('[data-screen]')?.innerText ?? '').replace(/\\s+/g, ' ').slice(0, 200)");
+    await waitFor(`document.querySelector('[data-screen="R2"][data-state="recording"]')`, 'R2 again after 3 Analyse', 30000).catch(async e => { throw new Error(`${e.message}; the page shows ${await shows()}`); });
+    await waitFor(`globalThis.__queueLines.length > 0`, 'the queue line showing the lift', 10000);
+    walk.queue = (await evaluate(`globalThis.__queueLines`))[0];
+    stepped('M: 1, a drag, 2, 3 Analyse → R2 with the queue line ' + JSON.stringify(walk.queue));
+    // Q1 through the queue line while it shows (once the job has ended the line is gone, and the lift is on H's list)
+    walk.viaLine = await click('[data-live="queue"]');
+    if (walk.viaLine) {
+      await waitFor(`document.querySelector('[data-screen="Q1"]')`, 'Q1 from the queue line');
+      walk.cancelled = await click('[data-screen="Q1"] .button--quiet', 'Cancel');
+      if (!walk.cancelled) problems.push('Q1: the recorded lift\'s job has no Cancel button');
+      stepped("Q1: the recorded lift's job cancelled (the replay engine has no track for a recording)");
+      await evaluate(`globalThis.coachReplay.hold = null`);
+      await sleep(300);
+      if (!await click('[data-screen="Q1"] button', 'Back to the session')) throw new Error('Q1: no "Back to the session"');
+      await waitFor(`document.querySelector('[data-screen="R2"][data-state="recording"]')`, 'R2 after "Back to the session"');
+      stepped('Q1 → Back to the session → R2');
+    } else stepped('R2: the recorded lift\'s job had ended before the queue line could be tapped (no track for a recording); Q1 not visited');
     // the way back to the session: Q1 from the queue chip is not reachable with an empty queue; H's card is (R2 -> End is the way out)
     if (!await click('[data-screen="R2"] [data-record="end"]')) throw new Error('R2: no End session button');
     await waitFor(`document.querySelector('[data-screen="H"]')`, 'H after End session');
@@ -519,6 +611,7 @@ result.ok = result.problems.length === 0 && result.lifts.length > 0 && result.li
 say(JSON.stringify(result, null, 2));
 // a lift the app offers with no fixture: listed every run, so a lift isn't left out of the walk unnoticed
 if (!realClip && COVERAGE.untested.length) say(`page-test: not walked, no fixture in app/tools/lift-fixtures.mjs: ${COVERAGE.untested.join(', ')}`);
-if (!realClip && result.session) say(`page-test: session walk (H, R1, Start, R2, End session, H): ${result.session.fps} fps, clock ${result.session.clockS?.join(' → ')} s, ${result.session.tracks} camera tracks ended`);
+if (!realClip && result.session) say(`page-test: session walk (H, R1, Start, R2, R3, M, R2, Q1, R2, End session, H): ${result.session.fps} fps, clock ${result.session.clockS?.join(' → ')} s, ${result.session.tracks} camera tracks ended`);
+if (!realClip && result.session?.replay) for (const st of result.session.replay.steps) say(`page-test:   ${st}`);
 say(result.ok ? `page-test: PASSED in ${result.seconds} s` : `page-test: FAILED: ${result.problems[0] ?? 'a lift did not complete'}`);
 process.exit(result.ok ? 0 : 1);
