@@ -291,6 +291,20 @@ test('R3b: a delay choice saves delayS; one outside RANGES.delayS is refused', a
   assert.equal((await store.getSettings()).delayS, 15);
 });
 
+test('R3b: a delay picked before the settings are read stays; the settings\' older delayS never overwrites it (c26)', async () => {
+  // the page test's delayed walk, under load: 5 s tapped while the store was still reading, then the read's
+  // delayS 10 came in, and R3b said "10 s behind" while its frames ran 5 s behind
+  const { loadedDelay, delayedView } = await load('ui', 'delayed-model.mjs');
+  assert.equal(loadedDelay(null, { delayS: 10 }), 10, 'nothing picked yet: the settings\' delay');
+  assert.equal(loadedDelay(5, { delayS: 10 }), 5, 'picked first: the pick stays');
+  assert.equal(delayedView({ status: { state: 'recording', sinceS: 7 }, delayS: loadedDelay(5, { delayS: 10 }) }).behind, '5 s behind');
+  // R3b applies it as a state updater, so the pick is the state at the time the read lands, not a stale copy
+  const src = read('src', 'ui', 'screens', 'R3b.mjs');
+  assert.match(src, /setDelayS\(picked => loadedDelay\(picked, found\)\)/);
+  assert.match(src, /setSettings\(cur => cur \?\? found\)/);
+  assert.doesNotMatch(src, /setDelayS\(found\.delayS\)/);
+});
+
 test('R3b: "Keep this lift" goes to mark with { file, lift, from: delayed }: the snapshot of the replay\'s length before the frame on screen, and everything since', async () => {
   const { keepLift } = await load('ui', 'delayed-model.mjs');
   const { createFlow } = await load('flow', 'flow.mjs');
