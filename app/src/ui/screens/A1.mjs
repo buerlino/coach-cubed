@@ -180,7 +180,7 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
     <main class="screen result" data-screen="A1" data-layout=${wide ? 'wide' : 'stacked'}>
       ${wide ? html`
         <header class="result-header result-header--wide">
-          <button type="button" class="wordmark-link" onClick=${() => flow.go('home')}>coach</button>
+          <button type="button" class="wordmark-link" onClick=${() => flow.go('home')}>coach³</button>
           ${crumb ? html`
             <nav class="crumbs" aria-label="Breadcrumb">
               <button type="button" class="crumbs__parent" onClick=${() => flow.go('home')}>${crumb.parent}</button>

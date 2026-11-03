@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launch screen before Android 12: the app's ground with the icon in
+     the middle, unscaled (a full-screen bitmap would be stretched to each
+     screen's shape). Android 12 and later draw their own from the theme
+     (values/styles.xml). splash_icon: app/tools/make-icon.mjs. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/splash_ground"/>
+    <item>
+        <bitmap android:gravity="center" android:src="@drawable/splash_icon"/>
+    </item>
+</layer-list>

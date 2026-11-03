@@ -1,64 +1,102 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Writes the placeholder icons (app/icons/icon-192.png and icon-512.png): the
-// ground colour with an accent disc, plain, drawn here with no dependency. A
-// stand-in until the name and the logo exist (docs/branding.md, question 10).
+// Renders every icon the app ships from the logo's two layers,
+// logo/coach-cubed_back.svg (the ground) and logo/coach-cubed_front.svg (the
+// symbol). Both are drawn on Android's adaptive-icon grid: 108 × 108 units, of
+// which a launcher shows the middle 72 and crops it further to its own shape;
+// the symbol stays inside the safe circle (diameter 66) in the middle.
+//
+// Writes (docs/branding.md, "Generated from them"):
+//   app/icons/            the PWA: icon-192/512 (any), icon-maskable-512,
+//                         apple-touch-icon (180), favicon.svg, favicon-32
+//   app/android/.../res/  mipmap-*: the adaptive icon's foreground and its
+//                         one-colour layer (themed icons, Android 13+), the
+//                         legacy square and round icons (Android 7 and 7.1);
+//                         drawable-*: splash_icon, the pre-Android-12 splash
+//   logo/coach-cubed-512.png   for F-Droid and GitHub releases
+//
+// Needs rsvg-convert (librsvg; Fedora: librsvg2-tools, Debian: librsvg2-bin).
+// The outputs are committed, so only whoever changes the logo runs this.
 // Usage: node app/tools/make-icon.mjs
-import { deflateSync } from 'node:zlib';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const GROUND = [0x0E, 0x0F, 0x11];
-const ACCENT = [0xC8, 0xF0, 0x4A];
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const LOGO = join(ROOT, 'logo');
+const ICONS = join(ROOT, 'app', 'icons');
+const RES = join(ROOT, 'app', 'android', 'app', 'src', 'main', 'res');
 
-const crcTable = Array.from({ length: 256 }, (_, n) => {
-  let c = n;
-  for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
-  return c >>> 0;
-});
-const crc32 = (buf) => {
-  let c = 0xFFFFFFFF;
-  for (const b of buf) c = crcTable[(c ^ b) & 0xFF] ^ (c >>> 8);
-  return (c ^ 0xFFFFFFFF) >>> 0;
-};
-const chunk = (type, data) => {
-  const out = Buffer.alloc(12 + data.length);
-  out.writeUInt32BE(data.length, 0);
-  out.write(type, 4, 'latin1');
-  data.copy(out, 8);
-  out.writeUInt32BE(crc32(out.subarray(4, 8 + data.length)), 8 + data.length);
-  return out;
+// A layer's <svg> root, placed on the 108-unit grid so layers can be stacked.
+function layer(name, { mono = false } = {}) {
+  let svg = readFileSync(join(LOGO, `coach-cubed_${name}.svg`), 'utf8');
+  svg = svg.slice(svg.indexOf('<svg'));
+  svg = svg.replace(/<svg\b[^>]*?\swidth="[^"]*"\s+height="[^"]*"/, m =>
+    m.replace(/\swidth="[^"]*"\s+height="[^"]*"/, ' x="0" y="0" width="108" height="108"'));
+  // The one-colour layer: everything the symbol draws, in one opaque colour.
+  // Android uses only its alpha and tints it with the wallpaper's colours.
+  if (mono) svg = svg.replace(/\b(fill|stroke):#[0-9a-fA-F]{3,6}/g, '$1:#000');
+  return svg;
+}
+
+const SHAPES = {
+  square: () => '',
+  circle: ([x, y, w]) => `<circle cx="${x + w / 2}" cy="${y + w / 2}" r="${w / 2}"/>`,
+  // Android's legacy launcher square and the browser-tab icon: corners of 1/6.
+  rounded: ([x, y, w]) => `<rect x="${x}" y="${y}" width="${w}" height="${w}" rx="${w / 6}"/>`,
 };
 
-// A disc of 30% of the side (inside a maskable icon's safe zone), 4x supersampled.
-export function iconPng(size) {
-  const rows = [];
-  const r = size * 0.30;
-  const c = size / 2;
-  for (let y = 0; y < size; y++) {
-    const row = Buffer.alloc(1 + size * 3);
-    for (let x = 0; x < size; x++) {
-      let inside = 0;
-      for (let sy = 0; sy < 4; sy++) for (let sx = 0; sx < 4; sx++) {
-        const dx = x + (sx + 0.5) / 4 - c, dy = y + (sy + 0.5) / 4 - c;
-        if (dx * dx + dy * dy <= r * r) inside++;
-      }
-      const t = inside / 16;
-      for (let k = 0; k < 3; k++) row[1 + x * 3 + k] = Math.round(GROUND[k] + (ACCENT[k] - GROUND[k]) * t);
-    }
-    rows.push(row);
+// One icon as SVG: the layers stacked, the view cropped to `view` (x, y, side
+// on the 108-unit grid), clipped to `shape`.
+function iconSvg({ layers, view = [0, 0, 108], shape = 'square', mono = false }) {
+  const [x, y, w] = view;
+  const clip = SHAPES[shape](view);
+  const body = layers.map(l => layer(l, { mono })).join('\n');
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x} ${y} ${w} ${w}">
+${clip ? `<clipPath id="shape">${clip}</clipPath><g clip-path="url(#shape)">` : '<g>'}
+${body}
+</g></svg>
+`;
+}
+
+function png(svg, size, file) {
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, execFileSync('rsvg-convert', ['-w', String(size), '-h', String(size), '-f', 'png'], { input: svg }));
+}
+
+// What a launcher shows of the adaptive icon: the middle 72 units.
+const SHOWN = [18, 18, 72];
+// Tighter, for the browser tab, where every pixel counts: the symbol's own box.
+const TAB = [25, 26, 60];
+
+const DENSITIES = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };
+
+export function makeIcons() {
+  const full = { layers: ['back', 'front'] };
+
+  // The PWA.
+  png(iconSvg({ ...full, view: SHOWN, shape: 'rounded' }), 192, join(ICONS, 'icon-192.png'));
+  png(iconSvg({ ...full, view: SHOWN, shape: 'rounded' }), 512, join(ICONS, 'icon-512.png'));
+  png(iconSvg(full), 512, join(ICONS, 'icon-maskable-512.png'));   // the whole grid: the browser masks it
+  png(iconSvg({ ...full, view: SHOWN }), 180, join(ICONS, 'apple-touch-icon.png'));   // iOS rounds it itself
+  const tab = iconSvg({ ...full, view: TAB, shape: 'rounded' });
+  writeFileSync(join(ICONS, 'favicon.svg'), tab);
+  png(tab, 32, join(ICONS, 'favicon-32.png'));
+
+  // Android: launcher icons are 48 dp, the adaptive layers 108 dp, the
+  // pre-Android-12 splash icon 160 dp (the size Android 12's own splash masks
+  // the launcher icon to).
+  for (const [d, k] of Object.entries(DENSITIES)) {
+    const mip = join(RES, `mipmap-${d}`);
+    png(iconSvg({ layers: ['front'] }), 108 * k, join(mip, 'ic_launcher_foreground.png'));
+    png(iconSvg({ layers: ['front'], mono: true }), 108 * k, join(mip, 'ic_launcher_monochrome.png'));
+    png(iconSvg({ ...full, view: SHOWN, shape: 'rounded' }), 48 * k, join(mip, 'ic_launcher.png'));
+    png(iconSvg({ ...full, view: SHOWN, shape: 'circle' }), 48 * k, join(mip, 'ic_launcher_round.png'));
+    png(iconSvg({ ...full, view: SHOWN, shape: 'circle' }), 160 * k, join(RES, `drawable-${d}`, 'splash_icon.png'));
   }
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(size, 0); ihdr.writeUInt32BE(size, 4);
-  ihdr[8] = 8; ihdr[9] = 2;   // 8 bits, RGB
-  return Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]),
-    chunk('IHDR', ihdr), chunk('IDAT', deflateSync(Buffer.concat(rows), { level: 9 })), chunk('IEND', Buffer.alloc(0)),
-  ]);
+
+  // F-Droid, GitHub releases.
+  png(iconSvg({ ...full, view: SHOWN }), 512, join(LOGO, 'coach-cubed-512.png'));
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const dir = join(dirname(fileURLToPath(import.meta.url)), '..', 'icons');
-  mkdirSync(dir, { recursive: true });
-  for (const size of [192, 512]) writeFileSync(join(dir, `icon-${size}.png`), iconPng(size));
-}
+if (process.argv[1] === fileURLToPath(import.meta.url)) makeIcons();

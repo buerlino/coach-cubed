@@ -155,7 +155,7 @@ export function S1({ flow, store, queue }) {
         <section class="settings__section" aria-labelledby="ab-h">
           <h2 class="section__title" id="ab-h">About</h2>
           <div class="about">
-            <div class="about__head"><span class="about__name">coach</span><span class="soft">${APP_VERSION}</span></div>
+            <div class="about__head"><span class="about__name">coach³</span><span class="soft">${APP_VERSION}</span></div>
             <p><strong>${PRIVACY.lead}</strong> ${PRIVACY.body}</p>
           </div>
           <div class="group">

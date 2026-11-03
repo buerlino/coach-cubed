@@ -18,5 +18,9 @@
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <!-- Android 12 and later: without these the splash shows Android's
+             generic app icon on a light ground. -->
+        <item name="windowSplashScreenBackground">@color/splash_ground</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
     </style>
 </resources>

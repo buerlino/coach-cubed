@@ -19,7 +19,7 @@ export function Welcome({ flow, store }) {
   return html`
     <main class="screen" data-screen="Welcome">
       <header class="screen__header">
-        <h1 class="wordmark">coach</h1>
+        <h1 class="wordmark">coach³</h1>
       </header>
       <div class="screen__body welcome">
         <h2 class="title">${WELCOME.title}</h2>

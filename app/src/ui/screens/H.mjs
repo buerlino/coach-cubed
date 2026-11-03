@@ -53,7 +53,7 @@ export function H({ flow, queue, store, updates, session }) {
   return html`
     <main class="screen" data-screen="H">
       <header class="screen__header">
-        <h1 class="wordmark">coach</h1>
+        <h1 class="wordmark">coach³</h1>
         <button type="button" aria-label="Settings and about" onClick=${() => flow.go('settings')}><${SettingsIcon} /></button>
       </header>
       <div class="screen__body">
