@@ -9,6 +9,14 @@ finish (git keeps the history). Decisions and open questions are in
 
 ## Next session starts here
 
+- **2026-11-03 evening (coach-b0):** `c26` runs on the Fairphone (run 60,
+  started 19:24, scope `coach-c26`); faraday runs the night from 23:00
+  (`c61`, the milestone B review's fixes). After `c26` merges, the
+  coordinating session records it in the queue and writes `s59` (s12's
+  watchdog from its numbers) and `c60` (the S8+, Chrome 101, modelled on
+  `c26`) from its report. By day next: `c30`, `c30b`, `c60`, `c31`, then
+  checkpoint B and 2.8. The public PWA waits for the name and domain
+  (own domain, Pages from a public repo, unlisted test build first).
 - **Current step:** Phases 0–2 are done, and the review's fixes are in
   (commits since `a0a9499`), apart from two steps that run at Phase 5's
   checkpoint A, with the queue empty
