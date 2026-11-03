@@ -29,7 +29,7 @@ the size budgets ([tests/docs.test.js](../tests/docs.test.js)).
 | [../THIRD_PARTY.md](../THIRD_PARTY.md) | Every third-party component, in the app and around it: name, version, licence, source. |
 | [authors.md](authors.md) | Who wrote how much of the code, for the licence consent (question 1). |
 | [server.md](server.md) | The Flask server as dev tooling: what runs, the checkpoints, the setup and launch scripts, testing under the `/coach/` prefix, its landmines, the sibling notes on the deploy machine. |
-| [branding.md](branding.md) | The app's name and logo: what the name needs, every name checked and where it is taken, nordmu's pick, and what the logo designer delivers. |
+| [branding.md](branding.md) | The app's name and logo: what the name needs, every name checked and where it is taken, nordmu's pick, and the logo: what it delivers and what is rendered from it. |
 | [pipeline.md](pipeline.md) | The agent pipeline: the agents and what each owns, the package format, how a run goes (worker, checks, audit, merge), the hard rules, the worker setup, the phone, the report, the definition of done, what the audit checks. The packages: [packages/](packages/README.md); the scripts: [../pipeline/](../pipeline/README.md). |
 | [ui-design.md](ui-design.md) | The new UI's design (step 5.2): nordmu's requirements, the mockups' screens and what they propose, the look, feasibility, how the design work continues, the open questions. The mockups' sources: [../design/](../design/README.md). |
 | [app-plan.md](app-plan.md) | The new app's build plan (Phase 5): what it builds on, the architecture and the contracts, the packages in stages with their sizes, nordmu's decisions D1–D4, the gates, the risks. The queue: [packages/](packages/README.md). |

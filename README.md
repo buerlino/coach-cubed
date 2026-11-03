@@ -75,7 +75,7 @@ becomes a test case: [`tests/README.md`](tests/README.md).
 | [`spike/`](spike/) | The on-device pose spike (plan Phase 3). |
 | [`design/`](design/README.md) | Design work that isn't app code: a copy of the UI mockups' canvas (plan step 5.2). |
 | `vendor/` | `easy_ViTPose`, a git submodule (server pose). |
-| `logo/` | The header logo. |
+| [`logo/`](logo/README.md) | The coach³ logo (CC BY-SA 4.0): its Affinity source and the two icon layers every icon is rendered from. |
 | `clips_inbox/` | A gitignored landing spot for raw clips waiting to become fixtures. |
 | `Caddyfile`, `pki-public/`, `log/` | A reference copy of the reverse-proxy config (not the live one), the published root cert, and the dev server's logs. |
 | [`pipeline/`](pipeline/README.md) | The agent pipeline's scripts: one work package from its file to a merge into `phase-0`, with fresh agents ([docs/pipeline.md](docs/pipeline.md)). |

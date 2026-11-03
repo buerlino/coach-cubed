@@ -69,13 +69,15 @@ grid, `logo/coach-cubed_front.svg` (the symbol) and
 C `#47CA27`, ³ `#EF7F00`, white outlines. `app/tools/make-icon.mjs`
 renders every icon below from the two files; rerun it when they change.
 
-**Still open from the designer:** the wordmark (the name set as artwork),
-the source file (the SVGs come from Affinity), and the licence below.
+**nordmu drew it** (Affinity Designer; the source is
+`logo/coach-cubed.afdesign`) and licensed it CC BY-SA 4.0 (2026-11-03,
+recorded in [THIRD_PARTY.md](../THIRD_PARTY.md) and the in-app credits).
+**Still open:** the wordmark (the name set as artwork).
 Checked against the list below: the symbol fits Android's safe circle (the
 ³ touches its edge), the C³ reads at 48 px, and the fist's lines blur into
 texture below about 96 px, which is fine. The one-colour layer is derived
-by the script (every colour to one, the fist kept as lines); the designer
-may want to draw their own.
+by the script (every colour to one, the fist kept as lines); nordmu may want
+to draw one by hand.
 
 **What the symbol has to survive:**
 
@@ -91,7 +93,7 @@ may want to draw their own.
   recorded in [THIRD_PARTY.md](../THIRD_PARTY.md). The logo ships in the
   app, and F-Droid checks what ships.
 
-**Generated from them** (not by the designer):
+**Generated from them** (by the script, not by hand):
 
 | Where | Files | Status |
 | --- | --- | --- |

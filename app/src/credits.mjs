@@ -36,6 +36,7 @@ export const CREDITS = Object.freeze([
   { row: 'mediabunny', name: 'mediabunny', version: '1.61.6', licence: 'MPL-2.0', notice: '© 2026-present Vanilagy and contributors. Unmodified: its source is the file in the app', text: 'vendor/mediabunny/LICENSE', shipped: true },
   { row: 'Capacitor', name: 'Capacitor (the Android shell)', version: '8.5.3', licence: 'MIT', notice: '© 2017-present Drifty Co.', text: 'licences/MIT-capacitor.txt', shipped: true },
   { row: "The APK's Android libraries", name: "The APK's Android libraries (AndroidX, Apache Cordova, Kotlin, Guava's listenablefuture, JetBrains annotations, JSpecify)", version: 'as THIRD_PARTY.md lists', licence: 'Apache-2.0', notice: 'Their authors', text: 'licences/Apache-2.0.txt', shipped: true },
+  { row: 'The coach³ logo', name: 'The coach³ logo and its icons', version: '2026-11-03', licence: 'CC-BY-SA-4.0', notice: '© 2026 nordmu', text: 'licences/CC-BY-SA-4.0.txt', shipped: true },
   { row: 'esbuild', name: 'esbuild (builds the TF.js bundles; not in the app)', version: '0.28.2', licence: 'MIT', notice: '© 2020 Evan Wallace', text: 'licences/MIT-esbuild.txt', shipped: false },
   { row: 'TF.js from npm', name: "TensorFlow.js from npm (the build's parity check; not in the app)", version: '4.22.0, pose-detection 2.1.3', licence: 'Apache-2.0', notice: 'The TensorFlow.js authors', text: 'licences/Apache-2.0.txt', shipped: false },
 ]);
