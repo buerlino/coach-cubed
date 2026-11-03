@@ -6,7 +6,7 @@
 //
 //   const session = createSession({ makeCapture: settings => createCapture(settings) });
 //   await session.open(settings);          // R1: the capture, the camera for the preview; never throws (the capture says why)
-//   await session.start('snatch');         // R1's Start: the capture records; the lift and the start time are kept
+//   await session.start(lift);             // R1's Start: the capture records; the lift and the start time are kept
 //   session.active; session.lift; session.startedAt; session.elapsedS();
 //   await session.end();                   // End session, or R1's back: stop, close, forget
 import { isLift } from './contracts/lifts.mjs';

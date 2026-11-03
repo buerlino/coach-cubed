@@ -1,5 +1,5 @@
-// H, home (design/mockups/Main.dc.html): the gym session (disabled until
-// milestone B), import a video (the card opens the phone's picker; L1 asks the lift next), today's lifts with their state, earlier
+// H, home (design/mockups/Main.dc.html): the gym session (opens R1; while one runs it is "Back to the session" with
+// the clock and goes to R2, d28), import a video (the card opens the phone's picker; L1 asks the lift next), today's lifts with their state, earlier
 // sessions, and the privacy line. H changes the flow's state only; the queue
 // and the store are injected (main.mjs gives the app's), so tests pass fakes.
 import { useEffect, useState } from 'preact/hooks';
@@ -8,11 +8,12 @@ import { CameraIcon, ChevronIcon, ImportIcon, LockIcon, SettingsIcon } from '../
 import { PickVideo } from '../components/PickVideo.mjs';
 import { LiftRow } from '../components/lift-row.mjs';
 import { followQueue, homeView } from '../home-model.mjs';
+import { gymCard } from '../record-model.mjs';
 
 // The store is read again when a job starts, ends or changes state, not at every frame.
 const signature = jobs => jobs.map(j => `${j.id}:${j.state}`).join(',');
 
-export function H({ flow, queue, store, updates }) {
+export function H({ flow, queue, store, updates, session }) {
   const [jobs, setJobs] = useState(null);   // null until the queue has loaded: no state is shown before
   const [shown, setShown] = useState(null);   // { grouped, results } once the store has answered
   const [problem, setProblem] = useState(null);
@@ -20,6 +21,16 @@ export function H({ flow, queue, store, updates }) {
   useEffect(() => followQueue(queue, setJobs), [queue]);
   const [update, setUpdate] = useState('current');   // the service worker's state; only 'ready' shows
   useEffect(() => (updates ? updates.subscribe(setUpdate) : undefined), [updates]);
+
+  const [running, setRunning] = useState(() => !!(session && session.active));   // a gym session runs: its card reads "Back to the session"
+  useEffect(() => (session ? session.subscribe(s => setRunning(s.active)) : undefined), [session]);
+  const [, tick] = useState(0);   // the card's clock
+  useEffect(() => {
+    if (!running) return undefined;
+    const timer = setInterval(() => tick(n => n + 1), 1000);
+    return () => clearInterval(timer);
+  }, [running]);
+  const card = gymCard(session ? { active: running, elapsedS: session.elapsedS() } : null);
 
   const sig = jobs ? signature(jobs) : null;
   useEffect(() => {
@@ -45,11 +56,11 @@ export function H({ flow, queue, store, updates }) {
         <button type="button" aria-label="Settings and about" onClick=${() => flow.go('settings')}><${SettingsIcon} /></button>
       </header>
       <div class="screen__body">
-        <button type="button" class="card card--row card--primary card--disabled" disabled aria-disabled="true">
+        <button type="button" class="card card--row card--primary" data-card="session" onClick=${() => flow.go(card.to)}>
           <span class="card__icon"><${CameraIcon} /></span>
           <span class="card__text">
-            <span class="card__title card__title--big">Gym session</span>
-            <span class="tag">Coming later</span>
+            <span class="card__title card__title--big">${card.title}</span>
+            ${card.clock ? html`<span class="card__clock" data-card="clock">${card.clock}</span>` : null}
           </span>
         </button>
         <${PickVideo} flow=${flow} class="card card--row">

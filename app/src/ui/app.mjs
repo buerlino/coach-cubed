@@ -12,16 +12,17 @@ import { A1 } from './screens/A1.mjs';
 import { A2 } from './screens/A2.mjs';
 import { S1 } from './screens/S1.mjs';
 import { S1b } from './screens/S1b.mjs';
+import { R1 } from './screens/R1.mjs';
 import { R2 } from './screens/R2.mjs';
 import { R3 } from './screens/R3.mjs';
 import { MoreBelow } from './components/more-below.mjs';
 
-const SCREENS = { Welcome, H, L1, M, Q1, A1, A2, S1, S1b, R2, R3 };
+const SCREENS = { Welcome, H, L1, M, Q1, A1, A2, S1, S1b, R1, R2, R3 };
 
-// `queue`, `store` and `updates` (the service worker's state, src/updates.mjs) are the app's
-// (main.mjs); the screens that need them get them injected.
-export function App({ flow, queue, store, updates }) {
+// `queue`, `store`, `updates` (the service worker's state, src/updates.mjs) and `session` (the gym session,
+// src/session.mjs) are the app's (main.mjs); the screens that need them get them injected.
+export function App({ flow, queue, store, updates, session }) {
   const { state } = useFlow(flow);
   const Screen = SCREENS[SCREEN_OF[state]];
-  return html`<${Screen} flow=${flow} queue=${queue} store=${store} updates=${updates} /><${MoreBelow} />`;
+  return html`<${Screen} flow=${flow} queue=${queue} store=${store} updates=${updates} session=${session} /><${MoreBelow} />`;
 }
