@@ -9,6 +9,7 @@
 //   const off = cap.subscribe(s => …);   // now and at each change (cap.status is the latest)
 //   const snap = await cap.snapshot(20); // { blob, duration, start }: the last 20 s as an MP4
 //   for await (const c of cap.follow(t)) …   // the chunks from the keyframe at or before t, then live
+//   cap.liveUs();                        // the recording's clock now (µs): R3b's delayed view runs behind it
 //   await cap.resume(); await cap.stop(); cap.close();
 //
 // The browser's parts (camera, frames, encoder, wake lock, visibility) come through
@@ -345,6 +346,15 @@ export function createCapture(settings = {}, { api = browserCaptureApi(), now = 
     follow(t) {
       if (ring) return ring.follow(t);
       return (async function* nothing() { /* nothing recorded */ })();
+    },
+
+    /**
+     * The recording's clock now, in µs (0 at its first frame): the newest frame's time plus the wall time since it came,
+     * so it moves on between two frames. Null while nothing is recorded. R3b's delayed view (d29b) runs this far behind.
+     */
+    liveUs() {
+      if (!ring || lastFrameUs === null) return null;
+      return lastFrameUs + Math.max(0, now() - lastFrameWall) * 1000;
     },
 
     /** Stops the encoder, drops the ring and the wake lock; the camera stays open for the preview. */

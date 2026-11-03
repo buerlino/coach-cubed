@@ -6,10 +6,11 @@
 //
 //   const session = createSession({ makeCapture: settings => createCapture(settings) });
 //   await session.open(settings);          // R1: the capture, the camera for the preview; never throws (the capture says why)
-//   await session.start(lift);             // R1's Start: the capture records; the lift and the start time are kept
-//   session.active; session.lift; session.startedAt; session.elapsedS();
+//   await session.start(lift, { replayMode });   // R1's Start: the capture records; the lift, the start time and the live state are kept
+//   session.active; session.lift; session.startedAt; session.liveState; session.elapsedS();
 //   await session.end();                   // End session, or R1's back: stop, close, forget
 import { isLift } from './contracts/lifts.mjs';
+import { liveStateOf } from './flow/flow.mjs';
 
 /**
  * @typedef {Object} SessionState
@@ -22,7 +23,7 @@ import { isLift } from './contracts/lifts.mjs';
  * @param {{makeCapture: (settings: object) => ReturnType<typeof import('./media/capture.mjs').createCapture>, now?: () => number}} options
  */
 export function createSession({ makeCapture, now = () => Date.now() }) {
-  let capture = null, settings = null, active = false, lift = null, startedAt = null;
+  let capture = null, settings = null, active = false, lift = null, startedAt = null, liveState = null;
   const listeners = new Set();
   const state = () => ({ active, lift, startedAt });
   const emit = () => { for (const fn of [...listeners]) fn(state()); };
@@ -35,6 +36,11 @@ export function createSession({ makeCapture, now = () => Date.now() }) {
     get active() { return active; },
     get lift() { return lift; },
     get startedAt() { return startedAt; },
+    /**
+     * The running session's screen state, by the replay mode it started with (d29b): `live` (R2, the replay) or
+     * `delayed` (R3b, the delayed view); null when none runs. Every way back to the session goes here.
+     */
+    get liveState() { return liveState; },
 
     /** Seconds on the capture's clock since Start (R2's and H's clock); 0 when nothing runs. */
     elapsedS() { return active && capture ? capture.status.sinceS : 0; },
@@ -58,17 +64,18 @@ export function createSession({ makeCapture, now = () => Date.now() }) {
     },
 
     /**
-     * R1's Start: records, and keeps the lift and the start time.
+     * R1's Start: records, and keeps the lift, the start time and the live state.
      * @param {string} chosen a lift of the registry
+     * @param {{replayMode?: 'replay'|'delayed'}} [mode] R1's replay mode at Start: it fixes the session's live state
      * @throws {Error} a session runs already, no camera is open, or the lift is not the registry's; the
      *   capture's own error when it can't record (no encoder)
      */
-    async start(chosen) {
+    async start(chosen, { replayMode = 'replay' } = {}) {
       if (active) throw new Error('A session is already running.');
       if (!capture) throw new Error('The camera is not open: open() first.');
       if (!isLift(chosen)) throw new Error(`Not a lift of the registry: ${chosen}`);
       await capture.start();
-      active = true; lift = chosen; startedAt = now();
+      active = true; lift = chosen; startedAt = now(); liveState = liveStateOf(replayMode);
       emit();
     },
 
@@ -77,7 +84,7 @@ export function createSession({ makeCapture, now = () => Date.now() }) {
       const cap = capture;
       capture = null; settings = null;
       const was = active;
-      active = false; lift = null; startedAt = null;
+      active = false; lift = null; startedAt = null; liveState = null;
       if (cap) {
         try { if (was) await cap.stop(); } finally { cap.close(); }
       }

@@ -10,6 +10,7 @@ import { BackIcon, LiftIcon, LockIcon } from '../components/icons.mjs';
 import { PickVideo } from '../components/PickVideo.mjs';
 import { Problem } from '../components/problem.mjs';
 import { analysingView, followAnalysis } from '../analysing-model.mjs';
+import { SESSION_STATES, sessionReturn } from '../../flow/flow.mjs';
 
 const isVisible = () => !globalThis.document || globalThis.document.visibilityState !== 'hidden';
 
@@ -22,10 +23,10 @@ function Stage({ stage }) {
     </li>`;
 }
 
-export function Q1({ flow, queue, store }) {
+export function Q1({ flow, queue, store, session }) {
   const [pinned, setPinned] = useState(null);   // a screen opened without a lift keeps the one it first showed, so its end doesn't blank it
   const liftId = flow.params.liftId ?? pinned;
-  const fromSession = flow.params.from === 'live';
+  const fromSession = SESSION_STATES.includes(flow.params.from);   // opened from a running session (R2's queue line)
   const [state, setState] = useState(null);   // { jobs, rate } once the queue has loaded: no state is shown before
   const [lift, setLift] = useState(null);
   const [visible, setVisible] = useState(isVisible);
@@ -57,7 +58,8 @@ export function Q1({ flow, queue, store }) {
     setProblem(null);
     try { await fn(); } catch (e) { setProblem(e && e.message ? e.message : 'That didn’t work.'); }
   };
-  const back = fromSession ? { to: 'live', label: 'Back to the session' } : { to: 'home', label: 'Home' };
+  // "Back to the session" goes to the session's own live state (d29b), never to live by name
+  const back = fromSession ? { to: sessionReturn(flow.params.from, session), label: 'Back to the session' } : { to: 'home', label: 'Home' };
 
   return html`
     <main class="screen" data-screen="Q1" data-kind=${kind}>

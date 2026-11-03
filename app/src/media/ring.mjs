@@ -115,8 +115,8 @@ export function createRing({ bufferS }) {
      * A follower the ring has overtaken goes on from the oldest keyframe held. Ends at close(),
      * or when the caller stops reading (its return()).
      * @param {number} t seconds on the recording's clock
-     * @returns {AsyncGenerator<{type: string, timestamp: number, duration: number, data: Uint8Array, decoderConfig?: object}>}
-     *   timestamp and duration in µs; decoderConfig on the first chunk and again at each change of segment or gap
+     * @returns {AsyncGenerator<{type: string, timestamp: number, duration: number, data: Uint8Array, decoderConfig?: object, rotation?: number}>}
+     *   timestamp and duration in µs; decoderConfig and the segment's rotation on the first chunk and again at each change of segment or gap
      */
     async *follow(t) {
       if (closed) return;
@@ -134,7 +134,7 @@ export function createRing({ bufferS }) {
           if (next !== null && next <= lastSeq()) {
             const c = at(next++);
             const out = { type: c.type, timestamp: c.ts, duration: c.dur, data: c.data };
-            if (c.seg !== lastSeg) out.decoderConfig = c.seg.decoderConfig;
+            if (c.seg !== lastSeg) { out.decoderConfig = c.seg.decoderConfig; out.rotation = c.seg.rotation; }
             lastSeg = c.seg;
             yield out;
             continue;

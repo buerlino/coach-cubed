@@ -22,6 +22,9 @@
 //      lift's job cancelled (the replay engine has no track for a recording), Back to the session → R2 → End session → H, and
 //      every camera track has ended (checked in the page). The output names each step. The browser has a fake camera at 30 fps
 //      (browser.mjs's FAKE_CAMERA).
+//   3c. (d29b) the delayed walk, a second session: H → R1, Delayed view → Start → R3b, its 5 s → 7 s later the canvas has
+//      drawn frames, the newest 5 ± 0.5 s behind the capture's newest frame (measured in the page; the output gives the
+//      median of five reads) → Keep this lift → M → M's close → R3b → End session → H, every camera track ended.
 // It fails on a console error, a failed request (any HTTP error or network failure, in the page or a
 // worker), an unhandled rejection or exception, a job that does not finish in its time (60 s,
 // $COACH_PAGE_TEST_JOB_S), cards that differ from the adapter's, or an empty cue list.
@@ -566,6 +569,58 @@ try {
     if (ended.live) problems.push(`the session: ${ended.live} of ${ended.n} camera tracks are still live after End session`);
     const card = await evaluate(`document.querySelector('[data-screen="H"] [data-card="session"]')?.textContent ?? null`);
     if (!String(card).includes('Gym session')) problems.push(`H: after End session the gym card says ${JSON.stringify(card)}`);
+
+    // 5a'. d29b: a second session, in the delayed view. R1: Delayed view, Start → R3b; its 5 s (the view starts again
+    // at 5 s) → 7 s later the canvas has drawn frames, the newest about 5 s behind the capture's newest (within 0.5 s,
+    // measured in the page from what R3b's canvas says it drew: the frame's time and the capture's clock then, both on
+    // the recording's clock) → Keep this lift → M → M's close → R3b → End session → H; every camera track ended.
+    const dwalk = session.delayed = { steps: [] };
+    const dstep = s => dwalk.steps.push(s);
+    if (!await click('[data-screen="H"] [data-card="session"]')) throw new Error('H: no gym session card (delayed walk)');
+    await waitFor(`document.querySelector('[data-screen="R1"][data-state="preview"] [data-record="start"]:not([disabled])')`, 'R1 with the camera in the preview (delayed walk)', 30000);
+    if (!await click('[data-screen="R1"] [data-mode="delayed"]')) throw new Error('R1: no Delayed view');
+    await waitFor(`document.querySelector('[data-screen="R1"] [data-mode="delayed"][aria-pressed="true"]')`, "R1's Delayed view pressed");
+    if (!await click('[data-screen="R1"] [data-record="start"]')) throw new Error('R1: no Start (delayed walk)');
+    await waitFor(`document.querySelector('[data-screen="R3b"][data-state="recording"]')`, 'R3b recording', 30000);
+    dstep('R1: Delayed view → Start → R3b');
+    if (!await click('[data-screen="R3b"] [data-delay="5"]')) throw new Error('R3b: no 5 s choice');
+    await waitFor(`document.querySelector('[data-screen="R3b"] [data-delay="5"][aria-pressed="true"]')`, "R3b's 5 s pressed");
+    dwalk.label = await evaluate(`document.querySelector('[data-delayed="behind"]')?.getAttribute('aria-label') ?? null`);
+    if (dwalk.label !== '5 s behind live') problems.push(`R3b: the delay says ${JSON.stringify(dwalk.label)}`);
+    dstep('R3b: 5 s');
+    await sleep(7000);
+    const samples = [];
+    for (let i = 0; i < 5; i++) {
+      samples.push(await evaluate(`(() => {
+        const c = document.querySelector('[data-screen="R3b"] canvas');
+        if (!c || !c.dataset.frames) return { frames: 0 };
+        const x = c.getContext('2d').getImageData(Math.floor(c.width / 2), Math.floor(c.height / 2), 1, 1).data;
+        return { frames: Number(c.dataset.frames), behindS: (Number(c.dataset.liveUs) - Number(c.dataset.frameUs)) / 1e6, painted: x[3] > 0 };
+      })()`));
+      await sleep(250);
+    }
+    dwalk.frames = samples.at(-1).frames;
+    const behind = samples.filter(x => x.frames > 0).map(x => x.behindS).sort((a, b) => a - b);
+    dwalk.behindS = behind.length ? Number(behind[behind.length >> 1].toFixed(3)) : null;
+    dwalk.behindAll = behind.map(b => Number(b.toFixed(3)));
+    if (!(dwalk.frames > 0)) problems.push('R3b: 7 s after the 5 s choice the canvas has drawn no frame');
+    else {
+      if (!samples.at(-1).painted) problems.push('R3b: the canvas has no picture at its centre');
+      if (!(samples.at(-1).frames > samples[0].frames)) problems.push(`R3b: the canvas stopped drawing: ${samples[0].frames}, then ${samples.at(-1).frames} frames`);
+      for (const b of behind) if (Math.abs(b - 5) > 0.5) problems.push(`R3b: the frame drawn is ${b.toFixed(3)} s behind the capture, not 5 ± 0.5 s`);
+    }
+    dstep(`R3b after 7 s: ${dwalk.frames} frames drawn, ${dwalk.behindS} s behind the capture's newest frame (median of ${behind.length})`);
+    if (!await click('[data-screen="R3b"] [data-delayed="keep"]')) throw new Error('R3b: no "Keep this lift"');
+    await waitFor(`document.querySelector('[data-screen="M"][data-step="start"] button[data-mark="start"]:not([disabled])')`, 'M open on the kept lift (delayed)', 30000);
+    dstep('R3b → Keep this lift → M (M1)');
+    if (!await click('[data-screen="M"] button[aria-label="Close"]')) throw new Error('M (delayed): no Close button');
+    await waitFor(`document.querySelector('[data-screen="R3b"][data-state="recording"]')`, "R3b again after M's close", 30000);
+    dstep("M's close → R3b");
+    if (!await click('[data-screen="R3b"] [data-delayed="end"]')) throw new Error('R3b: no End session button');
+    await waitFor(`document.querySelector('[data-screen="H"]')`, 'H after End session (delayed)');
+    dstep('R3b → End session → H');
+    const ended2 = await evaluate(`({ n: globalThis.__tracks.length, live: globalThis.__tracks.filter(t => t.readyState !== 'ended').length })`);
+    if (ended2.live) problems.push(`the delayed session: ${ended2.live} of ${ended2.n} camera tracks are still live after End session`);
   }
 
   // 5b. d23: a file that is not a video ends on the error screen, with a way back (the file is outside dist)
@@ -623,5 +678,9 @@ say(JSON.stringify(result, null, 2));
 if (!realClip && COVERAGE.untested.length) say(`page-test: not walked, no fixture in app/tools/lift-fixtures.mjs: ${COVERAGE.untested.join(', ')}`);
 if (!realClip && result.session) say(`page-test: session walk (H, R1, Start, R2, R3, M, R2, Q1, R2, End session, H): ${result.session.fps} fps, clock ${result.session.clockS?.join(' → ')} s, ${result.session.tracks} camera tracks ended`);
 if (!realClip && result.session?.replay) for (const st of result.session.replay.steps) say(`page-test:   ${st}`);
+if (!realClip && result.session?.delayed) {
+  say(`page-test: delayed walk (H, R1 Delayed view, Start, R3b at 5 s, Keep this lift, M, R3b, End session, H): measured ${result.session.delayed.behindS} s behind (5 s set), ${result.session.delayed.frames} frames drawn`);
+  for (const st of result.session.delayed.steps) say(`page-test:   ${st}`);
+}
 say(result.ok ? `page-test: PASSED in ${result.seconds} s` : `page-test: FAILED: ${result.problems[0] ?? 'a lift did not complete'}`);
 process.exit(result.ok ? 0 : 1);

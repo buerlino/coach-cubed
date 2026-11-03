@@ -55,14 +55,14 @@ test('a choice is saved, kept after a restart and shown again', async () => {
   assert.equal(again.rows.find(r => r.field === 'defaultLift').shown, 'Snatch');
 });
 
-test('d28: the replay mode, lengths, buffer and camera are enabled; the delay (d29b) and the quality (one value) are not', async () => {
+test('d28, d29b: the replay mode, lengths, buffer, camera and the delay are enabled; the quality (one value) is not', async () => {
   const { recordingView, NOT_YET } = await model();
   const { store } = await setup();
   const v = recordingView(await store.getSettings());
   assert.equal(v.modesDisabled, false);
-  assert.deepEqual([...NOT_YET].sort(), ['delayS', 'quality']);
+  assert.deepEqual([...NOT_YET].sort(), ['quality']);
   for (const r of v.rows) assert.equal(r.disabled, NOT_YET.includes(r.field), r.field);
-  assert.equal(recordingView({ ...(await store.getSettings()), replayMode: 'delayed' }).rows[0].disabled, true, 'the delay waits for d29b');
+  assert.equal(recordingView({ ...(await store.getSettings()), replayMode: 'delayed' }).rows[0].disabled, false, 'the delay, which R3b uses (d29b)');
 });
 
 test('S1 offers values only inside c8\'s ranges, and the default among them', async () => {

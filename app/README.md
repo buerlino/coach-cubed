@@ -49,14 +49,14 @@ It logs each request (`200 /index.html`); a `404` there is a broken path.
 | `src/main.mjs` | Boot: the app's one session (`d28`), the flow, the queue and the store, then the shell. |
 | `src/session.mjs` | The gym session (`d28`): `createSession({ makeCapture })` holds the capture across R1, R2 and H; `open`, `start`, `end`, `active`, `lift`. See [R1 and R2, the session](#r1-and-r2-the-session). |
 | `sw.js`, `src/updates.mjs` | The service worker (`c19`) and the page's side of it: registration outside the APK, and an update that takes over when the queue is idle. See [Offline](#offline-the-service-worker). |
-| `src/flow/flow.mjs` | The state machine (`welcome` (`d23`: the first run, entered once at boot), home, lift (`d53`: L1, "Which lift?"), mark, queued, result, detail, settings, scoring, plus setup (`d28`: R1, "Set up the camera"), live (R2) and replay for milestone B; `d17`: `result → detail` opens A2, `detail → result` or `detail → home`; `d18`: `settings → scoring` opens S1's "How the cues are scored", `scoring → settings` returns). A plain module with no Preact: `createFlow()`, `go(to, params)`, `can(to)`, `subscribe(fn)`; `TRANSITIONS` says what leads where, `SCREEN_OF` which screen each state shows. `home → live` is not a step (a session starts on R1); the one exception is H's "Back to the session" while `createFlow`'s `sessionRunning()` says one runs. An illegal transition throws. |
-| `src/ui/` | `app.mjs` (the shell: draws the screen the flow's state names), `screens/` (one component per screen ID: `H`, `L1` (`d53`), `M`, `Q1`, `A1`, `A2` (`d18`), `S1`, `S1b` ("How the cues are scored", `d18`), `R1` and `R2` (`d28`), `R3`), `components/` (shared pieces), `home-model.mjs` (H's logic as plain functions, `d13`: `liftState`, `rowOf`, `homeView`, `pickStep`, `startLift`, `percentOf`; see [H](#h-home-the-picker-and-l1)), `lift-model.mjs` (L1's, `d53`: `liftTiles`, `chooseLift`), `analysing-model.mjs` (Q1's, `d15`; see [Q1](#q1-analysing)), `record-model.mjs` and `use-capture.mjs` (R1's and R2's logic and the capture's status for a screen, `d28`; see [R1 and R2](#r1-and-r2-the-session)). Screens call the flow and never each other; the queue and the store reach H as props from `main.mjs`. `settings-model.mjs` (S1's, `d24`; see [S1](#s1-settings-and-about)), `mark-model.mjs` (M's, `d14`; see [M](#m1m3-marking-a-lift)). `player.mjs` and `player-model.mjs` (A1's player, `d16`; see [A1, the player](#a1-the-player-and-the-overlay)), `result-model.mjs` (A1's cards and timeline, `d17`; see [A1, the timeline and the cue cards](#a1-the-timeline-and-the-cue-cards)). `detail-model.mjs` and `rule-model.mjs` (A2's and S1b's texts, the rule sentence; `d18`; see [A2, a cue's detail](#a2-a-cues-detail)). `view-options-model.mjs` and `components/view-options.mjs` (A3's sheet and its controller; `d22`; see [A3, view options](#a3-view-options)). `wide-model.mjs`, `use-wide.mjs` and `components/cue-plot.mjs` (A4, the wide result; `d25`; see [A4 and the responsive check](#a4-and-the-responsive-check)). `html.mjs` is htm bound to Preact. |
+| `src/flow/flow.mjs` | The state machine (`welcome` (`d23`: the first run, entered once at boot), home, lift (`d53`: L1, "Which lift?"), mark, queued, result, detail, settings, scoring, plus setup (`d28`: R1, "Set up the camera"), live (R2), replay (R3) and delayed (`d29b`: R3b, the delayed view) for milestone B; `d17`: `result → detail` opens A2, `detail → result` or `detail → home`; `d18`: `settings → scoring` opens S1's "How the cues are scored", `scoring → settings` returns). A plain module with no Preact: `createFlow()`, `go(to, params)`, `can(to)`, `subscribe(fn)`; `TRANSITIONS` says what leads where, `SCREEN_OF` which screen each state shows. `home → live` is not a step (a session starts on R1); the one exception is H's "Back to the session" while `createFlow`'s `sessionRunning()` says one runs (to `live` or `delayed`). `SESSION_STATES`, `liveStateOf(replayMode)` and `sessionReturn(from, session)` (`d29b`): a session's live state and every way back to it. An illegal transition throws. |
+| `src/ui/` | `app.mjs` (the shell: draws the screen the flow's state names), `screens/` (one component per screen ID: `H`, `L1` (`d53`), `M`, `Q1`, `A1`, `A2` (`d18`), `S1`, `S1b` ("How the cues are scored", `d18`), `R1` and `R2` (`d28`), `R3`, `R3b` (`d29b`)), `components/` (shared pieces), `home-model.mjs` (H's logic as plain functions, `d13`: `liftState`, `rowOf`, `homeView`, `pickStep`, `startLift`, `percentOf`; see [H](#h-home-the-picker-and-l1)), `lift-model.mjs` (L1's, `d53`: `liftTiles`, `chooseLift`), `analysing-model.mjs` (Q1's, `d15`; see [Q1](#q1-analysing)), `record-model.mjs` and `use-capture.mjs` (R1's and R2's logic and the capture's status for a screen, `d28`; see [R1 and R2](#r1-and-r2-the-session)), `lookback-model.mjs` (R3's, `d29`; see [R3](#r3-the-replay)), `delayed-model.mjs` (R3b's, `d29b`; see [R3b](#r3b-the-delayed-view)). Screens call the flow and never each other; the queue and the store reach H as props from `main.mjs`. `settings-model.mjs` (S1's, `d24`; see [S1](#s1-settings-and-about)), `mark-model.mjs` (M's, `d14`; see [M](#m1m3-marking-a-lift)). `player.mjs` and `player-model.mjs` (A1's player, `d16`; see [A1, the player](#a1-the-player-and-the-overlay)), `result-model.mjs` (A1's cards and timeline, `d17`; see [A1, the timeline and the cue cards](#a1-the-timeline-and-the-cue-cards)). `detail-model.mjs` and `rule-model.mjs` (A2's and S1b's texts, the rule sentence; `d18`; see [A2, a cue's detail](#a2-a-cues-detail)). `view-options-model.mjs` and `components/view-options.mjs` (A3's sheet and its controller; `d22`; see [A3, view options](#a3-view-options)). `wide-model.mjs`, `use-wide.mjs` and `components/cue-plot.mjs` (A4, the wide result; `d25`; see [A4 and the responsive check](#a4-and-the-responsive-check)). `html.mjs` is htm bound to Preact. |
 | `src/credits.mjs`, `licences/` | S1's credits (`d24`): `CREDITS` lists every component of THIRD_PARTY.md's section for the new app, each with where its licence text is in the assembled app. `licences/` holds the texts that have no home beside a component: Apache-2.0 (apache.org's text byte for byte, no holder filled in), Capacitor's MIT and esbuild's MIT (their npm packages' `LICENSE` files); sources in [THIRD_PARTY.md](../THIRD_PARTY.md#in-the-new-app-app). |
 | `src/styles/` | `tokens.css` (every colour, the status colours with their words, the type, the spacing, the 44 px touch target; dark only) and `base.css` (the `@font-face` rules, the reset and the classes every screen shares). A screen styles itself from tokens, never from literal values. |
 | `src/track/` | One-line stubs, see below. |
 | `src/contracts/` | The shapes the app's parts agree on: JSDoc types, validators, examples. See [Contracts](#contracts). |
 | `src/store/` | The store (`c8`): lifts, their cut videos, tracks and results, the index and the settings, in OPFS. See [The store](#the-store). |
-| `src/media/` | The frame source (`s9`): `openFrameSource(blob)` gives contract 5's source over mediabunny and WebCodecs. See [The frame source](#the-frame-source). The cut (`s32`): `cutVideo` and `keepVideo` keep the marked range as an MP4. See [Keeping the video](#keeping-the-video). The capture (`c27`): `createCapture(settings)` records the camera into the rolling buffer, `snapshot` and `follow` read it. See [Capture and the rolling buffer](#capture-and-the-rolling-buffer). |
+| `src/media/` | The frame source (`s9`): `openFrameSource(blob)` gives contract 5's source over mediabunny and WebCodecs. See [The frame source](#the-frame-source). The cut (`s32`): `cutVideo` and `keepVideo` keep the marked range as an MP4. See [Keeping the video](#keeping-the-video). The capture (`c27`): `createCapture(settings)` records the camera into the rolling buffer, `snapshot` and `follow` read it. See [Capture and the rolling buffer](#capture-and-the-rolling-buffer). R3b's delayed frames (`d29b`): `createDelayedFrames` follows the capture `delayS` behind and decodes it. See [R3b, the delayed view](#r3b-the-delayed-view). |
 | `src/scoring/` | The scoring adapter (`s11`): `scoreLift(track, lift, opts)` gives contract 4's `ResultView` from a raw track. See [Scoring](#scoring). |
 | `src/draw/` | The skeleton overlay (`d16`): the pose at a playhead time, the bones and the confidence gate, each cue's drawing through `drawCue`, the timeline's marks. A plain canvas module, ported from the old page and pinned to it. See [A1, the player](#a1-the-player-and-the-overlay). |
 | `src/analysis/` | The analysis job and its queue (`s12`): `appQueue()` is the app's one queue; Analyse keeps the cut (`s32`), then queues the job, which poses every frame of the range, builds the track and scores it. See [The analysis](#the-analysis). |
@@ -316,7 +316,7 @@ nothing acts on it yet, see `s12`'s report).
 
 `screens/S1.mjs` draws `settings-model.mjs`'s view (design/mockups/Settings.dc.html); the store and the queue come in as props.
 
-- **Gym session:** since `d28` the replay mode, the replay's length, the buffer and the camera are enabled and saved (`saveSettings` checks them against `RANGES`; R1 and R2 read them). The **delay stays disabled** until `d29b` builds the delayed view (it shows only while the mode is "Delayed view", with the note "The delay comes later.", `NOT_YET` in `settings-model.mjs`), and the **quality is information**, its one value (1080p · 30 fps). The default lift works and is saved (`defaultLift`); L1 rings it (`startLift(settings)` in `home-model.mjs`, read by `liftTiles`; the first lift while the settings load or if they can't be read; d41, d53). Every value S1 offers lies inside `RANGES` (provisional until `c30`, [The store](#the-store)).
+- **Gym session:** since `d28` the replay mode, the replay's length, the buffer and the camera are enabled and saved (`saveSettings` checks them against `RANGES`; R1 and R2 read them). The **delay** is enabled since `d29b` built the delayed view (it shows only while the mode is "Delayed view": 5, 10, 15 or 20 s; R3b offers the same and saves the same field), and the **quality is information**, its one value (1080p · 30 fps; `NOT_YET` in `settings-model.mjs`). The default lift works and is saved (`defaultLift`); L1 rings it (`startLift(settings)` in `home-model.mjs`, read by `liftTiles`; the first lift while the settings load or if they can't be read; d41, d53). Every value S1 offers lies inside `RANGES` (provisional until `c30`, [The store](#the-store)).
 - **Videos are always kept** (nordmu, 2026-11-02): the mockup's "Keep the video of each analysed lift" switch is not drawn, since contract 3 needs every lift's cut and A1 plays it. `keepVideos` stays in the store; the switch comes back with a contract-3 change that allows a lift without its cut.
 - **Storage** is information: what the lifts hold, what the app uses, the room left (the store's `estimate()`), and whether the system promised to keep the files. `persisted: false` (the APK's WebView, `c20`) shows "No" with a plain sentence, never as an error. "Delete all lifts…" asks first and is held back while the queue has work.
 - **About:** the version, the privacy text (approved by nordmu on 2026-11-02, with no draft tag: it says what the app keeps, where, and that it sends nothing; it holds because the APK has no Android backup, see [The Android shell](#the-android-shell)), "Credits and licences", "How the cues are scored" (enabled since `d18`: S1b, see [A2](#a2-a-cues-detail)) and the source licence.
@@ -616,7 +616,8 @@ await cap.start();             // R1's Start: frames -> H.264 -> the ring; the w
 const off = cap.subscribe(s => …);  // now and at each change; cap.status is the latest:
                                     //   { state, fps, width, height, rotation, sinceS, heldS, bytes, dropped, wakeLock, error }
 const snap = await cap.snapshot(20);   // R3: { blob, duration, start }, the last 20 s as an MP4 (null when nothing is held)
-for await (const c of cap.follow(t)) …  // R3b: { type, timestamp, duration, data, decoderConfig? }, from the keyframe at or before t, then live
+for await (const c of cap.follow(t)) …  // R3b: { type, timestamp, duration, data, decoderConfig?, rotation? }, from the keyframe at or before t, then live
+cap.liveUs();                          // R3b: the recording's clock now, µs (the newest frame's time plus the wall time since); null before a frame
 await cap.resume(); await cap.stop(); cap.close();
 ```
 
@@ -624,6 +625,7 @@ await cap.resume(); await cap.stop(); cap.close();
 | --- | --- |
 | `capture.mjs` | `createCapture(settings, { api, now })`, the one entry; re-exports `CaptureError` and `CAPTURE_ERROR_CODES`; the encoder's choices (`CODECS`, `BITRATE_1080P30`, `KEYFRAME_US`, `MAX_ENCODE_QUEUE`). |
 | `ring.mjs` | `createRing({ bufferS })`: the chunks in whole groups, `snapshot(seconds)`, `follow(t)`. No decoder, no encoder. |
+| `delayed.mjs` | `createDelayedFrames({ source, webcodecs, delayS })` (`d29b`): R3b's frames, `follow` from `delayS` behind `liveUs()`, decoded with `decode.mjs`, handed out when due ([R3b](#r3b-the-delayed-view)). |
 | `mp4-writer.mjs` | The snapshot's writer: packets into an MP4 through mediabunny, as `cut.mjs` writes a cut (which keeps its own copy: its test pins the packet source in its module). |
 | `capture-browser.mjs` | `browserCaptureApi()`: `getUserMedia`, `MediaStreamTrackProcessor`'s reader, `VideoEncoder`, `navigator.wakeLock` and the page's visibility, behind one object the tests replace (`tests/app/fake-webcodecs.js`'s `createFakeCapture`). A part the browser lacks is `null`. Nothing else in `app/src` touches the camera or the encoder (`tests/app/capture.test.js` scans for it). |
 | `capture-error.mjs` | `CaptureError` and its codes. |
@@ -665,7 +667,7 @@ await cap.resume(); await cap.stop(); cap.close();
   any file. It never spans a change of decoder config: after the camera came back at another size
   it starts at the first keyframe after the change.
 - **`follow(t)`** yields the chunks (times in µs on the recording's clock) from the keyframe at or
-  before `t`, then each new chunk as it is encoded, `decoderConfig` on the first one and again at
+  before `t`, then each new chunk as it is encoded, `decoderConfig` and the segment's `rotation` on the first one and again at
   a change. It ends at `stop()` or `close()`, or when its caller stops reading (`break`). A
   follower the ring has overtaken goes on from the oldest keyframe left.
 - **Errors** are `CaptureError`s with a `code`: `insecure` (no `navigator.mediaDevices`: not https
@@ -723,20 +725,28 @@ permission.
 for words, fixed positions, the ⌄ cue where a screen goes on below. D2 settles that the lift is chosen before recording,
 here, with a 60 s buffer and a 20 s replay.
 
-**The flow.** `home → setup → live`, `setup → home` (‹), `live → replay | home | queued`, `queued → live`.
+**The flow.** `home → setup → live`, `setup → home` (‹), `live → replay | home | queued`, `queued → live`; `d29b`: `setup → delayed`,
+`delayed → mark | home | queued`, `mark → delayed`, `queued → delayed`.
 `home → live` is not a step: a session starts on R1. H's gym card goes to `setup`, or, while a session runs, reads "Back to the
-session" with the clock and goes to `live`; that is the one `home → live` the flow allows, and only while
+session" with the clock and goes to the session's live state; that is the one `home → live` (or `home → delayed`) the flow allows, and only while
 `createFlow(initial, { sessionRunning })` says a session runs (main.mjs passes `() => session.active`). R2's queue line opens Q1 with
-`{ from: 'live' }`, whose "Back to the session" returns (`queued → live`). Q1's own ‹ goes home, where H's card brings the session back.
+`{ from: 'live' }`, whose "Back to the session" returns. Q1's own ‹ goes home, where H's card brings the session back.
+
+**The session's live state** (`d29b`). A session runs on R2 (`live`) or on [R3b](#r3b-the-delayed-view) (`delayed`), by the replay mode
+R1 shows when Start is tapped (`session.start(lift, { replayMode })`, `liveStateOf` in flow.mjs); `session.liveState` keeps it until
+End session (null when none runs), so a change of the mode in S1 or R1 meanwhile changes the next session, not this one. Every way back
+to a running session goes to that state, never to `live` by name: M after Analyse and M's ✕ (`closeTarget(from, session)`), M's and Q1's
+"Back to the session" and H's card (`gymCard`), all through `sessionReturn(from, session)` in flow.mjs (`gymCard` reads `liveState` itself).
+`flow.go('live')` is left only where R3 goes back to R2.
 
 **The session** (`src/session.mjs`, a plain module; `tests/app/session.test.js`). main.mjs makes it once, like the queue, and passes it
 to every screen as a prop; it outlives them. It holds the capture (`media/capture.mjs`, [above](#capture-and-the-rolling-buffer)), made by
 `makeCapture(settings)` when R1 first shows: **nothing opens at boot** (no permission prompt before the user asks).
 `open(settings)` makes the capture and opens the camera for the preview (never throws: the capture's status says why; asked again after a
 failure it opens afresh, R1's "Try again"; if R1 was left while the camera opened, the camera that arrives is closed);
-`start(lift)` starts recording and keeps the lift and the start time (refused: a second `start` while one runs, a lift the registry lacks, no
+`start(lift, { replayMode })` starts recording and keeps the lift, the start time and the live state (`liveState`, `d29b`; refused: a second `start` while one runs, a lift the registry lacks, no
 open camera; a capture that can't record, such as `no-encoder`, leaves no session); `end()` stops and closes the capture and forgets
-everything (R1's ‹ and R2's End session both call it); `active`, `lift`, `startedAt`, `settings` (the ones the capture was made from),
+everything (R1's ‹ and R2's and R3b's End session call it); `active`, `lift`, `startedAt`, `liveState`, `settings` (the ones the capture was made from),
 `elapsedS()` (the capture's `sinceS`, H's clock), `subscribe(fn)`.
 
 **R1** (`screens/R1.mjs`, logic in `ui/record-model.mjs`'s `setupView`). The camera's live preview (`<video muted playsinline autoplay>` on
@@ -744,9 +754,11 @@ everything (R1's ‹ and R2's End session both call it); `active`, `lift`, `star
 lift (`data-lift`, `aria-pressed`: the chosen one pressed, S1's default ringed as on L1, the first lift while the settings load or name
 a lift the registry lacks; a provisional lift says so); the tip (the lift's registry `framing`, or "Whole body inside the frame" alone for a
 lift without one; the tip box is always as high as three lines, so a longer tip moves nothing under it); the guide, which takes what is
-left, with that line at its bottom; a place kept free for the replay-mode choice that `d29b` brings (`.setup-mode`, one segmented control
-high); and the bar with the line from the settings (`1080p · 30 fps · last 60 s`) and the record disc (`button[data-record="start"]`,
-`aria-label="Start session"`), enabled only while the capture shows the preview. Start starts the session and goes to `live`.
+left, with that line at its bottom; the replay mode (`d29b`, in the place d28 kept for it, `.setup-mode`, one segmented control high, so
+nothing else on R1 moved): "Replay button" or "Delayed view" (`button[data-mode]`, `aria-pressed`; the settings' `replayMode`, saved at
+each tap, `saveMode`); and the bar with the line from the settings (`1080p · 30 fps · last 60 s`) and the record disc (`button[data-record="start"]`,
+`aria-label="Start session"`), enabled only while the capture shows the preview. Start starts the session in the mode shown and goes to
+`live` or `delayed` by it (`startSession` in record-model.mjs).
 
 **R2** (`screens/R2.mjs`, `liveView`). The preview fills the stage; over it REC with the clock (`m:ss`, `h:mm:ss` from an hour on, the
 capture's `sinceS`), the camera's **real** rate (`29 fps`, rounded, `– fps` until the frames give one; never the asked one), the lift and
@@ -765,8 +777,8 @@ that fails while recording), each with what happened and what the user can do, i
 Where trying again can help (`actions.retry`) R1 offers "Try again", which asks for the camera afresh; ‹ is always there.
 
 **Where the screens depart from the mockups:** R1 has no ✕ (a ‹ as the other screens), no "Switch camera" button (the camera is S1's setting, and the
-capture is made with it), the lift is a button each (the mockup's one button cycles) and the replay-mode choice is not drawn yet
-(`d29b`); the tip is the registry's sentence without the lift's name in front; the record disc has no "Start session" text beside it (its
+capture is made with it), the lift is a button each (the mockup's one button cycles) and the replay mode has no help line under it (the
+mockup's "After the lift, walk back and tap Replay…": the place kept is one control high); the tip is the registry's sentence without the lift's name in front; the record disc has no "Start session" text beside it (its
 `aria-label` says it) and the line under the preview is one line. R2 has the queue line in a row of its own (at 360 px the REC chip, the rate and
 the queue line don't fit on one), the Replay button says its length ("20 s") instead of "the last 20 s", and there is a "Camera stopped" retry and a
 problem panel the mockup doesn't draw. Both screens use the fake camera's green in the tests; the real picture is `c30`'s.
@@ -807,6 +819,48 @@ replayS })`, a plain module (`tests/app/replay.test.js`, on a stand-in session a
   360×640, 360×800, 412×760 and 412×915 with no vertical scroll (the layout check).
 - **Where it departs from the mockup:** the position shows the real length when the ring holds less than 20 s; a problem panel and "Opening
   the replay…" the mockup does not draw; ←/→ on the bar.
+
+## R3b, the delayed view
+
+`d29b`, milestone B (`screens/R3b.mjs`, the mockup's `DelayedView.dc.html`; D2: the delayed view as a setting beside R3's replay). The
+screen shows the camera 5–20 s late, with a small live view in the corner, and there is nothing to touch until "Keep this lift": no
+tapping with chalky hands, like the video-delay mirrors gyms use. A session runs on it in place of R2 when R1's replay mode (or S1's) is
+"Delayed view" ([the session's live state](#r1-and-r2-the-session)). Its logic is `ui/delayed-model.mjs` (plain, `tests/app/delayed.test.js`),
+its frames `media/delayed.mjs`'s.
+
+- **The delayed frames** (`media/delayed.mjs`, `createDelayedFrames({ source, webcodecs, delayS })`; `source` is the capture). It follows
+  the capture (`follow(t)`) from its newest frame's time minus the delay (`liveUs()`: the newest frame's time plus the wall time since it
+  came), from the keyframe at or before that point, and decodes with the decode loop (`decode.mjs`, `optimizeForLatency`). `take()`, at
+  each screen refresh, hands out the newest frame whose capture time plus the delay has come and closes the older due ones, so the delay
+  on screen stays within a frame interval of the setting while the decoder keeps up. Few frames wait: at most 2 decoded frames held for
+  the screen, 2 in the decode loop and 3 chunks in the decoder; the rest of the delay stays as chunks in the ring. **A decoder that falls
+  behind** (its newest frame more than 0.3 s, `MAX_LAG_US`, behind where the view should be, once the run has shown a frame: a slow
+  decoder, a page that was hidden) skips to the next keyframe at or after that point: the chunks in between are not decoded, the frames
+  already decoded are closed (`stats.skips` counts it). A new delay (`setDelay`) starts it again at the new delay, with a new decoder.
+  A new decoder config in the ring (the camera came back at another size) configures a new decoder; each frame carries its segment's
+  rotation and the screen turns it. Every frame the screen doesn't take is closed, as is every frame held at `close()`, and the decoder
+  with them; nothing calls the capture but `follow` and `liveUs`.
+- **The screen.** The delayed frames on a canvas that fills the stage (at its box's size × the pixel ratio, 2 at most; fitted, aspect
+  kept), "Starting: 10 s behind" until the first one is drawn. Over it: REC with the clock (the capture's `sinceS`, as R2's) and the
+  delay (`10 s` / BEHIND LIVE) on the left; the live view in the right corner (the capture's stream in a `<video muted playsinline
+  autoplay>`, 96×171, LIVE); at the bottom the delay's choices (`button[data-delay]`: 5, 10, 15, 20 s, `DELAY_CHOICES`, each inside
+  `RANGES.delayS`, the chosen one pressed; a choice saves `delayS`, `saveDelay`, and starts the view again at it), "Keep this lift"
+  (`button[data-delayed="keep"]`, "then mark start and end"), End session (`button[data-delayed="end"]`: ends the session, goes home) and
+  "Nothing to tap until you keep one". Leaving R3b closes the delayed frames; the recording goes on.
+- **Keep this lift** (`keepLift`) goes to `mark` with `{ file, lift, from: 'delayed' }`: the session's `snapshot(replayS + delayS)`
+  (the replay's length before the frame on screen, and everything since) as a `File` named `delayed-<hh-mm-ss>.mp4`, type `video/mp4`, and
+  the session's lift. M's ✕ and Analyse come back to R3b ([M](#m1m3-marking-a-lift)). A snapshot that fails or an empty ring stays on R3b
+  with d23's problem panel and OK.
+- **Fixed places** (`base.css`, "R3b, Delayed view"; sizes from `tokens.css`'s `--delayed-*`, `--size-delay`, `--size-keep`): the clock and
+  the delay have widths of their own, so nothing moves while they change. At 360×640, 360×800, 412×760 and 412×915 no vertical scroll
+  and every control inside the window (the layout check). A camera lost while recording shows "Camera stopped" with the resume, a failed
+  capture d23's problem panel, as on R2.
+- **The page test's delayed walk** measures the delay on screen in headless Brave on its fake camera ([The page test](#the-page-test)).
+- **Where it departs from the mockup:** "Starting: 10 s behind" before the first frame, "Camera stopped", the problem panels; the
+  picture is fitted, not cropped to the window as the mockup's drawing; no queue line (the mockup has none: the analysing lifts show on H
+  and in Q1).
+- **What waits for the phone (`c30`):** the real decoder's latency and whether it keeps up at 1080p30 beside the encoder and the pose
+  engine (how often it skips), the frames' rotation in portrait, the canvas's cost, and the delay on screen as measured.
 
 ## The analysis
 
@@ -977,10 +1031,11 @@ first screen draws), the frame source by `openSource` (default `openFrameSource`
   kept first, s32; a re-mark adds `{replaces}`, the old lift's id from the flow's params, `s50`) and then `flow.go('queued', {liftId})` with the new lift's id,
   which Q1 shows when two are queued. A cut that can't be stored shows `d23`'s problem screen, with "Back to the
   marks"; a second tap while one is working does nothing. M's interface is `flow.go('mark', {file, lift, range?, from?})`.
-- **In a session** (`d29`): R3's "Keep and mark the lift" opens M with `from: 'live'` and the replay as the file ([R3](#r3-the-replay)).
+- **In a session** (`d29`, `d29b`): R3's "Keep and mark the lift" opens M with `from: 'live'` and the replay as the file ([R3](#r3-the-replay)),
+  R3b's "Keep this lift" with `from: 'delayed'` ([R3b](#r3b-the-delayed-view)).
   Only where M leads changes; its layout, buttons and hooks are `d54`'s, and the page test's shift check stays. Analyse queues the lift as
-  it does now, then goes to `live` (R2), not `queued`, so recording goes on while the lift waits in the queue (R2's queue line shows it,
-  and opens Q1 with "Back to the session"). ✕ goes to `live` (`closeTarget(from)`; home without `from`). `d23`'s problem screen offers
+  it does now, then goes back to the session's live state (R2 or R3b), not `queued`, so recording goes on while the lift waits in the queue (R2's queue line shows it,
+  and opens Q1 with "Back to the session"). ✕ goes back to the session too (`closeTarget(from, session)`, flow.mjs's `sessionReturn`; home without `from`). `d23`'s problem screen offers
   "Back to the session" (`data-way="session"`, `waysOn(problem, atAnalyse, from)`) in place of "Pick another video". Outside a session
   nothing differs; the capture and the session are not touched.
 - **The lift** is chosen once, on L1 (nordmu, checkpoint A, 2026-11-02, point 5), and M only shows it
@@ -1205,7 +1260,7 @@ window is resized across the breakpoint; CSS arranges them (a grid), and the JS 
 
 **The responsive check** (`tools/layout-check.mjs`, `npm --prefix app run check:layout`): the page test's build (`assemble.mjs
 --test`) served on a free port and opened in headless Brave over CDP, through `browser.mjs`. It walks the app (the first-run intro,
-H, S1, its credits, S1b, L1, M's three steps (pressed by `data-mark`) and its error screen, Q1 while it runs, when it is done and when it failed (`d57`: "Q1 (No person found)" and "Q1 (unreadable)", made by setting `globalThis.coachReplay.mode` before Analyse, see [The page test](#the-page-test); each with its "Pick another video"), A1, A3, A2; since `d28` R1 and R2, walked from H's gym card on the fake camera; since `d29` R3, reached from R2's Replay, paused so its countdown stays, and left by "Not this one") and sets each of seven sizes at each screen: phone portrait 360×800 and 412×915,
+H, S1, its credits, S1b, L1, M's three steps (pressed by `data-mark`) and its error screen, Q1 while it runs, when it is done and when it failed (`d57`: "Q1 (No person found)" and "Q1 (unreadable)", made by setting `globalThis.coachReplay.mode` before Analyse, see [The page test](#the-page-test); each with its "Pick another video"), A1, A3, A2; since `d28` R1 and R2, walked from H's gym card on the fake camera; since `d29` R3, reached from R2's Replay, paused so its countdown stays, and left by "Not this one"; since `d29b` R3b, from a second session started on R1 in the delayed view, which then puts R1's mode back to the replay) and sets each of seven sizes at each screen: phone portrait 360×800 and 412×915,
 phone landscape 800×360, tablet 768×1024, laptop 1280×800 (the emulation's own width, since a mobile window grows with a wide
 page), and the range just above A4's breakpoint, where the video column has to give way: a landscape tablet 1024×768 and a narrow
 window 980×720. A1 is walked twice, as the test clips are portrait (a narrow stage): once as it comes and once with a 16:9 video
@@ -1220,6 +1275,7 @@ window 980×720. A1 is walked twice, as the test clips are portrait (a narrow st
   plot drawn; below, one column and no panel; and in the laptop window a card selects its cue and a tap on the plot moves the player;
 - R1 and R2 (`d28`), checked at the same nine sizes as M: at 360×640, 360×800, 412×760 and 412×915 no vertical scroll and every control (`SETUP_CONTROLS`, `LIVE_CONTROLS`) fully inside the window (`fitsWindow`), and at 360×800 the rate and the wake-lock line changing moves no other control; the queue line's row has to be a touch target high, so a queue chip moves nothing;
 - R3 (`d29`), reached from R2's Replay and paused (a playing replay counts its 25 s down while the nine sizes are walked): the same no-scroll rule at the four portrait sizes with every control (`REPLAY_CONTROLS`: the chips, the time ago, play, the bar, the position, ½×, Keep and mark, Not this one) inside the window; "Not this one" then returns to R2;
+- R3b (`d29b`), reached by a second session started in the delayed view: the same no-scroll rule at the four portrait sizes with every control (`DELAYED_CONTROLS`: REC and the clock, the delay, the live view, the delay's choices, Keep this lift, End session) inside the window; End session then ends it;
 - M (`d54`), checked at 360×640 and 412×760 too: at 360×640, 360×800, 412×760 (about the Fairphone in Brave) and 412×915,
   a vertical page scroll, or a control of M (`shift-check.mjs`'s list) not fully inside the window (`markFits`). Phone
   landscape may scroll there (`d55`'s cue shows there), but the checks above still hold: nothing cut off, 44 px targets, and
@@ -1313,8 +1369,8 @@ plain functions that Node runs (`tests/app/analysing.test.js`):
   the screen's wording only.
 - **Buttons:** Open the result (done: `go('result', {liftId})`), Analyse again
   (failed or stopped: the queue's `retry`, or `enqueue(lift)` when the queue
-  no longer holds the job), Home (to `live` with `from: 'live'` in
-  the params, "Back to the session"), Cancel (`queue.cancel`), and
+  no longer holds the job), Home (with `from: 'live'` in the params,
+  "Back to the session", to the session's live state, `sessionReturn`), Cancel (`queue.cancel`), and
   (`d51`, `d53`) Pick another video (`actions.another`, a `PickVideo` button that opens the phone's picker and goes on to L1: `queued → lift` is legal) on the panel of every problem whose
   `actions.another` is true (`d56`, taken from the problem: "This video can't be read", "This phone can't play this video", "No person found"), a big primary
   button like "Analyse again"; the other problems keep their buttons.
@@ -1338,7 +1394,7 @@ lifts' `readResult` again when a job's state changes, not at every frame.
   (d41): reading 0-10 %, pose 10-95 %, scoring 95-100 %, never 100 while it runs; a done job
   whose lift is not yet stored as analysed shows 99), `failed` (the job's `error`),
   `stopped` (unanalysed with no job, or a cancelled one: "Stopped"; the lift stays stored).
-- **H's words (`d55`, round 1's table):** "Gym session" (no line under it; `d28`: it opens R1, and while a session runs it reads "Back to the session" with the clock and goes to R2), "Import a video" (no line under it), "Today" with "3 lifts",
+- **H's words (`d55`, round 1's table):** "Gym session" (no line under it; `d28`: it opens R1, and while a session runs it reads "Back to the session" with the clock and goes to R2, or R3b in the delayed view), "Import a video" (no line under it), "Today" with "3 lifts",
   "Your lifts show up here.", "Couldn’t read your lifts.", "Nothing leaves this phone.", "Update ready · reload the app". A row says "46 %" beside the
   bar, a failed job a work-on triangle and "Couldn’t analyse" (the reason is on Q1). A ready row draws its counts as **A1's status icons with the
   count, worst first** (`summariseResult` gives `icon`, the `StatusIcon` name); the words (`summaryLabel`: "1 work on, 3 good") are the row's
@@ -1763,6 +1819,12 @@ worktree: no example clips, no `app/vendor/tfjs/`, no `app/models/`, no GPU.
    (the replay engine picks one by the clip's rate and frame count), so its job would fail at once: `boot.mjs` holds the next jobs at their
    clip while `globalThis.coachReplay.hold` is a promise, which the walk sets before 3 Analyse and clears after the cancel. The output
    names each step (`page-test:   R2 → Replay → R3` …, "Q1: the recorded lift's job cancelled (…)").
+   **The delayed walk** (`d29b`), a second session after the first one's End session: H → R1, "Delayed view" → Start → R3b; its 5 s
+   (the view starts again at 5 s) → 7 s later the canvas has drawn frames and goes on drawing, its centre is not empty, and the newest
+   frame is 5 ± 0.5 s behind the capture's newest (read five times in the page from what R3b's canvas says it drew: `data-frame-us`, the
+   frame's time, and `data-live-us`, the capture's clock at that draw, both on the recording's clock) → Keep this lift → M (M1, on the
+   kept snapshot) → M's ✕ → R3b → End session → H, every camera track ended. The output gives the measured delay
+   (`page-test: delayed walk (…): measured 5.0xx s behind (5 s set), N frames drawn`) and names each step.
    Then (`d22`) A3 opens from "View options" with the mockup's switches and speeds and no lifter, a switch flips, a smoothing change
    scores again and is put back to 50 ms, and "Re-mark this lift" opens M in its ready state.
 4. **It fails** on a console error, an exception or unhandled rejection, a failed request or an HTTP error (page, workers and the
@@ -1783,7 +1845,7 @@ worktree: no example clips, no `app/vendor/tfjs/`, no `app/models/`, no GPU.
 `tests/`: `flow.test.js` (the state machine), `draw.test.js` (the overlay, pinned to the old page) and `player.test.js` (A1's player on fakes), `view-options.test.js` (A3: the options on the player, the re-score, loop, re-mark, delete), `home.test.js` (H's logic: a lift's state, the lists, the pick step, `main.mjs`'s boot), `lift.test.js` (L1: the tiles from the registry, the default ring, the step to M, the pickers, `d53`), `assemble.test.js` (assemble
 into a temporary folder, the manifest and `index.html`), `serve.test.js` (the
 dev server), `contracts.test.js` (the contracts, against the committed tracks
-and `diagnostics.js`'s headless API), `lifts.test.js` (the lift registry: a test-only third lift reaches H, the settings, the store and the icons; every shipped lift has its set in `diagnostics.js`; the fixtures per lift; `tests/app/import-map.mjs` gives Node `index.html`'s import map, so it draws `LiftIcon` with Preact), `store.test.js` (the store, on `fake-opfs.js`, an in-memory OPFS), `frame-source.test.js` (the frame source and its stepper, on our own clips in `tests/app/clips/` and a fake decoder), `capture.test.js` (the capture and its ring, `c27`, on `fake-webcodecs.js`'s fake camera, encoder and wake lock: the rate, the keyframes, the drops, the ring, snapshots that the frame source and the cut open, `follow`, the errors, the wake lock, interruptions, stop and close), `pose-engine.test.js` (the pose engine's client and worker handler, against fakes), `media-phone.test.js` (the check page's media measurements, their driver and the clips' script; the shipped `dist/` without them), `android-shell.test.js` (the Capacitor config, the committed Android project, the pins and `build-apk.sh`), `sw.test.js` (the service worker run as a script on a fake Cache Storage and fetch, the registration module on a fake browser and queue, assemble's version stamp), `page-test.test.js` (the replay engine behind the real pose client, the test build and the shipped `dist/` without it, the script's no-browser line), `build-tfjs.test.js` (the TF.js
+and `diagnostics.js`'s headless API), `lifts.test.js` (the lift registry: a test-only third lift reaches H, the settings, the store and the icons; every shipped lift has its set in `diagnostics.js`; the fixtures per lift; `tests/app/import-map.mjs` gives Node `index.html`'s import map, so it draws `LiftIcon` with Preact), `store.test.js` (the store, on `fake-opfs.js`, an in-memory OPFS), `frame-source.test.js` (the frame source and its stepper, on our own clips in `tests/app/clips/` and a fake decoder), `delayed.test.js` (`d29b`: the delayed frames on the real ring and the fake decoder, R3b's logic, R1's replay mode, S1's delay, the ways back to a running session), `capture.test.js` (the capture and its ring, `c27`, on `fake-webcodecs.js`'s fake camera, encoder and wake lock: the rate, the keyframes, the drops, the ring, snapshots that the frame source and the cut open, `follow`, the errors, the wake lock, interruptions, stop and close), `pose-engine.test.js` (the pose engine's client and worker handler, against fakes), `media-phone.test.js` (the check page's media measurements, their driver and the clips' script; the shipped `dist/` without them), `android-shell.test.js` (the Capacitor config, the committed Android project, the pins and `build-apk.sh`), `sw.test.js` (the service worker run as a script on a fake Cache Storage and fetch, the registration module on a fake browser and queue, assemble's version stamp), `page-test.test.js` (the replay engine behind the real pose client, the test build and the shipped `dist/` without it, the script's no-browser line), `build-tfjs.test.js` (the TF.js
 build's pins, cache, op lists and patch notices, the MoveNet entry's
 refusal of a config without `modelUrl`, and `fetch-models.sh`'s checks and
 clean-up, all without the network). Every test runs in a fresh worktree, which has neither

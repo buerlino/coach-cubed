@@ -260,7 +260,7 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 
 /* R1, Set up the camera (docs/ui-design.md, design/mockups/RecordSetup.dc.html; d28). The camera fills the window; the
    rows over it have fixed places: ‹, the lifts, the tip (its least height three lines), the guide (which takes what is
-   left), the place kept for the replay-mode choice (d29b) and the bar with the line and the record disc. Nothing moves
+   left), the replay-mode choice (d29b, in the place d28 kept for it) and the bar with the line and the record disc. Nothing moves
    when a lift is tapped or the tip changes. `flex: none` as M's (.mark): .screen's `flex: 1` is a basis of 0%. The window's
    height is a least height: a phone in landscape scrolls (nothing is cut off) where the rows do not fit. */
 .setup, .live { flex: none; min-height: 100dvh; position: relative; display: flex; flex-direction: column; background: var(--stage-ground); }
@@ -284,7 +284,7 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .setup-guide { flex: 1; width: 100%; max-width: 100%; display: flex; align-items: flex-end; justify-content: center; border: var(--guide-line) dashed var(--text-soft); border-radius: var(--radius-guide); }
 .setup-guide span { padding: var(--space-1) var(--space-2h) var(--space-2h); font-size: var(--size-small); font-weight: var(--weight-semibold); text-align: center; text-shadow: 0 1px 3px var(--stage-ground); }
 .setup-mid .problem { max-height: 100%; overflow: auto; background: var(--surface); }
-.setup-mode { flex: none; height: var(--setup-mode-h); }
+.setup-mode { flex: none; height: var(--setup-mode-h); margin: 0 var(--space-4); }
 .setup-bar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-4h) var(--space-4) calc(var(--space-5) + env(safe-area-inset-bottom, 0px)); border-radius: var(--radius-sheet) var(--radius-sheet) 0 0; background: var(--scrim); }
 .setup-line { font-size: var(--size-small); line-height: 1.35; color: var(--text-soft); }
 .record-disc { width: var(--record-disc); height: var(--record-disc); flex: none; padding: 0; display: flex; align-items: center; justify-content: center; border: var(--record-ring) solid var(--text); border-radius: 50%; background: transparent; }
@@ -354,6 +354,40 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .replay-keep:disabled { background: var(--accent); color: var(--on-accent); opacity: var(--disabled-opacity); }
 .replay-live { height: var(--replay-live-h); width: 100%; display: flex; align-items: center; justify-content: center; gap: var(--space-2); border: 1px solid var(--line-mid); border-radius: var(--radius-xl); background: transparent; color: var(--text); font-size: var(--size-row); font-weight: var(--weight-semibold); }
 .replay-live__in { color: var(--text-quiet); font-weight: var(--weight-medium); font-variant-numeric: tabular-nums; }
+
+/* R3b, Delayed view (design/mockups/DelayedView.dc.html; d29b). The delayed frames fill the window on a canvas (fitted,
+   aspect kept); over them REC with the clock and the delay on the left, the live view in the right corner, and at the
+   bottom the delay's choices, Keep this lift and the End session row. The clock and the delay have widths of their own:
+   nothing moves while they change. It fits a portrait phone from 640 px high without a vertical scroll. */
+.delayed { flex: none; min-height: 100dvh; position: relative; display: flex; flex-direction: column; background: var(--stage-ground); }
+.delayed-stage { position: absolute; inset: 0; background: var(--stage-ground); }
+.delayed-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.delayed-note { position: absolute; left: var(--space-4); right: var(--space-4); top: 50%; margin: 0; transform: translateY(-50%); text-align: center; color: var(--text-soft); }
+.delayed > :not(.delayed-stage) { position: relative; }
+.delayed-top { flex: none; display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-3) var(--fade-top); background: linear-gradient(var(--scrim), transparent); }
+.delayed-chips { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+.delayed-behind { display: flex; flex-direction: column; padding: var(--space-1h) var(--space-3h) var(--space-2); border-radius: var(--radius-l); background: var(--text); color: var(--on-accent); line-height: 1; }
+.delayed-behind__n { min-width: var(--delayed-behind-w); font-family: var(--font-display); font-size: var(--size-delay); font-weight: var(--weight-bold); font-variant-numeric: tabular-nums; }
+.delayed-behind__word { font-size: var(--size-small); font-weight: var(--weight-bold); letter-spacing: var(--tracking-label); text-transform: uppercase; }
+.delayed-live { flex: none; position: relative; width: var(--delayed-inset-w); height: var(--delayed-inset-h); border: var(--delayed-inset-border) solid var(--text); border-radius: var(--radius-m); overflow: hidden; background: var(--surface); }
+.delayed-live video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.delayed-live__tag { position: absolute; left: var(--space-1h); bottom: var(--space-1h); padding: var(--space-half) var(--space-1h); border-radius: var(--radius-xs); background: var(--scrim); font-size: var(--size-mark); font-weight: var(--weight-bold); letter-spacing: var(--tracking-wordmark); }
+.delayed-mid { flex: 1 1 0; min-height: 0; margin: var(--space-3); display: flex; align-items: center; justify-content: center; }
+.delayed-mid .problem { max-height: 100%; overflow: auto; background: var(--surface); }
+.delayed-controls { flex: none; display: flex; flex-direction: column; gap: var(--space-3); padding: var(--fade-top) var(--space-4) calc(var(--space-5) + env(safe-area-inset-bottom, 0px)); background: linear-gradient(transparent, var(--scrim) 35%); }
+.delayed-delays { display: flex; align-items: center; gap: var(--space-2); }
+.delayed-delays__label { margin-right: var(--space-1); font-size: var(--size-label); color: var(--text-soft); }
+.delayed-delay { flex: 1; min-width: 0; height: var(--touch); padding: 0; border: 1px solid var(--line-mid); border-radius: var(--radius-s); background: transparent; color: var(--text); font-size: var(--size-body); font-weight: var(--weight-bold); }
+.delayed-delay[aria-pressed="true"], .delayed-delay[aria-pressed="true"]:hover { background: var(--text); border-color: var(--text); color: var(--on-accent); }
+.delayed-keep { height: var(--delayed-keep-h); width: 100%; display: flex; align-items: center; justify-content: center; gap: var(--space-3); border: 0; border-radius: var(--radius-sheet); background: var(--accent); color: var(--on-accent); }
+.delayed-keep:hover { background: var(--accent-hover); border: 0; }
+.delayed-keep:disabled { background: var(--accent); color: var(--on-accent); opacity: var(--disabled-opacity); }
+.delayed-keep svg { width: var(--delayed-keep-icon); height: var(--delayed-keep-icon); }
+.delayed-keep__text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.05; }
+.delayed-keep__name { font-family: var(--font-display); font-size: var(--size-keep); font-weight: var(--weight-bold); letter-spacing: var(--tracking-wordmark); }
+.delayed-keep__sub { font-size: var(--size-label); font-weight: var(--weight-semibold); }
+.delayed-controls .live-end { flex: none; white-space: nowrap; }
+.delayed-hands { min-width: 0; padding-right: var(--space-2); color: var(--text-quiet); font-size: var(--size-small); text-align: right; }
 
 /* A1, Result: the player (docs/ui-design.md, design/mockups/Result.dc.html) */
 .result { height: 100dvh; }

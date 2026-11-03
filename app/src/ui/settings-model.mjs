@@ -6,10 +6,10 @@ import { RANGES } from '../store/settings.mjs';
 import { liftChoices } from './home-model.mjs';
 
 /**
- * The settings S1 still shows disabled (d28 enabled the rest, which R1 and R2 use): the delay waits for
- * the delayed view (`d29b`), and the quality is information, its one value (1080p · 30 fps).
+ * The settings S1 still shows disabled (d28 enabled the rest, which R1 and R2 use, and d29b the delay, which R3b
+ * uses): the quality is information, its one value (1080p · 30 fps).
  */
-export const NOT_YET = Object.freeze(['delayS', 'quality']);
+export const NOT_YET = Object.freeze(['quality']);
 
 export const MODES = Object.freeze([
   Object.freeze({ id: 'replay', label: 'Replay button' }),
@@ -74,7 +74,6 @@ export function recordingView(s) {
     modesDisabled: off('replayMode'),
     rows: rows.map(r => ({ ...r, shown: (r.options.find(o => o.value === r.value) || { label: String(r.value) }).label })),
     note: 'Up to 30 fps; less in dim light.',
-    laterNote: s.replayMode === 'delayed' ? 'The delay comes later.' : null,
   };
 }
 

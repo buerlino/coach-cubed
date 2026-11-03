@@ -20,7 +20,7 @@
 // landscape may scroll (d55's cue may show there), but nothing may be cut off and every touch target stays 44 px.
 // R1 and R2 (d28) are walked from H's gym card on the browser's fake camera (browser.mjs's FAKE_CAMERA) at every size and, as M, at
 // the four portrait sizes of M_NO_SCROLL; at those R2 must not scroll vertically, with its controls fully inside the window.
-// R3 is still a placeholder that nothing in 0.1.0 reaches without d29, so it is not walked.
+// R3 (d29) is walked from R2's Replay the same way, and R3b (d29b) from a second session started on R1 in the delayed view.
 //
 // --shots DIR   writes a PNG per screen and size into DIR (outside the repo: screenshots stay out of git).
 // --break KIND  a deliberate fault to see the check fail (exit 1): scroll (a 2000 px wide element), clip (text in a
@@ -222,13 +222,23 @@ export const REPLAY_CONTROLS = Object.freeze([
   ['Not this one', '[data-screen="R3"] button[data-replay="live"]'],
 ]);
 
+/** R3b's controls at the portrait sizes (d29b): [name, selector]. */
+export const DELAYED_CONTROLS = Object.freeze([
+  ['REC and the clock', '[data-screen="R3b"] .live-chip--rec'],
+  ['the delay', '[data-delayed="behind"]'],
+  ['the live view', '[data-screen="R3b"] .delayed-live'],
+  ['the delay choices', '[data-screen="R3b"] .delayed-delays'],
+  ['Keep this lift', '[data-delayed="keep"]'],
+  ['End session', '[data-delayed="end"]'],
+]);
+
 /**
- * R1, R2 or R3 at a portrait size of M_NO_SCROLL, page side: no vertical page scroll, no "more below" cue, and every control
+ * R1, R2, R3 or R3b at a portrait size of M_NO_SCROLL, page side: no vertical page scroll, no "more below" cue, and every control
  * fully inside the window. Other sizes: nothing to say here. Stringified like pageCheck.
  * @param {number} vw @param {number} _wideMin @param {number} vh
  * @param {Array<{width: number, height: number}>} sizes M_NO_SCROLL
- * @param {Array<[string, string]>} controls SETUP_CONTROLS, LIVE_CONTROLS or REPLAY_CONTROLS
- * @param {string} name 'R1', 'R2' or 'R3'
+ * @param {Array<[string, string]>} controls SETUP_CONTROLS, LIVE_CONTROLS, REPLAY_CONTROLS or DELAYED_CONTROLS
+ * @param {string} name 'R1', 'R2', 'R3' or 'R3b'
  */
 export function fitsWindow(vw, _wideMin, vh, sizes, controls, name) {
   if (!sizes.some(s => s.width === vw && s.height === vh)) return [];
@@ -571,6 +581,24 @@ async function main() {
     await waitFor(`document.querySelector('[data-screen="R2"][data-state="recording"]')`, 'R2 after "Not this one"');
     await click('[data-screen="R2"] [data-record="end"]');
     await waitFor(`document.querySelector('[data-screen="H"]')`, 'H after End session');
+    // d29b: a second session in the delayed view. R1's Delayed view, Start, R3b at every size (no scroll at the four
+    // portrait sizes), End session; then R1's mode back to the replay, so a later run starts as this one did.
+    await click('[data-screen="H"] [data-card="session"]');
+    await waitFor(`document.querySelector('[data-screen="R1"][data-state="preview"] [data-record="start"]:not([disabled])')`, 'R1 again (delayed)', 30000);
+    await click('[data-screen="R1"] [data-mode="delayed"]');
+    await waitFor(`document.querySelector('[data-screen="R1"] [data-mode="delayed"][aria-pressed="true"]')`, "R1's Delayed view pressed");
+    await click('[data-record="start"]');
+    await waitFor(`document.querySelector('[data-screen="R3b"][data-state="recording"]')`, 'R3b recording', 30000);
+    await check('R3b', fitsWindow, null, M_SIZES, DELAYED_CONTROLS, 'R3b');
+    await setViewport(VIEWPORTS[0]);
+    await click('[data-screen="R3b"] [data-delayed="end"]');
+    await waitFor(`document.querySelector('[data-screen="H"]')`, 'H after End session (delayed)');
+    await click('[data-screen="H"] [data-card="session"]');
+    await waitFor(`document.querySelector('[data-screen="R1"] [data-mode="replay"]')`, 'R1 (the mode back)', 30000);
+    await click('[data-screen="R1"] [data-mode="replay"]');
+    await waitFor(`document.querySelector('[data-screen="R1"] [data-mode="replay"][aria-pressed="true"]')`, "R1's Replay button pressed");
+    await click('[data-screen="R1"] [aria-label="Back"]');
+    await waitFor(`document.querySelector('[data-screen="H"]')`, 'H after R1');
 
     if (errors.length) problems.push(`the page logged errors: ${[...new Set(errors)].slice(0, 3).join(' | ').slice(0, 400)}`);
     ws.close();

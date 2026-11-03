@@ -47,9 +47,9 @@ function Picture({ bitmap }) {
 
 const clockLabel = s => (s % 2 ? '' : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`);
 
-export function M({ flow, queue, openSource = openFrameSource }) {
-  const { file = null, lift = null, range = null, from = null, replaces = null } = flow.params;   // the lift is L1's choice; none: the no video state. from 'live': R3 kept it in a session (d29)
-  const leave = () => flow.go(closeTarget(from));   // ✕: home, or R2 in a session
+export function M({ flow, queue, session, openSource = openFrameSource }) {
+  const { file = null, lift = null, range = null, from = null, replaces = null } = flow.params;   // the lift is L1's choice; none: the no video state. from 'live' or 'delayed': R3 or R3b kept it in a session (d29, d29b)
+  const leave = () => flow.go(closeTarget(from, session));   // ✕: home, or back to the session's live state (R2 or R3b)
   const [source, setSource] = useState(null);     // { frameTimes, info } once the video is open
   const [problem, setProblem] = useState(null);   // the video could not be opened, or a frame could not be decoded
   const [marks, setMarks] = useState(newMarks);
@@ -202,7 +202,7 @@ export function M({ flow, queue, openSource = openFrameSource }) {
   const onAnalyse = async () => {
     setBusy(true);
     setRefused(null);
-    const out = await analyse({ flow, queue, lift, file, marks, frameTimes, replaces, from });
+    const out = await analyse({ flow, queue, lift, file, marks, frameTimes, replaces, from, session });
     if (!out.ok) {
       setBusy(false);
       setRefused(out.error);
@@ -236,7 +236,7 @@ export function M({ flow, queue, openSource = openFrameSource }) {
           <${Problem} problem=${p}>
             ${ways.includes('retry') ? html`<button type="button" class="button--primary button-big" onClick=${() => { setFailure(null); onAnalyse(); }}>Try again</button>` : null}
             ${ways.includes('marks') ? html`<button type="button" class="button--raised button-wide" onClick=${() => { setFailure(null); setRefused(null); }}>Back to the marks</button>` : null}
-            ${ways.includes('session') ? html`<button type="button" class="button--primary button-big" data-way="session" onClick=${() => flow.go('live')}>Back to the session</button>` : null}
+            ${ways.includes('session') ? html`<button type="button" class="button--primary button-big" data-way="session" onClick=${leave}>Back to the session</button>` : null}
             ${ways.includes('another') ? html`<${PickVideo} flow=${flow} class=${atAnalyse ? 'button-wide' : 'button--primary button-big'}>Pick another video</${PickVideo}>` : null}
             <button type="button" class="button--raised button-wide" onClick=${() => flow.go('home')}>Back to home</button>
           <//>

@@ -7,6 +7,7 @@
 // The marks are frame indexes into the source's `frameTimes` (contract 5), never
 // times made up from the frame rate: a variable-rate video has its own spacing.
 import { problemOf } from './problem-model.mjs';
+import { SESSION_STATES, sessionReturn } from '../flow/flow.mjs';
 
 /** The filmstrip's scale: pixels to a second (the mockup's), one thumbnail a second. */
 export const PX_PER_SECOND = 48;
@@ -440,8 +441,13 @@ export function createLatest() {
 
 // ---- Analyse ----
 
-/** Where M's close (✕) goes: back to R2 when R3 opened M for a lift kept in a session (`from: 'live'`), else home. */
-export const closeTarget = from => (from === 'live' ? 'live' : 'home');
+/**
+ * Where M's close (✕) goes: back to the running session when R3 or R3b opened M for a lift kept in it (`from: 'live'`
+ * or `'delayed'`): the session's live state (flow.mjs's sessionReturn, d29b), never live by name; else home.
+ * @param {string|null|undefined} from M's `from` param
+ * @param {{active: boolean, liveState: string|null}} [session] the app's session
+ */
+export const closeTarget = (from, session) => sessionReturn(from, session);
 
 const analysing = new WeakSet();   // the flows with an Analyse under way: a second tap does nothing
 
@@ -451,14 +457,15 @@ const analysing = new WeakSet();   // the flows with an Analyse under way: a sec
  * Nothing is queued without both marks and a file; a cut that can't be stored
  * (the store's or the cutter's error) stays on M with the error's words. A re-mark
  * (A3) passes `replaces`, the old lift's id: the queue deletes that lift once the new
- * one's analysis is done (s50). `from: 'live'` (d29: the lift was kept on R3) goes back to R2, the session,
- * instead of Q1.
+ * one's analysis is done (s50). `from: 'live'` or `'delayed'` (d29, d29b: the lift was kept on R3 or R3b) goes back to
+ * the session, its live state (closeTarget), instead of Q1.
  * @param {{flow: {go: Function}, queue: {analyse: Function}, lift: string, file: Blob|null,
- *   marks: Marks, frameTimes: readonly number[], replaces?: string|null, from?: string|null}} args
+ *   marks: Marks, frameTimes: readonly number[], replaces?: string|null, from?: string|null,
+ *   session?: {active: boolean, liveState: string|null}}} args
  * @returns {Promise<{ok: true}|{ok: false, error: string|null, problem?: Object}>} error null for a tap that did nothing;
  *   `problem` (problem-model.mjs's, d23) for an error the store or the cutter raised: M draws it as a screen
  */
-export async function analyse({ flow, queue, lift, file, marks, frameTimes, replaces = null, from = null }) {
+export async function analyse({ flow, queue, lift, file, marks, frameTimes, replaces = null, from = null, session = undefined }) {
   const range = markedRange(marks, frameTimes);
   if (!range) return { ok: false, error: MARK_TEXT.bothFirst };
   if (!file) return { ok: false, error: 'There is no video to analyse.' };
@@ -467,8 +474,9 @@ export async function analyse({ flow, queue, lift, file, marks, frameTimes, repl
   try {
     const marked = { t0: range.t0, t1: range.t1 };
     const job = await (replaces ? queue.analyse(lift, file, marked, { replaces }) : queue.analyse(lift, file, marked));
-    // in a session (R3 marked a kept lift: `from: 'live'`) the recording goes on, so M goes back to R2; the queue line shows the lift
-    if (from === 'live') flow.go('live'); else flow.go('queued', { liftId: job.liftId });
+    // in a session (R3 or R3b kept the lift: `from: 'live'` or `'delayed'`) the recording goes on, so M goes back to the
+    // session's live state; R2's queue line shows the lift
+    if (SESSION_STATES.includes(from)) flow.go(closeTarget(from, session)); else flow.go('queued', { liftId: job.liftId });
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e && e.message ? e.message : 'That did not work.', problem: problemOf(e) };
