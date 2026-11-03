@@ -912,15 +912,15 @@ are two of the controller's controls, the same state.
   lift from the cut, as for any file, with this lift's id as `replaces`: the new lift replaces this one once its
   analysis is done, and a re-mark that fails or is cancelled leaves it as it was (`s50`, [The analysis](#the-analysis)).
   The label stays "Re-mark this lift" (the wording pass after checkpoint A owns it).
-- **Delete** asks first ("Delete this lift? Its video and result are removed from this phone. This can't be undone.",
+- **Delete** asks first ("Delete this lift and its video? This can’t be undone.",
   Delete / Keep it); only the confirm calls `store.deleteLift(id)` and goes home. A delete that fails keeps the lift and says why.
 
 ## A2, a cue's detail
 
 **Words (`d55`):** "No lift to show.", "No result yet.", "No such cue.", "Couldn’t show this cue." (A1 has "Couldn’t show this lift." and the card's button "Details"); the plot's line says "band: both sides". Cue texts, verdicts and reasons are `diagnostics.js`'s and unchanged.
 
-`d18`. `screens/A2.mjs` (design/mockups/CueDetail.dc.html) is `detail` in the flow, opened by A1's "Plot and
-details" with `liftId` and `cue`; Back returns to `result`. It loads the stored result, track and cut, scores the
+`d18`. `screens/A2.mjs` (design/mockups/CueDetail.dc.html) is `detail` in the flow, opened by A1's "Details"
+with `liftId` and `cue`; Back returns to `result`. It loads the stored result, track and cut, scores the
 track again with the view's own `smoothing` (`scoreLift`, so `computed` is what the verdicts were scored on),
 and draws what `detail-model.mjs`'s `detailOf` gives:
 
