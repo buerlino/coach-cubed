@@ -335,7 +335,7 @@ test('R3 plays through createPlayer, has no placeholder, and keeps to the tokens
 });
 
 test('M and R3 never stop or close the capture (no call to stop/close/end on it)', () => {
-  for (const f of ['screens/R3.mjs', 'lookback-model.mjs']) {
+  for (const f of ['screens/R3.mjs', 'lookback-model.mjs', 'screens/M.mjs', 'mark-model.mjs']) {
     const src = fs.readFileSync(path.join(APP, 'src', 'ui', f), 'utf8').replace(/\/\/.*$/gm, '');
     assert.ok(!/capture\.(stop|close)\(|session\.end\(/.test(src), f);
   }

@@ -535,19 +535,28 @@ try {
     walk.queue = (await evaluate(`globalThis.__queueLines`))[0];
     stepped('M: 1, a drag, 2, 3 Analyse → R2 with the queue line ' + JSON.stringify(walk.queue));
     // Q1 through the queue line while it shows (once the job has ended the line is gone, and the lift is on H's list)
-    walk.viaLine = await click('[data-live="queue"]');
-    if (walk.viaLine) {
-      await waitFor(`document.querySelector('[data-screen="Q1"]')`, 'Q1 from the queue line');
-      await waitFor(`[...document.querySelectorAll('[data-screen="Q1"] .button--quiet')].some(b => b.textContent.includes('Cancel'))`, "Q1's Cancel button", 10000).catch(() => {});
-      walk.cancelled = await click('[data-screen="Q1"] .button--quiet', 'Cancel');
-      if (!walk.cancelled) problems.push('Q1: the recorded lift\'s job has no Cancel button');
-      stepped("Q1: the recorded lift's job cancelled (the replay engine has no track for a recording)");
-      await evaluate(`(() => { globalThis.coachReplay.release(); globalThis.coachReplay.hold = null; })()`);   // the held job goes on, sees the cancel and stops
-      await sleep(300);
-      if (!await click('[data-screen="Q1"] button', 'Back to the session')) throw new Error('Q1: no "Back to the session"');
-      await waitFor(`document.querySelector('[data-screen="R2"][data-state="recording"]')`, 'R2 after "Back to the session"');
-      stepped('Q1 → Back to the session → R2');
-    } else stepped('R2: the recorded lift\'s job had ended before the queue line could be tapped (no track for a recording); Q1 not visited');
+    // the hold keeps the job pending, so the queue line stays up: a line that cannot be tapped is a regression
+    try {
+      walk.viaLine = await click('[data-live="queue"]');
+      if (!walk.viaLine) {
+        problems.push('R2: the queue line could not be tapped, Q1 not reached');
+        stepped('R2: the queue line could not be tapped (the job is held, so it should show); Q1 not reached');
+      } else {
+        await waitFor(`document.querySelector('[data-screen="Q1"]')`, 'Q1 from the queue line');
+        await waitFor(`[...document.querySelectorAll('[data-screen="Q1"] .button--quiet')].some(b => b.textContent.includes('Cancel'))`, "Q1's Cancel button", 10000).catch(() => {});
+        walk.cancelled = await click('[data-screen="Q1"] .button--quiet', 'Cancel');
+        if (!walk.cancelled) problems.push('Q1: the recorded lift\'s job has no Cancel button');
+        stepped("Q1: the recorded lift's job cancelled (the replay engine has no track for a recording)");
+        await evaluate(`(() => { globalThis.coachReplay.release(); globalThis.coachReplay.hold = null; })()`);   // the held job goes on, sees the cancel and stops
+        await sleep(300);
+        if (!await click('[data-screen="Q1"] button', 'Back to the session')) throw new Error('Q1: no "Back to the session"');
+        await waitFor(`document.querySelector('[data-screen="R2"][data-state="recording"]')`, 'R2 after "Back to the session"');
+        stepped('Q1 → Back to the session → R2');
+      }
+    } finally {
+      // on every path the hold is let go and cleared, so a held job never stays pending
+      await evaluate(`(() => { const r = globalThis.coachReplay; if (r) { if (r.release) r.release(); r.hold = null; } })()`).catch(() => {});
+    }
     // the way back to the session: Q1 from the queue chip is not reachable with an empty queue; H's card is (R2 -> End is the way out)
     if (!await click('[data-screen="R2"] [data-record="end"]')) throw new Error('R2: no End session button');
     await waitFor(`document.querySelector('[data-screen="H"]')`, 'H after End session');
