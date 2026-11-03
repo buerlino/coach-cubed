@@ -193,3 +193,73 @@ test('setAppQueueDefaults: the queue made after it uses the store its caller pas
     assert.equal(appQueue({ store: {} }), queue, 'the queue stays the one');
   } finally { queue.close(); }
 });
+
+// d57: the replay's two failing modes, through the real queue, job, store and pose client; what Q1 draws for the
+// job's error is problem-model.mjs's, so the kind is read from the stored job the way Q1 reads it.
+async function failedJobOf(mode) {
+  const { createReplay } = await load('app', 'page-test', 'replay.mjs');
+  const { PoseEngine } = await load('app', 'src', 'pose', 'pose-client.mjs');
+  const { createQueue } = await load('app', 'src', 'analysis', 'index.mjs');
+  const { createStore } = await load('app', 'src', 'store', 'index.mjs');
+  const { problemOf } = await load('app', 'src', 'ui', 'problem-model.mjs');
+  const { createFakeStorage } = require('./fake-opfs.js');
+  const { loadDiagnostics } = require('../loadDiagnostics');
+  const control = { mode: null };
+  const track = readTrack('lateral-raise-cable-1');
+  const replay = (await load('app', 'page-test', 'replay.mjs')).createReplay([{ id: 'example/lateral-raise-cable-1', lift: 'lateral-raise', track }], control);
+  const times = frameTimes(75, 25);
+  const clip = () => {   // a decoded clip as the frame source gives it: contract 5, no video behind it
+    const frame = i => ({ timestamp: times[i] * 1e6, duration: 4e4, displayWidth: 108, displayHeight: 192, close() {} });
+    return {
+      info: { duration: 3, fps: 25, width: 108, height: 192, rotation: 0, codec: 'avc1.64001f' }, frameTimes: Object.freeze(times.slice()),
+      async frameAt(t) { return frame(Math.max(0, times.findLastIndex(x => x <= t))); },
+      async *frames(t0, t1) { for (let i = 0; i < times.length; i++) if (times[i] >= t0 - 1e-6 && times[i] <= t1 + 1e-6) yield frame(i); },
+      async thumbnails() { return []; }, async stepper() { throw new Error('not here'); }, close() {},
+    };
+  };
+  const store = createStore({ storage: createFakeStorage().storage, now: () => new Date('2026-11-03T09:00:00.000Z'), appVersion: '0.1.0' });
+  const tick = { fn: null };
+  const queue = createQueue({
+    store, Diagnostics: loadDiagnostics(), stallMs: 30000, tickMs: 1000, now: () => Date.now(),
+    timers: { setInterval(fn) { tick.fn = fn; return 1; }, clearInterval() {} },
+    createEngine: () => PoseEngine.create({ backend: 'cpu', createWorker: () => replay.createWorker() }),
+    openFrameSource: async () => replay.source(clip()),
+  });
+  try {
+    await queue.load();
+    const lift = await store.saveLift({ lift: 'lateral-raise', video: new Blob([Uint8Array.from([1, 2, 3, 4])], { type: 'video/mp4' }), range: { t0: 0, t1: 2.9 } });
+    control.mode = mode;
+    await queue.enqueue(lift);
+    await queue.idle();
+    const job = queue.jobs().find(j => j.liftId === lift.id);
+    return { job, problem: job.state === 'failed' ? problemOf(job.error) : null, stored: await store.getLift(lift.id) };
+  } finally { queue.close(); }
+}
+
+test('d57 replay mode no-person: the job poses every frame, finds nobody, and fails with the problem kind no-person', async () => {
+  const { job, problem, stored } = await failedJobOf('no-person');
+  assert.equal(job.state, 'failed');
+  assert.equal(problem.kind, 'no-person');
+  assert.deepEqual(problem.actions, { retry: false, another: true });
+  assert.ok(!stored.track && !stored.result, 'nothing of a result is stored');
+});
+
+test('d57 replay mode unreadable: the clip is refused, and the job fails with the problem kind unreadable', async () => {
+  const { job, problem } = await failedJobOf('unreadable');
+  assert.equal(job.state, 'failed');
+  assert.equal(problem.kind, 'unreadable');
+  assert.deepEqual(problem.actions, { retry: false, another: true });
+});
+
+test('d57 replay mode null: the same job, with the track replayed, is done (the modes are the only difference)', async () => {
+  const { job } = await failedJobOf(null);
+  assert.equal(job.state, 'done');
+});
+
+test('d57 replay: an unknown mode is refused by name; boot.mjs shares the control as globalThis.coachReplay', async () => {
+  const { createReplay, REPLAY_MODES } = await load('app', 'page-test', 'replay.mjs');
+  assert.deepEqual(REPLAY_MODES, ['no-person', 'unreadable']);
+  const r = createReplay([{ id: 'x', lift: 'lateral-raise', track: readTrack('lateral-raise-cable-1') }], { mode: 'nonsense' });
+  assert.throws(() => r.source({ info: { fps: 25 }, frameTimes: frameTimes(75, 25) }), /unknown mode "nonsense"/);
+  assert.match(fs.readFileSync(path.join(APP, 'page-test', 'boot.mjs'), 'utf8'), /globalThis\.coachReplay = /);
+});
