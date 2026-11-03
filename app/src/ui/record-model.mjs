@@ -64,8 +64,16 @@ export function queueLine(jobs) {
 export const wakeText = wake => (wake === 'held' ? 'Screen stays on' : wake === 'refused' ? 'Screen may turn off' : '');
 
 /**
- * R2: the clock, the real rate, the queue, the lift and the buffer, the wake lock, the interruption and the
- * Replay button's length.
+ * c61: a capture that failed while the session's ring is held (the camera busy at a resume, the encoder failed) can try
+ * again and record on into the same ring: R2's and R3b's Try again.
+ */
+export const canRetryCapture = status => status.state === 'failed' && status.ringHeld === true;
+/** c61: the ring holds video, so a snapshot works (R2's Replay, R3b's Keep), also while the capture is failed. */
+export const holdsVideo = status => status.state !== 'failed' || status.bytes > 0;
+
+/**
+ * R2: the clock, the real rate, the queue, the lift and the buffer, the wake lock, the interruption, Try again (c61),
+ * whether Replay works and the Replay button's length.
  * @param {{status: object, jobs: Array<{state: string}>, lift: string, settings: object|null|undefined}} input
  */
 export function liveView({ status, jobs, lift, settings }) {
@@ -79,8 +87,22 @@ export function liveView({ status, jobs, lift, settings }) {
     wake: wakeText(status.wakeLock),
     interrupted: stopped ? 'Camera stopped' : null,
     canResume: stopped,
+    canRetry: canRetryCapture(status),
+    canReplay: holdsVideo(status),
     replay: `${s.replayS} s`,
   };
+}
+
+/**
+ * "Camera stopped" and Try again on R1, R2 and R3b (c61): the capture's resume(), its rejection caught. A resume that
+ * fails leaves the capture `failed` with its error, which the screen draws as the problem panel (captureProblem); a
+ * tap with no capture (the session ended meanwhile) does nothing. Never throws.
+ * @param {{capture: {resume: () => Promise<void>}|null}} session
+ */
+export async function resumeCapture(session) {
+  const cap = session && session.capture;
+  if (!cap) return;
+  try { await cap.resume(); } catch { /* the capture's status says why: the problem panel */ }
 }
 
 /** A failed capture as a problem the screens draw (problem-model.mjs); null while it works. */

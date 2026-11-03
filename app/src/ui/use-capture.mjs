@@ -4,14 +4,16 @@
 // four times a second and redraws only when what it shows has changed. Also puts a MediaStream on a <video>.
 import { useEffect, useState } from 'preact/hooks';
 
-const IDLE = Object.freeze({ state: 'closed', fps: null, width: null, height: null, sinceS: 0, wakeLock: 'off', error: null });
+const IDLE = Object.freeze({ state: 'closed', fps: null, width: null, height: null, sinceS: 0, heldS: 0, bytes: 0, wakeLock: 'off', error: null, ringHeld: false });
 
 const read = session => {
   const cap = session.capture;
   return cap ? { status: cap.status, stream: cap.stream } : { status: IDLE, stream: null };
 };
-// what the screens draw: the state, the rate and the clock to the second, the wake lock, the error, the stream
+// what the screens draw: the state, the rate and the clock to the second, the wake lock, the error, the stream, and
+// (c61) whether the ring is held and holds video (Try again, Replay, Keep)
 const same = (a, b) => a.stream === b.stream && a.status.error === b.status.error && a.status.state === b.status.state
+  && a.status.ringHeld === b.status.ringHeld && (a.status.bytes > 0) === (b.status.bytes > 0)
   && a.status.wakeLock === b.status.wakeLock && Math.round(a.status.fps) === Math.round(b.status.fps)
   && Math.floor(a.status.sinceS) === Math.floor(b.status.sinceS);
 

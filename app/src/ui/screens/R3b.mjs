@@ -7,7 +7,7 @@
 // the settings' delayS and start the view again at the new delay. End session ends the session and goes home. Leaving
 // closes the delayed frames; the recording goes on. Fixed places: nothing moves while the clock or the view changes
 // (base.css, "R3b, Delayed view"). A camera lost while recording shows "Camera stopped" with a resume, a failed capture
-// d23's problem panel, as on R2.
+// d23's problem panel, with Try again while the ring is held and Keep while it holds video (c61), as on R2.
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../html.mjs';
 import { CheckIcon, RetryIcon, StopIcon } from '../components/icons.mjs';
@@ -16,7 +16,7 @@ import { createDelayedFrames } from '../../media/delayed.mjs';
 import { browserWebCodecs } from '../../media/webcodecs.mjs';
 import { delayedView, keepLift, loadedDelay, saveDelay } from '../delayed-model.mjs';
 import { problemOf } from '../problem-model.mjs';
-import { captureProblem, goHome } from '../record-model.mjs';
+import { captureProblem, goHome, resumeCapture } from '../record-model.mjs';
 import { useCapture, useStream } from '../use-capture.mjs';
 import { DEFAULT_SETTINGS } from '../../store/settings.mjs';
 
@@ -146,11 +146,14 @@ export function R3b({ flow, store, session, makeWebCodecs = browserWebCodecs }) 
         </div>
       </header>
       <div class="delayed-mid">
-        ${failure ? html`<${Problem} problem=${failure} />` : problem ? html`
+        ${failure ? html`
+          <${Problem} problem=${failure}>
+            ${view.canRetry && failure.actions.retry ? html`<button type="button" class="button--primary button-big" data-record="retry" onClick=${() => resumeCapture(session)}>Try again</button>` : null}
+          <//>` : problem ? html`
           <${Problem} problem=${problem}>
             <button type="button" class="button--primary button-big" data-delayed="dismiss" onClick=${() => setProblem(null)}>OK</button>
           <//>` : view.canResume ? html`
-          <button type="button" class="chip-button" data-record="resume" onClick=${() => session.capture && session.capture.resume()}><${RetryIcon} /><span>${view.interrupted}</span></button>` : null}
+          <button type="button" class="chip-button" data-record="resume" onClick=${() => resumeCapture(session)}><${RetryIcon} /><span>${view.interrupted}</span></button>` : null}
       </div>
       <div class="delayed-controls">
         <div class="delayed-delays" role="group" aria-label="Delay">
@@ -158,7 +161,7 @@ export function R3b({ flow, store, session, makeWebCodecs = browserWebCodecs }) 
           ${view.delays.map(d => html`
             <button type="button" key=${d.value} class="delayed-delay" data-delay=${d.value} aria-pressed=${d.pressed} onClick=${() => pick(d.value)}>${d.label}</button>`)}
         </div>
-        <button type="button" class="delayed-keep" data-delayed="keep" disabled=${keeping || status.state === 'failed'} onClick=${keep}>
+        <button type="button" class="delayed-keep" data-delayed="keep" disabled=${keeping || !view.canKeep} onClick=${keep}>
           <${CheckIcon} />
           <span class="delayed-keep__text"><span class="delayed-keep__name">Keep this lift</span><span class="delayed-keep__sub">then mark start and end</span></span>
         </button>

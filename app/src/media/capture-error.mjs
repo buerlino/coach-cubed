@@ -10,8 +10,10 @@
  * - `camera-busy`: the camera is held by another app, or failed to start (`NotReadableError`)
  * - `no-encoder`: no `VideoEncoder` (or no `MediaStreamTrackProcessor` to feed it), or no H.264 config it supports
  * - `encoder-failed`: the encoder reported an error while recording
+ * - `stopped` (c61): `start()` found the capture closed or its camera lost when the encoder's configs were checked;
+ *   nothing was started. Not a failure: the capture's state says what happened (closed, or interrupted).
  */
-export const CAPTURE_ERROR_CODES = Object.freeze(['insecure', 'no-camera', 'camera-denied', 'camera-busy', 'no-encoder', 'encoder-failed']);
+export const CAPTURE_ERROR_CODES = Object.freeze(['insecure', 'no-camera', 'camera-denied', 'camera-busy', 'no-encoder', 'encoder-failed', 'stopped']);
 
 export class CaptureError extends Error {
   /**
