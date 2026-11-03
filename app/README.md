@@ -35,6 +35,8 @@ pipeline/devlock.sh slice apk-gradle app/tools/build-apk.sh apk   # second half:
 node app/tools/check-apk.mjs --serial 4d42e62f   # curie only, with the phone's lock: install, the shell, the check page, the engine; uninstall
 pipeline/devlock.sh slice clips app/tools/make-phone-clips.sh ~/.cache/coach/c34-clips k1   # c34's 1080p clips, outside the repo (one clip per slice)
 node app/tools/check-media-apk.mjs --serial 4d42e62f --clips ~/.cache/coach/c34-clips   # curie only: the frame source and the cut on the phone, 5 runs each
+node app/tools/check-phone.mjs walk --port 9340 --lift snatch --clip NAME [--file PATH]   # curie only (c26): the app walked over a forwarded DevTools port
+node app/tools/check-phone.mjs tracks --in RUNS.jsonl --dir DIR --shell apk   # its stored tracks as the bench's results, for compare.mjs and difftrack.mjs
 ```
 
 `serve.mjs` serves what `assemble.mjs` made: assemble again after a change.
@@ -434,7 +436,10 @@ st.close();                                           // closes every frame it h
   `st.bytes`: the one waiting and the one its last chunk makes (`s38f1`; before,
   decodeFrames' defaults let up to about 12 come out, and headless Brave held 8
   1080p frames). A hardware decoder has few output buffers, so these are the
-  frames to keep few. `frameAt`, `frames` and `thumbnails` keep decodeFrames'
+  frames to keep few. **On the Fairphone's hardware decoder (`c2.qti.avc.decoder`)
+  the bound doesn't hold:** `c26` counted 14 decoded frames open at 440 px and
+  6–11 at 1320 px, every run (`idleDecoded`; none after the source is closed); see
+  [pose-spike.md](../docs/pose-spike.md#the-app-itself-on-the-fairphone-c26-2026-11-03). `frameAt`, `frames` and `thumbnails` keep decodeFrames'
   defaults (4 frames waiting, 8 chunks fed): they run to their end, and a range
   read stays a few frames ahead of the pose model. A frame decoded on the way
   that is outside the window (from the keyframe to the window's edge) is
@@ -457,8 +462,8 @@ st.close();                                           // closes every frame it h
 
 What the default budget costs at M1–M3's size: the mockup's video is 248 × 440
 CSS px, a 1080 × 1920 portrait video's 9 : 16, so a frame is that times the
-screen's pixel ratio, squared, times 4 bytes. (The Fairphone's pixel ratio
-isn't measured here: `stepCached` on the check page records it.) On top of the
+screen's pixel ratio, squared, times 4 bytes. (The Fairphone's pixel ratio is 3
+(`c26`): its frames are 2347 × 1320, 12.4 MB each, a budget of 10.) On top of the
 bitmaps, the paused decoder ahead holds at most 2 decoded frames at the
 file's own size: a 4:2:0 frame (I420 or NV12) is 1.5 bytes a pixel, so
 3,110,400 bytes (2.97 MiB) for a 1080p video, 5.9 MiB for two (4K: 11.9 MiB
@@ -485,7 +490,10 @@ decodes each group once; stepping backwards at a pixel ratio of 3 decodes a
 group again for every 25 frames, in the background. The check page's
 `stepCached` (`debug/media.mjs`, beside `step`'s `frameAt`) measures it on the
 phone (`c26`), and `seekCached` the seeks beside `frameAtRandom`'s
-`frameAt` on the same times; headless Brave's numbers are in `s38`'s report.
+`frameAt` on the same times; headless Brave's numbers are in `s38`'s report. On
+the Fairphone (`c26`, 1080p, pixel ratio 3): a step to a held frame 0.2–0.3 ms at a
+tap every 150 ms, against 165 and 429 ms for `frameAt` on the next frame (keyframes
+every 1 s, every 2–5 s); [pose-spike.md](../docs/pose-spike.md#the-app-itself-on-the-fairphone-c26-2026-11-03).
 
 **Opening and seeking cost more than a `frameAt`.** The stepper's open and a
 seek to a frame not held decode from the keyframe like `frameAt`, and the
@@ -496,8 +504,8 @@ In headless Brave (software decode, c34's 1080p30 clips, 20 seeded seeks,
 medians): with the default budget at 782 × 440 a seek took 265 ms against
 `frameAt`'s 70 ms with a keyframe every second, and 1,016 ms against 202 ms
 with keyframes every 2–5 s; with a budget of 10 frames (1320 px high) 291 ms
-and 421 ms. A step to a held frame stays a lookup (0.1 ms); what a seek costs
-on the phone's hardware decoder is `c26`'s.
+and 421 ms. A step to a held frame stays a lookup (0.1 ms). On the Fairphone's
+hardware decoder (`c26`) a seek took 188 and 393 ms against `frameAt`'s 151 and 383 ms.
 
 ### On the phone
 
@@ -930,8 +938,10 @@ await queue.retry(id); await queue.dismiss(id);    // a failed or cancelled job 
   ends a run with no progress for 30 s while visible: the engine is
   replaced and the job restarts once, then fails with "The analysis
   stopped responding". A decoder that stalls (`decode-stalled`) is treated
-  the same. The 30 s is provisional: `c26` measures the engine's start on
-  the phone.
+  the same. The 30 s is provisional: on the Fairphone (`c26`, 40 jobs) the
+  longest wait between two progress events was 0.2–0.4 s (the first frame), or
+  0.8–1.0 s for the engine's warm-up right after an app start; c20's cold create
+  is 4.35 s. `s59` sets the values from these.
 - **The estimate before Analyse** (M1–M3): seconds per second of video
   from the last measured rate (the last job's median ms per frame at its
   frame rate, kept in `queue.json`), scaled by the marked video's frame
@@ -1586,7 +1596,7 @@ engine.close();
   `--resets` times (3) a `reset()` and frames 0 and 1 again, with the
   reset's time and the two frames' (`resets`, medians in `resetMs` and
   `afterReset`). It shows that the engine loads and answers; the phone's
-  speed is `c20`'s and `c26`'s.
+  speed is `c20`'s and `c26`'s ([pose-spike.md](../docs/pose-spike.md#the-app-itself-on-the-fairphone-c26-2026-11-03)).
 - **Tests:** `tests/app/pose-engine.test.js`, against a fake worker and a fake
   engine.
 
@@ -1642,7 +1652,8 @@ calls, and exits 1 if one is beyond float rounding (1e-6 on the raw output,
 tolerance to widen. Exit 2: something it needs is missing.
 
 Not covered: real clips (headless Brave runs WebGL in software), the WebGL
-and WebGPU backends, and speed. They wait for the Fairphone (`c26`).
+and WebGPU backends, and speed. On the Fairphone (`c26`): the app's keypoints in
+Brave are npm's bundle's, bit for bit, on the four example clips; [pose-spike.md](../docs/pose-spike.md#the-app-itself-on-the-fairphone-c26-2026-11-03).
 
 ## The Android shell
 
@@ -1669,8 +1680,8 @@ database, sharedpref, external) from both `<cloud-backup>` and
 `<device-transfer>`: on Android 12 and later (the app targets SDK 36)
 `allowBackup="false"` alone stops the cloud backup but not the device-to-device
 transfer. `tests/app/android-shell.test.js` checks both files statically. What
-`c26` checks on the phone: the installed package's flags (`dumpsys package
-org.coach.placeholder`) show no `ALLOW_BACKUP`.
+`c26` checked on the phone (2026-11-03): the installed package's flags (`dumpsys package
+org.coach.placeholder`) are `[ DEBUGGABLE HAS_CODE ALLOW_CLEAR_USER_DATA ]`, no `ALLOW_BACKUP`.
 
 **Debug APKs only**, signed with Android's own debug key (`~/.android/`), until
 the name, the ID and the signing key's holder (6.2) are settled.
@@ -1715,7 +1726,8 @@ freshly installed app, 1.0 s for each later one in the same app; `reset()`
 first engine): the shaders that depend on the crop's size compile on the
 first real frames, again after every `reset()`. These `reset()` numbers are
 the old, respawning reset's (a new worker each time, `s10`); since `s35` a
-reset keeps the worker and its shaders, and `c26` measures it on the phone.
+reset keeps the worker and its shaders: on the phone (`c26`) a job after another
+reached its first pose 1–3 ms after reading, the first frame 197–232 ms later.
 
 **The service worker isn't registered in the APK** (`c20`'s choice, for
 `c19`): there the files come from the APK through Capacitor's local server,
@@ -1881,7 +1893,7 @@ worktree: no example clips, no `app/vendor/tfjs/`, no `app/models/`, no GPU.
    weights copied into the temporary folder if this one has none. Online, MoveNet on WebGL, which headless Brave runs in software (the
    app has no other backend), so a minute a clip: `pipeline/devlock.sh slice page-real node app/tools/page-test.mjs --real athlete-a-trim`.
    The cards are printed next to the adapter's on the fixture and may differ (ViTPose's track against MoveNet's pose); it fails on an
-   error, a job that does not finish (540 s) or an empty list. Real clips on the phone are `c26`'s.
+   error, a job that does not finish (540 s) or an empty list. Real clips on the phone: `c26`, [pose-spike.md](../docs/pose-spike.md#the-app-itself-on-the-fairphone-c26-2026-11-03).
 
 ## The tests
 
