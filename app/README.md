@@ -724,18 +724,46 @@ first screen draws), the frame source by `openSource` (default `openFrameSource`
   the second's middle), made in batches of six nearest the playhead by
   `src.thumbnails` for the strip's window plus three seconds each way, and closed
   beyond twelve (`dropFarThumbs`), so a long video holds a few dozen bitmaps.
-- **Set start / Set end:** the end must come `MIN_MARK_FRAMES` (3) frames after
-  the start at least, else the mark is refused, the start stays and the hint says
-  so in the mockup's words. Once both are set Set is replaced by Analyse; Redo
-  clears both.
+- **The steps are the buttons** (`d54`, checkpoint A's round 1, `design/checkpoint-a/round-1.html`, approved by nordmu
+  on 2026-11-02): 1 Start, 2 End and 3 Analyse in the bottom row, ↶ left of them. `pressStep(marks, 'start'|'end', index,
+  frameTimes)` sets that mark at the playhead's frame, or moves it there once it is set (a green step pressed again);
+  2 does nothing until the start is set. Refused, with no mark changed (`error` says why, the text line says it in
+  the work-on colour): an end fewer than `MIN_MARK_FRAMES` (3) frames after the start, a start moved to later than the
+  end minus 3 frames (both `end-before-start`, "The end has to come after the start"), a start with fewer than 3 frames
+  after it in the video (`start-too-late`, "No room for an end after this"). Moving the playhead clears the error
+  (`clearError`). `markView` gives each step its `state` (`next`, white, the one to press now; `wait`, disabled;
+  `done`, green with ✓ and the mark's clock as its label; `go`, 3 once both are set), `pressable`, and `name`, its
+  accessible name ("Set the start at the playhead", "Start at 0:03.2. Press to move it to the playhead."). The hooks:
+  `button[data-mark="start"|"end"|"analyse"|"undo"]`; `data-step` on the screen is `loading`, `start`, `end`, `ready`
+  or `problem`.
+- **Undo (↶, `UndoIcon`):** every press that changes a mark keeps the marks before it in `marks.history`; `undo(marks)`
+  brings back the last kept state, from the first mark on, so two presses after 1 and 2 clear both. A press on the
+  frame the mark is already on and a refusal keep nothing; a re-mark from A3 (`marksFromRange`) opens with nothing to
+  undo. ↶ is in the text colour, greyed out (`--disabled-opacity`) while there is nothing to undo, never hidden.
+- **The one text line,** between ‹ and › (two lines high, it never grows): M1 "Drag to just before the lift"; M2 "Drag
+  to just after it · 2.4 s" (the length to the playhead); M3 "13.0 s · analysed in about 38 s", or "13.0 s · about 38 s,
+  a first guess" before the phone has measured its own rate, or "13.0 s" before the estimate arrives; the refusals;
+  "Saving the clip…" while Analyse stores the cut (3 says "Saving…"); "Set 1 and 2 first" from `analyse()` without both
+  marks. `MARK_TEXT` holds the screen's other words: "Opening…" over the video while it opens, "No video to mark.".
+- **Nothing moves:** top to bottom, the header (60 px), the stage, the strip (100 px), the text row (`--mark-read`,
+  56 px: ‹ and › 52×48), the steps row (↶ 52×68, the three steps sharing the rest, 68 high: a numbered disc over a
+  short label; bottom padding plus the safe-area inset). Every height but the stage's is fixed, and every row is drawn
+  before the video opens, so only the stage takes what is left (at least 140 px, `--mark-stage-min`): M fits a portrait
+  phone from 640 px high with no page scroll. The video's canvas is sized by CSS to fit the stage (`object-fit:
+  contain`), never by its pixel size. `.mark` is `flex: none; height: 100dvh`: before `d54`, `.screen`'s `flex: 1` (a
+  flex-basis of 0%) overrode `.mark`'s height, so in `#app` (only a `min-height`) M took its content's height, with the
+  stage at its full 440 px; at 412×760 in headless Brave that is a page 815 px high in M1 and M2 and 909 in M3, where the
+  hints under the strip grew by 94 px. That was nordmu's scroll at checkpoint A; the canvas was not the cause (drawn
+  248×440 inside the stage). **The shift check** in the page test ([below](#the-page-test)) and the layout check's M
+  sizes ([A4 and the responsive check](#a4-and-the-responsive-check)) keep it so.
 - **The cost:** `analyseCost` is the queue's `estimate(t1 - t0, {fps})`: the last
-  measured rate, or the first-run default, which the screen says it is
-  (`estimateNote`).
+  measured rate, or the first-run default, which the text line says it is ("a first guess").
 - **Analyse:** `analyse({flow, queue, lift, file, marks, frameTimes, replaces})` calls
   `queue.analyse(lift, file, {t0, t1})` (the marked frames' own times; the cut is
   kept first, s32; a re-mark adds `{replaces}`, the old lift's id from the flow's params, `s50`) and then `flow.go('queued', {liftId})` with the new lift's id,
-  which Q1 shows when two are queued. A cut that can't be stored stays on M with
-  the error in the error's words; a second tap while one is working does nothing.
+  which Q1 shows when two are queued. A cut that can't be stored shows `d23`'s problem screen, with "Back to the
+  marks"; a second tap while one is working does nothing. M's interface stays `flow.go('mark', {file, lift, range?})`:
+  milestone B's R3 (`d29`) marks through it.
 - **The lift** is chosen once, on L1 (nordmu, checkpoint A, 2026-11-02, point 5), and M only shows it
   (`d53`): the header is the close button, then the lift's `LiftIcon`, its name and, for a provisional
   lift, the `provisional` tag; quiet, not a button. M takes the lift from the flow's params and from
@@ -954,7 +982,7 @@ window is resized across the breakpoint; CSS arranges them (a grid), and the JS 
 
 **The responsive check** (`tools/layout-check.mjs`, `npm --prefix app run check:layout`): the page test's build (`assemble.mjs
 --test`) served on a free port and opened in headless Brave over CDP, through `browser.mjs`. It walks the app (the first-run intro,
-H, S1, its credits, S1b, L1, M's three steps and its error screen, Q1 while it runs and when it is done, A1, A3, A2; R2 and R3
+H, S1, its credits, S1b, L1, M's three steps (pressed by `data-mark`) and its error screen, Q1 while it runs and when it is done, A1, A3, A2; R2 and R3
 are placeholders no flow step reaches in 0.1.0) and sets each of seven sizes at each screen: phone portrait 360×800 and 412×915,
 phone landscape 800×360, tablet 768×1024, laptop 1280×800 (the emulation's own width, since a mobile window grows with a wide
 page), and the range just above A4's breakpoint, where the video column has to give way: a landscape tablet 1024×768 and a narrow
@@ -968,6 +996,9 @@ window 980×720. A1 is walked twice, as the test clips are portrait (a narrow st
   exempt, and a control inside a `<label>` counts by the label's box);
 - A1's arrangement: from 980 px the video and the panel in one row, the sidebar beside them, the bar under them, one cue selected, its
   plot drawn; below, one column and no panel; and in the laptop window a card selects its cue and a tap on the plot moves the player;
+- M (`d54`), checked at 360×640 and 412×760 too: at 360×640, 360×800, 412×760 (about the Fairphone in Brave) and 412×915,
+  a vertical page scroll, or a control of M (`shift-check.mjs`'s list) not fully inside the window (`markFits`). Phone
+  landscape may scroll there (`d55` adds the cue), but the checks above still hold: nothing cut off, 44 px targets;
 - a console error or exception on the way.
 
 `--shots DIR` writes a PNG per screen and size (keep it out of the repo); `--break scroll|clip|small|cut` puts a fault in on purpose
@@ -1465,8 +1496,12 @@ worktree: no example clips, no `app/vendor/tfjs/`, no `app/models/`, no GPU.
 2. **The clips**, `tests/app/clips/testsrc2-lateral-raise-25fps-75f.mp4` and `testsrc2-snatch-30fps-107f.mp4`: ffmpeg `testsrc2`,
    108×192, H.264, 10–12 kB, the frame rate and frame count of their fixtures ([tests/README.md](../tests/README.md#the-test-clips-testsappclips)).
 3. **The walk.** Serve on `127.0.0.1:$COACH_PORT` (a free port without it); load; wait for the service worker's whole cache; go offline
-   (`Network.emulateNetworkConditions` and the server shut down); reload; then per lift H → the picker (H's file input is set to the clip) → L1 (a tap on `[data-lift="<id>"]`, once per lift) → M (Set start, a
-   drag of the filmstrip to the end, Set end, Analyse) → Q1 (until "Open the result") → A1. The cue cards (`.cue-card`, per `data-cue`)
+   (`Network.emulateNetworkConditions` and the server shut down); reload; then per lift H → the picker (H's file input is set to the clip) → L1 (a tap on `[data-lift="<id>"]`, once per lift) → M (1 Start, a
+   refused 2 on the same frame, a drag of the filmstrip to the end, 2 End, ↶, 2 again, 3 Analyse) → Q1 (until "Open the result") → A1.
+   **The shift check** (`d54`, `tools/shift-check.mjs`): in M the boxes of the header, the strip, ‹, the text line, ›, ↶ and
+   the three steps must be the same, to 0.5 px, after 1, after the refused 2, after 2, after ↶ and after 2 again as in M1
+   before any mark; a control that moved fails the run, naming the control and the step ("lateral-raise: M moved after 1:
+   the strip (y 596 → 556)"). The cue cards (`.cue-card`, per `data-cue`)
    must equal `cardsOf(scoreLift(fixtureTrack).view)`, computed in Node: per cue the status class, the verdict line, the value and the
    card's label (which carries the status word). On the first scored cue, the open card's rule line must hold the page's
    `Diagnostics.rule(id).noun` and a watch band, and A2's "How it's scored" must start with `rule(id).basis` (`s45`).
@@ -1474,8 +1509,8 @@ worktree: no example clips, no `app/vendor/tfjs/`, no `app/models/`, no GPU.
    scores again and is put back to 50 ms, and "Re-mark this lift" opens M in its ready state.
 4. **It fails** on a console error, an exception or unhandled rejection, a failed request or an HTTP error (page, workers and the
    service worker), a request that reaches the server after it was taken away, a job that does not finish in its time (60 s,
-   `COACH_PAGE_TEST_JOB_S`), an empty cue list, or cards that differ from the adapter's. `--break console|http|rejection|stall|hang|cards`
-   puts each fault in on purpose, to see it fail. No browser (`--browser PATH`, `COACH_BROWSER`, then Brave/Chromium/Chrome on `PATH`):
+   `COACH_PAGE_TEST_JOB_S`), an empty cue list, or cards that differ from the adapter's. `--break console|http|rejection|stall|hang|cards|shift`
+   puts each fault in on purpose, to see it fail (`shift`: M's text row grows once the start is set). No browser (`--browser PATH`, `COACH_BROWSER`, then Brave/Chromium/Chrome on `PATH`):
    one clear line and exit 1, unless `COACH_PAGE_TEST_SKIP=1` (then it says it skipped, exit 0).
 5. **`--real CLIP`** (off by default): the real engine on one example clip (`lateral-raise-cable-1` or `athlete-a-trim`), read in place
    from the `phase-0` worktree's `tests/fixtures/local/example/` (found with `git worktree list`), with that worktree's TF.js bundle and

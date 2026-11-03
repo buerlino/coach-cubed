@@ -21,7 +21,7 @@ export const SHIFT_STEPS = Object.freeze(['M1 before any mark', 'after 1', 'afte
 
 export const SHIFT_TOLERANCE_PX = 0.5;
 
-/** --break shift: the text row grows once the start is set (M2), as `.mark-hints` grew in M3 before d54. */
+/** --break shift: the text row grows once the start is set (M2), as the hints under the strip grew in M3 before d54. */
 export const SHIFT_BREAK = `[data-screen="M"][data-step="end"] .mark-read { height: 96px; }`;
 
 /**
