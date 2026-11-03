@@ -211,14 +211,14 @@ test('H: the gym card opens R1; while a session runs it reads "Back to the sessi
   assert.match(h, /flow\.go\(card\.to\)/);
 });
 
-test('S1: the replay mode, the replay\'s length, the buffer and the camera are enabled; the delay and the quality are not', async () => {
+test('S1: the replay mode, the replay\'s length, the buffer, the camera and (d29b) the delay are enabled; the quality is not', async () => {
   const { recordingView } = await load('ui', 'settings-model.mjs');
   const { DEFAULT_SETTINGS } = await load('store', 'settings.mjs');
   const v = recordingView({ ...DEFAULT_SETTINGS });
   assert.equal(v.modesDisabled, false);
   assert.deepEqual(v.rows.map(r => [r.field, r.disabled]), [['replayS', false], ['bufferS', false], ['camera', false], ['quality', true], ['defaultLift', false]]);
   const d = recordingView({ ...DEFAULT_SETTINGS, replayMode: 'delayed' });
-  assert.deepEqual(d.rows.map(r => [r.field, r.disabled]).slice(0, 1), [['delayS', true]], 'the delay waits for d29b');
+  assert.deepEqual(d.rows.map(r => [r.field, r.disabled]).slice(0, 1), [['delayS', false]], 'the delay, which R3b uses (d29b)');
   assert.equal(v.rows.find(r => r.field === 'quality').options.length, 1, 'the quality is information: its one value');
 });
 

@@ -13,6 +13,7 @@
 // invented: advice is only what the app can really do (pick another video, analyse again, delete lifts).
 import { ENGINE_FAILED, MEDIA_FAILED, NO_PERSON, STALLED, mediaCodeOf } from '../analysis/messages.mjs';
 import { STORAGE_FULL } from '../store/index.mjs';
+import { SESSION_STATES } from '../flow/flow.mjs';
 
 /** The kinds of problem the screens know. */
 export const PROBLEM_KINDS = Object.freeze(['unreadable', 'unsupported-codec', 'no-webcodecs', 'no-person', 'engine-failed', 'storage-full', 'failed',
@@ -156,7 +157,7 @@ export function problemOf(error) {
  * there), `another` where another video can help (never because of where the problem came up), `home` always.
  * @param {ReturnType<typeof problemOf>} problem
  * @param {boolean} atAnalyse the problem came up at Analyse, not when the video was opened
- * @param {string|null} [from] M's `from` param: `'live'` (a lift kept in a session, d29) offers `session`, "Back to the session",
+ * @param {string|null} [from] M's `from` param: `'live'` or `'delayed'` (a lift kept in a session on R3 or R3b, d29, d29b) offers `session`, "Back to the session",
  *   in place of `another`
  * @returns {string[]}
  */
@@ -164,7 +165,7 @@ export function waysOn(problem, atAnalyse, from = null) {
   return [
     ...(atAnalyse && problem.actions.retry ? ['retry'] : []),
     ...(atAnalyse ? ['marks'] : []),
-    ...(problem.actions.another ? [from === 'live' ? 'session' : 'another'] : []),
+    ...(problem.actions.another ? [SESSION_STATES.includes(from) ? 'session' : 'another'] : []),
     'home',
   ];
 }

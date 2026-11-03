@@ -30,7 +30,7 @@ export function H({ flow, queue, store, updates, session }) {
     const timer = setInterval(() => tick(n => n + 1), 1000);
     return () => clearInterval(timer);
   }, [running]);
-  const card = gymCard(session ? { active: running, elapsedS: session.elapsedS() } : null);
+  const card = gymCard(session ? { active: running, elapsedS: session.elapsedS(), liveState: session.liveState } : null);
 
   const sig = jobs ? signature(jobs) : null;
   useEffect(() => {

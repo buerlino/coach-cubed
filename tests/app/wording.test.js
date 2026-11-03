@@ -41,9 +41,9 @@ check('A3', () => ui('view-options-model.mjs'),
   ['joint by joint', 'like the elbow line', 'less than 30%', 'walk-in', 'Playback speed', 'assume the default', 'its video and result are removed', 'could not be kept', 'could not be changed', 'could not be opened for marking', 'could not be deleted', 'That did not work.']);
 
 check('S1', () => ui('settings-model.mjs') + ui('screens', 'S1.mjs'),
-  ['Up to 30 fps; less in dim light.', 'The delay comes later.', 'Free for the app', 'If the phone runs very low on space, the system may remove them.',
+  ['Up to 30 fps; less in dim light.', 'Free for the app', 'If the phone runs very low on space, the system may remove them.',
     'Can’t delete while lifts are being analysed.', 'coach is built with these. Their licences are in the app, readable offline.', 'Loading…', 'Couldn’t load this licence.', 'That didn’t work.'],
-  ['camera gives up to 30 fps', 'come with the camera', 'These come with the gym session, later.', 'Room left for the app', "hasn't promised", "can't be deleted. Wait", 'made with the components', 'Reading the licence text', "couldn't be read from the app's files", 'Something went wrong.']);
+  ['camera gives up to 30 fps', 'The delay comes later.', 'come with the camera', 'These come with the gym session, later.', 'Room left for the app', "hasn't promised", "can't be deleted. Wait", 'made with the components', 'Reading the licence text', "couldn't be read from the app's files", 'Something went wrong.']);
 
 test('d55 wording: aboutTime is written once and the queue line and the time left share it', async () => {
   const { aboutTime } = await load('ui/analysing-model.mjs');

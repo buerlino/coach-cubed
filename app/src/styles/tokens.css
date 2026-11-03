@@ -275,4 +275,15 @@
   --replay-live-h: 56px;
   --replay-knob: 18px;
   --replay-bar-h: 4px;
+
+  /* R3b, Delayed view (the mockup's, DelayedView; d29b): the live view in the corner and its frame, the delay's
+     figure and its width (so "behind live" does not move when it changes), Keep this lift's height and type */
+  --delayed-inset-w: 96px;
+  --delayed-inset-h: 171px;
+  --delayed-inset-border: 2px;
+  --size-delay: 40px;
+  --delayed-behind-w: 64px;
+  --delayed-keep-h: 88px;
+  --size-keep: 28px;
+  --delayed-keep-icon: 30px;
 }

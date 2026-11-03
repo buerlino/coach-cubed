@@ -1,20 +1,22 @@
 // R1, Set up the camera (design/mockups/RecordSetup.dc.html; package d28): the camera's live preview with the framing
 // guide over it, the lift (one button per lift of the registry, S1's default ringed, the chosen one pressed), the lift's
-// framing tip, the line under the preview, and Start, which starts the session and goes to R2. ‹ closes the camera and
-// goes home. The camera opens when this screen first shows, never at boot (the session does it: src/session.mjs). The
-// replay-mode choice of the mockup comes with d29b: its place (.setup-mode) is kept free. The camera's errors are d23's
-// problem panel (captureProblem). All of the logic is record-model.mjs's; the capture is the session's, injected.
+// framing tip, the replay mode (d29b: Replay button or Delayed view, saved as the settings' replayMode, in the place d28
+// kept for it), the line under the preview, and Start, which starts the session and goes to R2 or R3b by the mode. ‹
+// closes the camera and goes home. The camera opens when this screen first shows, never at boot (the session does it:
+// src/session.mjs). The camera's errors are d23's problem panel (captureProblem). All of the logic is record-model.mjs's;
+// the capture is the session's, injected.
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../html.mjs';
 import { BackIcon, InfoIcon, LiftIcon, RetryIcon } from '../components/icons.mjs';
 import { Problem } from '../components/problem.mjs';
-import { captureProblem, goHome, setupView } from '../record-model.mjs';
+import { captureProblem, goHome, saveMode, setupView, startSession } from '../record-model.mjs';
 import { useCapture, useStream } from '../use-capture.mjs';
 import { DEFAULT_SETTINGS } from '../../store/settings.mjs';
 
 export function R1({ flow, store, session }) {
   const [settings, setSettings] = useState(null);
   const [chosen, setChosen] = useState(null);
+  const [mode, setMode] = useState(null);   // the replay mode tapped here, null until one is: the settings'
   const [starting, setStarting] = useState(false);
   const [refused, setRefused] = useState(null);
   const { status, stream } = useCapture(session);
@@ -34,14 +36,18 @@ export function R1({ flow, store, session }) {
     return () => { current = false; if (!session.active) session.end(); };
   }, [store, session]);
 
-  const view = setupView({ settings, status, chosen });
+  const view = setupView({ settings: settings && mode ? { ...settings, replayMode: mode } : settings, status, chosen });
   const problem = captureProblem(status);
   const again = () => session.open(settings || { ...DEFAULT_SETTINGS });
+  const pickMode = id => {
+    setMode(id);
+    saveMode(store, id).then(() => setRefused(null), e => setRefused(e && e.message ? e.message : 'That didn’t work.'));
+  };
   const back = async () => { await session.end(); goHome(flow); };
   const start = async () => {
     if (!view.canStart || starting) return;
     setStarting(true); setRefused(null);
-    try { await session.start(view.lift); flow.go('live'); } catch (e) { setStarting(false); if (!(e && e.name === 'CaptureError')) setRefused(e && e.message ? e.message : 'That didn’t work.'); }
+    try { await startSession({ session, flow, lift: view.lift, mode: view.mode }); } catch (e) { setStarting(false); if (!(e && e.name === 'CaptureError')) setRefused(e && e.message ? e.message : 'That didn’t work.'); }
   };
 
   return html`
@@ -71,7 +77,10 @@ export function R1({ flow, store, session }) {
           <div class="setup-guide" aria-hidden="true">${view.tip ? html`<span>${view.guide}</span>` : null}</div>`}
         ${refused ? html`<p class="error" role="alert">${refused}</p>` : null}
       </div>
-      <div class="setup-mode"></div>
+      <div class="setup-mode segmented" role="group" aria-label="How the replay shows up">
+        ${view.modes.map(m => html`
+          <button type="button" key=${m.id} data-mode=${m.id} aria-pressed=${m.pressed} class=${m.pressed ? 'segmented__on' : ''} onClick=${() => pickMode(m.id)}>${m.label}</button>`)}
+      </div>
       <div class="setup-bar">
         <span class="setup-line">${view.line}</span>
         <button type="button" class="record-disc" data-record="start" aria-label="Start session" disabled=${!view.canStart || starting} onClick=${start}><span class="record-disc__dot"></span></button>

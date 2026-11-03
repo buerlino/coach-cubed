@@ -15,9 +15,10 @@ import { S1b } from './screens/S1b.mjs';
 import { R1 } from './screens/R1.mjs';
 import { R2 } from './screens/R2.mjs';
 import { R3 } from './screens/R3.mjs';
+import { R3b } from './screens/R3b.mjs';
 import { MoreBelow } from './components/more-below.mjs';
 
-const SCREENS = { Welcome, H, L1, M, Q1, A1, A2, S1, S1b, R1, R2, R3 };
+const SCREENS = { Welcome, H, L1, M, Q1, A1, A2, S1, S1b, R1, R2, R3, R3b };
 
 // `queue`, `store`, `updates` (the service worker's state, src/updates.mjs) and `session` (the gym session,
 // src/session.mjs) are the app's (main.mjs); the screens that need them get them injected.

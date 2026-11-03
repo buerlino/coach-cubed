@@ -361,7 +361,7 @@ test('R1: a mode choice saves replayMode; R1 draws the choice in the place d28 l
   assert.equal((await store.getSettings()).replayMode, 'delayed');
   await assert.rejects(() => saveMode(store, 'sideways'));
   const r1 = read('src', 'ui', 'screens', 'R1.mjs');
-  assert.match(r1, /class="setup-mode"[^>]*role="group"|role="group"[^>]*class="setup-mode"/s, 'the choice is the kept place itself');
+  assert.match(r1, /class="setup-mode[^"]*"[^>]*role="group"/s, 'the choice is the kept place itself');
   assert.match(r1, /data-mode=/);
   assert.match(r1, /saveMode\(/);
   assert.match(r1, /startSession\(/);
@@ -374,7 +374,7 @@ test('S1: the delay row is enabled, with no "comes later" note', async () => {
   assert.ok(!NOT_YET.includes('delayS'));
   const d = recordingView({ ...DEFAULT_SETTINGS, replayMode: 'delayed' });
   assert.deepEqual(d.rows.map(r => [r.field, r.disabled]).slice(0, 1), [['delayS', false]]);
-  assert.equal(d.laterNote, null);
+  assert.ok(!('laterNote' in d), 'no note that the delay comes later');
   assert.deepEqual(d.rows[0].options.map(o => o.value), [5, 10, 15, 20]);
 });
 
