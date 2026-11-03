@@ -16,7 +16,7 @@
 //     control inside a <label> is touched through the label, so the label's box counts.
 // M (d54) is also checked at 360×640 and 412×760 (about the Fairphone in Brave), and at 360×640, 360×800, 412×760 and 412×915
 // it must not scroll vertically, with every control of M (shift-check.mjs's MARK_CONTROLS) fully inside the window. Phone
-// landscape may scroll (d55 adds the cue there), but nothing may be cut off and every touch target stays 44 px.
+// landscape may scroll (d55's cue may show there), but nothing may be cut off and every touch target stays 44 px.
 // R2 and R3 are placeholders no flow step reaches in 0.1.0 (H's gym card is disabled), so they are not walked.
 //
 // --shots DIR   writes a PNG per screen and size into DIR (outside the repo: screenshots stay out of git).
@@ -176,6 +176,8 @@ export function markFits(vw, _wideMin, vh, sizes, controls) {
   const problems = [];
   const doc = document.documentElement;
   if (doc.scrollHeight > vh + 1) problems.push(`M scrolls: the page is ${doc.scrollHeight} px high in a ${vh} px window`);
+  const cue = document.querySelector('.more-below');
+  if (cue && !cue.hidden) problems.push('M: the "more below" cue shows although M fits its window');
   for (const [name, selector] of controls) {
     const el = document.querySelector(selector);
     if (!el) { problems.push(`M: ${name} is not on the screen`); continue; }
@@ -298,7 +300,7 @@ async function main() {
     // the first run: the intro
     await waitFor(`document.querySelector('[data-screen="Welcome"]')`, 'the intro on the first run');
     await check('Welcome');
-    await click('.welcome__skip', 'Go to home');
+    await click('.welcome__skip', 'Not now');
     await waitFor(`document.querySelector('[data-screen="H"]')`, 'H');
     await check('H');
 
@@ -306,6 +308,32 @@ async function main() {
     await click('button', 'Settings and about');
     await waitFor(`document.querySelector('[data-screen="S1"][data-view="main"]')`, 'S1');
     await check('S1');
+    // d55's cue: on S1 at 360×800 (the page scrolls) it shows, with a touch-sized button inside the window; at the bottom it is gone
+    await setViewport(VIEWPORTS[0]);
+    await sleep(400);
+    const cueState = () => evaluate(`(() => {
+      const c = document.querySelector('.more-below'), b = c && c.querySelector('button[aria-label="More below"]');
+      const doc = document.documentElement;
+      const r = b ? b.getBoundingClientRect() : null;
+      return { shown: !!c && !c.hidden, scrolls: doc.scrollHeight - innerHeight - scrollY > 8, y: scrollY,
+        target: !!r && r.width >= ${TOUCH_PX} - 0.5 && r.height >= ${TOUCH_PX} - 0.5 && r.left >= 0 && r.right <= innerWidth && r.bottom <= innerHeight + 0.5 };
+    })()`);
+    await evaluate('window.scrollTo(0, 0)');
+    await sleep(300);
+    const top = await cueState();
+    walked.push('S1 cue @ 360×800');
+    if (!top.scrolls) problems.push('S1 cue @ 360×800: S1 does not scroll, so the cue cannot be checked');
+    else if (!top.shown) problems.push('S1 cue @ 360×800: the "more below" cue is not shown at the top of a page that scrolls');
+    else if (!top.target) problems.push('S1 cue @ 360×800: the cue\'s button is under 44 px or outside the window');
+    if (top.shown) {
+      await click('button', 'More below');
+      await sleep(900);
+      if (!((await cueState()).y > 0)) problems.push('S1 cue @ 360×800: the cue\'s button does not scroll the page');
+    }
+    await evaluate('window.scrollTo(0, document.documentElement.scrollHeight)');
+    await sleep(400);
+    if ((await cueState()).shown) problems.push('S1 cue @ 360×800: the cue still shows at the bottom of the page');
+    await evaluate('window.scrollTo(0, 0)');
     await click('button', 'Credits and licences');
     await waitFor(`document.querySelector('[data-screen="S1"][data-view="credits"]')`, "S1's credits");
     await evaluate(`document.querySelector('[data-screen="S1"] details')?.setAttribute('open', '')`);
@@ -389,13 +417,13 @@ async function main() {
     await check('A3');
     await click('.vo-done');
     await waitFor(`!document.querySelector('.vo-sheet')`, 'A3 closed');
-    // A2: from the card's "Plot and details" (open by default on a cue to work on, or the panel's in the wide window)
+    // A2: from the card's "Details" (open by default on a cue to work on, or the panel's in the wide window)
     await setViewport(VIEWPORTS[0]);
     await sleep(400);
     if (!await click('.cue-card__more')) {
       await evaluate(`document.querySelector('.cue-card__head').click()`);
       await sleep(200);
-      if (!await click('.cue-card__more')) throw new Error('A1 has no "Plot and details"');
+      if (!await click('.cue-card__more')) throw new Error('A1 has no "Details"');
     }
     await waitFor(`document.querySelector('[data-screen="A2"] .detail-play')`, 'A2');
     await sleep(500);

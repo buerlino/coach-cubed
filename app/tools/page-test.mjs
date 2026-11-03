@@ -206,9 +206,9 @@ try {
   // 3. online first load: the worker and its whole cache (offline mode only)
   let preReload = new Set();
   await send('Page.navigate', { url: `${origin}/${realClip ? '?real' : ''}` });
-  // d23: the first run shows the intro once; leaving it by "Go to home" keeps that it was shown, so the reloads go straight to H
+  // d23: the first run shows the intro once; leaving it by "Not now" keeps that it was shown, so the reloads go straight to H
   await waitFor(`document.querySelector('[data-screen="Welcome"]')`, 'the intro on the first run');
-  await click('.welcome__skip', 'Go to home');
+  await click('.welcome__skip', 'Not now');
   await waitFor(`document.querySelector('[data-screen="H"]')`, 'H after the intro');
   if (breakKind === 'http') await evaluate(`fetch('./no-such-file.txt').then(() => 0, () => 0)`);   // online: the server says 404
   if (!realClip) {
@@ -361,8 +361,8 @@ try {
       // with the sentence on what the verdict reads, both from diagnostics.js's rule(id) in the page
       const api = await evaluate(`window.Diagnostics.rule(${JSON.stringify(scoredCue.id)})`);
       const a1Rule = await evaluate(`document.querySelector(${JSON.stringify(card + ' .cue-card__rule')})?.textContent ?? null`);
-      if (!await click(`${card} .cue-card__more`)) throw new Error('A1: no "Plot and details" on a scored cue');
-      await waitFor(`document.querySelector('[data-screen="A2"]')`, 'A2 after "Plot and details"');
+      if (!await click(`${card} .cue-card__more`)) throw new Error('A1: no "Details" on a scored cue');
+      await waitFor(`document.querySelector('[data-screen="A2"]')`, 'A2 after "Details"');
       await waitFor(`document.querySelector('[data-screen="A2"] .detail-play')`, 'A2\'s button, once the cue is loaded');
       const a2Rule = await evaluate(`document.querySelector('[data-screen="A2"] .detail-rule__sentence')?.textContent ?? null`);
       one.rule = { cue: scoredCue.id, a1: a1Rule, a2: a2Rule };
