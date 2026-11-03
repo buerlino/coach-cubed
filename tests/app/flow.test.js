@@ -11,9 +11,9 @@ const { pathToFileURL } = require('node:url');
 const APP = path.resolve(__dirname, '..', '..', 'app');
 const load = () => import(pathToFileURL(path.join(APP, 'src', 'flow', 'flow.mjs')).href);
 
-test('the states: milestone A\'s six and a result\'s detail, plus setup (R1), live (R2) and replay for milestone B', async () => {
+test('the states: milestone A\'s six and a result\'s detail, plus setup (R1), live (R2), replay (R3) and delayed (R3b) for milestone B', async () => {
   const { STATES } = await load();
-  assert.deepEqual([...STATES].sort(), ['detail', 'home', 'lift', 'live', 'mark', 'queued', 'replay', 'result', 'scoring', 'settings', 'setup', 'welcome']);
+  assert.deepEqual([...STATES].sort(), ['delayed', 'detail', 'home', 'lift', 'live', 'mark', 'queued', 'replay', 'result', 'scoring', 'settings', 'setup', 'welcome']);
 });
 
 test('a flow starts at home and keeps what each step carries', async () => {
@@ -198,4 +198,56 @@ test('d53: the lift step replaces import; the legal moves round it, and home -> 
   for (const s of STATES) assert.ok(!TRANSITIONS[s].includes("import"), `${s} -> import`);
   assert.equal(createFlow().can('mark'), false);
   assert.deepEqual([...TRANSITIONS.lift].sort(), ['home', 'mark']);
+});
+
+// ---- d29b: R3b, the delayed view ----
+
+test('d29b: the state delayed is the screen R3b; setup, mark and queued lead to it, and it leads to mark, home and queued', async () => {
+  const { SCREEN_OF, TRANSITIONS, createFlow } = await load();
+  assert.equal(SCREEN_OF.delayed, 'R3b');
+  assert.ok(fs.existsSync(path.join(APP, 'src', 'ui', 'screens', 'R3b.mjs')), 'screens/R3b.mjs');
+  for (const [from, to] of [['setup', 'delayed'], ['delayed', 'mark'], ['delayed', 'home'], ['delayed', 'queued'], ['mark', 'delayed'], ['queued', 'delayed']]) {
+    assert.ok(TRANSITIONS[from].includes(to), `${from} -> ${to}`);
+    const f = createFlow(from); f.go(to); assert.equal(f.state, to);
+  }
+  assert.deepEqual([...TRANSITIONS.delayed].sort(), ['home', 'mark', 'queued']);
+  assert.ok(!TRANSITIONS.delayed.includes('replay') && !TRANSITIONS.delayed.includes('live'), 'R3b has no replay and no R2');
+  assert.ok(!TRANSITIONS.replay.includes('delayed'), 'R3 belongs to the replay mode');
+  assert.throws(() => createFlow().go('delayed'), /home.*delayed/, 'a session starts on R1');
+});
+
+test('d29b: a delayed session in milestone B: H, setup, delayed, mark, back to delayed, queued, back to delayed, home', async () => {
+  const { createFlow } = await load();
+  const flow = createFlow();
+  for (const to of ['setup', 'delayed', 'mark', 'delayed', 'queued', 'delayed', 'home']) flow.go(to);
+  assert.equal(flow.state, 'home');
+});
+
+test('d29b: H\'s "Back to the session" reaches delayed too, and only while a session runs', async () => {
+  const { createFlow } = await load();
+  let running = false;
+  const flow = createFlow('home', { sessionRunning: () => running });
+  assert.equal(flow.can('delayed'), false);
+  running = true;
+  assert.equal(flow.can('delayed'), true);
+  flow.go('delayed');
+  assert.equal(flow.state, 'delayed');
+  assert.equal(createFlow('lift', { sessionRunning: () => true }).can('delayed'), false, 'the exception is for home only');
+});
+
+test('d29b: a session\'s live state comes from its replay mode; the way back to a running session is that state, never live by name', async () => {
+  const { SESSION_STATES, liveStateOf, sessionReturn } = await load();
+  assert.deepEqual([...SESSION_STATES], ['live', 'delayed']);
+  assert.equal(liveStateOf('replay'), 'live');
+  assert.equal(liveStateOf('delayed'), 'delayed');
+  assert.equal(liveStateOf(undefined), 'live', 'no mode: the replay, the default');
+  const delayed = { active: true, liveState: 'delayed' };
+  const live = { active: true, liveState: 'live' };
+  assert.equal(sessionReturn('delayed', delayed), 'delayed');
+  assert.equal(sessionReturn('live', delayed), 'delayed', 'the session\'s state wins over where the screen was opened from');
+  assert.equal(sessionReturn('live', live), 'live');
+  assert.equal(sessionReturn('delayed', { active: false, liveState: null }), 'home', 'no session runs: home');
+  assert.equal(sessionReturn(null, delayed), 'home', 'not opened from a session: home');
+  assert.equal(sessionReturn('result', delayed), 'home');
+  assert.equal(sessionReturn('delayed'), 'delayed', 'without the session: where it was opened from');
 });

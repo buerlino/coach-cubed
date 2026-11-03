@@ -201,3 +201,33 @@ test('main.mjs makes the session once and passes it to every screen as a prop, a
   assert.match(app, /session=\$\{session\}/);
   assert.match(app, /\bR1\b/);
 });
+
+test('d29b: the session\'s live state is live or delayed, by the replay mode it started with; none when nothing runs', async () => {
+  const { createSession } = await load('src', 'session.mjs');
+  const session = createSession({ makeCapture: () => stub() });
+  assert.equal(session.liveState, null, 'nothing runs');
+  await session.open(SETTINGS);
+  await session.start('lateral-raise');
+  assert.equal(session.liveState, 'live', 'no mode given: the replay');
+  await session.end();
+  assert.equal(session.liveState, null, 'ended');
+  await session.open(SETTINGS);
+  const mode = { replayMode: 'delayed' };
+  await session.start('lateral-raise', mode);
+  assert.equal(session.liveState, 'delayed');
+  mode.replayMode = 'replay';   // a change after Start does not change the running session
+  assert.equal(session.liveState, 'delayed');
+  await session.end();
+  await session.open(SETTINGS);
+  await session.start('lateral-raise', { replayMode: 'replay' });
+  assert.equal(session.liveState, 'live');
+});
+
+test('d29b: a start that is refused leaves no live state', async () => {
+  const { createSession } = await load('src', 'session.mjs');
+  const err = Object.assign(new Error('no encoder'), { name: 'CaptureError', code: 'no-encoder' });
+  const session = createSession({ makeCapture: () => stub({ startError: err }) });
+  await session.open(SETTINGS);
+  await assert.rejects(() => session.start('lateral-raise', { replayMode: 'delayed' }));
+  assert.equal(session.liveState, null);
+});
