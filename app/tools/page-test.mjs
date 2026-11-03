@@ -527,7 +527,7 @@ try {
         .observe(document.body, { childList: true, subtree: true, characterData: true });
     })()`);
     // a recording matches no fixture track, so its job would fail at once: it is held at its clip (boot.mjs) until Q1 cancels it
-    await evaluate(`globalThis.coachReplay.hold = new Promise(() => {})`);
+    await evaluate(`(() => { globalThis.coachReplay.hold = new Promise(r => { globalThis.coachReplay.release = r; }); })()`);   // (the expression's value is not the promise: evaluate would wait for it)
     if (!await click('[data-screen="M"] button[data-mark="analyse"]')) throw new Error('M (session): no 3 Analyse');
     const shows = () => evaluate("(document.querySelector('[data-screen]')?.innerText ?? '').replace(/\\s+/g, ' ').slice(0, 200)");
     await waitFor(`document.querySelector('[data-screen="R2"][data-state="recording"]')`, 'R2 again after 3 Analyse', 30000).catch(async e => { throw new Error(`${e.message}; the page shows ${await shows()}`); });
@@ -538,10 +538,11 @@ try {
     walk.viaLine = await click('[data-live="queue"]');
     if (walk.viaLine) {
       await waitFor(`document.querySelector('[data-screen="Q1"]')`, 'Q1 from the queue line');
+      await waitFor(`[...document.querySelectorAll('[data-screen="Q1"] .button--quiet')].some(b => b.textContent.includes('Cancel'))`, "Q1's Cancel button", 10000).catch(() => {});
       walk.cancelled = await click('[data-screen="Q1"] .button--quiet', 'Cancel');
       if (!walk.cancelled) problems.push('Q1: the recorded lift\'s job has no Cancel button');
       stepped("Q1: the recorded lift's job cancelled (the replay engine has no track for a recording)");
-      await evaluate(`globalThis.coachReplay.hold = null`);
+      await evaluate(`(() => { globalThis.coachReplay.release(); globalThis.coachReplay.hold = null; })()`);   // the held job goes on, sees the cancel and stops
       await sleep(300);
       if (!await click('[data-screen="Q1"] button', 'Back to the session')) throw new Error('Q1: no "Back to the session"');
       await waitFor(`document.querySelector('[data-screen="R2"][data-state="recording"]')`, 'R2 after "Back to the session"');
