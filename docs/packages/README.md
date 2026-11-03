@@ -27,7 +27,7 @@ research package goes to einstein, a phone measurement to curie.
 Kept by the coordinating session; workers never edit it ([../pipeline.md](../pipeline.md#package-files)). Phase 5's
 packages are cut from [../app-plan.md](../app-plan.md), which says what each one builds and why; `s1` and `s2` are backlog
 fixes. Runs go one at a time: almost every package edits app/README.md and tests/README.md. Phone packages (`c20`,
-`c34`, `c26`, `c30`, `c30b`, `c31`, `c33`) run by day, with nordmu told. Before each run the coordinating session checks the package against
+`c34`, `c26`, `c30`, `c30b`, `c60`, `c31`, `c33`) run by day, with nordmu told. Before each run the coordinating session checks the package against
 what merged since it was written (paths, the contracts' real names, what earlier reports asked for) and fixes its file
 in a docs commit first. After a merge the row gets the merge commit; the file goes in a later docs commit.
 
@@ -91,12 +91,14 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 54 | `d29` | R3, the replay, and marking a kept lift (back to R2 with it queued) | dirac, sonnet | `d28`, `d14`, `d54` | merged `1e180ca` (two fix rounds: a page-test `home -> home` once, guarded, cause unproven; then the queue-line tap) |
 | 55 | `d29b` | R3b, the delayed view, as a setting | dirac, opus | `d29` | merged `adbc83e` |
 | 56 | `d58` | A1 and A2 fit the window, A1's cue list fades, Welcome says it once (d54's and d55's follow-ups; nordmu, 2026-11-03) | dirac, sonnet | `d54`, `d55` | merged `1721b24` |
-| 57 | `s59` | s12's watchdog from c26's numbers: the stall time, restarts, tick and Q1's time left | schrödinger, sonnet | `c26` | id only: written from c26's report (nordmu, 2026-11-02); laptop only, can run the night after `c26` |
-| 58 | `c30` | The camera on the Fairphone: the permission, the real rate, the ring's memory | curie, opus | `d28`, `c26` | waits; phone: by day, nordmu told (after `c26`, by day); file checked against c27, d28, d29 and d29b on 2026-11-03 |
-| 59 | `c30b` | Recording and analysis together on the Fairphone: a job beside recording, the screen kept on, the app in the background | curie, opus | `c30`, `d29b` | waits; phone: by day, nordmu told; file checked against c27, d29 and d29b on 2026-11-03 |
-| 60 | `c31` | A session on the Fairphone, 30–60 minutes: heat, battery, storage, memory | curie, sonnet | `c30b` | waits; phone: by day, nordmu present; the phone films the laptop playing an example clip (nordmu, 2026-11-02) |
+| 57 | `c61` | One camera at a time, a Start that says when it didn't, a failed camera that keeps the lift (the milestone B review, 2026-11-03) | curie, opus | `d29b` | ready; laptop only (nordmu, 2026-11-03: Try again and keep the lift) |
+| 58 | `s59` | s12's watchdog from c26's numbers: the stall time, restarts, tick and Q1's time left | schrödinger, sonnet | `c26` | id only: written from c26's report (nordmu, 2026-11-02); laptop only, can run the night after `c26` |
+| 59 | `c30` | The camera on the Fairphone: the permission, the real rate, the ring's memory | curie, opus | `d28`, `c26` | waits; phone: by day, nordmu told (after `c26`, by day); file checked against c27, d28, d29 and d29b on 2026-11-03 |
+| 60 | `c30b` | Recording and analysis together on the Fairphone: a job beside recording, the screen kept on, the app in the background | curie, opus | `c30`, `d29b` | waits; phone: by day, nordmu told; file checked against c27, d29 and d29b on 2026-11-03 |
+| 61 | `c60` | Milestone A on the Samsung S8+ (`ce011711cdc8a10c05`, Android 9, Chrome updated to its last, 138, as the WebView): the PWA in Chrome and the APK (question 3) | curie, opus | `c26` | id only: written from c26's report; phone: by day, nordmu told (nordmu, 2026-11-03) |
+| 62 | `c31` | A session on the Fairphone, 30–60 minutes: heat, battery, storage, memory | curie, sonnet | `c30b` | waits; phone: by day, nordmu present; the phone films the laptop playing an example clip (nordmu, 2026-11-02) |
 | | | **Checkpoint B:** nordmu runs a real gym session | | `c31` | |
-| 61 | `c40` | The handover: the pipeline runnable for Noah | curie | checkpoint B | id only; laptop only |
+| 63 | `c40` | The handover: the pipeline runnable for Noah | curie | checkpoint B | id only; laptop only |
 
 Gates outside the queue ([../app-plan.md](../app-plan.md#gates-outside-the-sessions)): no APK goes to testers before
 `c33`, which needs the name and the package ID (question 10) and the signing key's holder.

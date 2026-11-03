@@ -30,6 +30,10 @@ restructuring window, merged packages' details) are in [decisions-archive.md](de
 
 ### What 0.1.0 is
 
+- **2026-11-03, nordmu:** the S8+ runs `c60` after `c26`, on Chrome 138
+  (its last for Android 9). A failed camera offers Try again and keeps the
+  lift (`c61`). The PWA goes online unlisted once named: own domain, Pages
+  from a public repo.
 - **2026-11-03, nordmu, on d58:** A1 in phone landscape (a window under
   520 px high) keeps scrolling the page, as M and A4 do; no landscape
   mockup.
