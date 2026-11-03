@@ -15,10 +15,21 @@
 // kill of a check's session still reaches it. While a browser is open the helper also closes it on the process's
 // SIGTERM, SIGINT and SIGHUP (then exits with the signal's code, 128 + n; `timeout` sends SIGTERM) and on `exit`
 // (synchronously, SIGKILL).
+//
+// The temp folder (c52): Chromium makes `org.chromium.Chromium.*` folders in $TMPDIR, from two causes. Its singleton
+// folder for the profile (SingletonCookie, SingletonSocket) is removed on a clean exit and left when the browser is
+// killed, which close() does. Brave's component updater's `BraveComponentUpdater_*` scratch folders (new-tab wallpapers
+// and extensions, most of the 363 MB) come from every headless launch, killed or not. On 2026-11-02 /tmp held 1,431
+// such folders, 1,269 of them made in two hours of tests. So every browser gets a $TMPDIR of its own, `<profile>/t`
+// (short: a socket path is limited to about 108 bytes), and close() and killNow() remove it; nothing outside the
+// browser's own folders is touched. Checked: the singleton folder lands in that $TMPDIR. Not reproduced here: the
+// updater folders never appeared in this session's runs, so they are only expected to follow $TMPDIR. The component
+// updater is switched off as well (`--disable-component-update`, `--disable-background-networking`): a tool's browser
+// has no business downloading Brave's wallpapers and extensions.
 // A SIGKILL to node cannot be caught: the browser is then left behind (it is cleaned up by nothing but the
 // pipeline's session kill, when there is one).
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 
 /** The fake camera for the page test and the layout check (d28): 30 fps, and the permission granted without asking. */
@@ -96,12 +107,21 @@ function unguard(b) {
 // Resolves { child, port, close() } once the browser has printed "DevTools listening"; rejects (and closes) otherwise.
 export async function launchBrowser(profile, args = [], { browser = findBrowser(), timeoutMs = 30000 } = {}) {
   if (!browser) throw new Error(`no Brave or Chromium found (looked for ${BROWSERS.join(', ')} on PATH; --browser PATH or COACH_BROWSER)`);
-  const child = spawn(browser, [`--user-data-dir=${profile}`, '--remote-debugging-port=0',
-    '--no-first-run', '--no-default-browser-check', ...args], { stdio: ['ignore', 'ignore', 'pipe'] });
+  const tmp = join(profile, 't');
+  mkdirSync(tmp, { recursive: true });
+  // best effort: rmSync can still throw once its retries run out (EACCES, ENOTEMPTY, EBUSY while a just-killed process
+  // finishes a write); a throw would stop the exit handler's loop or skip close()'s unguard. The folder then stays in the profile.
+  const removeTmp = () => { try { rmSync(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); } catch { /* best effort */ } };
+  let child;
+  try {
+    child = spawn(browser, [`--user-data-dir=${profile}`, '--remote-debugging-port=0',
+      '--no-first-run', '--no-default-browser-check', '--disable-component-update', '--disable-background-networking', ...args],
+    { stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, TMPDIR: tmp } });
+  } catch (e) { removeTmp(); throw e; }
   let closing = null;
   const b = {
     child, port: null,
-    killNow() { signal(tree(child, profile), 'SIGKILL'); },
+    killNow() { signal(tree(child, profile), 'SIGKILL'); removeTmp(); },
     close() {
       closing ??= (async () => {
         const pids = tree(child, profile);
@@ -111,6 +131,7 @@ export async function launchBrowser(profile, args = [], { browser = findBrowser(
         const left = [...new Set([...pids, ...withProfile(profile)])].filter(alive);
         signal(left, 'SIGKILL');
         for (let i = 0; i < 20 && left.some(alive); i++) await sleep(50);
+        removeTmp();
         unguard(b);
       })();
       return closing;
