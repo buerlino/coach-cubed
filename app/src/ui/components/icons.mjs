@@ -57,3 +57,11 @@ const STATUS_ICONS = {
 };
 /** @param {{icon: 'good'|'watch'|'work'|'cant'}} props result-model.mjs's `icon` */
 export const StatusIcon = ({ icon }) => STATUS_ICONS[icon]();
+
+// R1's and R2's (design/mockups/RecordSetup.dc.html and RecordLive.dc.html): the framing tip's info mark, Replay's
+// arrow, End session's square, the camera's retry arrow
+const thin = 'fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round';
+export const InfoIcon = () => html`<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="flex: none; ${thin}"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6M12 7.5h.01"></path></svg>`;
+export const ReplayIcon = () => html`<svg viewBox="0 0 24 24" width="34" height="34" aria-hidden="true" style="flex: none; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><path d="M4 12a8 8 0 1 0 2.6-5.9"></path><path d="M4 4v4.5h4.5"></path></svg>`;
+export const StopIcon = () => html`<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="flex: none; fill: var(--record)"><rect x="5" y="5" width="14" height="14" rx="2.5"></rect></svg>`;
+export const RetryIcon = () => html`<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="flex: none; ${thin}"><path d="M4.5 10a7.5 7.5 0 0 1 13.4-3.6L20 8.5M19.5 14a7.5 7.5 0 0 1-13.4 3.6L4 15.5"></path><path d="M20 4.5v4h-4M4 19.5v-4h4"></path></svg>`;

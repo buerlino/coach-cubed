@@ -82,12 +82,11 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 /* H (docs/ui-design.md, design/mockups/Main.dc.html) */
 .card--row { flex-direction: row; align-items: center; gap: var(--space-4); font: inherit; }
 .card--primary { min-height: var(--card-min-primary); }
-.card--disabled { background: var(--surface); border-color: var(--line); color: var(--text-quiet); cursor: default; }
 .card__icon { flex: none; width: var(--thumb); height: var(--thumb); border-radius: var(--radius-l); background: var(--surface-raised); display: flex; align-items: center; justify-content: center; }
 .card--primary .card__icon { background: var(--on-accent); color: var(--accent); }
-.card--disabled .card__icon { background: var(--surface-raised); color: var(--text-quiet); }
 .card__text { display: flex; flex-direction: column; gap: var(--space-1); }
 .card__title--big { font-size: var(--size-title); }
+.card__clock { font-family: var(--font-display); font-size: var(--size-heading); font-weight: var(--weight-bold); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-wordmark); }
 .tag { align-self: flex-start; font-size: var(--size-small); font-weight: var(--weight-semibold); color: var(--text-soft); border: 1px solid var(--line); border-radius: var(--radius-s); padding: 0 var(--space-2); }
 
 .section { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-6) var(--space-4) 0; }
@@ -258,6 +257,68 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .mark-tile--done .mark-tile__disc { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .mark-tile--go, .mark-tile--go:hover, .mark-tile--go:disabled { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .mark-tile--go .mark-tile__disc { border-color: var(--on-accent); }
+
+/* R1, Set up the camera (docs/ui-design.md, design/mockups/RecordSetup.dc.html; d28). The camera fills the window; the
+   rows over it have fixed places: ‹, the lifts, the tip (its least height three lines), the guide (which takes what is
+   left), the place kept for the replay-mode choice (d29b) and the bar with the line and the record disc. Nothing moves
+   when a lift is tapped or the tip changes. `flex: none` as M's (.mark): .screen's `flex: 1` is a basis of 0%. The window's
+   height is a least height: a phone in landscape scrolls (nothing is cut off) where the rows do not fit. */
+.setup, .live { flex: none; min-height: 100dvh; position: relative; display: flex; flex-direction: column; background: var(--stage-ground); }
+.camera-stage { position: absolute; inset: 0; background: var(--stage-ground); }
+.camera-stage video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.setup > :not(.camera-stage), .live > :not(.camera-stage) { position: relative; }
+.setup-top { flex: none; display: flex; align-items: center; padding: var(--space-3) var(--space-3) var(--space-1); background: linear-gradient(var(--scrim), transparent); }
+.chip-button { display: flex; align-items: center; justify-content: center; gap: var(--space-2); min-width: var(--touch); min-height: var(--touch); padding: 0 var(--space-3h); border: 0; border-radius: calc(var(--touch) / 2); background: var(--scrim); color: var(--text); font-size: var(--size-label); font-weight: var(--weight-semibold); }
+.chip-button:hover { border: 0; background: var(--surface-raised); }
+.setup-lifts { flex: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(var(--setup-lift-min), 1fr)); gap: var(--space-2); padding: var(--space-2) var(--space-3); }
+.setup-lift { min-height: var(--setup-lift-h); display: flex; align-items: center; justify-content: center; gap: var(--space-1h); padding: 0 var(--space-2); border: var(--lift-ring) solid var(--line); border-radius: var(--radius-l); background: var(--scrim); color: var(--text-soft); font-size: var(--size-row); font-weight: var(--weight-semibold); }
+.setup-lift__figure svg { width: var(--lift-figure-small); height: var(--lift-figure-small); display: block; }
+.setup-lift__text { display: flex; flex-direction: column; align-items: flex-start; }
+.setup-lift__text .tag { padding: 0 var(--space-1h); font-size: var(--size-mark); line-height: 1.3; }
+.setup-lift--default { border-color: var(--accent); }
+.setup-lift[aria-pressed="true"], .setup-lift[aria-pressed="true"]:hover { background: var(--text); border-color: var(--text); color: var(--on-accent); }
+.setup-lift--default[aria-pressed="true"], .setup-lift--default[aria-pressed="true"]:hover { border-color: var(--accent); }
+.setup-tip { flex: none; min-height: var(--setup-tip-h); margin: 0 var(--space-3); padding: var(--space-2h) var(--space-3h); display: flex; gap: var(--space-2h); align-items: flex-start; border-radius: var(--radius-m); background: var(--scrim); font-size: var(--size-label); line-height: 1.35; }
+.setup-tip svg { color: var(--accent); margin-top: var(--space-half); }
+.setup-mid { flex: 1 1 0; min-height: 0; margin: var(--space-3) var(--space-3) 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.setup-guide { flex: 1; width: 100%; max-width: 100%; display: flex; align-items: flex-end; justify-content: center; border: var(--guide-line) dashed var(--text-soft); border-radius: var(--radius-guide); }
+.setup-guide span { padding: var(--space-1) var(--space-2h) var(--space-2h); font-size: var(--size-small); font-weight: var(--weight-semibold); text-align: center; text-shadow: 0 1px 3px var(--stage-ground); }
+.setup-mid .problem { max-height: 100%; overflow: auto; background: var(--surface); }
+.setup-mode { flex: none; height: var(--setup-mode-h); }
+.setup-bar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-4h) var(--space-4) calc(var(--space-5) + env(safe-area-inset-bottom, 0px)); border-radius: var(--radius-sheet) var(--radius-sheet) 0 0; background: var(--scrim); }
+.setup-line { font-size: var(--size-small); line-height: 1.35; color: var(--text-soft); }
+.record-disc { width: var(--record-disc); height: var(--record-disc); flex: none; padding: 0; display: flex; align-items: center; justify-content: center; border: var(--record-ring) solid var(--text); border-radius: 50%; background: transparent; }
+.record-disc:hover { border-color: var(--text); }
+.record-disc__dot { width: var(--record-disc-dot); height: var(--record-disc-dot); border-radius: 50%; background: var(--record); }
+.record-disc:disabled { opacity: var(--disabled-opacity); }
+
+/* R2, Recording (design/mockups/RecordLive.dc.html; d28). The camera fills the window; the chips on top, the lift line,
+   the Replay button and the End session row have fixed places. The clock and the rate have a width of their own, the
+   queue chip and the wake-lock line are at the right edge: nothing moves when they change. It fits a portrait phone from
+   640 px high without a vertical scroll. */
+.live-top { flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); padding: var(--space-3) var(--space-3) var(--fade-top); background: linear-gradient(var(--scrim), transparent); }
+.live-row { width: 100%; min-height: var(--touch); display: flex; align-items: center; gap: var(--space-2); }
+.live-chip { height: var(--live-chip-h); display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-3); border-radius: calc(var(--live-chip-h) / 2); background: var(--scrim); color: var(--text-soft); font-size: var(--size-small); font-weight: var(--weight-semibold); white-space: nowrap; }
+.live-chip--rec { color: var(--text); font-family: var(--font-display); font-size: var(--size-heading); font-weight: var(--weight-bold); letter-spacing: var(--tracking-wordmark); }
+.live-chip__dot { width: var(--rec-dot); height: var(--rec-dot); border-radius: 50%; background: var(--record); flex: none; }
+.live-clock { min-width: var(--live-clock-w); font-variant-numeric: tabular-nums; }
+.live-fps { min-width: var(--live-fps-w); justify-content: center; font-variant-numeric: tabular-nums; }
+.live-queue { font-size: var(--size-small); }
+.live-queue__spinner { width: var(--spinner); height: var(--spinner); flex: none; box-sizing: border-box; border: 2px solid var(--accent); border-right-color: transparent; border-radius: 50%; }
+.live-mid { flex: 1 1 0; min-height: 0; margin: var(--space-3); display: flex; align-items: center; justify-content: center; }
+.live-mid .problem { max-height: 100%; overflow: auto; background: var(--surface); }
+.live-controls { flex: none; display: flex; flex-direction: column; gap: var(--space-2h); padding: var(--fade-top) var(--space-4) calc(var(--space-5) + env(safe-area-inset-bottom, 0px)); background: linear-gradient(transparent, var(--scrim) 40%); }
+.live-replay { height: var(--replay-h); width: 100%; display: flex; align-items: center; justify-content: center; gap: var(--space-3h); border: 0; border-radius: var(--radius-xl); background: var(--accent); color: var(--on-accent); }
+.live-replay:hover { background: var(--accent-hover); border: 0; }
+.live-replay:disabled { background: var(--accent); color: var(--on-accent); opacity: var(--disabled-opacity); }
+.live-replay__text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.05; }
+.live-replay__name { font-family: var(--font-display); font-size: var(--size-replay); font-weight: var(--weight-bold); letter-spacing: var(--tracking-wordmark); }
+.live-replay__length { font-size: var(--size-label); font-weight: var(--weight-semibold); }
+.live-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: var(--touch); }
+.live-end { min-height: var(--touch); display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-3); border: 0; border-radius: calc(var(--touch) / 2); background: transparent; font-size: var(--size-button); font-weight: var(--weight-semibold); }
+.live-end:hover { border: 0; background: var(--scrim); }
+.live-wake { min-width: 0; padding-right: var(--space-2); color: var(--text-quiet); font-size: var(--size-small); text-align: right; }
+
 
 /* A1, Result: the player (docs/ui-design.md, design/mockups/Result.dc.html) */
 .result { height: 100dvh; }

@@ -242,4 +242,28 @@
   --tile-min: 120px;
   --timeline-min: 240px;
   --frame-ratio: 0.5625;   /* the video's width over its height; A1 sets it for each video, this is the stand-in */
+
+  /* R1's and R2's pieces (the mockups', RecordSetup and RecordLive; d28): the lift buttons, the tip's least
+     height (three lines, so a longer tip does not move what is under it), the place kept for the replay-mode
+     choice (d29b: the segmented control's height), the record disc and its dot, the chips over the camera, the
+     clock's and the rate's widths (so the chips beside them do not move), REC's dot, the queue's spinner,
+     Replay's height, the framing guide's dash and corners */
+  --setup-lift-h: 56px;
+  --setup-lift-min: 140px;
+  --setup-tip-h: 80px;
+  --setup-mode-h: 52px;
+  --record-disc: 80px;
+  --record-disc-dot: 60px;
+  --record-ring: 4px;
+  --live-chip-h: 36px;
+  --live-clock-w: 64px;
+  --live-fps-w: 72px;
+  --rec-dot: 10px;
+  --spinner: 14px;
+  --replay-h: 96px;
+  --replay-icon: 34px;
+  --size-replay: 30px;
+  --guide-line: 2px;
+  --radius-guide: 24px;
+  --fade-top: 48px;   /* the fade under a camera screen's top chips and over its controls */
 }

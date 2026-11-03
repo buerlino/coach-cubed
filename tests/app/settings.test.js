@@ -55,13 +55,14 @@ test('a choice is saved, kept after a restart and shown again', async () => {
   assert.equal(again.rows.find(r => r.field === 'defaultLift').shown, 'Snatch');
 });
 
-test('the replay mode, lengths, camera and quality are disabled until milestone B; the default lift is not', async () => {
-  const { recordingView, MILESTONE_B } = await model();
+test('d28: the replay mode, lengths, buffer and camera are enabled; the delay (d29b) and the quality (one value) are not', async () => {
+  const { recordingView, NOT_YET } = await model();
   const { store } = await setup();
   const v = recordingView(await store.getSettings());
-  assert.equal(v.modesDisabled, true);
-  for (const r of v.rows) assert.equal(r.disabled, r.field !== 'defaultLift', r.field);
-  assert.deepEqual([...MILESTONE_B].sort(), ['bufferS', 'camera', 'delayS', 'quality', 'replayMode', 'replayS']);
+  assert.equal(v.modesDisabled, false);
+  assert.deepEqual([...NOT_YET].sort(), ['delayS', 'quality']);
+  for (const r of v.rows) assert.equal(r.disabled, NOT_YET.includes(r.field), r.field);
+  assert.equal(recordingView({ ...(await store.getSettings()), replayMode: 'delayed' }).rows[0].disabled, true, 'the delay waits for d29b');
 });
 
 test('S1 offers values only inside c8\'s ranges, and the default among them', async () => {

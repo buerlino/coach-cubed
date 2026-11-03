@@ -18,7 +18,9 @@
 // M (d54) is also checked at 360×640 and 412×760 (about the Fairphone in Brave), and at 360×640, 360×800, 412×760 and 412×915
 // it must not scroll vertically, with every control of M (shift-check.mjs's MARK_CONTROLS) fully inside the window. Phone
 // landscape may scroll (d55's cue may show there), but nothing may be cut off and every touch target stays 44 px.
-// R2 and R3 are placeholders no flow step reaches in 0.1.0 (H's gym card is disabled), so they are not walked.
+// R1 and R2 (d28) are walked from H's gym card on the browser's fake camera (browser.mjs's FAKE_CAMERA) at every size and, as M, at
+// the four portrait sizes of M_NO_SCROLL; at those R2 must not scroll vertically, with its controls fully inside the window.
+// R3 is still a placeholder that nothing in 0.1.0 reaches without d29, so it is not walked.
 //
 // --shots DIR   writes a PNG per screen and size into DIR (outside the repo: screenshots stay out of git).
 // --break KIND  a deliberate fault to see the check fail (exit 1): scroll (a 2000 px wide element), clip (text in a
@@ -31,7 +33,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assemble } from './assemble.mjs';
 import { createApp } from './serve.mjs';
-import { BROWSERS, findBrowser, launchBrowser } from './browser.mjs';
+import { BROWSERS, FAKE_CAMERA, findBrowser, launchBrowser } from './browser.mjs';
 import { WIDE_MIN_PX } from '../src/ui/wide-model.mjs';
 import { MARK_CONTROLS } from './shift-check.mjs';
 
@@ -190,6 +192,50 @@ export function markFits(vw, _wideMin, vh, sizes, controls) {
   return problems;
 }
 
+/** R1's controls at the portrait sizes: [name, selector]. */
+export const SETUP_CONTROLS = Object.freeze([
+  ['‹ back', '[data-screen="R1"] [aria-label="Back"]'],
+  ['the lifts', '[data-screen="R1"] .setup-lifts'],
+  ['the tip', '[data-screen="R1"] .setup-tip'],
+  ['the line under the preview', '[data-screen="R1"] .setup-line'],
+  ['Start', '[data-record="start"]'],
+]);
+/** R2's controls at the portrait sizes (d28): [name, selector]. */
+export const LIVE_CONTROLS = Object.freeze([
+  ['REC and the clock', '[data-screen="R2"] .live-chip--rec'],
+  ['the rate', '[data-live="fps"]'],
+  ['the lift line', '[data-live="lift"]'],
+  ['Replay', '[data-record="replay"]'],
+  ['End session', '[data-record="end"]'],
+  ['the wake-lock line', '[data-live="wake"]'],
+]);
+
+/**
+ * R1 or R2 at a portrait size of M_NO_SCROLL, page side: no vertical page scroll, no "more below" cue, and every control
+ * fully inside the window. Other sizes: nothing to say here. Stringified like pageCheck.
+ * @param {number} vw @param {number} _wideMin @param {number} vh
+ * @param {Array<{width: number, height: number}>} sizes M_NO_SCROLL
+ * @param {Array<[string, string]>} controls SETUP_CONTROLS or LIVE_CONTROLS
+ * @param {string} name 'R1' or 'R2'
+ */
+export function fitsWindow(vw, _wideMin, vh, sizes, controls, name) {
+  if (!sizes.some(s => s.width === vw && s.height === vh)) return [];
+  const problems = [];
+  const doc = document.documentElement;
+  if (doc.scrollHeight > vh + 1) problems.push(`${name} scrolls: the page is ${doc.scrollHeight} px high in a ${vh} px window`);
+  const cue = document.querySelector('.more-below');
+  if (cue && !cue.hidden) problems.push(`${name}: the "more below" cue shows although ${name} fits its window`);
+  for (const [what, selector] of controls) {
+    const el = document.querySelector(selector);
+    if (!el) { problems.push(`${name}: ${what} is not on the screen`); continue; }
+    const r = el.getBoundingClientRect();
+    if (r.top < -0.5 || r.left < -0.5 || r.bottom > vh + 0.5 || r.right > vw + 0.5) {
+      problems.push(`${name}: ${what} is not inside the window (${Math.round(r.left)},${Math.round(r.top)} to ${Math.round(r.right)},${Math.round(r.bottom)} in ${vw}×${vh})`);
+    }
+  }
+  return problems;
+}
+
 const arg = (name, dflt = null) => { const i = process.argv.indexOf(name); return i > 0 && i + 1 < process.argv.length ? process.argv[i + 1] : dflt; };
 const say = s => process.stdout.write(`${s}\n`);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -237,7 +283,7 @@ async function main() {
     server = createApp(dist);
     await new Promise(r => server.listen(Number(process.env.COACH_PORT) || 0, '127.0.0.1', r));
     const origin = `http://127.0.0.1:${server.address().port}`;
-    browser = await launchBrowser(profile, ['--headless=new', '--enable-unsafe-swiftshader', '--use-angle=swiftshader', '--window-size=390,844', 'about:blank'], { browser: browserPath });
+    browser = await launchBrowser(profile, ['--headless=new', '--enable-unsafe-swiftshader', '--use-angle=swiftshader', ...FAKE_CAMERA, '--window-size=390,844', 'about:blank'], { browser: browserPath });
     const target = await (await fetch(`http://127.0.0.1:${browser.port}/json/new?about:blank`, { method: 'PUT' })).json();
     const ws = new WebSocket(target.webSocketDebuggerUrl);
     await new Promise((res, rej) => { ws.onopen = res; ws.onerror = () => rej(new Error('DevTools socket')); });
@@ -276,7 +322,7 @@ async function main() {
     const slug = s => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
     // Check the screen now showing at every size; `label` names it in the report.
-    async function check(label, extra = null, prep = null, sizes = VIEWPORTS) {
+    async function check(label, extra = null, prep = null, sizes = VIEWPORTS, controls = MARK_CONTROLS, name = 'M') {
       for (const v of sizes) {
         await setViewport(v);
         await sleep(350);   // layout, the ResizeObserver redraws, A1's switch between the stacked and wide arrangements
@@ -285,7 +331,7 @@ async function main() {
         if (breakKind) await evaluate(BREAKS[breakKind]);
         const found = await evaluate(`(${pageCheck.toString()})(${TOUCH_PX}, ${v.width})`);
         walked.push(`${label} @ ${v.width}×${v.height}`);
-        if (extra) found.push(...await evaluate(`(${extra.toString()})(${v.width}, ${WIDE_MIN_PX}, ${v.height}, ${JSON.stringify(M_NO_SCROLL)}, ${JSON.stringify(MARK_CONTROLS)})`));
+        if (extra) found.push(...await evaluate(`(${extra.toString()})(${v.width}, ${WIDE_MIN_PX}, ${v.height}, ${JSON.stringify(M_NO_SCROLL)}, ${JSON.stringify(controls)}, ${JSON.stringify(name)})`));
         for (const p of found) problems.push(`${label} @ ${v.width}×${v.height} (${v.name}): ${p}`);
         if (shots) {
           const png = await send('Page.captureScreenshot', { format: 'png' });
@@ -476,6 +522,33 @@ async function main() {
     await click('[data-screen="L1"] [data-lift="lateral-raise"]');
     await waitFor(`document.querySelector('[data-screen="M"][data-step="problem"]')`, 'the error screen');
     await check('M (error)');
+
+    // d28: R1 and R2 from H's gym card, on the fake camera. R1 at every size; Start; R2 at every size; End session.
+    await click('[data-screen="M"] button[aria-label="Close"]');
+    await waitFor(`document.querySelector('[data-screen="H"]')`, 'H before the session');
+    await setViewport(VIEWPORTS[0]);
+    await click('[data-screen="H"] [data-card="session"]');
+    await waitFor(`document.querySelector('[data-screen="R1"][data-state="preview"] [data-record="start"]:not([disabled])')`, 'R1 with the camera in the preview', 30000);
+    await waitFor(`(() => { const v = document.querySelector('[data-screen="R1"] video'); return v && v.readyState >= 2 && v.videoWidth > 0; })()`, "R1's preview playing", 30000);
+    await check('R1', fitsWindow, null, M_SIZES, SETUP_CONTROLS, 'R1');
+    await click('[data-screen="R1"] [data-lift]');
+    await click('[data-record="start"]');
+    await waitFor(`document.querySelector('[data-screen="R2"][data-state="recording"]')`, 'R2 recording', 30000);
+    await waitFor(`/^\\d+ fps$/.test(document.querySelector('[data-live="fps"]')?.textContent ?? '')`, "R2's rate");
+    await check('R2', fitsWindow, null, M_SIZES, LIVE_CONTROLS, 'R2');
+    // nothing moves when the rate or the wake-lock line changes (the queue line has a row of its own, kept free)
+    await setViewport(VIEWPORTS[0]);
+    await sleep(300);
+    const boxes = () => evaluate(`JSON.stringify(['.live-chip--rec', '[data-live="lift"]', '.live-row:last-child', '[data-record="replay"]', '[data-record="end"]'].map(s => { const r = document.querySelector(s).getBoundingClientRect(); return [r.left, r.top, r.width, r.height].map(Math.round); }))`);
+    const boxesBefore = await boxes();
+    await evaluate(`(() => { document.querySelector('[data-live="fps"]').textContent = '29 fps'; document.querySelector('[data-live="wake"]').textContent = 'Screen may turn off'; })()`);
+    await sleep(200);
+    const boxesAfter = await boxes();
+    walked.push('R2 (rate and wake-lock lines changed) @ 360×800');
+    if (boxesBefore !== boxesAfter) problems.push(`R2 @ 360×800: a control moved when the rate and the wake-lock line changed: ${boxesBefore} -> ${boxesAfter}`);
+    if (JSON.parse(boxesBefore)[2][3] < TOUCH_PX) problems.push(`R2 @ 360×800: the queue line's row is under ${TOUCH_PX} px high (${JSON.parse(boxesBefore)[2][3]}), so the chip would move what is under it`);
+    await click('[data-screen="R2"] [data-record="end"]');
+    await waitFor(`document.querySelector('[data-screen="H"]')`, 'H after End session');
 
     if (errors.length) problems.push(`the page logged errors: ${[...new Set(errors)].slice(0, 3).join(' | ').slice(0, 400)}`);
     ws.close();
