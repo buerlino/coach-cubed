@@ -256,6 +256,17 @@ test('the first run shows once: the intro starts the app until it is dismissed, 
   assert.equal(WELCOME.importLabel, 'Import a video');
 });
 
+test('d58: Welcome says "Nothing leaves this phone." once, in its third point; it has no footer line, and H and L1 keep theirs', async () => {
+  const { WELCOME } = await load('src/ui/welcome-model.mjs');
+  const ui = (...p) => fs.readFileSync(path.join(APP, 'src', 'ui', ...p), 'utf8');
+  const screen = ui('screens', 'Welcome.mjs');
+  assert.equal(WELCOME.points[2], 'Nothing leaves this phone.', 'the third point is the pin');
+  assert.doesNotMatch(screen, /screen__footer/, 'no footer line');
+  assert.doesNotMatch(screen, /LockIcon/, 'its icon goes with it');
+  assert.equal((screen + ui('welcome-model.mjs')).split('Nothing leaves this phone.').length - 1, 1, 'said once');
+  for (const f of ['H.mjs', 'L1.mjs']) assert.match(ui('screens', f), /<p class="screen__footer">.*Nothing leaves this phone\./, `${f} keeps its footer`);
+});
+
 test('the intro goes on even when the choice cannot be saved', async () => {
   const { finishWelcome } = await load('src/ui/welcome-model.mjs');
   const gone = [];

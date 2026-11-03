@@ -3,7 +3,7 @@
 // everything stays on this phone, and the way to import. Shown once before home (welcome-model.mjs); both buttons
 // keep that it was shown and go on. The store is injected (main.mjs gives the app's).
 import { html } from '../html.mjs';
-import { ImportIcon, LockIcon } from '../components/icons.mjs';
+import { ImportIcon } from '../components/icons.mjs';
 import { PickVideo } from '../components/PickVideo.mjs';
 import { pickCheck } from '../home-model.mjs';
 import { WELCOME, finishWelcome } from '../welcome-model.mjs';
@@ -30,7 +30,6 @@ export function Welcome({ flow, store }) {
         <//>
         <button type="button" class="welcome__skip" onClick=${() => finishWelcome(store, flow, 'home')}>${WELCOME.skipLabel}</button>
       </div>
-      <p class="screen__footer"><${LockIcon} /><span>Nothing leaves this phone.</span></p>
     </main>
   `;
 }
