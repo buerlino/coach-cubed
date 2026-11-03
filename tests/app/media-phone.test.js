@@ -93,6 +93,10 @@ test('check-media-apk.mjs runs every measurement of c34 five times and puts the 
   assert.match(src, /consumerMs: 100/, 'the backpressure run: a consumer taking 100 ms a frame');
   assert.match(src, /consumerMs: 0/, 'the plain decode rate');
   assert.match(src, /keep: true/, 'keepVideo itself, into OPFS');
+  // s38f1's count of the decoder's open frames, on the phone (c26): at 440 px and at M1–M3's size
+  assert.match(src, /\[`idle-\$\{c\}`, 'idleDecoded', c, \(\) => \(\{ height: 440 \}\)\]/);
+  assert.match(src, /\[`idleM-\$\{c\}`, 'idleDecoded', c, \(\) => \(\{ height: null \}\)\]/);
+  assert.match(read('debug/media.mjs'), /if \(height == null\) height = Math\.round\(440 \* /, 'null: 440 px times the pixel ratio');
   // the phone named in every adb call, and put back after
   assert.match(src, /execFileSync\('adb', \['-s', SERIAL/);
   assert.match(src, /spawn\('adb', \['-s', SERIAL/);

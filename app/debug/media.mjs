@@ -16,7 +16,8 @@
 //   window.c34.cut(name, {t0, t1, keep})                cutVideo, the store's write (saveLift), the cut read back,
 //                                                       opened and decoded end to end, then the lift deleted
 //   window.c34.idleDecoded(name, {height, at, steps})  the decoder's frames still open while a stepper sits on a
-//                                                       frame (s38f1), opened, then after `steps` steps (c26)
+//                                                       frame (s38f1), opened, then after `steps` steps (c26);
+//                                                       height 440 px, or null for M1–M3's (440 × the pixel ratio)
 //
 // Each returns a plain object (JSON); a failure is `{error: {code, message}}`,
 // never thrown. Times are performance.now() wall times in ms. Every call also
@@ -261,7 +262,9 @@ export const c34 = {
   // opened at `at` (a fraction of the clip) at M1–M3's height (440 px unless `height`),
   // counted once the refill has settled, then again after `steps` steps forwards, and
   // after the source is closed.
+  // height null: M1–M3's own, 440 px times the pixel ratio (what the phone's screen keeps).
   idleDecoded: (name, { height = 440, at = 1 / 3, steps = 10 } = {}) => measured(async () => {
+    if (height == null) height = Math.round(440 * ((typeof devicePixelRatio === 'number' && devicePixelRatio) || 1));
     const { webcodecs, live } = countingWebCodecs(browserWebCodecs());
     const src = await openFrameSource(file(name), { webcodecs });
     let st = null;

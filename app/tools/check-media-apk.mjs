@@ -56,6 +56,9 @@ const PLAN = [
     [`stepCached-tap-${c}`, 'stepCached', c, k => ({ n: 30, seed: k, gapMs: 150 })],
     [`stepCached-back-${c}`, 'stepCached', c, k => ({ n: 30, seed: k, dir: -1, gapMs: 150 })],
     [`seekCached-${c}`, 'seekCached', c, k => ({ n: 20, seed: k })],
+    // the decoder's frames still open while the stepper sits on a frame (s38f1, c26): at 440 px and at M1–M3's size
+    [`idle-${c}`, 'idleDecoded', c, () => ({ height: 440 })],
+    [`idleM-${c}`, 'idleDecoded', c, () => ({ height: null })],
   ]),
   ['cut-k1', 'cut', 'k1', () => ({ t0: 0, t1: 60 })],
   ['keep-k1', 'cut', 'k1', () => ({ t0: 0, t1: 60, keep: true })],
