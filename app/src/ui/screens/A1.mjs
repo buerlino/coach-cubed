@@ -27,6 +27,7 @@ import { detailOf } from '../detail-model.mjs';
 import { crumbOf, cuesHeading, footOf, frameLabel, selectedOf } from '../wide-model.mjs';
 import { useWide } from '../use-wide.mjs';
 import { CuePlot } from '../components/cue-plot.mjs';
+import { ListFade } from '../components/list-fade.mjs';
 import { BackIcon, ChevronIcon, MoreIcon, PauseIcon, PlayIcon, StatusIcon, StepBackIcon, StepForwardIcon } from '../components/icons.mjs';
 
 const pixelRatio = () => (globalThis.devicePixelRatio > 0 ? globalThis.devicePixelRatio : 1);
@@ -279,6 +280,7 @@ export function A1({ flow, store, openSource = openFrameSource, diagnostics = nu
                   </div>` : null}
               </div>`)}
             ${view.notes.map(n => html`<p class="cues-window">${n}</p>`)}
+            <${ListFade} />
           </aside>
         </div>` : null}
       ${sheet && opts ? html`<${ViewOptions} options=${opts} controller=${options()} onClose=${closeSheet} />` : null}

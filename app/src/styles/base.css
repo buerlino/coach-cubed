@@ -391,7 +391,10 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .delayed-hands { min-width: 0; padding-right: var(--space-2); color: var(--text-quiet); font-size: var(--size-small); text-align: right; }
 
 /* A1, Result: the player (docs/ui-design.md, design/mockups/Result.dc.html) */
-.result { height: 100dvh; }
+.result { flex: none; height: 100dvh; }   /* d58: flex: none, as M's (.mark): .screen's flex: 1 is a basis of 0% that overrode the height, and the page scrolled instead of the list */
+/* A phone in landscape (the window under 520 px high: the video's least height, the bar and the header leave the list nothing) keeps A1 as
+   it was: as high as its content, the page scrolls and the list shows in full. The 520 px is a media query's, which cannot read a token. */
+@media (max-height: 519px) { .result { height: auto; min-height: 100dvh; } }
 .result-header__text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
 .result-header__more { margin-left: auto; }
 .result-problem { padding: var(--space-4) var(--space-5); }
@@ -442,7 +445,7 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .cues-window { margin: 0 var(--space-1); font-size: var(--size-small); line-height: 1.35; color: var(--text-soft); }
 
 /* A2, a cue's detail (docs/ui-design.md, design/mockups/CueDetail.dc.html) */
-.detail { height: 100dvh; }
+.detail { flex: none; height: 100dvh; }   /* d58: as .result */
 .detail-header .bar-header__title { flex: 1; min-width: 0; }
 .detail-badge { margin-right: var(--space-2); height: calc(var(--touch) - var(--space-3)); padding: 0 var(--space-3); border-radius: var(--radius-xl); background: var(--surface-raised); display: flex; align-items: center; gap: var(--space-1h); }
 .detail-badge svg { width: var(--space-4); height: var(--space-4); }
@@ -535,6 +538,14 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .more-below[hidden] { display: none; }
 .more-below button { pointer-events: auto; width: var(--touch); height: var(--touch); padding: 0; border: 1px solid var(--line-strong); border-radius: var(--radius-xl); background: var(--surface); color: var(--text); display: flex; align-items: center; justify-content: center; }
 @media (prefers-reduced-motion: reduce) { .more-below { transition: none; } }
+
+/* A1's cue list scrolls inside the screen (d58), so it has a fade of its own at its bottom edge, the page cue's rule on the list's
+   scroller (components/list-fade.mjs). Sticky and zero high, with the list's gap taken back: showing or hiding it never
+   changes the list's size. A fade only, no button: the finger is on the list. */
+.list-fade { position: sticky; bottom: 0; height: 0; margin-top: calc(-1 * var(--space-2)); pointer-events: none; transition: opacity 0.2s ease; }
+.list-fade[hidden] { display: none; }
+.list-fade::before { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: var(--more-fade); background: linear-gradient(transparent, var(--ground) 62%); pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .list-fade { transition: none; } }
 
 /* A4, the wide result (package d25, design/mockups/Desktop.dc.html): A1's elements, arranged side by side from
    WIDE_MIN_PX (ui/wide-model.mjs) up. Stacked, the two wrappers add no box, so the phone's layout is A1's own.

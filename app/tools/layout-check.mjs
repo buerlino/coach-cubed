@@ -469,6 +469,38 @@ async function main() {
     await waitFor(`document.querySelector('[data-screen="A1"] .result-header__more:not([disabled])')`, 'A1 ready');
     await sleep(800);
     await check('A1', [a4Arrangement, fitsWindow], null, M_SIZES, RESULT_CONTROLS, 'A1');   // d58: and A1 fits the four portrait sizes, its cue list scrolling inside
+    // d58: A1's cue list scrolls inside the screen and has its own fade: at 360×640 (the list is short there) the fade shows at the list's
+    // top, is a zero-height box that lets taps through, and is gone once the list is scrolled to its end; the page does not scroll
+    await setViewport(M_NO_SCROLL[0]);
+    await sleep(500);
+    const fadeState = () => evaluate(`(() => {
+      const list = document.querySelector('[data-screen="A1"] .cues'), f = list && list.querySelector('.list-fade');
+      if (!list || !f) return null;
+      const before = getComputedStyle(f, '::before');
+      return { shown: !f.hidden && getComputedStyle(f).display !== 'none', scrolls: list.scrollHeight - list.clientHeight - list.scrollTop > 8, top: list.scrollTop,
+        height: f.getBoundingClientRect().height, taps: getComputedStyle(f).pointerEvents === 'none' && before.pointerEvents === 'none', tall: parseFloat(before.height),
+        page: document.documentElement.scrollHeight - innerHeight, cue: !document.querySelector('.more-below').hidden };
+    })()`);
+    await evaluate(`document.querySelector('[data-screen="A1"] .cues').scrollTop = 0`);
+    await sleep(300);
+    const fadeTop = await fadeState();
+    walked.push('A1 list fade @ 360×640');
+    if (!fadeTop) problems.push('A1 list fade @ 360×640: A1 has no .list-fade in its cue list');
+    else {
+      if (!fadeTop.scrolls) problems.push('A1 list fade @ 360×640: the cue list does not scroll, so its fade cannot be checked');
+      else if (!fadeTop.shown) problems.push('A1 list fade @ 360×640: the fade is not shown at the top of a list that scrolls');
+      if (fadeTop.height !== 0 || !fadeTop.taps || !(fadeTop.tall > 40)) problems.push(`A1 list fade @ 360×640: the fade must be zero high in the flow, let taps through and be tall (${JSON.stringify(fadeTop)})`);
+      if (fadeTop.page > 1 || fadeTop.cue) problems.push('A1 list fade @ 360×640: the page scrolls or the page cue shows, though the list scrolls inside');
+      await evaluate(`(() => { const l = document.querySelector('[data-screen="A1"] .cues'); l.scrollTop = l.scrollHeight; })()`);
+      await sleep(300);
+      const fadeEnd = await fadeState();
+      if (fadeEnd.shown) problems.push('A1 list fade @ 360×640: the fade is still shown at the end of the list');
+      await evaluate(`document.querySelector('[data-screen="A1"] .cues').scrollTop = 0`);
+      await sleep(300);
+      if (!(await fadeState()).shown) problems.push('A1 list fade @ 360×640: the fade did not come back when the list was scrolled to the top');
+    }
+    await setViewport(VIEWPORTS[0]);
+    await sleep(400);
     // the same with a landscape video: the test clips are portrait, whose stage is narrow, but a 16:9 or square video asks
     // for the stage's full width, and the video column has to give way to the panel and the sidebar (1024 and 980 px)
     await check('A1 (landscape video)', a4Arrangement, LANDSCAPE_VIDEO);
@@ -635,6 +667,8 @@ async function main() {
   const screens = new Set(walked.map(w => w.split(' @ ')[0]));
   say(`layout-check: ${walked.length} checks (${screens.size} screens × ${VIEWPORTS.length} sizes; M, R1–R3b, A1 and A2 at ${M_SIZES.length}, no vertical scroll at the ${M_NO_SCROLL.length} portrait ones) in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
   say(`screens: ${[...screens].join(', ')}`);
+  const fitted = name => M_NO_SCROLL.filter(m => walked.includes(`${name} @ ${m.width}×${m.height}`)).length;
+  say(`fit (no vertical page scroll, controls inside the window) at ${M_NO_SCROLL.map(m => `${m.width}×${m.height}`).join(', ')}: M ${fitted('M (ready)')}, R1 ${fitted('R1')}, R2 ${fitted('R2')}, R3 ${fitted('R3')}, R3b ${fitted('R3b')}, A1 ${fitted('A1')}, A2 ${fitted('A2')} of ${M_NO_SCROLL.length} sizes`);
   for (const p of unique) say(`  ✗ ${p}`);
   const ok = unique.length === 0 && (breakKind ? true : screens.size >= 17);
   if (!breakKind && unique.length === 0 && !ok) say(`layout-check: too few screens walked (${screens.size})`);
