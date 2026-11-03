@@ -77,19 +77,19 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 41 | `c26` | Milestone A on the Fairphone | curie, sonnet | `d13`, `d14`, `d18`, `c19`, `c20`, `c34`, `c43` | waits; phone: by day, nordmu told (airplane mode); its numbers set s12's stall time and time left (nordmu, 2026-11-02) |
 | 42 | `d51` | Q1's "Pick another video", and smoothing capped at 300 ms | dirac, sonnet | `d22`, `d23` | merged `d37d6f6`; its two follow-ups are `d56` and `d57` |
 | 43 | `s50` | A re-marked lift replaces the old one once its analysis is done | schrödinger, opus | `d22` | merged `8d03665`; its four answers accepted as built (nordmu, 2026-11-02); FIX `s50f1` (its tests' path check matched the new lift's id; run 45's checks read an uncommitted tree, now refused) merged `4687875` |
-| 44 | `c52` | The tools' browser leaves no org.chromium.Chromium folders in /tmp | curie, sonnet | `c47`, `c48` | ready; laptop only (nordmu, 2026-11-02, on c48's report) |
-| 45 | `s49` | One lift registry, and the guide to adding a lift or a cue (Noah's handover of the lift side) | schrödinger, opus | `d25` | ready (nordmu, 2026-11-02) |
-| 46 | `d53` | Pick the video, then "Which lift?" (L1); M's lift switch goes | dirac, sonnet | `d51`, `s50`, `s49` | waits (checkpoint A round 1, approved by nordmu 2026-11-02; to run tonight); laptop only |
-| 47 | `d54` | M1–M3: the steps are the buttons, and nothing moves | dirac, opus | `d53` | waits (as `d53`); laptop only; B's `d29` comes after it |
-| 48 | `d55` | Fewer words, symbols, and a cue where a screen goes on below | dirac, sonnet | `d54` | waits (as `d53`); laptop only |
-| 49 | `d56` | Q1 offers "Pick another video" wherever another video helps (unreadable, unknown format) | dirac, sonnet | `d53`, `d55` | waits; laptop only (nordmu, 2026-11-02, on d51's report) |
-| 50 | `d57` | The layout check measures Q1's failed panels (No person found, unreadable) | dirac, sonnet | `d56` | waits; laptop only (nordmu, 2026-11-02, on d51's report) |
+| 44 | `c52` | The tools' browser leaves no org.chromium.Chromium folders in /tmp | curie, sonnet | `c47`, `c48` | NOT MERGED in run 47 (two fix rounds; branch `wp/curie-chromium-tmp` kept at `3b0c477`); laptop only (nordmu, 2026-11-02, on c48's report) |
+| 45 | `s49` | One lift registry, and the guide to adding a lift or a cue (Noah's handover of the lift side) | schrödinger, opus | `d25` | merged `b18ac7b` |
+| 46 | `d53` | Pick the video, then "Which lift?" (L1); M's lift switch goes | dirac, sonnet | `d51`, `s50`, `s49` | merged `be72e68` (one fix round) |
+| 47 | `d54` | M1–M3: the steps are the buttons, and nothing moves | dirac, opus | `d53` | merged `2aad2cf` |
+| 48 | `d55` | Fewer words, symbols, and a cue where a screen goes on below | dirac, sonnet | `d54` | merged `cf69173` (one fix round: README wording) |
+| 49 | `d56` | Q1 offers "Pick another video" wherever another video helps (unreadable, unknown format) | dirac, sonnet | `d53`, `d55` | merged `dcc644b` |
+| 50 | `d57` | The layout check measures Q1's failed panels (No person found, unreadable) | dirac, sonnet | `d56` | merged `4ccac5d` |
 | | | **Checkpoint A:** nordmu uses milestone A on the Fairphone; feedback by screen ID. Then **2.7 and 2.8** with the queue empty (D8) | | `c26` | passed for laptop rows (nordmu, 2026-11-02: feedback given on the PWA, more to come; `c26` still runs by day; 2.7 and 2.8 wait for the OKs and the clipper repo) |
 | 51 | `c33` | The tester APK: the real name and ID, release signing | curie | checkpoint A, 2.8, question 10, the key's holder | id only: written after checkpoint A |
-| 52 | `c27` | Capture and the rolling buffer: the camera's real rate, H.264 with a keyframe a second, the 60 s ring, snapshots as MP4, the wake lock; on fakes and headless Brave's fake camera | curie, opus | checkpoint A | waits; laptop only (nordmu, 2026-11-02); split point `c27b` |
-| 53 | `d28` | R1 and R2: setting up the camera, recording; the session | dirac, sonnet | `c27`, `s49`, `d53`, `d55` | waits; laptop only; R1's tips from s49's registry (nordmu, 2026-11-02) |
-| 54 | `d29` | R3, the replay, and marking a kept lift (back to R2 with it queued) | dirac, sonnet | `d28`, `d14`, `d54` | waits; laptop only; marks through d54's reworked M1–M3 |
-| 55 | `d29b` | R3b, the delayed view, as a setting | dirac, opus | `d29` | waits; laptop only |
+| 52 | `c27` | Capture and the rolling buffer: the camera's real rate, H.264 with a keyframe a second, the 60 s ring, snapshots as MP4, the wake lock; on fakes and headless Brave's fake camera | curie, opus | checkpoint A | merged `34b6ba8` (one fix round: the ring's dropped chunks; no `c27b`) |
+| 53 | `d28` | R1 and R2: setting up the camera, recording; the session | dirac, sonnet | `c27`, `s49`, `d53`, `d55` | merged `7cba248` (two fix rounds: S1's replay mode saved, then the page test's intro tap retried after a load flake) |
+| 54 | `d29` | R3, the replay, and marking a kept lift (back to R2 with it queued) | dirac, sonnet | `d28`, `d14`, `d54` | merged `1e180ca` (two fix rounds: a page-test `home -> home` once, guarded, cause unproven; then the queue-line tap) |
+| 55 | `d29b` | R3b, the delayed view, as a setting | dirac, opus | `d29` | merged `adbc83e` |
 | 56 | `c30` | The camera on the Fairphone: the permission, the real rate, the ring's memory | curie, opus | `d28`, `c26` | waits; phone: by day, nordmu told |
 | 57 | `c30b` | Recording and analysis together on the Fairphone: a job beside recording, the screen kept on, the app in the background | curie, opus | `c30`, `d29b` | waits; phone: by day, nordmu told |
 | 58 | `c31` | A session on the Fairphone, 30–60 minutes: heat, battery, storage, memory | curie, sonnet | `c30b` | waits; phone: by day, nordmu present; the phone films the laptop playing an example clip (nordmu, 2026-11-02) |

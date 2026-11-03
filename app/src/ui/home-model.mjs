@@ -1,21 +1,23 @@
 // H's logic as plain functions (package d13): what to show from the store's
-// lifts and the queue's jobs, and what the import step hands the flow. No
+// lifts and the queue's jobs, and what the pick step hands the flow. No
 // Preact and no DOM, so Node runs it as written (tests/app/home.test.js); the
-// screens (screens/H.mjs, screens/Import.mjs) only draw what these give.
-import { LIFTS } from '../contracts/common.mjs';
+// screens (screens/H.mjs, components/PickVideo.mjs) only draw what these give.
 import { isAnalysed } from '../contracts/stored-lift.mjs';
+import { isProvisionalLift, liftEntries, liftLabel } from '../contracts/lifts.mjs';
 
-/** The lifts the import step offers (v1). The snatch is provisional while step 3.6 is open. */
-export const LIFT_CHOICES = Object.freeze([
-  Object.freeze({ id: 'lateral-raise', label: 'Lateral raise', provisional: false }),
-  Object.freeze({ id: 'snatch', label: 'Snatch', provisional: true }),
-]);
+/**
+ * The lifts L1 offers, in the registry's order (contracts/lifts.mjs): each one's id, label and
+ * whether it is provisional as a whole (the snatch, while step 3.6 is open). A function, so a lift registered
+ * after this module loaded is offered too.
+ * @returns {Array<{id: string, label: string, provisional: boolean}>}
+ */
+export const liftChoices = () => liftEntries().map(({ id, label, provisional }) => ({ id, label, provisional }));
 
-/** @param {string} lift */
-export const liftLabel = lift => LIFT_CHOICES.find(c => c.id === lift)?.label ?? lift;
+/** A lift's label (the registry's); an unknown id as it is. */
+export { liftLabel };
 
 /** Whether a lift's thresholds are still provisional as a whole (the snatch, while step 3.6 is open; d23). */
-export const isProvisional = lift => LIFT_CHOICES.find(c => c.id === lift)?.provisional === true;
+export const isProvisional = isProvisionalLift;
 
 /**
  * The stages a running job passes through, and the share of the bar each one
@@ -45,14 +47,14 @@ export function percentOf(job) {
 }
 
 /**
- * The lift Import starts on: the settings' default lift, or the first choice
- * while the settings load (`null`) or when the setting names a lift the import
- * step doesn't offer.
+ * S1's default lift, which L1 rings: the settings' default lift, or the first choice
+ * while the settings load (`null`) or when the setting names a lift the registry lacks.
  * @param {{defaultLift?: string}|null|undefined} settings
  */
 export function startLift(settings) {
   const id = settings && settings.defaultLift;
-  return (LIFT_CHOICES.find(c => c.id === id) ?? LIFT_CHOICES[0]).id;
+  const choices = liftChoices();
+  return (choices.find(c => c.id === id) ?? choices[0]).id;
 }
 
 const ACTIVE = ['reading', 'pose', 'scoring'];
@@ -83,29 +85,32 @@ export function liftState(lift, jobs) {
 }
 
 /**
- * The words for a waiting lift: the mockup's "starts after the one above" when
- * one job is ahead, the plural for more, nothing more when none is.
+ * The words for a waiting lift (d55): "Waiting · next" when one job is ahead, the number
+ * for more ("Waiting · 2 ahead"), nothing more when none is.
  * @param {number} ahead
  */
-export const waitingText = ahead => (ahead === 1 ? 'Waiting · starts after the one above'
-  : ahead > 1 ? 'Waiting · starts after the ones ahead' : 'Waiting');
+export const waitingText = ahead => (ahead === 1 ? 'Waiting · next' : ahead > 1 ? `Waiting · ${ahead} ahead` : 'Waiting');
 
-// Mockup order: the worst first.
-const SUMMARY = [['work on', 'work-on'], ['watch', 'watch'], ['good', 'good'], ["can't score", 'cant-score']];
+// Mockup order: the worst first. The third is A1's StatusIcon name (components/icons.mjs).
+const SUMMARY = [['work on', 'work-on', 'work'], ['watch', 'watch', 'watch'], ['good', 'good', 'good'], ["can't score", 'cant-score', 'cant']];
 
 /**
- * A result's cues counted by status word: [{status, count, text}], worst
+ * A result's cues counted by status word: [{status, count, text, icon}], worst
  * first, a status with no cue left out. `status` is the CSS modifier of
- * base.css's `.status--…`.
+ * base.css's `.count--…`; `icon` is A1's StatusIcon name, which H's rows draw
+ * with the count (d55); `text` is the words, for screen readers.
  * @param {{cues: Array<{status: string}>}|null} result
  */
 export function summariseResult(result) {
   const cues = result && Array.isArray(result.cues) ? result.cues : [];
   return SUMMARY
-    .map(([word, status]) => ({ status, count: cues.filter(c => c.status === word).length, word }))
+    .map(([word, status, icon]) => ({ status, count: cues.filter(c => c.status === word).length, word, icon }))
     .filter(s => s.count > 0)
-    .map(({ status, count, word }) => ({ status, count, text: `${count} ${word}` }));
+    .map(({ status, count, word, icon }) => ({ status, count, text: `${count} ${word}`, icon }));
 }
+
+/** A row's counts in words, for a screen reader: "1 work on, 3 good". */
+export const summaryLabel = summary => summary.map(c => c.text).join(', ');
 
 const pad = n => String(n).padStart(2, '0');
 export const clock = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -126,13 +131,15 @@ const lifts = n => `${n} ${n === 1 ? 'lift' : 'lifts'}`;
  */
 export function rowOf(lift, jobs, { result = null } = {}) {
   const state = liftState(lift, jobs);
+  const summary = state.kind === 'ready' ? summariseResult(result) : [];
   return {
     id: lift.id,
     lift: lift.lift,
     title: liftLabel(lift.lift),
     meta: `${clock(new Date(lift.created))} · ${(lift.range.t1 - lift.range.t0).toFixed(1)} s`,
     state,
-    summary: state.kind === 'ready' ? summariseResult(result) : [],
+    summary,
+    summaryLabel: summaryLabel(summary),
     open: { to: state.kind === 'ready' ? 'result' : 'queued', params: { liftId: lift.id } },
   };
 }
@@ -156,7 +163,7 @@ export function homeView(grouped, jobs, results = {}) {
   }
   return {
     empty: grouped.today.length === 0 && grouped.earlier.length === 0,
-    today: grouped.today.length ? { count: `${lifts(grouped.today.length)} kept`, rows: grouped.today.map(row) } : null,
+    today: grouped.today.length ? { count: lifts(grouped.today.length), rows: grouped.today.map(row) } : null,
     earlier: days.map(d => ({
       day: d.day,
       heading: `${d.name} · ${lifts(d.rows.length)}`,
@@ -166,18 +173,30 @@ export function homeView(grouped, jobs, results = {}) {
   };
 }
 
+/** What the phone's picker answers when the file isn't a video. */
+export const NOT_A_VIDEO = 'That’s not a video.';
+
 /**
- * The import step: the chosen lift goes into the flow with the file, on the way
- * to marking. Nothing changes for no file, a file that is not a video (a missing
- * type is let through: some Android pickers give none), or a lift v1 doesn't have.
- * @returns {{ok: true}|{ok: false, error: string}}
+ * Whether a picked file may go on: no file (the picker cancelled) is refused without words; a file whose
+ * type is set and isn't video/* is refused with them (a missing type is let through: some Android pickers
+ * give none).
+ * @returns {{ok: true}|{ok: false, error: string|null}}
  */
-export function importStep(flow, file, lift) {
-  if (!LIFTS.includes(lift)) return { ok: false, error: 'Choose the lift first.' };
-  if (!file) return { ok: false, error: 'Pick a video from this phone.' };
-  if (file.type && !file.type.startsWith('video/')) return { ok: false, error: 'That file is not a video.' };
-  flow.go('mark', { file, lift });
+export function pickCheck(file) {
+  if (!file) return { ok: false, error: null };
+  if (file.type && !file.type.startsWith('video/')) return { ok: false, error: NOT_A_VIDEO };
   return { ok: true };
+}
+
+/**
+ * The pick step: a picked video goes into the flow as `{ file }`, on the way to L1 (the lift step). Nothing
+ * changes for a cancelled picker (no words) or a file that is not a video (`error` says so).
+ * @returns {{ok: true}|{ok: false, error: string|null}}
+ */
+export function pickStep(flow, file) {
+  const check = pickCheck(file);
+  if (check.ok) flow.go('lift', { file });
+  return check;
 }
 
 /**

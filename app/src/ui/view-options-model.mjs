@@ -15,10 +15,10 @@ export { marksFromRange };
 
 /** The four switches under "On the video", in the mockup's order. `key` is the settings.view field. */
 export const SWITCHES = Object.freeze([
-  { key: 'skeleton', label: 'Skeleton', sub: 'The pose, joint by joint' },
-  { key: 'cues', label: 'Cue drawings', sub: 'What each cue measures, like the elbow line' },
-  { key: 'unsure', label: 'Unsure joints', sub: 'Joints the model was less than 30% sure of' },
-  { key: 'loop', label: 'Loop the lift only', sub: 'Skip the walk-in and walk-out' },
+  { key: 'skeleton', label: 'Skeleton', sub: null },
+  { key: 'cues', label: 'Cue drawings', sub: 'The lines each cue measures' },
+  { key: 'unsure', label: 'Unsure joints', sub: 'Under 30 % sure' },
+  { key: 'loop', label: 'Loop the lift only', sub: 'Skips walking in and out' },
 ].map(Object.freeze));
 
 /** The speed buttons, slowest first as the mockup has them (the values are settings.view.speed's). */
@@ -32,14 +32,14 @@ export const TEXT = Object.freeze({
   title: 'View options',
   done: 'Done',
   video: 'On the video',
-  speed: 'Playback speed',
+  speed: 'Speed',
   advanced: 'Advanced',
   smoothing: 'Smoothing',
-  smoothingNote: 'Changes the scores. The thresholds assume the default, 50 ms.',
+  smoothingNote: 'Changes the scores. Thresholds assume 50 ms.',
   remark: 'Re-mark this lift',
   delete: 'Delete this lift',
   close: 'Close view options',
-  deleteAsk: "Delete this lift? Its video and result are removed from this phone. This can't be undone.",
+  deleteAsk: 'Delete this lift and its video? This can’t be undone.',
   deleteYes: 'Delete',
   deleteNo: 'Keep it',
   scoring: 'Scoring again…',
@@ -71,7 +71,7 @@ export function loopSpan(view, range) {
   return t1 > t0 ? { t0, t1 } : null;
 }
 
-const messageOf = e => (e && e.message ? e.message : 'That did not work.');
+const messageOf = e => (e && e.message ? e.message : 'That didn’t work.');
 
 /**
  * A3's controller. It owns the sheet's state, applies each option to the player and keeps it in the
@@ -108,7 +108,7 @@ export function createViewOptions(o) {
   const emit = () => { const s = { ...state }; for (const fn of [...listeners]) fn(s); };
   // The choice is kept in the store's settings. A refusal leaves the option applied and says so.
   const keep = async view_ => {
-    try { await store.saveSettings({ view: view_ }); return true; } catch (e) { state.error = `This choice could not be kept: ${messageOf(e)}`; return false; }
+    try { await store.saveSettings({ view: view_ }); return true; } catch (e) { state.error = `Couldn’t save this: ${messageOf(e)}`; return false; }
   };
 
   let latest = 0;                    // a newer smoothing change makes an older one that has not begun skip
@@ -129,7 +129,7 @@ export function createViewOptions(o) {
       if (!(await keep({ [key]: !!on }))) emit();
     },
 
-    /** Playback speed: one of the three the store has a value for. */
+    /** The speed: one of the three the store has a value for. */
     async setSpeed(v) {
       if (!SPEEDS.includes(v)) throw new Error(`no playback speed ${v}`);
       state.speed = v;
@@ -166,7 +166,7 @@ export function createViewOptions(o) {
           return scored;
         } catch (e) {
           state.sigmaMs = view.smoothing.sigmaMs;
-          state.error = `The smoothing could not be changed: ${messageOf(e)}`;
+          state.error = `Couldn’t change the smoothing: ${messageOf(e)}`;
           return null;
         } finally {
           if (token === latest) { state.scoring = false; emit(); }
@@ -186,7 +186,7 @@ export function createViewOptions(o) {
         const file = await store.readVideo(rec.id);
         flow.go('mark', { file, lift: rec.lift, range: { ...rec.range }, replaces: rec.id });
       } catch (e) {
-        state.error = `This lift could not be opened for marking: ${messageOf(e)}`;
+        state.error = `Couldn’t open this lift: ${messageOf(e)}`;
         emit();
       }
     },
@@ -200,7 +200,7 @@ export function createViewOptions(o) {
       try {
         await store.deleteLift(rec.id);
       } catch (e) {
-        state.error = `This lift could not be deleted: ${messageOf(e)}`;
+        state.error = `Couldn’t delete this lift: ${messageOf(e)}`;
         emit();
         return;
       }

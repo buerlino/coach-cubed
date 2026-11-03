@@ -82,6 +82,8 @@
 
   /* Touch targets are 44 px or more */
   --touch: 44px;
+  --icon-inline: 18px;   /* a status icon beside a count or a word on a row (d55) */
+  --more-fade: 84px;   /* the height of the fade under the "more below" cue (d55) */
 
   /* Sizes of H's pieces (the mockup's): action card, thumbnail, list row, progress bar */
   --card-min: 88px;
@@ -97,11 +99,19 @@
   --button-wide: 56px;
   --button-quiet: 48px;
 
-  /* Sizes of M's pieces (the mockup's): the video stage, the filmstrip, a thumbnail,
-     the playhead, a step's mark, the frame-step buttons. The strip's 48 px a second
-     is PX_PER_SECOND in ui/mark-model.mjs. */
-  --stage: 440px;
-  --stage-min: 200px;
+  /* L1's pieces (round 1's page): a lift's tile, its icon box and figure, the ring, the name; the small figure in M's header */
+  --lift-tile-min: 120px;
+  --lift-icon-box: 72px;
+  --lift-figure: 52px;
+  --lift-ring: 2px;
+  --size-lift: 24px;
+  --lift-figure-small: 28px;
+
+  /* Sizes of M's pieces (the mockup's, and round 1's page for the rows under the strip: design/checkpoint-a/round-1.html):
+     the stage's least height (it takes what the fixed rows leave), the filmstrip, a thumbnail, the playhead, the marks
+     on the strip; the text row (the frame steps, the text line two lines high), the steps row (↶ and the three steps,
+     a step's disc). The strip's 48 px a second is PX_PER_SECOND in ui/mark-model.mjs. */
+  --mark-stage-min: 140px;
   --strip: 100px;
   --strip-label: 40px;
   --strip-thumb-w: 47px;
@@ -112,7 +122,6 @@
   --mark-pole: 4px;
   --mark-flag-w: 20px;
   --mark-flag-h: 18px;
-  --step-mark: 24px;
   --mark-ring: 2px;
   --strip-tick-top: 14px;
   --strip-thumb-top: 26px;
@@ -122,7 +131,15 @@
   --strip-playhead-top: 22px;
   --strip-playhead-h: 78px;
   --strip-knob-top: 14px;
-  --step-button: 56px;
+  --mark-read: 56px;
+  --mark-fine-w: 52px;
+  --mark-fine-h: 48px;
+  --mark-text-line: 20px;
+  --mark-text-h: 40px;   /* two lines of --mark-text-line */
+  --mark-undo-w: 52px;
+  --mark-tile-h: 68px;
+  --mark-disc: 26px;
+  --disabled-opacity: 0.35;   /* ↶ with nothing to undo: greyed out, never hidden */
 
   /* The stage's black, the clock chip's scrim and the marked range's wash */
   --stage-ground: #000000;
@@ -225,4 +242,48 @@
   --tile-min: 120px;
   --timeline-min: 240px;
   --frame-ratio: 0.5625;   /* the video's width over its height; A1 sets it for each video, this is the stand-in */
+
+  /* R1's and R2's pieces (the mockups', RecordSetup and RecordLive; d28): the lift buttons, the tip's least
+     height (three lines, so a longer tip does not move what is under it), the place kept for the replay-mode
+     choice (d29b: the segmented control's height), the record disc and its dot, the chips over the camera, the
+     clock's and the rate's widths (so the chips beside them do not move), REC's dot, the queue's spinner,
+     Replay's height, the framing guide's dash and corners */
+  --setup-lift-h: 56px;
+  --setup-lift-min: 140px;
+  --setup-tip-h: 80px;
+  --setup-mode-h: 52px;
+  --record-disc: 80px;
+  --record-disc-dot: 60px;
+  --record-ring: 4px;
+  --live-chip-h: 36px;
+  --live-clock-w: 64px;
+  --live-fps-w: 72px;
+  --rec-dot: 10px;
+  --spinner: 14px;
+  --replay-h: 96px;
+  --replay-icon: 34px;
+  --size-replay: 30px;
+  --guide-line: 2px;
+  --radius-guide: 24px;
+  --fade-top: 48px;   /* the fade under a camera screen's top chips and over its controls */
+
+  /* R3, Replay (d29): the chips' icon, the position's width, the speed button and the two buttons' heights */
+  --replay-chip-icon: 18px;
+  --replay-pos-w: 76px;
+  --replay-speed-w: 52px;
+  --replay-keep-h: 64px;
+  --replay-live-h: 56px;
+  --replay-knob: 18px;
+  --replay-bar-h: 4px;
+
+  /* R3b, Delayed view (the mockup's, DelayedView; d29b): the live view in the corner and its frame, the delay's
+     figure and its width (so "behind live" does not move when it changes), Keep this lift's height and type */
+  --delayed-inset-w: 96px;
+  --delayed-inset-h: 171px;
+  --delayed-inset-border: 2px;
+  --size-delay: 40px;
+  --delayed-behind-w: 64px;
+  --delayed-keep-h: 88px;
+  --size-keep: 28px;
+  --delayed-keep-icon: 30px;
 }

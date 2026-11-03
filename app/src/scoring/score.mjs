@@ -134,7 +134,7 @@ function liftWindowOf(lift) {
 /**
  * Scores a track as one lift.
  * @param {import('../contracts/track.mjs').Track} track raw keypoints, as the job or a fixture has them (left unchanged)
- * @param {'lateral-raise'|'snatch'} lift
+ * @param {import('../contracts/lifts.mjs').LiftId} lift
  * @param {Object} [opts]
  * @param {Object} [opts.Diagnostics] diagnostics.js's object; default window.Diagnostics
  * @param {number} [opts.sigmaMs] the smoothing's σ in ms; 0 scores the raw track (default DEFAULT_SIGMA_MS)

@@ -64,8 +64,8 @@ test('crumbOf: the session and the lift\'s name with its time and length', async
   const { crumbOf } = await load('src', 'ui', 'wide-model.mjs');
   const created = new Date(2026, 10, 2, 14, 27, 5).toISOString();
   const lift = { lift: 'lateral-raise', created, range: { t0: 1, t1: 4.04 } };
-  assert.deepEqual(crumbOf(lift, new Date(2026, 10, 2, 20, 0)), { parent: "Today's session", current: 'Lateral raise \u00b7 14:27 \u00b7 3.0 s' });
-  assert.equal(crumbOf(lift, new Date(2026, 10, 5, 9, 0)).parent, 'Earlier sessions');
+  assert.deepEqual(crumbOf(lift, new Date(2026, 10, 2, 20, 0)), { parent: 'Today', current: 'Lateral raise \u00b7 14:27 \u00b7 3.0 s' });
+  assert.equal(crumbOf(lift, new Date(2026, 10, 5, 9, 0)).parent, 'Earlier');
 });
 
 test('selectedOf: the chosen cue, else the first to work on, else to watch, else the first; null with none', async () => {
@@ -99,6 +99,36 @@ test('layout-check: the five sizes of step 5.7, two just above the breakpoint, a
   assert.deepEqual(VIEWPORTS.map(v => `${v.width}x${v.height}`), ['360x800', '412x915', '800x360', '768x1024', '1280x800', '1024x768', `${WIDE_MIN_PX}x720`]);
   assert.match(LANDSCAPE_VIDEO, /--frame-ratio/, 'A1 is also walked with a landscape video, which asks for the stage\'s full width');
   assert.match(read('src', 'styles', 'tokens.css'), new RegExp(`--touch:\\s*${TOUCH_PX}px`));
+});
+
+test('d54 layout-check: M at 360×640, 360×800, 412×760 and 412×915 has no vertical scroll and every control inside the window', async () => {
+  const { M_NO_SCROLL, M_SIZES, VIEWPORTS, markFits } = await load('tools', 'layout-check.mjs');
+  const { MARK_CONTROLS } = await load('tools', 'shift-check.mjs');
+  assert.deepEqual(M_NO_SCROLL.map(v => `${v.width}x${v.height}`), ['360x640', '360x800', '412x760', '412x915']);
+  assert.deepEqual(M_SIZES.map(v => `${v.width}x${v.height}`), [...VIEWPORTS.map(v => `${v.width}x${v.height}`), '360x640', '412x760']);
+  const page = (scrollHeight, boxes) => {
+    globalThis.document = {
+      documentElement: { scrollHeight },
+      querySelector: sel => { const b = boxes[sel]; return b ? { getBoundingClientRect: () => b } : null; },
+    };
+  };
+  const inside = Object.fromEntries(MARK_CONTROLS.map(([, sel], i) => [sel, { left: 16, top: 60 + 60 * i, right: 344, bottom: 100 + 60 * i }]));
+  const fits = (vw, vh) => markFits(vw, 980, vh, M_NO_SCROLL, MARK_CONTROLS);
+  try {
+    page(640, inside);
+    assert.deepEqual(fits(360, 640), []);
+    page(700, inside);
+    assert.deepEqual(fits(360, 640), ['M scrolls: the page is 700 px high in a 640 px window']);
+    assert.deepEqual(fits(800, 360), [], 'phone landscape may scroll');
+    const below = { ...inside, [MARK_CONTROLS[8][1]]: { left: 250, top: 600, right: 344, bottom: 668 } };
+    page(640, below);
+    assert.deepEqual(fits(360, 640), ['M: 3 Analyse is not inside the window (250,600 to 344,668 in 360×640)']);
+    page(640, { ...inside, [MARK_CONTROLS[5][1]]: undefined });
+    assert.deepEqual(fits(360, 640), ['M: ↶ is not on the screen']);
+  } finally { delete globalThis.document; }
+  const src = read('tools', 'layout-check.mjs');
+  for (const label of ['M (set the start)', 'M (set the end)', 'M (ready)']) assert.ok(src.includes(`check('${label}', markFits, null, M_SIZES)`), label);
+  assert.doesNotMatch(src, /mark-main/);
 });
 
 test('layout-check: no browser is one clear line (exit 1), or a skip with COACH_PAGE_TEST_SKIP=1', () => {

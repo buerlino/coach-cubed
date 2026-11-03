@@ -12,7 +12,7 @@ import { BACKENDS } from './pose-messages.mjs';
  * @typedef {Object} StoredLift
  * @property {string} id the lift's id (ID_RE), also its folder's name
  * @property {string} created when it was stored: ISO 8601 in UTC, e.g. '2026-11-01T17:42:05.120Z'
- * @property {'lateral-raise'|'snatch'} lift which lift, and so which diagnostic set scores it
+ * @property {import('./lifts.mjs').LiftId} lift which lift, and so which diagnostic set scores it
  * @property {string} video the cut's path in the store: an .mp4 in the lift's folder (liftPaths)
  * @property {{t0: number, t1: number}} range the marked range in seconds, in the
  *   cut's own timeline (0 is the cut's first frame, the keyframe at or before the mark)

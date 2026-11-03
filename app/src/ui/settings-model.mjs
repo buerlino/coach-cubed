@@ -3,14 +3,13 @@
 // values it offers, and the delete-all step. No Preact, no DOM, so Node runs it
 // as written (tests/app/settings.test.js); screens/S1.mjs draws what these give.
 import { RANGES } from '../store/settings.mjs';
-import { LIFT_CHOICES } from './home-model.mjs';
+import { liftChoices } from './home-model.mjs';
 
 /**
- * The settings that need the camera, so milestone B: S1 shows them disabled
- * until then (the same as H's "Start gym session"), because the mockup shows
- * them and a user can see what is coming; their stored values are v1's defaults.
+ * The settings S1 still shows disabled (d28 enabled the rest, which R1 and R2 use, and d29b the delay, which R3b
+ * uses): the quality is information, its one value (1080p · 30 fps).
  */
-export const MILESTONE_B = Object.freeze(['replayMode', 'replayS', 'delayS', 'bufferS', 'camera', 'quality']);
+export const NOT_YET = Object.freeze(['quality']);
 
 export const MODES = Object.freeze([
   Object.freeze({ id: 'replay', label: 'Replay button' }),
@@ -56,11 +55,11 @@ const row = (field, label, value, options, disabled) => ({ field, label, value, 
 
 /**
  * The recording settings: the mode switch, then the rows the mode shows. Each row says which
- * field it sets, the values it offers and whether it is disabled (milestone B).
+ * field it sets, the values it offers and whether it is disabled (NOT_YET).
  * @param {import('../store/settings.mjs').Settings} s
  */
 export function recordingView(s) {
-  const off = f => MILESTONE_B.includes(f);
+  const off = f => NOT_YET.includes(f);
   const rows = [
     s.replayMode === 'delayed'
       ? row('delayS', 'Delay', s.delayS, lengthOptions('delayS', s.delayS), off('delayS'))
@@ -68,14 +67,13 @@ export function recordingView(s) {
     row('bufferS', 'Keep in memory', s.bufferS, lengthOptions('bufferS', s.bufferS).map(o => ({ ...o, label: `last ${o.label}` })), off('bufferS')),
     row('camera', 'Camera', s.camera, CAMERAS, off('camera')),
     row('quality', 'Quality', s.quality, [...new Set([s.quality, ...QUALITIES])].map(q => ({ value: q, label: qualityLabel(q) })), off('quality')),
-    row('defaultLift', 'Default lift', s.defaultLift, LIFT_CHOICES.map(c => ({ value: c.id, label: c.label })), off('defaultLift')),
+    row('defaultLift', 'Default lift', s.defaultLift, liftChoices().map(c => ({ value: c.id, label: c.label })), off('defaultLift')),
   ];
   return {
     modes: MODES.map(m => ({ ...m, on: s.replayMode === m.id })),
     modesDisabled: off('replayMode'),
     rows: rows.map(r => ({ ...r, shown: (r.options.find(o => o.value === r.value) || { label: String(r.value) }).label })),
-    note: "This phone's camera gives up to 30 fps in the app. In dim light it drops; the recording screen shows the real rate.",
-    laterNote: 'Replay mode, lengths, camera and quality come with the camera, in a later version.',
+    note: 'Up to 30 fps; less in dim light.',
   };
 }
 
@@ -94,7 +92,7 @@ export function storageView({ count, liftsBytes, info }) {
     free: info && info.free !== null ? formatBytes(info.free) : 'unknown',
     persisted: persisted === null ? 'unknown' : persisted ? 'Yes' : 'No',
     persistedNote: persisted === false
-      ? "The system hasn't promised to keep these files if the phone runs very low on space. They stay until then, or until you delete them."
+      ? 'If the phone runs very low on space, the system may remove them.'
       : null,
     canDelete: known && count > 0,
     count: count ?? 0,

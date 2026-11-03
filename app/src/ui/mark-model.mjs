@@ -1,13 +1,13 @@
-// M1–M3's logic as plain functions (package d14): the playhead from the drag,
-// Set start and Set end, the one-frame steps, the length and its cost, and
+// M1–M3's logic as plain functions (package d14; d54, checkpoint A round 1): the
+// playhead from the drag, the steps as buttons (1 Start and 2 End set or move a mark,
+// ↶ undoes the last one), the one-frame steps, the length and its cost, and
 // Analyse. No Preact and no DOM, so Node runs it as written
 // (tests/app/mark.test.js); the screen (screens/M.mjs) draws what these give.
 //
 // The marks are frame indexes into the source's `frameTimes` (contract 5), never
 // times made up from the frame rate: a variable-rate video has its own spacing.
-import { LIFTS } from '../contracts/common.mjs';
 import { problemOf } from './problem-model.mjs';
-import { LIFT_CHOICES, liftLabel } from './home-model.mjs';
+import { SESSION_STATES, sessionReturn } from '../flow/flow.mjs';
 
 /** The filmstrip's scale: pixels to a second (the mockup's), one thumbnail a second. */
 export const PX_PER_SECOND = 48;
@@ -17,10 +17,6 @@ export const THUMB = Object.freeze({ width: 47, height: 64 });
 export const MIN_MARK_FRAMES = 3;
 /** The pixel ratio the stepper's budget is sized for (contract 5: 128 MiB, 744 × 1320 frames). */
 export const MAX_PIXEL_RATIO = 3;
-
-export const otherLift = lift => LIFTS.find(l => l !== lift) ?? lift;
-export const liftLabelOf = liftLabel;
-export { LIFT_CHOICES };
 
 // ---- time and the strip ----
 
@@ -120,48 +116,73 @@ export function fitSize(info, box, ratio) {
 
 /**
  * @typedef {Object} Marks
- * @property {number|null} start frame index of Set start
- * @property {number|null} end frame index of Set end
- * @property {'end-before-start'|'start-too-late'|null} error what the last Set was refused for
+ * @property {number|null} start frame index of the start (step 1)
+ * @property {number|null} end frame index of the end (step 2)
+ * @property {'end-before-start'|'start-too-late'|null} error what the last press was refused for
+ * @property {ReadonlyArray<Readonly<{start: number|null, end: number|null}>>} history the marks before each press
+ *   that changed one, the latest last: what ↶ brings back
  */
 
-/** @returns {Readonly<Marks>} no marks set */
-export const newMarks = () => Object.freeze({ start: null, end: null, error: null });
+const NO_HISTORY = Object.freeze([]);
+const marksOf = (start, end, error, history) => Object.freeze({ start, end, error, history });
+
+/** @returns {Readonly<Marks>} no marks set, nothing to undo */
+export const newMarks = () => marksOf(null, null, null, NO_HISTORY);
 
 /** @param {Marks} marks @returns {'start'|'end'|'ready'} the step M is in: M1, M2 or M3 */
 export const stepOf = marks => (marks.start === null ? 'start' : marks.end === null ? 'end' : 'ready');
 
+// a change of a mark: the marks before it are kept for ↶
+const changed = (marks, start, end) => marksOf(start, end, null,
+  Object.freeze([...marks.history, Object.freeze({ start: marks.start, end: marks.end })]));
+const refused = (marks, error) => marksOf(marks.start, marks.end, error, marks.history);
+
 /**
- * Set start or Set end at frame `index`, by the step. An end that doesn't come
- * MIN_MARK_FRAMES after the start is refused (the start stays, `error` says
- * why), and so is a start with fewer than MIN_MARK_FRAMES frames after it; once both are set, Set does nothing (Redo first).
+ * A press on step 1 (`'start'`) or 2 (`'end'`) with the playhead on frame `index`: it sets that mark there, or
+ * moves it there once it is set (round 1: a green step pressed again moves its mark). Step 2 does nothing until
+ * the start is set. Refused, with no mark changed and nothing kept for ↶: an end fewer than MIN_MARK_FRAMES after
+ * the start, a start moved to later than the end minus MIN_MARK_FRAMES (both `end-before-start`), and a start with
+ * fewer than MIN_MARK_FRAMES frames after it in the video (`start-too-late`: no end could follow). A press on the
+ * frame the mark is already on changes nothing either.
  * @param {Marks} marks
+ * @param {'start'|'end'} which the step pressed
  * @param {number} index the playhead's frame
  * @param {readonly number[]} frameTimes
  * @returns {Readonly<Marks>}
  */
-export function setMark(marks, index, frameTimes) {
+export function pressStep(marks, which, index, frameTimes) {
   if (!Number.isInteger(index) || index < 0 || index >= frameTimes.length) return marks;
-  const step = stepOf(marks);
-  if (step === 'start') {
-    // no room left for an end MIN_MARK_FRAMES later: every Set end would be refused
-    if (index > frameTimes.length - 1 - MIN_MARK_FRAMES) return Object.freeze({ start: null, end: null, error: 'start-too-late' });
-    return Object.freeze({ start: index, end: null, error: null });
+  if (which === 'start') {
+    if (marks.end !== null && index > marks.end - MIN_MARK_FRAMES) return refused(marks, 'end-before-start');
+    // no room left for an end MIN_MARK_FRAMES later: every end would be refused
+    if (index > frameTimes.length - 1 - MIN_MARK_FRAMES) return refused(marks, 'start-too-late');
+    if (index === marks.start) return marks.error ? refused(marks, null) : marks;
+    return changed(marks, index, marks.end);
   }
-  if (step === 'end') {
-    if (index < marks.start + MIN_MARK_FRAMES) return Object.freeze({ ...marks, error: 'end-before-start' });
-    return Object.freeze({ start: marks.start, end: index, error: null });
+  if (which === 'end') {
+    if (marks.start === null) return marks;
+    if (index < marks.start + MIN_MARK_FRAMES) return refused(marks, 'end-before-start');
+    if (index === marks.end) return marks.error ? refused(marks, null) : marks;
+    return changed(marks, marks.start, index);
   }
   return marks;
 }
 
-/** Redo the marks: both cleared. */
-export const redo = () => newMarks();
+/** ↶: the marks before the last press that changed one, with the history before it; no marks to undo: the same. */
+export function undo(marks) {
+  const n = marks.history.length;
+  if (!n) return marks;
+  const last = marks.history[n - 1];
+  return marksOf(last.start, last.end, null, Object.freeze(marks.history.slice(0, n - 1)));
+}
+
+/** The marks without the last refusal's error (the playhead moved on): the same marks when there is none. */
+export const clearError = marks => (marks.error ? refused(marks, null) : marks);
 
 /**
  * The marks of a range already marked (A3's re-mark opens M with the lift's old ones): the frames at the
- * range's two times, an end past the last frame held to it. No marks (M1) for a range that is missing or
- * shorter than MIN_MARK_FRAMES frames: M would refuse such an end.
+ * range's two times, an end past the last frame held to it, and nothing to undo. No marks (M1) for a range
+ * that is missing or shorter than MIN_MARK_FRAMES frames: M would refuse such an end.
  * @param {{t0: number, t1: number}|null|undefined} range in the video's own timeline
  * @param {readonly number[]} frameTimes
  * @returns {Readonly<Marks>}
@@ -170,7 +191,7 @@ export function marksFromRange(range, frameTimes) {
   if (!range || !Number.isFinite(range.t0) || !Number.isFinite(range.t1) || !frameTimes.length) return newMarks();
   const start = frameIndexAt(frameTimes, range.t0), end = frameIndexAt(frameTimes, range.t1);
   if (end < start + MIN_MARK_FRAMES) return newMarks();
-  return Object.freeze({ start, end, error: null });
+  return marksOf(start, end, null, NO_HISTORY);
 }
 
 /**
@@ -208,59 +229,86 @@ const wholeSeconds = s => {
 
 // ---- the view ----
 
-const STEP_LABELS = ['Start', 'End', 'Analyse'];
-const STEP_ORDER = ['start', 'end', 'ready'];
+/** M's own words (round 1's wording table, approved 2026-11-02) that are not the text line's. */
+export const MARK_TEXT = Object.freeze({
+  opening: 'Opening…',             // over the video while it opens
+  noVideo: 'No video to mark.',    // M without a file
+  bothFirst: 'Set 1 and 2 first',  // Analyse without both marks
+});
+
+const REFUSALS = {
+  'end-before-start': 'The end has to come after the start',
+  'start-too-late': 'No room for an end after this',
+};
 
 /**
- * What M draws, from the marks and the playhead (the mockup's strings).
+ * What M draws, from the marks and the playhead: the clock, the strip's marks, the one text line (`text`, its
+ * `textTone`: 'error' in the work-on colour, 'ready' in the text colour, else null) and the steps row.
+ * Each step has its `state`: 'next' (white, the one to press now), 'wait' (not yet: disabled), 'done' (green, ✓
+ * and the mark's clock as its label) or 'go' (step 3 once both marks are set); `pressable`; and `name`, its
+ * accessible name, which says what a press does. ↶ is `canUndo`.
  * @param {Marks} marks
- * @param {{index: number, frameTimes: readonly number[], cost?: {seconds: number, measured: boolean}|null}} at
- *   the playhead's frame, the source's frame times, and the queue's estimate once there is one
+ * @param {{index: number, frameTimes: readonly number[]|null, cost?: {seconds: number, measured: boolean}|null,
+ *   busy?: boolean, refused?: string|null}} at the playhead's frame, the source's frame times (null while the
+ *   video opens), the queue's estimate once there is one, whether Analyse is storing the cut, and what Analyse
+ *   said when it could not go on
  */
-export function markView(marks, { index, frameTimes, cost = null }) {
+export function markView(marks, { index, frameTimes, cost = null, busy = false, refused: said = null }) {
+  if (!frameTimes) {
+    const wait = (key, num, label, name) => ({ key, state: 'wait', pressable: false, num, label, name });
+    return {
+      step: 'loading', time: 0, clock: null, startAt: null, endAt: null, region: null, lengthLabel: '',
+      text: '', textTone: null, canUndo: false, canAnalyse: false,
+      steps: [wait('start', '1', 'Start', 'Set the start at the playhead'), wait('end', '2', 'End', 'Set the end at the playhead'),
+        wait('analyse', '3', 'Analyse', 'Analyse, once 1 and 2 are set')],
+    };
+  }
   const step = stepOf(marks);
   const time = frameTimes[index];
-  const at = STEP_ORDER.indexOf(step);
   const startAt = marks.start === null ? null : frameTimes[marks.start];
   const endAt = marks.end === null ? null : frameTimes[marks.end];
   const to = endAt ?? time;
   const length = startAt === null ? 0 : to - startAt;
   const lengthLabel = `${Math.max(0, length).toFixed(1)} s`;
-  const tooLate = marks.error === 'start-too-late';
-  const error = marks.error === 'end-before-start' || tooLate;
 
-  let hint;
-  if (tooLate) hint = 'Too close to the end of the video for an end to follow: drag left, to before the lift starts.';
-  else if (error) hint = 'The end has to come after the start: drag right, past the lift.';
-  else if (step === 'start') hint = 'Drag the filmstrip until the playhead sits just before the lift starts, then tap Set start.';
-  else if (step === 'end') hint = 'Now drag to just after the last rep ends, then tap Set end.';
-  else if (cost) hint = `${lengthLabel} marked. About ${wholeSeconds(cost.seconds)} to analyse on this phone; it runs in the background while you train.`;
-  else hint = `${lengthLabel} marked. It runs in the background while you train.`;
+  let text, textTone = null;
+  if (busy) text = 'Saving the clip…';
+  else if (said) { text = said; textTone = 'error'; }
+  else if (marks.error) { text = REFUSALS[marks.error]; textTone = 'error'; }
+  else if (step === 'start') text = 'Drag to just before the lift';
+  else if (step === 'end') text = `Drag to just after it · ${lengthLabel}`;
+  else {
+    textTone = 'ready';
+    // the estimate is a first guess until this phone has measured its own rate (ui-design.md)
+    text = !cost ? lengthLabel
+      : cost.measured ? `${lengthLabel} · analysed in about ${wholeSeconds(cost.seconds)}`
+        : `${lengthLabel} · about ${wholeSeconds(cost.seconds)}, a first guess`;
+  }
+
+  const set = (key, at, word) => (at === null
+    ? { key, num: key === 'start' ? '1' : '2', label: word, name: `Set the ${key} at the playhead` }
+    : { key, num: '✓', label: formatClock(at), name: `${word} at ${formatClock(at)}. Press to move it to the playhead.` });
+  const ready = step === 'ready';
+  const steps = [
+    { ...set('start', startAt, 'Start'), state: startAt !== null ? 'done' : 'next', pressable: !busy },
+    { ...set('end', endAt, 'End'), state: endAt !== null ? 'done' : startAt !== null ? 'next' : 'wait', pressable: !busy && startAt !== null },
+    { key: 'analyse', num: '3', label: busy ? 'Saving…' : 'Analyse', state: ready ? 'go' : 'wait', pressable: !busy && ready,
+      name: busy ? 'Saving the clip' : ready ? `Analyse the ${lengthLabel} marked` : 'Analyse, once 1 and 2 are set' },
+  ];
 
   return {
     step,
     time,
     clock: formatClock(time),
-    steps: STEP_LABELS.map((label, i) => ({
-      label, num: i < at ? '✓' : String(i + 1), state: i < at ? 'done' : i === at ? 'now' : 'todo',
-    })),
     startAt,
     endAt,
     region: startAt !== null && length > 0 ? { from: startAt, to } : null,
     lengthLabel,
-    hint,
-    hintIsError: error,
-    subHint: step === 'ready'
-      ? 'The marks only need to bracket the lift; the analysis finds its exact start and end.'
-      : 'Rough is fine: coach finds the exact lift inside your marks. Shorter marks analyse faster.',
-    // the estimate is the first-run default until this phone has measured its own (ui-design.md)
-    estimateNote: step === 'ready' && cost && !cost.measured
-      ? 'Estimated from a first-run default: this phone has not measured its own rate yet.' : null,
-    setLabel: step === 'start' ? 'Set start' : 'Set end',
-    analyseLabel: `Analyse ${lengthLabel}`,
-    canSet: step !== 'ready',
-    canAnalyse: step === 'ready',
-    canRedo: step === 'ready',
+    text,
+    textTone,
+    steps,
+    canUndo: !busy && marks.history.length > 0,
+    canAnalyse: ready,
   };
 }
 
@@ -393,6 +441,14 @@ export function createLatest() {
 
 // ---- Analyse ----
 
+/**
+ * Where M's close (✕) goes: back to the running session when R3 or R3b opened M for a lift kept in it (`from: 'live'`
+ * or `'delayed'`): the session's live state (flow.mjs's sessionReturn, d29b), never live by name; else home.
+ * @param {string|null|undefined} from M's `from` param
+ * @param {{active: boolean, liveState: string|null}} [session] the app's session
+ */
+export const closeTarget = (from, session) => sessionReturn(from, session);
+
 const analysing = new WeakSet();   // the flows with an Analyse under way: a second tap does nothing
 
 /**
@@ -401,22 +457,26 @@ const analysing = new WeakSet();   // the flows with an Analyse under way: a sec
  * Nothing is queued without both marks and a file; a cut that can't be stored
  * (the store's or the cutter's error) stays on M with the error's words. A re-mark
  * (A3) passes `replaces`, the old lift's id: the queue deletes that lift once the new
- * one's analysis is done (s50).
+ * one's analysis is done (s50). `from: 'live'` or `'delayed'` (d29, d29b: the lift was kept on R3 or R3b) goes back to
+ * the session, its live state (closeTarget), instead of Q1.
  * @param {{flow: {go: Function}, queue: {analyse: Function}, lift: string, file: Blob|null,
- *   marks: Marks, frameTimes: readonly number[], replaces?: string|null}} args
+ *   marks: Marks, frameTimes: readonly number[], replaces?: string|null, from?: string|null,
+ *   session?: {active: boolean, liveState: string|null}}} args
  * @returns {Promise<{ok: true}|{ok: false, error: string|null, problem?: Object}>} error null for a tap that did nothing;
  *   `problem` (problem-model.mjs's, d23) for an error the store or the cutter raised: M draws it as a screen
  */
-export async function analyse({ flow, queue, lift, file, marks, frameTimes, replaces = null }) {
+export async function analyse({ flow, queue, lift, file, marks, frameTimes, replaces = null, from = null, session = undefined }) {
   const range = markedRange(marks, frameTimes);
-  if (!range) return { ok: false, error: 'Set the start and the end first.' };
+  if (!range) return { ok: false, error: MARK_TEXT.bothFirst };
   if (!file) return { ok: false, error: 'There is no video to analyse.' };
   if (analysing.has(flow)) return { ok: false, error: null };
   analysing.add(flow);
   try {
     const marked = { t0: range.t0, t1: range.t1 };
     const job = await (replaces ? queue.analyse(lift, file, marked, { replaces }) : queue.analyse(lift, file, marked));
-    flow.go('queued', { liftId: job.liftId });
+    // in a session (R3 or R3b kept the lift: `from: 'live'` or `'delayed'`) the recording goes on, so M goes back to the
+    // session's live state; R2's queue line shows the lift
+    if (SESSION_STATES.includes(from)) flow.go(closeTarget(from, session)); else flow.go('queued', { liftId: job.liftId });
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e && e.message ? e.message : 'That did not work.', problem: problemOf(e) };

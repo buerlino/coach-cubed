@@ -32,6 +32,9 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 
+/** The fake camera for the page test and the layout check (d28): 30 fps, and the permission granted without asking. */
+export const FAKE_CAMERA = Object.freeze(['--use-fake-device-for-media-stream=fps=30', '--use-fake-ui-for-media-stream']);
+
 export const BROWSERS = ['brave-browser', 'brave', 'chromium', 'chromium-browser', 'google-chrome', 'google-chrome-stable'];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 

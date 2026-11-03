@@ -24,14 +24,14 @@ export const cuesHeading = n => `${n} ${n === 1 ? 'cue' : 'cues'}`;
 
 /**
  * The header's breadcrumb: where the lift is from and its name with the time and the length ("Lateral raise ·
- * 14:27 · 3.0 s"). The parent is today's session for a lift of today, else the lifts of earlier days.
+ * 14:27 · 3.0 s"). The parent is "Today" for a lift of today, else "Earlier".
  * @param {import('../contracts/stored-lift.mjs').StoredLift} lift
  * @param {Date} [now]
  */
 export function crumbOf(lift, now = new Date()) {
   const created = new Date(lift.created);
   return {
-    parent: dayKey(created) === dayKey(now) ? "Today's session" : 'Earlier sessions',
+    parent: dayKey(created) === dayKey(now) ? 'Today' : 'Earlier',
     current: `${liftLabel(lift.lift)} · ${clock(created)} · ${(lift.range.t1 - lift.range.t0).toFixed(1)} s`,
   };
 }

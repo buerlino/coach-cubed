@@ -6,14 +6,18 @@
 //   s12's job and queue a failed job keeps only a string (contract 2, `error`), which starts with a known
 //                       phrase (analysis/messages.mjs): no person found, the engine failing, the watchdog
 //   c8's store          StoreError `storage-full`, or its message when it reached a job as a string
+//   c27's capture       CaptureError, by `code` (camera-denied, no-camera, camera-busy, no-encoder, insecure,
+//                       encoder-failed), on R1 and R2 (d28)
 // `engine` is the raising module's own words (the frame source's message, diagnostics.js's reason, the
 // worker's message, the store's), shown as they are; `title`, `what` and `can` are this screen's. Nothing is
 // invented: advice is only what the app can really do (pick another video, analyse again, delete lifts).
 import { ENGINE_FAILED, MEDIA_FAILED, NO_PERSON, STALLED, mediaCodeOf } from '../analysis/messages.mjs';
 import { STORAGE_FULL } from '../store/index.mjs';
+import { SESSION_STATES } from '../flow/flow.mjs';
 
 /** The kinds of problem the screens know. */
-export const PROBLEM_KINDS = Object.freeze(['unreadable', 'unsupported-codec', 'no-webcodecs', 'no-person', 'engine-failed', 'storage-full', 'failed']);
+export const PROBLEM_KINDS = Object.freeze(['unreadable', 'unsupported-codec', 'no-webcodecs', 'no-person', 'engine-failed', 'storage-full', 'failed',
+  'camera-denied', 'no-camera', 'camera-busy', 'no-encoder', 'insecure', 'encoder-failed']);
 
 const KINDS = {
   unreadable: {
@@ -52,6 +56,43 @@ const KINDS = {
     can: "Delete lifts you don't need (in a lift's view options, or in Settings) or free space on the phone, then try again.",
     actions: { retry: true, another: false },
   },
+  // the camera's (d28): R1 and R2 draw them; trying again is the camera asked afresh (R1's button)
+  'camera-denied': {
+    title: 'Camera not allowed',
+    what: 'The camera permission was refused.',
+    can: "Allow the camera for coach in the phone's settings, then try again.",
+    actions: { retry: true, another: false },
+  },
+  'no-camera': {
+    title: 'No camera found',
+    what: 'The phone gave no camera that fits.',
+    can: "Pick the other camera in Settings, then try again.",
+    actions: { retry: true, another: false },
+  },
+  'camera-busy': {
+    title: 'Camera in use',
+    what: 'Another app holds the camera.',
+    can: 'Close that app, then try again.',
+    actions: { retry: true, another: false },
+  },
+  'no-encoder': {
+    title: "Can't record here",
+    what: "This browser has no H.264 video encoder.",
+    can: 'Use the coach app on the phone, or a current browser.',
+    actions: { retry: false, another: false },
+  },
+  insecure: {
+    title: 'The camera needs https',
+    what: 'This page is not served over https or from localhost.',
+    can: 'Open coach from its https address, or install the app.',
+    actions: { retry: false, another: false },
+  },
+  'encoder-failed': {
+    title: 'Recording stopped',
+    what: 'The video encoder failed while recording.',
+    can: 'End the session and start a new one.',
+    actions: { retry: false, another: false },
+  },
   failed: {
     title: "That didn't work",
     what: 'Something went wrong.',
@@ -70,9 +111,12 @@ function kindOfMediaCode(code) {
   return UNREADABLE.has(code) ? 'unreadable' : null;
 }
 
+const CAPTURE_KINDS = new Set(['camera-denied', 'no-camera', 'camera-busy', 'no-encoder', 'insecure', 'encoder-failed']);
+
 function kindOf(e) {
   if (e && typeof e === 'object') {
     if (e.code === 'storage-full') return 'storage-full';
+    if (e.name === 'CaptureError' && CAPTURE_KINDS.has(e.code)) return e.code;
     const media = kindOfMediaCode(e.code);
     if (media) return media;
     if (e.name === 'EngineError' || e.name === 'StallError') return 'engine-failed';
@@ -113,13 +157,15 @@ export function problemOf(error) {
  * there), `another` where another video can help (never because of where the problem came up), `home` always.
  * @param {ReturnType<typeof problemOf>} problem
  * @param {boolean} atAnalyse the problem came up at Analyse, not when the video was opened
+ * @param {string|null} [from] M's `from` param: `'live'` or `'delayed'` (a lift kept in a session on R3 or R3b, d29, d29b) offers `session`, "Back to the session",
+ *   in place of `another`
  * @returns {string[]}
  */
-export function waysOn(problem, atAnalyse) {
+export function waysOn(problem, atAnalyse, from = null) {
   return [
     ...(atAnalyse && problem.actions.retry ? ['retry'] : []),
     ...(atAnalyse ? ['marks'] : []),
-    ...(problem.actions.another ? ['another'] : []),
+    ...(problem.actions.another ? [SESSION_STATES.includes(from) ? 'session' : 'another'] : []),
     'home',
   ];
 }

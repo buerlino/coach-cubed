@@ -8,6 +8,7 @@
     "serve": "node tools/serve.mjs",
     "test:page": "node tools/page-test.mjs",
     "check:layout": "node tools/layout-check.mjs",
+    "check:capture": "node tools/check-capture.mjs",
     "test:layout-breaks": "env COACH_LAYOUT_BREAKS=1 node --test ../tests/app/wide.test.js"
   },
   "dependencies": {

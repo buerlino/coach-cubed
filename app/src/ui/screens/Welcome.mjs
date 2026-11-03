@@ -3,7 +3,16 @@
 // keep that it was shown and go on. The store is injected (main.mjs gives the app's).
 import { html } from '../html.mjs';
 import { ImportIcon, LockIcon } from '../components/icons.mjs';
+import { PickVideo } from '../components/PickVideo.mjs';
+import { pickCheck } from '../home-model.mjs';
 import { WELCOME, finishWelcome } from '../welcome-model.mjs';
+
+// The picker's file goes on to L1 once the intro is kept as shown (a file that is no video stays here, with its words).
+const picked = (store, flow) => file => {
+  const check = pickCheck(file);
+  if (check.ok) finishWelcome(store, flow, 'lift', { file });
+  return check;
+};
 
 export function Welcome({ flow, store }) {
   return html`
@@ -14,13 +23,13 @@ export function Welcome({ flow, store }) {
       <div class="screen__body welcome">
         <h2 class="title">${WELCOME.title}</h2>
         <ul class="welcome__points">${WELCOME.points.map(t => html`<li key=${t} class="soft">${t}</li>`)}</ul>
-        <button type="button" class="card card--row" onClick=${() => finishWelcome(store, flow, 'import')}>
+        <${PickVideo} flow=${flow} pick=${picked(store, flow)} class="card card--row">
           <span class="card__icon"><${ImportIcon} /></span>
           <span class="card__text"><span class="card__title">${WELCOME.importLabel}</span></span>
-        </button>
+        <//>
         <button type="button" class="welcome__skip" onClick=${() => finishWelcome(store, flow, 'home')}>${WELCOME.skipLabel}</button>
       </div>
-      <p class="screen__footer"><${LockIcon} /><span>Everything stays on this phone. No account, no uploads.</span></p>
+      <p class="screen__footer"><${LockIcon} /><span>Nothing leaves this phone.</span></p>
     </main>
   `;
 }

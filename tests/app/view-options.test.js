@@ -103,22 +103,23 @@ async function rig({ range = RANGE, flowState = 'result', extra = {} } = {}) {
 test('view options: the sheet\'s controls and words are the mockup\'s; the lifter choice is not among them', async () => {
   const m = await load('ui/view-options-model.mjs');
   assert.deepEqual(m.SWITCHES.map(s => [s.key, s.label, s.sub]), [
-    ['skeleton', 'Skeleton', 'The pose, joint by joint'],
-    ['cues', 'Cue drawings', 'What each cue measures, like the elbow line'],
-    ['unsure', 'Unsure joints', 'Joints the model was less than 30% sure of'],
-    ['loop', 'Loop the lift only', 'Skip the walk-in and walk-out'],
+    ['skeleton', 'Skeleton', null],
+    ['cues', 'Cue drawings', 'The lines each cue measures'],
+    ['unsure', 'Unsure joints', 'Under 30 % sure'],
+    ['loop', 'Loop the lift only', 'Skips walking in and out'],
   ]);
   assert.deepEqual(m.SPEED_BUTTONS.map(s => [s.value, s.label]), [[0.25, '¼×'], [0.5, '½×'], [1, '1×']]);
   assert.deepEqual({ ...m.SMOOTHING }, { min: 0, max: 300, step: 5, standard: 50 });
   assert.equal(m.TEXT.title, 'View options');
   assert.equal(m.TEXT.done, 'Done');
   assert.equal(m.TEXT.video, 'On the video');
-  assert.equal(m.TEXT.speed, 'Playback speed');
+  assert.equal(m.TEXT.speed, 'Speed');
   assert.equal(m.TEXT.advanced, 'Advanced');
   assert.equal(m.TEXT.smoothing, 'Smoothing');
-  assert.equal(m.TEXT.smoothingNote, 'Changes the scores. The thresholds assume the default, 50 ms.');
+  assert.equal(m.TEXT.smoothingNote, 'Changes the scores. Thresholds assume 50 ms.');
   assert.equal(m.TEXT.remark, 'Re-mark this lift');
   assert.equal(m.TEXT.delete, 'Delete this lift');
+  assert.equal(m.TEXT.deleteAsk, 'Delete this lift and its video? This can’t be undone.');
   assert.equal(m.smoothingLabel(50), '50 ms');
   // the lifter stays hidden (MoveNet SinglePose tracks one person, app-plan.md "The pieces")
   const src = read('ui/components/view-options.mjs') + read('ui/view-options-model.mjs');
@@ -270,7 +271,7 @@ test('view options: a smoothing change that cannot be saved changes nothing and 
   const ctl = r.vo.createViewOptions({ store: failing, rec: r.rec, track: rawTrack, view: r.first.view, Diagnostics: D, flags: r.flags, player: r.player, flow: r.flow, onScored: s => r.scored.push(s) });
   await ctl.setSigma(200);
   assert.equal(ctl.state.sigmaMs, 50, 'the slider goes back to the σ the stored verdicts used');
-  assert.match(ctl.state.error, /full/);
+  assert.match(ctl.state.error, /^Couldn’t change the smoothing: .*full/);
   assert.equal(ctl.state.scoring, false);
   assert.equal(r.scored.length, 0);
   assert.deepEqual(asked, [], 'the choice is not kept either');
@@ -382,8 +383,10 @@ test('view options: re-mark opens M with the stored cut and the lift\'s old mark
   near(v.endAt, 2.2);
   assert.equal(v.canAnalyse, true);
   assert.deepEqual(mark.markedRange(marks, r.src.frameTimes), { t0: 0.4, t1: 2.2, length: 2.2 - 0.4, frames: 46 });
-  // Redo clears them, as in M3
-  assert.equal(mark.stepOf(mark.redo()), 'start');
+  // d54: a re-mark opens with nothing to undo; ↶ takes back only what is pressed on M
+  assert.deepEqual(marks.history, []);
+  assert.equal(v.canUndo, false);
+  assert.equal(mark.stepOf(mark.undo(mark.pressStep(marks, 'start', 12, r.src.frameTimes))), 'ready');
   // and M reads them from the flow's params
   assert.match(read('ui/screens/M.mjs'), /flow\.params\.range|marksFromRange/);
 });
@@ -449,7 +452,7 @@ test('view options: a delete that fails keeps the lift on screen and says why', 
   ctl.askDelete();
   await ctl.confirmDelete();
   assert.equal(r.flow.state, 'result');
-  assert.match(ctl.state.error, /Could not remove/);
+  assert.match(ctl.state.error, /^Couldn’t delete this lift: .*Could not remove/);
   assert.equal(ctl.state.asking, false);
   assert.equal((await r.store.listLifts()).length, 1);
 });
@@ -471,4 +474,17 @@ test('view options: A1 gives the overlay the unsure joints\' style, so the "Unsu
   const a1 = read('ui/screens/A1.mjs');
   assert.match(a1, /import \{[^}]*\bunsureStyle\b[^}]*\} from '\.\.\/\.\.\/draw\/index\.mjs'/, 'A1 imports unsureStyle');
   assert.match(a1, /style = \{[^}]*\.\.\.overlayStyle\([^}]*\bunsure: unsureStyle\(/, "restyle() sets style.unsure from unsureStyle()");
+});
+
+test('d55: a choice that cannot be kept and a lift that cannot be opened for marking say so in few words', async () => {
+  const r = await rig();
+  const deny = (name, message) => new Proxy(r.store, { get(t, k) { if (k === name) return async () => { throw new Error(message); }; const v = t[k]; return typeof v === 'function' ? v.bind(t) : v; } });
+  const make = store => r.vo.createViewOptions({ store, rec: r.rec, track: rawTrack, view: r.first.view, Diagnostics: D, flags: r.flags, player: r.player, flow: r.flow });
+  const kept = make(deny('saveSettings', 'No room.'));
+  await kept.setSwitch('skeleton', false);
+  assert.equal(kept.state.error, 'Couldn’t save this: No room.');
+  const opened = make(deny('readVideo', 'The cut is gone.'));
+  await opened.remark();
+  assert.equal(opened.state.error, 'Couldn’t open this lift: The cut is gone.');
+  assert.equal(r.flow.state, 'result', 'the lift stays on screen');
 });

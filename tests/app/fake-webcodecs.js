@@ -126,4 +126,228 @@ function createFakeWebCodecs({
   };
 }
 
-module.exports = { createFakeWebCodecs };
+// ---- the capture's browser (c27): a fake camera, encoder and wake lock ----------------
+//
+// Shaped like browserCaptureApi() in app/src/media/capture-browser.mjs, the `api` option of
+// createCapture(). The camera is driven by the test, frame by frame, on its own clock:
+//   const fake = await createFakeCapture({ fps: 20, askedFps: 30 });
+//   createCapture(settings, { api: fake.api, now: fake.now });
+//   await fake.deliver(40);          // 2 s of frames, each taken by the capture before the next
+//   fake.camera.setFps(15); fake.camera.end(); fake.camera.mute(); fake.setVisible(false);
+// Frames carry timestamps (µs) at the camera's real rate, whatever getSettings() says (askedFps).
+// The encoder outputs, for each frame it is given, a packet of a real clip of that size from
+// tests/app/clips/ (read with mediabunny, with the clip's decoder config): a key packet when a
+// keyframe is asked for (or first after configure()), else the clip's next delta packet. So what
+// the capture writes is a real MP4 that openFrameSource (with the fake decoder above) and cutVideo
+// read. The decoder config comes with the first output after each configure(), as WebCodecs does.
+
+const CAPTURE_CLIPS = { '96x54': 'testsrc2-h264-30fps.mp4', '108x192': 'testsrc2-snatch-30fps-107f.mp4' };
+
+/** A clip's packets and decoder config, read with the app's vendored mediabunny. */
+async function loadClipPackets(file) {
+  const path = require('node:path');
+  const fs = require('node:fs');
+  const { pathToFileURL } = require('node:url');
+  const mb = await import(pathToFileURL(path.resolve(__dirname, '..', '..', 'app', 'vendor', 'mediabunny', 'mediabunny.mjs')).href);
+  const input = new mb.Input({ source: new mb.BufferSource(fs.readFileSync(path.join(__dirname, 'clips', file))), formats: mb.ALL_FORMATS });
+  try {
+    const track = await input.getPrimaryVideoTrack();
+    const c = await track.getDecoderConfig();
+    const keys = [], deltas = [];
+    for await (const p of new mb.EncodedPacketSink(track).packets()) (p.type === 'key' ? keys : deltas).push(new Uint8Array(p.data));
+    return {
+      file, keys, deltas,
+      config: { codec: c.codec, codedWidth: c.codedWidth, codedHeight: c.codedHeight, description: new Uint8Array(c.description) },
+    };
+  } finally { input.dispose(); }
+}
+
+async function createFakeCapture({
+  fps = 30,                  // the camera's real rate
+  askedFps = 30,             // what its track's getSettings() says
+  sizes = ['96x54'],         // the frame size of each getUserMedia() in turn (the last one repeats)
+  rotation = 0,              // VideoFrame.rotation, where the browser sets it
+  getUserMediaError = null,  // { name, message }: getUserMedia rejects with it
+  mediaDevices = true,       // false: no navigator.mediaDevices (an insecure context)
+  encoder = true,            // false: no VideoEncoder at all
+  trackProcessor = true,     // false: no MediaStreamTrackProcessor
+  supported = true,          // boolean, or (config) => boolean: VideoEncoder.isConfigSupported
+  holdOutputs = false,       // the encoder takes frames and outputs nothing until release()
+  wakeLock = 'grant',        // 'grant', 'refuse' (NotAllowedError), or 'none' (no navigator.wakeLock)
+} = {}) {
+  const clips = {};
+  for (const [size, file] of Object.entries(CAPTURE_CLIPS)) clips[size] = await loadClipPackets(file);
+  const log = { getUserMedia: [], encoders: [], configs: [], encoded: [], outputs: [], checked: [], frames: [], wakeLocks: [], flushes: [] };
+  let clockMs = 1000, opened = 0, visible = true;
+  const visibilityListeners = new Set();
+  const tick = () => new Promise(r => setImmediate(r));
+
+  function makeCamera(size) {
+    const [width, height] = size.split('x').map(Number);
+    const cam = {
+      width, height, fps, rotation, live: true, clockBaseMs: clockMs + 500,   // opening the camera takes 0.5 s on the fake's clock
+      muted: false, nextUs: 0, readers: new Set(), tracks: [],
+      setFps(f) { cam.fps = f; },
+      end() { cam.live = false; for (const t of cam.tracks) { t.readyState = 'ended'; t._fire('ended'); } for (const r of cam.readers) r._end(); },
+      mute() { cam.muted = true; for (const t of cam.tracks) { t.muted = true; t._fire('mute'); } },
+    };
+    cam.track = makeTrack(cam);
+    return cam;
+  }
+  function makeTrack(cam) {
+    const listeners = {};
+    const t = {
+      kind: 'video', readyState: 'live', muted: false, camera: cam,
+      getSettings: () => ({ width: cam.width, height: cam.height, frameRate: askedFps, deviceId: 'fake_device_0' }),
+      addEventListener(type, fn) { (listeners[type] ||= new Set()).add(fn); },
+      removeEventListener(type, fn) { listeners[type]?.delete(fn); },
+      _fire(type) { for (const fn of [...(listeners[type] || [])]) fn({ type }); },
+      stop() { t.readyState = 'ended'; },
+      clone() { return makeTrack(cam); },
+    };
+    cam.tracks.push(t);
+    return t;
+  }
+
+  const api = {
+    getUserMedia: !mediaDevices ? null : async constraints => {
+      log.getUserMedia.push(constraints);
+      if (getUserMediaError) {
+        const e = new Error(getUserMediaError.message);
+        e.name = getUserMediaError.name;
+        throw e;
+      }
+      const cam = makeCamera(sizes[Math.min(opened++, sizes.length - 1)]);
+      fake.cameras.push(cam);
+      fake.camera = cam;
+      return { id: `stream-${opened}`, getTracks: () => [cam.track], getVideoTracks: () => [cam.track] };
+    },
+    readFrames: !trackProcessor ? null : track => {
+      const cam = track.camera, queue = [];
+      let wake = null, ended = !cam.live || track.readyState !== 'live';
+      const r = {
+        _push(f) { queue.push(f); const w = wake; wake = null; if (w) w(); },
+        _end() { ended = true; const w = wake; wake = null; if (w) w(); },
+        taken: () => queue.length === 0,
+        async read() {
+          for (;;) {
+            if (queue.length) return { value: queue.shift(), done: false };
+            if (ended || track.readyState !== 'live') return { value: undefined, done: true };
+            await new Promise(res => { wake = res; });
+          }
+        },
+        async cancel() { r._end(); cam.readers.delete(r); for (const f of queue.splice(0)) f.close(); },
+      };
+      cam.readers.add(r);
+      return r;
+    },
+    isEncoderConfigSupported: !encoder ? null : async config => {
+      log.checked.push(config);
+      return { supported: !!(typeof supported === 'function' ? supported(config) : supported), config };
+    },
+    createEncoder: !encoder ? null : init => new FakeEncoder(init),
+    requestWakeLock: wakeLock === 'none' ? null : async () => {
+      if (wakeLock === 'refuse') { const e = new Error('Wake Lock permission request denied'); e.name = 'NotAllowedError'; throw e; }
+      const listeners = new Set();
+      const s = {
+        released: false, releasedBy: null,
+        addEventListener(type, fn) { if (type === 'release') listeners.add(fn); },
+        removeEventListener(type, fn) { listeners.delete(fn); },
+        async release() { if (s.released) return; s.released = true; s.releasedBy = 'page'; for (const fn of listeners) fn({ type: 'release' }); },
+        _drop() { if (s.released) return; s.released = true; s.releasedBy = 'browser'; for (const fn of listeners) fn({ type: 'release' }); },
+      };
+      log.wakeLocks.push(s);
+      return s;
+    },
+    isVisible: () => visible,
+    onVisibilityChange(fn) { visibilityListeners.add(fn); return () => visibilityListeners.delete(fn); },
+  };
+
+  class FakeEncoder {
+    constructor(init) {
+      this.init = init; this.state = 'unconfigured'; this.pending = []; this.listeners = []; this.closedBy = null;
+      log.encoders.push(this);
+    }
+    get encodeQueueSize() { return this.pending.length; }
+    addEventListener(type, fn) { if (type === 'dequeue') this.listeners.push(fn); }
+    removeEventListener(type, fn) { this.listeners = this.listeners.filter(x => x !== fn); }
+    configure(config) {
+      if (this.state === 'closed') throw new DOMException('closed', 'InvalidStateError');
+      const clip = clips[`${config.width}x${config.height}`];
+      if (!clip) throw new Error(`the fake encoder has no clip of ${config.width}x${config.height}`);
+      this.config = config; this.clip = clip; this.state = 'configured'; this.newConfig = true; this.keyNext = true; this.keyAt = -1; this.deltaAt = -1;
+      log.configs.push(config);
+    }
+    encode(frame, options = {}) {
+      if (this.state !== 'configured') throw new DOMException('not configured', 'InvalidStateError');
+      if (frame.closed) throw new TypeError('the frame is closed');
+      const key = !!options.keyFrame || this.keyNext;   // the first frame after configure() is a keyframe
+      this.keyNext = false;
+      const e = { timestamp: frame.timestamp, duration: frame.duration, keyFrame: !!options.keyFrame, key, encoder: log.encoders.indexOf(this) };
+      log.encoded.push(e);
+      this.pending.push(e);
+      if (!holdOutputs) setImmediate(() => this._out(1));
+    }
+    _out(n) {
+      for (const e of this.pending.splice(0, n)) {
+        if (this.state === 'closed') return;
+        const clip = this.clip;
+        let data;
+        if (e.key) { this.keyAt = (this.keyAt + 1) % clip.keys.length; data = clip.keys[this.keyAt]; } else { this.deltaAt = (this.deltaAt + 1) % clip.deltas.length; data = clip.deltas[this.deltaAt]; }
+        const chunk = {
+          type: e.key ? 'key' : 'delta', timestamp: e.timestamp, duration: e.duration ?? null, byteLength: data.byteLength,
+          copyTo(dst) { dst.set(data); },
+        };
+        const meta = this.newConfig ? { decoderConfig: { ...clip.config, description: clip.config.description.slice() } } : undefined;
+        this.newConfig = false;
+        log.outputs.push({ chunk, meta });
+        for (const fn of this.listeners) fn();
+        this.init.output(chunk, meta);
+      }
+    }
+    release() { this._out(this.pending.length); }
+    async flush() {
+      log.flushes.push(log.encoders.indexOf(this));
+      if (this.state !== 'configured') throw new DOMException('not configured', 'InvalidStateError');
+      await tick();
+      this._out(this.pending.length);
+    }
+    fail(message = 'Encoding error.') {
+      this.state = 'closed';
+      const e = new Error(message); e.name = 'EncodingError';
+      this.init.error(e);
+    }
+    close() { this.state = 'closed'; this.pending.length = 0; }
+  }
+
+  const fake = {
+    api, log, clips, cameras: [], camera: null,
+    now: () => clockMs,
+    setVisible(v) { visible = v; for (const fn of [...visibilityListeners]) fn(); },
+    /** n frames from the latest camera, each one taken by the capture's reader before the next is made; the clock follows the frames. */
+    async deliver(n) {
+      const cam = fake.camera;
+      for (let i = 0; i < n; i++) {
+        if (!cam.live) break;
+        const ts = Math.round(cam.nextUs);
+        cam.nextUs += 1e6 / cam.fps;
+        clockMs = cam.clockBaseMs + ts / 1000;
+        const f = {
+          timestamp: ts, duration: null, displayWidth: cam.width, displayHeight: cam.height, codedWidth: cam.width, codedHeight: cam.height,
+          rotation: cam.rotation, closed: false, close() { f.closed = true; },
+        };
+        log.frames.push(f);
+        for (const r of cam.readers) r._push(f);
+        for (let k = 0; k < 20 && [...cam.readers].some(r => !r.taken()); k++) await tick();
+        await tick(); await tick();
+      }
+      for (let k = 0; k < 5; k++) await tick();
+    },
+    settle: async () => { for (let k = 0; k < 10; k++) await tick(); },
+    get encoder() { return log.encoders.at(-1); },
+    get wakeLock() { return log.wakeLocks.at(-1); },
+  };
+  return fake;
+}
+
+module.exports = { createFakeWebCodecs, createFakeCapture, loadClipPackets, CAPTURE_CLIPS };

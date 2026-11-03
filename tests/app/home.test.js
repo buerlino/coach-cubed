@@ -10,6 +10,7 @@ const { pathToFileURL } = require('node:url');
 const APP = path.resolve(__dirname, '..', '..', 'app');
 const load = (...p) => import(pathToFileURL(path.join(APP, 'src', ...p)).href);
 const model = () => load('ui', 'home-model.mjs');
+const read = rel => require('node:fs').readFileSync(path.join(APP, rel), 'utf8');
 
 const ENGINE = { model: 'movenet-thunder', backend: 'webgl', runtime: 'tfjs 4.22.0' };
 // Local time, so the day and the clock the rows show don't depend on the machine's zone.
@@ -101,22 +102,15 @@ test('only a lift the store holds as analysed shows 100 %: a running job stays u
   assert.equal(liftState(TODAY_B, [job(TODAY_B, 'done')]).kind, 'ready');
 });
 
-test('Import starts on the default lift from the settings: the first choice while they load, or for a lift not offered', async () => {
-  const { startLift, LIFT_CHOICES } = await model();
+test('the default lift starts as the settings say: the first choice while they load, or for a lift not offered', async () => {
+  const { startLift, liftChoices } = await model();
+  const LIFT_CHOICES = liftChoices();
   assert.equal(startLift(null), LIFT_CHOICES[0].id);
   assert.equal(startLift(undefined), LIFT_CHOICES[0].id);
   assert.equal(startLift({ defaultLift: 'snatch' }), 'snatch');
   assert.equal(startLift({ defaultLift: 'lateral-raise' }), 'lateral-raise');
   assert.equal(startLift({ defaultLift: 'squat' }), LIFT_CHOICES[0].id);
   assert.equal(startLift({}), LIFT_CHOICES[0].id);
-});
-
-test('Import reads the settings once from the injected store and keeps a choice made before they arrive', () => {
-  const fs = require('node:fs');
-  const text = fs.readFileSync(path.join(APP, 'src', 'ui', 'screens', 'Import.mjs'), 'utf8').replace(/\/\/.*$/gm, '');
-  assert.equal((text.match(/getSettings\(/g) || []).length, 1);
-  assert.match(text, /startLift\(/);
-  assert.match(text, /export function Import\(\{[^}]*\bstore\b/);
 });
 
 test('the state looks at its own lift\'s job only', async () => {
@@ -140,13 +134,44 @@ test('the result summary counts the cues by status word, work on first', async (
   const cue = status => ({ status });
   const s = summariseResult({ cues: [cue('good'), cue('good'), cue("can't score"), cue('work on'), cue('good'), cue('watch')] });
   assert.deepEqual(s, [
-    { status: 'work-on', count: 1, text: '1 work on' },
-    { status: 'watch', count: 1, text: '1 watch' },
-    { status: 'good', count: 3, text: '3 good' },
-    { status: 'cant-score', count: 1, text: "1 can't score" },
+    { status: 'work-on', count: 1, text: '1 work on', icon: 'work' },
+    { status: 'watch', count: 1, text: '1 watch', icon: 'watch' },
+    { status: 'good', count: 3, text: '3 good', icon: 'good' },
+    { status: 'cant-score', count: 1, text: "1 can't score", icon: 'cant' },
   ]);
   assert.deepEqual(summariseResult({ cues: [cue('good')] }).map(x => x.text), ['1 good'], 'a status with no cue is left out');
   assert.deepEqual(summariseResult(null), []);
+});
+
+test('d55: a ready row draws its counts as A1\'s status icons, worst first, and its accessible text says the words', async () => {
+  const { rowOf, summaryLabel } = await model();
+  const cue = status => ({ status });
+  const result = { cues: [cue('good'), cue('good'), cue('work on'), cue('good')] };
+  const row = rowOf(TODAY_B, [], { result });
+  assert.deepEqual(row.summary.map(c => [c.icon, c.count]), [['work', 1], ['good', 3]], 'one icon and count per status, worst first');
+  assert.equal(row.summaryLabel, '1 work on, 3 good');
+  assert.equal(summaryLabel([]), '');
+  assert.equal(summaryLabel(row.summary), '1 work on, 3 good');
+  // the icons are A1's StatusIcon names, so the row draws what the cue cards draw
+  const icons = read('src/ui/components/icons.mjs');
+  for (const c of row.summary) assert.match(icons, new RegExp(`\\b${c.icon}: \\(\\) =>`), c.icon);
+  const lr = read('src/ui/components/lift-row.mjs');
+  assert.match(lr, /StatusIcon/);
+  assert.match(lr, /aria-label=\$\{row\.summaryLabel\}/);
+  assert.doesNotMatch(lr, /\$\{c\.text\}/, 'the words are for screen readers only');
+});
+
+test('d55: H, the first run and the row say it in fewer words (the table of round 1)', () => {
+  const h = read('src/ui/screens/H.mjs');
+  const row = read('src/ui/components/lift-row.mjs');
+  const w = read('src/ui/welcome-model.mjs') + read('src/ui/screens/Welcome.mjs');
+  for (const s of ['Update ready · reload the app', 'Couldn’t read your lifts.', 'Your lifts show up here.', '>Today<', 'Nothing leaves this phone.']) assert.ok(h.includes(s), s);
+  for (const s of ['Couldn’t analyse', '>Stopped<', '%</span>']) assert.ok(row.includes(s), s);
+  for (const s of ['Pick a video, then mark the lift.', 'coach finds the lifter and scores each cue.', 'Nothing leaves this phone.', 'Not now']) assert.ok(w.includes(s), s);
+  for (const s of ['Start gym session', 'Film non-stop', 'Coming in a later version', 'Coming later', 'Pick a clip from this phone', 'Update ready.', 'could not be read.', 'Import a video to mark a lift', "Today's session"]) assert.ok(!h.includes(s), s);
+  for (const s of ['Analysing ${', 'Not analysed', "Couldn't analyse ·"]) assert.ok(!row.includes(s), s);
+  for (const s of ['Pick a video of a lift', 'The app finds the lifter', 'Go to home', 'Everything stays on this phone']) assert.ok(!w.includes(s), s);
+  assert.doesNotMatch(read('src/ui/screens/L1.mjs'), /Everything stays on this phone/);
 });
 
 test('a row: lift, clock, length, state and what opening it does', async () => {
@@ -179,7 +204,7 @@ test('home: today\'s lifts keep the store\'s order (newest first), with the coun
   const e4 = analysed('20261027-090000-sn', 'snatch', iso(2026, 9, 27, 9, 0));
   const view = homeView({ today: [TODAY_C, TODAY_A, TODAY_B], earlier: [e1, e2, e3, e4] }, [job(TODAY_A, 'queued')]);
   assert.deepEqual(view.today.rows.map(r => r.id), [TODAY_C.id, TODAY_A.id, TODAY_B.id]);
-  assert.equal(view.today.count, '3 lifts kept');
+  assert.equal(view.today.count, '3 lifts');
   assert.equal(view.empty, false);
   assert.deepEqual(view.earlier.map(s => [s.heading, s.lifts]), [
     ['Thu 29 Oct · 3 lifts', 'Lateral raise, snatch'],
@@ -188,9 +213,9 @@ test('home: today\'s lifts keep the store\'s order (newest first), with the coun
   assert.deepEqual(view.earlier[0].rows.map(r => r.id), [e1.id, e2.id, e3.id], 'a day keeps the store\'s order');
 });
 
-test('home: one lift is "1 lift kept"; no lift today hides the section; no lift at all is the empty state', async () => {
+test('home: one lift is "1 lift"; no lift today hides the section; no lift at all is the empty state', async () => {
   const { homeView } = await model();
-  assert.equal(homeView({ today: [TODAY_B], earlier: [] }, []).today.count, '1 lift kept');
+  assert.equal(homeView({ today: [TODAY_B], earlier: [] }, []).today.count, '1 lift');
   const none = homeView({ today: [], earlier: [analysed('20261029-160000-lr', 'lateral-raise', iso(2026, 9, 29, 16, 0))] }, []);
   assert.equal(none.today, null);
   assert.equal(none.empty, false);
@@ -208,7 +233,7 @@ test('home: a ready lift\'s summary comes from the results given; none given, no
 });
 
 test('the import choices: lateral raise, and the snatch marked provisional while step 3.6 is open', async () => {
-  const { LIFT_CHOICES } = await model();
+  const LIFT_CHOICES = (await model()).liftChoices();
   assert.deepEqual(LIFT_CHOICES, [
     { id: 'lateral-raise', label: 'Lateral raise', provisional: false },
     { id: 'snatch', label: 'Snatch', provisional: true },
@@ -217,37 +242,46 @@ test('the import choices: lateral raise, and the snatch marked provisional while
   assert.deepEqual(LIFT_CHOICES.map(c => c.id), [...LIFTS]);
 });
 
-test('the import step: the chosen lift goes into the flow with the file, on the way to marking', async () => {
-  const { importStep } = await model();
+test('d53 the pick step: a picked file goes to the lift step with { file }', async () => {
+  const { pickStep } = await model();
   const { createFlow } = await load('flow', 'flow.mjs');
   const flow = createFlow();
-  flow.go('import');
   const file = { name: 'clip.mp4', type: 'video/mp4', size: 10 };
-  const step = importStep(flow, file, 'snatch');
-  assert.equal(step.ok, true);
-  assert.equal(flow.state, 'mark');
-  assert.deepEqual(flow.params, { file, lift: 'snatch' });
+  assert.deepEqual(pickStep(flow, file), { ok: true });
+  assert.equal(flow.state, 'lift');
+  assert.deepEqual(flow.params, { file });
 });
 
-test('the import step: no lift or an unknown one, no file, or a file that is not a video, changes nothing', async () => {
-  const { importStep } = await model();
+test('d53 the pick step: no file (the picker cancelled) changes nothing and says nothing', async () => {
+  const { pickStep } = await model();
   const { createFlow } = await load('flow', 'flow.mjs');
-  const flow = createFlow('import');
-  const file = { name: 'clip.mp4', type: 'video/mp4' };
-  for (const [f, lift] of [[file, null], [file, 'squat'], [null, 'snatch'], [{ name: 'a.txt', type: 'text/plain' }, 'snatch']]) {
-    const step = importStep(flow, f, lift);
+  const flow = createFlow();
+  for (const none of [undefined, null]) {
+    const step = pickStep(flow, none);
     assert.equal(step.ok, false);
-    assert.ok(typeof step.error === 'string' && step.error.length > 0);
-    assert.equal(flow.state, 'import');
+    assert.ok(!step.error, 'no words');
+    assert.equal(flow.state, 'home');
   }
 });
 
-test('the import step takes a file with no type (some Android pickers give none)', async () => {
-  const { importStep } = await model();
+test('d53 the pick step: a file whose type is set and is not video/* changes nothing and says so', async () => {
+  const { pickStep } = await model();
   const { createFlow } = await load('flow', 'flow.mjs');
-  const flow = createFlow('import');
-  assert.equal(importStep(flow, { name: 'IMG_0001.MP4', type: '' }, 'lateral-raise').ok, true);
-  assert.equal(flow.state, 'mark');
+  const flow = createFlow();
+  for (const type of ['text/plain', 'image/png', 'application/pdf']) {
+    assert.deepEqual(pickStep(flow, { name: 'a', type }), { ok: false, error: 'That’s not a video.' });
+    assert.equal(flow.state, 'home');
+  }
+});
+
+test('d53 the pick step takes a file with no type (some Android pickers give none), also from the first run', async () => {
+  const { pickStep } = await model();
+  const { createFlow } = await load('flow', 'flow.mjs');
+  for (const from of ['home', 'welcome', 'mark', 'queued']) {
+    const flow = createFlow(from);
+    assert.equal(pickStep(flow, { name: 'IMG_0001.MP4', type: '' }).ok, true, from);
+    assert.equal(flow.state, 'lift', from);
+  }
 });
 
 test('H follows the queue through the queue it is given, and stops when it is told to', async () => {
@@ -293,10 +327,11 @@ test('H follows a queue whose load fails: it passes on what the queue has', asyn
   assert.deepEqual(seen, [0]);
 });
 
-test('a waiting lift says "starts after the one above" for one job ahead, the plural for more', async () => {
+test('a waiting lift says "Waiting · next" for one job ahead, and the number for more (d55)', async () => {
   const { waitingText } = await model();
-  assert.equal(waitingText(1), 'Waiting · starts after the one above');
-  assert.equal(waitingText(2), 'Waiting · starts after the ones ahead');
+  assert.equal(waitingText(1), 'Waiting · next');
+  assert.equal(waitingText(2), 'Waiting · 2 ahead');
+  assert.equal(waitingText(5), 'Waiting · 5 ahead');
   assert.equal(waitingText(0), 'Waiting');
 });
 
@@ -323,9 +358,9 @@ test('H\'s sections sit 16 px from the sides and 24 px (Earlier 20 px) below the
   assert.match(h, /class="section section--earlier"/);
 });
 
-test('H and Import change the flow\'s state only: no other screen, no queue or store import, no literal colour', () => {
+test('H and L1 change the flow\'s state only: no other screen, no queue or store import, no literal colour', () => {
   const fs = require('node:fs');
-  for (const f of ['H.mjs', 'Import.mjs']) {
+  for (const f of ['H.mjs', 'L1.mjs']) {
     const text = fs.readFileSync(path.join(APP, 'src', 'ui', 'screens', f), 'utf8');
     for (const m of text.matchAll(/(?:from|import)\s*\(?\s*['"]([^'"]+)['"]/g)) {
       assert.ok(!/analysis|store/.test(m[1]), `${f} imports ${m[1]}: the queue and the store are injected`);

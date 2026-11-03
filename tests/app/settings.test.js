@@ -36,7 +36,7 @@ test('S1 shows v1\'s defaults from the store, in the mockup\'s words', async () 
     ['Quality', '1080p · 30 fps'], ['Default lift', 'Lateral raise'],
   ]);
   assert.deepEqual(v.modes.map(m => [m.label, m.on]), [['Replay button', true], ['Delayed view', false]]);
-  assert.match(v.note, /up to 30 fps/);
+  assert.equal(v.note, 'Up to 30 fps; less in dim light.');
 });
 
 test('the delayed view swaps the replay length for the delay, 10 s by default', async () => {
@@ -55,13 +55,14 @@ test('a choice is saved, kept after a restart and shown again', async () => {
   assert.equal(again.rows.find(r => r.field === 'defaultLift').shown, 'Snatch');
 });
 
-test('the replay mode, lengths, camera and quality are disabled until milestone B; the default lift is not', async () => {
-  const { recordingView, MILESTONE_B } = await model();
+test('d28, d29b: the replay mode, lengths, buffer, camera and the delay are enabled; the quality (one value) is not', async () => {
+  const { recordingView, NOT_YET } = await model();
   const { store } = await setup();
   const v = recordingView(await store.getSettings());
-  assert.equal(v.modesDisabled, true);
-  for (const r of v.rows) assert.equal(r.disabled, r.field !== 'defaultLift', r.field);
-  assert.deepEqual([...MILESTONE_B].sort(), ['bufferS', 'camera', 'delayS', 'quality', 'replayMode', 'replayS']);
+  assert.equal(v.modesDisabled, false);
+  assert.deepEqual([...NOT_YET].sort(), ['quality']);
+  for (const r of v.rows) assert.equal(r.disabled, NOT_YET.includes(r.field), r.field);
+  assert.equal(recordingView({ ...(await store.getSettings()), replayMode: 'delayed' }).rows[0].disabled, false, 'the delay, which R3b uses (d29b)');
 });
 
 test('S1 offers values only inside c8\'s ranges, and the default among them', async () => {
@@ -102,11 +103,14 @@ test('the provisional ranges are said in settings.mjs above FIELDS and in the RE
   assert.ok(at > 0);
   const above = src.slice(src.lastIndexOf('\n\n', at), at);
   assert.match(above, /PROVISIONAL/);
-  assert.match(above, /c27/);
+  // c27 runs on the laptop alone (nordmu, 2026-11-02): c30 measures the buffer's memory on the phone
+  assert.match(above, /c30/);
+  assert.doesNotMatch(src, /c27/);
   const readme = read('app', 'README.md');
   const store = readme.slice(readme.indexOf('## The store'), readme.indexOf('## The frame source'));
   assert.match(store, /provisional/i);
-  assert.match(store, /c27/);
+  assert.match(store, /c30/);
+  assert.doesNotMatch(store, /until `c27`/);
 });
 
 // ---- storage ----
@@ -272,7 +276,7 @@ test('S1 draws the mockup\'s strings for what this package builds', () => {
   const screen = read('app', 'src', 'ui', 'screens', 'S1.mjs') + read('app', 'src', 'ui', 'settings-model.mjs');
   for (const s of ['Settings and about', 'Gym session', 'How the replay shows up', 'Replay button', 'Delayed view', 'Replay length', 'Delay', 'Keep in memory', 'Camera',
     'Quality', 'Default lift', 'Storage', 'On this phone', 'Delete all lifts…', 'About', 'Credits and licences', 'How the cues are scored', 'Source code', 'AGPL-3.0-or-later',
-    'Back to home', "This phone's camera gives up to 30 fps in the app."]) assert.ok(screen.includes(s), s);
+    'Back to home', 'Up to 30 fps; less in dim light.']) assert.ok(screen.includes(s), s);
 });
 
 test('"Delete all lifts…" is drawn as the destructive action: danger colour, weight 600, quiet when disabled', () => {

@@ -146,6 +146,39 @@ test('page-test.mjs: no browser fails with one clear line, and COACH_PAGE_TEST_S
   assert.equal(bad.status, 2);
 });
 
+test('d54 the shift check: the same boxes to 0.5 px pass; a control that moved, or is gone, fails naming the control and the step', async () => {
+  const { MARK_CONTROLS, SHIFT_STEPS, SHIFT_TOLERANCE_PX, compareBoxes, readBoxes, SHIFT_BREAK } = await load('app', 'tools', 'shift-check.mjs');
+  assert.deepEqual(MARK_CONTROLS.map(c => c[0]), ['the header', 'the strip', '‹', 'the text line', '›', '↶', '1 Start', '2 End', '3 Analyse']);
+  assert.deepEqual(SHIFT_STEPS, ['M1 before any mark', 'after 1', 'after a refused 2', 'after 2', 'after ↶', 'after 2 again']);
+  assert.equal(SHIFT_TOLERANCE_PX, 0.5);
+  const base = Object.fromEntries(MARK_CONTROLS.map(([name], i) => [name, { x: 16, y: 60 + 50 * i, w: 84, h: 44 }]));
+  assert.deepEqual(compareBoxes(base, structuredClone(base), 'after 1'), []);
+  const nudged = structuredClone(base);
+  nudged['the strip'].y += 0.4;
+  assert.deepEqual(compareBoxes(base, nudged, 'after 1'), [], 'under half a pixel is the same place');
+  const moved = structuredClone(base);
+  moved['3 Analyse'].y += 6;
+  moved['the text line'].h += 20;
+  const problems = compareBoxes(base, moved, 'after 2');
+  assert.equal(problems.length, 2);
+  assert.match(problems[0], /^M moved after 2: the text line .*h 44 → 64/);
+  assert.match(problems[1], /^M moved after 2: 3 Analyse .*y 460 → 466/);
+  const gone = structuredClone(base);
+  gone['↶'] = null;
+  assert.deepEqual(compareBoxes(base, gone, 'after ↶'), ['M moved after ↶: ↶ is not on the screen']);
+  // the page side reads each control's box by its selector, as stringified for the page
+  const boxes = { '.a': { left: 1, top: 2, width: 3, height: 4 } };
+  globalThis.document = { querySelector: s => (boxes[s] ? { getBoundingClientRect: () => boxes[s] } : null) };
+  try { assert.deepEqual(readBoxes([['a', '.a'], ['b', '.b']]), { a: { x: 1, y: 2, w: 3, h: 4 }, b: null }); } finally { delete globalThis.document; }
+  assert.match(SHIFT_BREAK, /data-step="end"/, '--break shift: a row that grows once the start is set');
+  // the page test runs it in every walk, and --break shift is one of its faults
+  const script = fs.readFileSync(path.join(APP, 'tools', 'page-test.mjs'), 'utf8');
+  assert.match(script, /'console', 'http', 'rejection', 'stall', 'hang', 'cards', 'shift'/);
+  for (const step of ['after 1', 'after a refused 2', 'after 2', 'after ↶', 'after 2 again']) assert.ok(script.includes(`shift('${step}')`), `the walk compares ${step}`);
+  assert.match(script, /button\[data-mark="\$\{kind\}"\]/, 'the walk presses the steps by their hooks');
+  assert.doesNotMatch(script, /mark-main/);
+});
+
 test('setAppQueueDefaults: the queue made after it uses the store its caller passes, with the defaults\' parts', async () => {
   const { appQueue, setAppQueueDefaults } = await load('app', 'src', 'analysis', 'index.mjs');
   const engine = async () => ({ info: {}, estimate: async () => null, reset: async () => {}, close() {} });
@@ -159,4 +192,74 @@ test('setAppQueueDefaults: the queue made after it uses the store its caller pas
     assert.deepEqual(reads, ['callers'], 'the caller\'s store wins over a default');
     assert.equal(appQueue({ store: {} }), queue, 'the queue stays the one');
   } finally { queue.close(); }
+});
+
+// d57: the replay's two failing modes, through the real queue, job, store and pose client; what Q1 draws for the
+// job's error is problem-model.mjs's, so the kind is read from the stored job the way Q1 reads it.
+async function failedJobOf(mode) {
+  const { createReplay } = await load('app', 'page-test', 'replay.mjs');
+  const { PoseEngine } = await load('app', 'src', 'pose', 'pose-client.mjs');
+  const { createQueue } = await load('app', 'src', 'analysis', 'index.mjs');
+  const { createStore } = await load('app', 'src', 'store', 'index.mjs');
+  const { problemOf } = await load('app', 'src', 'ui', 'problem-model.mjs');
+  const { createFakeStorage } = require('./fake-opfs.js');
+  const { loadDiagnostics } = require('../loadDiagnostics');
+  const control = { mode: null };
+  const track = readTrack('lateral-raise-cable-1');
+  const replay = (await load('app', 'page-test', 'replay.mjs')).createReplay([{ id: 'example/lateral-raise-cable-1', lift: 'lateral-raise', track }], control);
+  const times = frameTimes(75, 25);
+  const clip = () => {   // a decoded clip as the frame source gives it: contract 5, no video behind it
+    const frame = i => ({ timestamp: times[i] * 1e6, duration: 4e4, displayWidth: 108, displayHeight: 192, close() {} });
+    return {
+      info: { duration: 3, fps: 25, width: 108, height: 192, rotation: 0, codec: 'avc1.64001f' }, frameTimes: Object.freeze(times.slice()),
+      async frameAt(t) { return frame(Math.max(0, times.findLastIndex(x => x <= t))); },
+      async *frames(t0, t1) { for (let i = 0; i < times.length; i++) if (times[i] >= t0 - 1e-6 && times[i] <= t1 + 1e-6) yield frame(i); },
+      async thumbnails() { return []; }, async stepper() { throw new Error('not here'); }, close() {},
+    };
+  };
+  const store = createStore({ storage: createFakeStorage().storage, now: () => new Date('2026-11-03T09:00:00.000Z'), appVersion: '0.1.0' });
+  const tick = { fn: null };
+  const queue = createQueue({
+    store, Diagnostics: loadDiagnostics(), stallMs: 30000, tickMs: 1000, now: () => Date.now(),
+    timers: { setInterval(fn) { tick.fn = fn; return 1; }, clearInterval() {} },
+    createEngine: () => PoseEngine.create({ backend: 'cpu', createWorker: () => replay.createWorker() }),
+    openFrameSource: async () => replay.source(clip()),
+  });
+  try {
+    await queue.load();
+    const lift = await store.saveLift({ lift: 'lateral-raise', video: new Blob([Uint8Array.from([1, 2, 3, 4])], { type: 'video/mp4' }), range: { t0: 0, t1: 2.9 } });
+    control.mode = mode;
+    await queue.enqueue(lift);
+    await queue.idle();
+    const job = queue.jobs().find(j => j.liftId === lift.id);
+    return { job, problem: job.state === 'failed' ? problemOf(job.error) : null, stored: await store.getLift(lift.id) };
+  } finally { queue.close(); }
+}
+
+test('d57 replay mode no-person: the job poses every frame, finds nobody, and fails with the problem kind no-person', async () => {
+  const { job, problem, stored } = await failedJobOf('no-person');
+  assert.equal(job.state, 'failed');
+  assert.equal(problem.kind, 'no-person');
+  assert.deepEqual(problem.actions, { retry: false, another: true });
+  assert.ok(!stored.track && !stored.result, 'nothing of a result is stored');
+});
+
+test('d57 replay mode unreadable: the clip is refused, and the job fails with the problem kind unreadable', async () => {
+  const { job, problem } = await failedJobOf('unreadable');
+  assert.equal(job.state, 'failed');
+  assert.equal(problem.kind, 'unreadable');
+  assert.deepEqual(problem.actions, { retry: false, another: true });
+});
+
+test('d57 replay mode null: the same job, with the track replayed, is done (the modes are the only difference)', async () => {
+  const { job } = await failedJobOf(null);
+  assert.equal(job.state, 'done');
+});
+
+test('d57 replay: an unknown mode is refused by name; boot.mjs shares the control as globalThis.coachReplay', async () => {
+  const { createReplay, REPLAY_MODES } = await load('app', 'page-test', 'replay.mjs');
+  assert.deepEqual(REPLAY_MODES, ['no-person', 'unreadable']);
+  const r = createReplay([{ id: 'x', lift: 'lateral-raise', track: readTrack('lateral-raise-cable-1') }], { mode: 'nonsense' });
+  assert.throws(() => r.source({ info: { fps: 25 }, frameTimes: frameTimes(75, 25) }), /unknown mode "nonsense"/);
+  assert.match(fs.readFileSync(path.join(APP, 'page-test', 'boot.mjs'), 'utf8'), /globalThis\.coachReplay = /);
 });

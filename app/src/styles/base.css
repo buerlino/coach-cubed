@@ -82,12 +82,11 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 /* H (docs/ui-design.md, design/mockups/Main.dc.html) */
 .card--row { flex-direction: row; align-items: center; gap: var(--space-4); font: inherit; }
 .card--primary { min-height: var(--card-min-primary); }
-.card--disabled { background: var(--surface); border-color: var(--line); color: var(--text-quiet); cursor: default; }
 .card__icon { flex: none; width: var(--thumb); height: var(--thumb); border-radius: var(--radius-l); background: var(--surface-raised); display: flex; align-items: center; justify-content: center; }
 .card--primary .card__icon { background: var(--on-accent); color: var(--accent); }
-.card--disabled .card__icon { background: var(--surface-raised); color: var(--text-quiet); }
 .card__text { display: flex; flex-direction: column; gap: var(--space-1); }
 .card__title--big { font-size: var(--size-title); }
+.card__clock { font-family: var(--font-display); font-size: var(--size-heading); font-weight: var(--weight-bold); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-wordmark); }
 .tag { align-self: flex-start; font-size: var(--size-small); font-weight: var(--weight-semibold); color: var(--text-soft); border: 1px solid var(--line); border-radius: var(--radius-s); padding: 0 var(--space-2); }
 
 .section { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-6) var(--space-4) 0; }
@@ -102,7 +101,10 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .lift-row__top { display: flex; justify-content: space-between; gap: var(--space-2); }
 .lift-row__title { font-size: var(--size-row); font-weight: var(--weight-semibold); }
 .lift-row__meta { font-size: var(--size-small); color: var(--text-quiet); }
-.lift-row__state { font-size: var(--size-small); color: var(--text-soft); display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-3); }
+.lift-row__state { font-size: var(--size-small); color: var(--text-soft); display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); }
+.lift-row__state svg { flex: none; width: var(--icon-inline); height: var(--icon-inline); }
+.lift-row__count { display: inline-flex; align-items: center; gap: var(--space-1); font-variant-numeric: tabular-nums; }
+.lift-row__state.count--work-on { gap: var(--space-1h); }
 .lift-row__chevron { flex: none; color: var(--text-quiet); }
 .lift-row__progress { display: flex; align-items: center; gap: var(--space-2h); font-size: var(--size-small); color: var(--text-soft); }
 .bar { flex: 1; height: var(--bar); border-radius: var(--radius-xs); background: var(--line); overflow: hidden; }
@@ -122,14 +124,20 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 
 .empty { padding: var(--space-6) var(--space-4); text-align: center; display: flex; flex-direction: column; gap: var(--space-2); }
 
-/* Import: the lift choice, then the picker */
-.choice { display: flex; flex-direction: column; gap: var(--space-2); border: 0; margin: 0; padding: 0; }
-.choice__option { display: flex; align-items: center; gap: var(--space-3); min-height: var(--touch); padding: var(--space-2) var(--space-4); border-radius: var(--radius-m); background: var(--surface); border: 1px solid var(--line); cursor: pointer; }
-.choice__option:has(input:checked) { border-color: var(--accent); }
-.choice__option input { accent-color: var(--accent); width: var(--space-5); height: var(--space-5); }
-.picker { position: relative; display: flex; align-items: center; justify-content: center; min-height: var(--card-min); border-radius: var(--radius-xl); font-size: var(--size-subtitle); font-weight: var(--weight-bold); cursor: pointer; }
-.picker input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-.picker:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* L1, Which lift? (round 1: design/checkpoint-a/round-1.html) */
+.lift-step { flex: 1; display: flex; flex-direction: column; gap: var(--space-3h); padding: var(--space-2) var(--space-4) 0; }
+.lift-step__title { padding: var(--space-1) var(--space-1) 0; font-family: var(--font-display); font-size: var(--size-wordmark); font-weight: var(--weight-bold); letter-spacing: var(--tracking-wordmark); line-height: 1.1; }
+.lift-step__clip { display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-1) var(--space-1h); min-width: 0; color: var(--text-quiet); font-size: var(--size-small); }
+.lift-step__clip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lift-tile { display: flex; align-items: center; gap: var(--space-4h); width: 100%; min-height: var(--lift-tile-min); padding: var(--space-4) var(--space-5); text-align: left; font-weight: var(--weight-regular); border: var(--lift-ring) solid var(--line); border-radius: var(--radius-xl); background: var(--surface); }
+.lift-tile--default { border-color: var(--accent); }
+.lift-tile:hover { border-color: var(--text-quiet); }
+.lift-tile--default:hover { border-color: var(--accent-hover); }
+.lift-tile:active { background: var(--surface-raised); }
+.lift-tile__icon { flex: none; width: var(--lift-icon-box); height: var(--lift-icon-box); border-radius: var(--radius-button); background: var(--surface-raised); color: var(--text); display: flex; align-items: center; justify-content: center; }
+.lift-tile__icon svg { width: var(--lift-figure); height: var(--lift-figure); }
+.lift-tile__text { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1h); }
+.lift-tile__name { font-size: var(--size-lift); font-weight: var(--weight-bold); }
 .error { color: var(--status-work-on); font-weight: var(--weight-semibold); }
 
 /* Q1, Analysing (docs/ui-design.md, design/mockups/Analysing.dc.html) */
@@ -205,22 +213,20 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .credit__body { display: flex; flex-direction: column; gap: var(--space-2); padding-bottom: var(--space-3); }
 .licence { margin: 0; max-height: 50vh; overflow: auto; padding: var(--space-3); border-radius: var(--radius-s); background: var(--surface-raised); color: var(--text-soft); font-size: var(--size-small); white-space: pre-wrap; overflow-wrap: anywhere; }
 
-/* M1–M3, Mark the lift (docs/ui-design.md, design/mockups/Mark.dc.html) */
-.mark { height: 100dvh; display: flex; flex-direction: column; }   /* the stage gives way on a short screen */
+/* M1–M3, Mark the lift (docs/ui-design.md, design/mockups/Mark.dc.html; d54: round 1's page,
+   design/checkpoint-a/round-1.html). Every row has a fixed height but the stage's, which takes what is left, so
+   nothing moves when a mark is set. `flex: none` matters: .screen's `flex: 1` is a flex-basis of 0% that
+   overrode the height, and M took its content's height in #app (whose height is only a minimum), so the page scrolled. */
+.mark { flex: none; height: 100dvh; display: flex; flex-direction: column; }
 .mark-header { height: calc(var(--touch) + var(--space-4)); flex: none; display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-3); }
 .mark-header__title { font-size: var(--size-heading); font-weight: var(--weight-bold); }
-.mark-lift { margin-left: auto; min-height: var(--touch); display: flex; align-items: center; gap: var(--space-1); padding: 0 var(--space-3) 0 var(--space-3h); border-radius: var(--radius-xl); background: transparent; border-color: var(--line-strong); font-size: var(--size-label); }
-.mark-stage { flex: 0 1 var(--stage); min-height: var(--stage-min); position: relative; display: flex; align-items: center; justify-content: center; background: var(--stage-ground); }
-.mark-stage canvas { max-width: 100%; max-height: 100%; }
+.mark-header__lift .tag { font-weight: var(--weight-semibold); }
+.mark-header__lift { display: flex; align-items: center; gap: var(--space-2); font-size: var(--size-body); font-weight: var(--weight-semibold); color: var(--text-soft); }
+.mark-header__lift svg { width: var(--lift-figure-small); height: var(--lift-figure-small); }
+.mark-stage { flex: 1 1 0; min-height: var(--mark-stage-min); position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; background: var(--stage-ground); }
+.mark-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
 .mark-stage__note { padding: 0 var(--space-5); text-align: center; color: var(--text-soft); }
 .mark-clock { position: absolute; left: var(--space-3); top: var(--space-3); padding: var(--space-1) var(--space-2h); border-radius: var(--space-2h); background: var(--scrim); font-family: var(--font-display); font-size: var(--size-heading); font-weight: var(--weight-bold); letter-spacing: var(--tracking-wordmark); }
-.mark-steps { height: var(--touch); flex: none; margin: 0; padding: 0 var(--space-4); list-style: none; display: flex; align-items: center; gap: var(--space-1h); }
-.mark-step { display: flex; align-items: center; gap: var(--space-1h); flex: 1; font-size: var(--size-label); font-weight: var(--weight-semibold); color: var(--text-quiet); }
-.mark-step--now { color: var(--text); }
-.mark-step--done { color: var(--text-soft); }
-.mark-step__num { width: var(--step-mark); height: var(--step-mark); flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: var(--size-small); font-weight: var(--weight-bold); border: var(--mark-ring) solid var(--line-strong); color: var(--text-quiet); }
-.mark-step--now .mark-step__num { border-color: var(--text); color: var(--text); }
-.mark-step--done .mark-step__num { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .strip { height: var(--strip); flex: none; position: relative; overflow: hidden; cursor: grab; touch-action: none; user-select: none; }
 .strip:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .strip__track { position: absolute; top: var(--space-1); height: calc(var(--strip) - var(--space-2)); }
@@ -233,16 +239,155 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .strip__flag { position: absolute; top: 0; width: var(--mark-flag-w); height: var(--mark-flag-h); margin-left: calc(var(--mark-flag-w) / -2); border-radius: var(--space-1); background: var(--accent); color: var(--on-accent); font-size: var(--size-mark); font-weight: var(--weight-bold); text-align: center; line-height: var(--mark-flag-h); }
 .strip__playhead { position: absolute; left: 50%; top: var(--strip-playhead-top); width: var(--playhead); height: var(--strip-playhead-h); margin-left: calc(var(--playhead) / -2); background: var(--text); }
 .strip__knob { position: absolute; left: 50%; top: var(--strip-knob-top); width: var(--playhead-knob); height: var(--playhead-knob); margin-left: calc(var(--playhead-knob) / -2); background: var(--text); transform: rotate(45deg); border-radius: var(--space-half); }
-.mark-hints { flex: 1 0 auto; padding: var(--space-2) var(--space-5) 0; display: flex; flex-direction: column; gap: var(--space-1h); }
-.mark-hint { font-size: var(--size-body); line-height: 1.35; }
-.mark-hint--error { color: var(--status-work-on); }
-.mark-subhint { font-size: var(--size-small); line-height: 1.35; color: var(--text-quiet); }
-.mark-redo { align-self: flex-start; margin-left: calc(var(--space-3h) * -1); padding: 0 var(--space-3h); border: 0; border-radius: var(--radius-s); background: transparent; color: var(--accent); font-size: var(--size-body); }
-.mark-actions { flex: none; padding: 0 var(--space-4) var(--space-5); display: flex; align-items: center; gap: var(--space-2h); }
-.mark-actions button { height: var(--step-button); border-radius: var(--radius-l); }
-.mark-actions .mark-step-button { width: var(--step-button); flex: none; padding: 0; display: flex; align-items: center; justify-content: center; background: var(--surface); border-color: var(--line-strong); }
-.mark-actions .mark-main { flex: 1; font-size: var(--size-button-big); font-weight: var(--weight-bold); }
-.mark-actions .mark-main--set { background: var(--text); color: var(--on-accent); border-color: var(--text); }
+.mark-read { height: var(--mark-read); flex: none; display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-4); }
+.mark-fine { width: var(--mark-fine-w); height: var(--mark-fine-h); flex: none; padding: 0; border-radius: var(--radius-m); border-color: var(--line-strong); background: var(--surface); display: flex; align-items: center; justify-content: center; }
+.mark-text { flex: 1; min-width: 0; height: var(--mark-text-h); display: flex; align-items: center; justify-content: center; text-align: center; font-size: var(--size-label); line-height: var(--mark-text-line); color: var(--text-soft); font-variant-numeric: tabular-nums; overflow: hidden; }
+.mark-text__line { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mark-text--error { color: var(--status-work-on); }
+.mark-text--ready { color: var(--text); }
+.mark-steps { flex: none; display: flex; gap: var(--space-2); padding: var(--space-1h) var(--space-4) calc(var(--space-4h) + env(safe-area-inset-bottom, 0px)); }
+.mark-undo { width: var(--mark-undo-w); height: var(--mark-tile-h); flex: none; padding: 0; border-radius: var(--radius-l); border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); display: flex; align-items: center; justify-content: center; }
+.mark-undo:disabled { color: var(--text); opacity: var(--disabled-opacity); }
+.mark-tile { flex: 1 1 0; min-width: 0; height: var(--mark-tile-h); padding: 0 var(--space-1); border-radius: var(--radius-l); border: var(--mark-ring) solid var(--line); background: var(--surface); color: var(--text-quiet); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-1); }
+.mark-tile__disc { width: var(--mark-disc); height: var(--mark-disc); flex: none; border-radius: 50%; border: var(--mark-ring) solid var(--line-strong); display: flex; align-items: center; justify-content: center; font-size: var(--size-small); font-weight: var(--weight-bold); }
+.mark-tile__label { max-width: 100%; font-size: var(--size-label); font-weight: var(--weight-bold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.mark-tile--next, .mark-tile--next:hover, .mark-tile--next:disabled { background: var(--text); border-color: var(--text); color: var(--on-accent); }
+.mark-tile--next .mark-tile__disc { border-color: var(--on-accent); }
+.mark-tile--done, .mark-tile--done:hover, .mark-tile--done:disabled { border-color: var(--accent); color: var(--text); }
+.mark-tile--done .mark-tile__disc { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.mark-tile--go, .mark-tile--go:hover, .mark-tile--go:disabled { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.mark-tile--go .mark-tile__disc { border-color: var(--on-accent); }
+
+/* R1, Set up the camera (docs/ui-design.md, design/mockups/RecordSetup.dc.html; d28). The camera fills the window; the
+   rows over it have fixed places: ‹, the lifts, the tip (its least height three lines), the guide (which takes what is
+   left), the replay-mode choice (d29b, in the place d28 kept for it) and the bar with the line and the record disc. Nothing moves
+   when a lift is tapped or the tip changes. `flex: none` as M's (.mark): .screen's `flex: 1` is a basis of 0%. The window's
+   height is a least height: a phone in landscape scrolls (nothing is cut off) where the rows do not fit. */
+.setup, .live { flex: none; min-height: 100dvh; position: relative; display: flex; flex-direction: column; background: var(--stage-ground); }
+.camera-stage { position: absolute; inset: 0; background: var(--stage-ground); }
+.camera-stage video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.setup > :not(.camera-stage), .live > :not(.camera-stage) { position: relative; }
+.setup-top { flex: none; display: flex; align-items: center; padding: var(--space-3) var(--space-3) var(--space-1); background: linear-gradient(var(--scrim), transparent); }
+.chip-button { display: flex; align-items: center; justify-content: center; gap: var(--space-2); min-width: var(--touch); min-height: var(--touch); padding: 0 var(--space-3h); border: 0; border-radius: calc(var(--touch) / 2); background: var(--scrim); color: var(--text); font-size: var(--size-label); font-weight: var(--weight-semibold); }
+.chip-button:hover { border: 0; background: var(--surface-raised); }
+.setup-lifts { flex: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(var(--setup-lift-min), 1fr)); gap: var(--space-2); padding: var(--space-2) var(--space-3); }
+.setup-lift { min-height: var(--setup-lift-h); display: flex; align-items: center; justify-content: center; gap: var(--space-1h); padding: 0 var(--space-2); border: var(--lift-ring) solid var(--line); border-radius: var(--radius-l); background: var(--scrim); color: var(--text-soft); font-size: var(--size-row); font-weight: var(--weight-semibold); }
+.setup-lift__figure svg { width: var(--lift-figure-small); height: var(--lift-figure-small); display: block; }
+.setup-lift__text { display: flex; flex-direction: column; align-items: flex-start; }
+.setup-lift__text .tag { padding: 0 var(--space-1h); font-size: var(--size-mark); line-height: 1.3; }
+.setup-lift--default { border-color: var(--accent); }
+.setup-lift[aria-pressed="true"], .setup-lift[aria-pressed="true"]:hover { background: var(--text); border-color: var(--text); color: var(--on-accent); }
+.setup-lift--default[aria-pressed="true"], .setup-lift--default[aria-pressed="true"]:hover { border-color: var(--accent); }
+.setup-tip { flex: none; min-height: var(--setup-tip-h); margin: 0 var(--space-3); padding: var(--space-2h) var(--space-3h); display: flex; gap: var(--space-2h); align-items: flex-start; border-radius: var(--radius-m); background: var(--scrim); font-size: var(--size-label); line-height: 1.35; }
+.setup-tip svg { color: var(--accent); margin-top: var(--space-half); }
+.setup-mid { flex: 1 1 0; min-height: 0; margin: var(--space-3) var(--space-3) 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.setup-guide { flex: 1; width: 100%; max-width: 100%; display: flex; align-items: flex-end; justify-content: center; border: var(--guide-line) dashed var(--text-soft); border-radius: var(--radius-guide); }
+.setup-guide span { padding: var(--space-1) var(--space-2h) var(--space-2h); font-size: var(--size-small); font-weight: var(--weight-semibold); text-align: center; text-shadow: 0 1px 3px var(--stage-ground); }
+.setup-mid .problem { max-height: 100%; overflow: auto; background: var(--surface); }
+.setup-mode { flex: none; height: var(--setup-mode-h); margin: 0 var(--space-4); }
+.setup-bar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-4h) var(--space-4) calc(var(--space-5) + env(safe-area-inset-bottom, 0px)); border-radius: var(--radius-sheet) var(--radius-sheet) 0 0; background: var(--scrim); }
+.setup-line { font-size: var(--size-small); line-height: 1.35; color: var(--text-soft); }
+.record-disc { width: var(--record-disc); height: var(--record-disc); flex: none; padding: 0; display: flex; align-items: center; justify-content: center; border: var(--record-ring) solid var(--text); border-radius: 50%; background: transparent; }
+.record-disc:hover { border-color: var(--text); }
+.record-disc__dot { width: var(--record-disc-dot); height: var(--record-disc-dot); border-radius: 50%; background: var(--record); }
+.record-disc:disabled { opacity: var(--disabled-opacity); }
+
+/* R2, Recording (design/mockups/RecordLive.dc.html; d28). The camera fills the window; the chips on top, the lift line,
+   the Replay button and the End session row have fixed places. The clock and the rate have a width of their own, the
+   queue chip and the wake-lock line are at the right edge: nothing moves when they change. It fits a portrait phone from
+   640 px high without a vertical scroll. */
+.live-top { flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); padding: var(--space-3) var(--space-3) var(--fade-top); background: linear-gradient(var(--scrim), transparent); }
+.live-row { width: 100%; min-height: var(--touch); display: flex; align-items: center; gap: var(--space-2); }
+.live-chip { height: var(--live-chip-h); display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-3); border-radius: calc(var(--live-chip-h) / 2); background: var(--scrim); color: var(--text-soft); font-size: var(--size-small); font-weight: var(--weight-semibold); white-space: nowrap; }
+.live-chip--rec { color: var(--text); font-family: var(--font-display); font-size: var(--size-heading); font-weight: var(--weight-bold); letter-spacing: var(--tracking-wordmark); }
+.live-chip__dot { width: var(--rec-dot); height: var(--rec-dot); border-radius: 50%; background: var(--record); flex: none; }
+.live-clock { min-width: var(--live-clock-w); font-variant-numeric: tabular-nums; }
+.live-fps { min-width: var(--live-fps-w); justify-content: center; font-variant-numeric: tabular-nums; }
+.live-queue { font-size: var(--size-small); }
+.live-queue__spinner { width: var(--spinner); height: var(--spinner); flex: none; box-sizing: border-box; border: 2px solid var(--accent); border-right-color: transparent; border-radius: 50%; }
+.live-mid { flex: 1 1 0; min-height: 0; margin: var(--space-3); display: flex; align-items: center; justify-content: center; }
+.live-mid .problem { max-height: 100%; overflow: auto; background: var(--surface); }
+.live-controls { flex: none; display: flex; flex-direction: column; gap: var(--space-2h); padding: var(--fade-top) var(--space-4) calc(var(--space-5) + env(safe-area-inset-bottom, 0px)); background: linear-gradient(transparent, var(--scrim) 40%); }
+.live-replay { height: var(--replay-h); width: 100%; display: flex; align-items: center; justify-content: center; gap: var(--space-3h); border: 0; border-radius: var(--radius-xl); background: var(--accent); color: var(--on-accent); }
+.live-replay:hover { background: var(--accent-hover); border: 0; }
+.live-replay:disabled { background: var(--accent); color: var(--on-accent); opacity: var(--disabled-opacity); }
+.live-replay__text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.05; }
+.live-replay__name { font-family: var(--font-display); font-size: var(--size-replay); font-weight: var(--weight-bold); letter-spacing: var(--tracking-wordmark); }
+.live-replay__length { font-size: var(--size-label); font-weight: var(--weight-semibold); }
+.live-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-height: var(--touch); }
+.live-end { min-height: var(--touch); display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-3); border: 0; border-radius: calc(var(--touch) / 2); background: transparent; font-size: var(--size-button); font-weight: var(--weight-semibold); }
+.live-end:hover { border: 0; background: var(--scrim); }
+.live-wake { min-width: 0; padding-right: var(--space-2); color: var(--text-quiet); font-size: var(--size-small); text-align: right; }
+
+
+/* R3, Replay (design/mockups/Replay.dc.html; d29). The snapshot plays full window under the chips on top and the controls
+   below (REPLAY and how long ago, "Still recording"; the bar row, Keep and mark, Not this one with its countdown). The
+   position and the countdown have widths of their own: nothing moves while they change. It fits a portrait phone from
+   640 px high without a vertical scroll. */
+.replay { flex: none; min-height: 100dvh; position: relative; display: flex; flex-direction: column; background: var(--stage-ground); }
+.replay-stage { position: absolute; inset: 0; background: var(--stage-ground); }
+.replay-layer { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.replay-layer[hidden] { display: none; }
+.replay-note { position: absolute; left: var(--space-4); right: var(--space-4); top: 50%; margin: 0; transform: translateY(-50%); text-align: center; color: var(--text-soft); }
+.replay > :not(.replay-stage) { position: relative; }
+.replay-top { flex: none; display: flex; align-items: center; gap: var(--space-2); padding: var(--space-4) var(--space-3) var(--fade-top); background: linear-gradient(var(--scrim), transparent); }
+.replay-chip { height: var(--live-chip-h); display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-3); border-radius: calc(var(--live-chip-h) / 2); font-size: var(--size-small); font-weight: var(--weight-semibold); white-space: nowrap; }
+.replay-chip--name { padding: 0 var(--space-3h); background: var(--text); color: var(--on-accent); font-family: var(--font-display); font-size: var(--size-heading); font-weight: var(--weight-bold); letter-spacing: var(--tracking-wordmark); }
+.replay-chip--name svg { width: var(--replay-chip-icon); height: var(--replay-chip-icon); }
+.replay-chip--rec { margin-left: auto; background: var(--scrim); color: var(--text); }
+.replay-chip__dot { width: calc(var(--rec-dot) - 2px); height: calc(var(--rec-dot) - 2px); border-radius: 50%; background: var(--record); flex: none; }
+.replay-ago { min-width: var(--live-clock-w); font-size: var(--size-label); font-weight: var(--weight-semibold); text-shadow: 0 1px 3px var(--ground); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.replay-problem { flex: 1; display: flex; align-items: center; justify-content: center; padding: var(--space-4); }
+.replay-controls { margin-top: auto; flex: none; display: flex; flex-direction: column; gap: var(--space-3); padding: var(--fade-top) var(--space-4) calc(var(--space-5) + env(safe-area-inset-bottom, 0px)); background: linear-gradient(transparent, var(--scrim) 35%); }
+.replay-bar-row { display: flex; align-items: center; gap: var(--space-2h); }
+.replay-play { width: var(--touch); height: var(--touch); flex: none; padding: 0; border: 0; border-radius: 50%; background: var(--scrim); color: var(--text); display: flex; align-items: center; justify-content: center; }
+.replay-bar { flex: 1; min-width: 0; height: var(--touch); position: relative; cursor: pointer; touch-action: none; }
+.replay-bar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.replay-bar__track, .replay-bar__fill { position: absolute; left: 0; top: calc((var(--touch) - var(--replay-bar-h)) / 2); height: var(--replay-bar-h); border-radius: calc(var(--replay-bar-h) / 2); }
+.replay-bar__track { right: 0; background: var(--line); }
+.replay-bar__fill { background: var(--text); }
+.replay-bar__knob { position: absolute; top: calc((var(--touch) - var(--replay-knob)) / 2); width: var(--replay-knob); height: var(--replay-knob); margin-left: calc(var(--replay-knob) / -2); border-radius: 50%; background: var(--text); }
+.replay-pos { width: var(--replay-pos-w); flex: none; text-align: right; font-size: var(--size-label); font-weight: var(--weight-semibold); color: var(--text-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.replay-speed { width: var(--replay-speed-w); height: var(--touch); flex: none; padding: 0; border-radius: var(--radius-s); background: transparent; font-size: var(--size-label); font-weight: var(--weight-bold); }
+.replay-keep { height: var(--replay-keep-h); width: 100%; display: flex; align-items: center; justify-content: center; gap: var(--space-2h); border: 0; border-radius: var(--radius-xl); background: var(--accent); color: var(--on-accent); font-size: var(--size-subtitle); font-weight: var(--weight-bold); }
+.replay-keep:hover { background: var(--accent-hover); border: 0; }
+.replay-keep:disabled { background: var(--accent); color: var(--on-accent); opacity: var(--disabled-opacity); }
+.replay-live { height: var(--replay-live-h); width: 100%; display: flex; align-items: center; justify-content: center; gap: var(--space-2); border: 1px solid var(--line-mid); border-radius: var(--radius-xl); background: transparent; color: var(--text); font-size: var(--size-row); font-weight: var(--weight-semibold); }
+.replay-live__in { color: var(--text-quiet); font-weight: var(--weight-medium); font-variant-numeric: tabular-nums; }
+
+/* R3b, Delayed view (design/mockups/DelayedView.dc.html; d29b). The delayed frames fill the window on a canvas (fitted,
+   aspect kept); over them REC with the clock and the delay on the left, the live view in the right corner, and at the
+   bottom the delay's choices, Keep this lift and the End session row. The clock and the delay have widths of their own:
+   nothing moves while they change. It fits a portrait phone from 640 px high without a vertical scroll. */
+.delayed { flex: none; min-height: 100dvh; position: relative; display: flex; flex-direction: column; background: var(--stage-ground); }
+.delayed-stage { position: absolute; inset: 0; background: var(--stage-ground); }
+.delayed-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.delayed-note { position: absolute; left: var(--space-4); right: var(--space-4); top: 50%; margin: 0; transform: translateY(-50%); text-align: center; color: var(--text-soft); }
+.delayed > :not(.delayed-stage) { position: relative; }
+.delayed-top { flex: none; display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-3) var(--fade-top); background: linear-gradient(var(--scrim), transparent); }
+.delayed-chips { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); }
+.delayed-behind { display: flex; flex-direction: column; padding: var(--space-1h) var(--space-3h) var(--space-2); border-radius: var(--radius-l); background: var(--text); color: var(--on-accent); line-height: 1; }
+.delayed-behind__n { min-width: var(--delayed-behind-w); font-family: var(--font-display); font-size: var(--size-delay); font-weight: var(--weight-bold); font-variant-numeric: tabular-nums; }
+.delayed-behind__word { font-size: var(--size-small); font-weight: var(--weight-bold); letter-spacing: var(--tracking-label); text-transform: uppercase; }
+.delayed-live { flex: none; position: relative; width: var(--delayed-inset-w); height: var(--delayed-inset-h); border: var(--delayed-inset-border) solid var(--text); border-radius: var(--radius-m); overflow: hidden; background: var(--surface); }
+.delayed-live video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.delayed-live__tag { position: absolute; left: var(--space-1h); bottom: var(--space-1h); padding: var(--space-half) var(--space-1h); border-radius: var(--radius-xs); background: var(--scrim); font-size: var(--size-mark); font-weight: var(--weight-bold); letter-spacing: var(--tracking-wordmark); }
+.delayed-mid { flex: 1 1 0; min-height: 0; margin: var(--space-3); display: flex; align-items: center; justify-content: center; }
+.delayed-mid .problem { max-height: 100%; overflow: auto; background: var(--surface); }
+.delayed-controls { flex: none; display: flex; flex-direction: column; gap: var(--space-3); padding: var(--fade-top) var(--space-4) calc(var(--space-5) + env(safe-area-inset-bottom, 0px)); background: linear-gradient(transparent, var(--scrim) 35%); }
+.delayed-delays { display: flex; align-items: center; gap: var(--space-2); }
+.delayed-delays__label { margin-right: var(--space-1); font-size: var(--size-label); color: var(--text-soft); }
+.delayed-delay { flex: 1; min-width: 0; height: var(--touch); padding: 0; border: 1px solid var(--line-mid); border-radius: var(--radius-s); background: transparent; color: var(--text); font-size: var(--size-body); font-weight: var(--weight-bold); }
+.delayed-delay[aria-pressed="true"], .delayed-delay[aria-pressed="true"]:hover { background: var(--text); border-color: var(--text); color: var(--on-accent); }
+.delayed-keep { height: var(--delayed-keep-h); width: 100%; display: flex; align-items: center; justify-content: center; gap: var(--space-3); border: 0; border-radius: var(--radius-sheet); background: var(--accent); color: var(--on-accent); }
+.delayed-keep:hover { background: var(--accent-hover); border: 0; }
+.delayed-keep:disabled { background: var(--accent); color: var(--on-accent); opacity: var(--disabled-opacity); }
+.delayed-keep svg { width: var(--delayed-keep-icon); height: var(--delayed-keep-icon); }
+.delayed-keep__text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.05; }
+.delayed-keep__name { font-family: var(--font-display); font-size: var(--size-keep); font-weight: var(--weight-bold); letter-spacing: var(--tracking-wordmark); }
+.delayed-keep__sub { font-size: var(--size-label); font-weight: var(--weight-semibold); }
+.delayed-controls .live-end { flex: none; white-space: nowrap; }
+.delayed-hands { min-width: 0; padding-right: var(--space-2); color: var(--text-quiet); font-size: var(--size-small); text-align: right; }
 
 /* A1, Result: the player (docs/ui-design.md, design/mockups/Result.dc.html) */
 .result { height: 100dvh; }
@@ -382,6 +527,13 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .welcome { gap: var(--space-4); }
 .welcome__points { display: flex; flex-direction: column; gap: var(--space-3); margin: 0; padding-left: var(--space-5); font-size: var(--size-row); line-height: 1.4; }
 .welcome__skip { min-height: var(--button-quiet); border: 0; background: transparent; color: var(--text-soft); }
+
+/* The "more below" cue (d55, components/more-below.mjs): a fade and a button at the bottom edge of the window while the page scrolls further.
+   The fade lets taps through; only the button is touched. */
+.more-below { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; height: var(--more-fade); display: flex; align-items: flex-end; justify-content: center; padding-bottom: calc(var(--space-2h) + env(safe-area-inset-bottom, 0px)); background: linear-gradient(transparent, var(--ground) 62%); pointer-events: none; transition: opacity 0.2s ease; }
+.more-below[hidden] { display: none; }
+.more-below button { pointer-events: auto; width: var(--touch); height: var(--touch); padding: 0; border: 1px solid var(--line-strong); border-radius: var(--radius-xl); background: var(--surface); color: var(--text); display: flex; align-items: center; justify-content: center; }
+@media (prefers-reduced-motion: reduce) { .more-below { transition: none; } }
 
 /* A4, the wide result (package d25, design/mockups/Desktop.dc.html): A1's elements, arranged side by side from
    WIDE_MIN_PX (ui/wide-model.mjs) up. Stacked, the two wrappers add no box, so the phone's layout is A1's own.

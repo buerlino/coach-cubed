@@ -40,7 +40,7 @@ function assertNames(validate, value, field, mutate, ...rest) {
     `breaking ${field}: no error names it in ${JSON.stringify(errors)}`);
 }
 
-const MODULES = ['common.mjs', 'keypoints.mjs', 'track.mjs', 'pose-messages.mjs', 'analysis-job.mjs',
+const MODULES = ['common.mjs', 'lifts.mjs', 'keypoints.mjs', 'track.mjs', 'pose-messages.mjs', 'analysis-job.mjs',
   'stored-lift.mjs', 'cue-view.mjs', 'frame-source.mjs'];
 
 // --- the folder -------------------------------------------------------------

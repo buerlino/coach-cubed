@@ -33,7 +33,7 @@ test('the stage and its share: pose is frames over frames inside the mockup\'s 1
   assert.equal(v.percent, 52);   // 10 + 85 * 0.5, floored
   assert.equal(v.pctLabel, '52%');
   assert.deepEqual(v.stages.map(s => [s.label, s.status]), [['Read the video', 'done'], ['Find the pose', 'now'], ['Score the cues', 'todo']]);
-  assert.equal(v.stages[1].detail, 'frame 195 of 390');
+  assert.equal(v.stages[1].detail, '195 / 390');
   assert.equal(v.stages[0].detail, '');
   assert.equal(v.stages[2].detail, '');
 });
@@ -54,18 +54,18 @@ test('reading is the first 10 %, scoring the last 5 %, and a running job is neve
 test('the time left as the mockup rounds it: about N s, rounded up; minutes from two', async () => {
   const { analysingView } = await model();
   const left = eta => analysingView([job(LR, 'pose', { progress: progress('pose', 10, 390, eta) })], { liftId: LR.id }).left;
-  assert.equal(left(37.2), 'about 38 s left');
-  assert.equal(left(9), 'about 9 s left');
-  assert.equal(left(0.2), 'about 1 s left');
-  assert.equal(left(0), 'about 1 s left');
-  assert.equal(left(119), 'about 119 s left');
-  assert.equal(left(150), 'about 3 min left');
+  assert.equal(left(37.2), '~38 s left');
+  assert.equal(left(9), '~9 s left');
+  assert.equal(left(0.2), '~1 s left');
+  assert.equal(left(0), '~1 s left');
+  assert.equal(left(119), '~119 s left');
+  assert.equal(left(150), '~3 min left');
 });
 
 test('etaS null is never a made-up time: the view says it is measuring', async () => {
   const { analysingView } = await model();
   const v = analysingView([job(LR, 'pose', { progress: progress('pose', 10, 390, null) })], { liftId: LR.id });
-  assert.equal(v.left, 'measuring the speed');
+  assert.equal(v.left, 'estimating…');
   assert.ok(!/\d/.test(v.left));
   assert.equal(v.eta, null);
 });
@@ -75,20 +75,20 @@ test('the lift card: its name, when it was kept, the marked length and the frame
   const v = analysingView([job(LR, 'pose', { progress: progress('pose', 1, 390) })], { liftId: LR.id, lift: LR });
   assert.equal(v.lift.title, 'Lateral raise');
   assert.equal(v.lift.lift, 'lateral-raise');
-  assert.equal(v.lift.meta, 'Kept 14:32 · 13.0 s marked · 390 frames');
+  assert.equal(v.lift.meta, '14:32 · 13.0 s');
   const early = analysingView([job(LR, 'reading', { progress: progress('reading', 0, 1) })], { liftId: LR.id, lift: LR });
-  assert.equal(early.lift.meta, 'Kept 14:32 · 13.0 s marked');
+  assert.equal(early.lift.meta, '14:32 · 13.0 s');
   const noRecord = analysingView([job(LR, 'reading', { progress: progress('reading', 0, 1) })], { liftId: LR.id });
-  assert.equal(noRecord.lift.meta, '13.0 s marked');
+  assert.equal(noRecord.lift.meta, '13.0 s');
 });
 
 test('the other lifts in the queue: the next one with its length and time at the measured rate', async () => {
   const { analysingView } = await model();
   const jobs = [job(LR, 'pose', { progress: progress('pose', 1, 390, 30) }), job(SN, 'queued')];
   const v = analysingView(jobs, { liftId: LR.id, rate: RATE });
-  assert.equal(v.queue.label, 'Next in the queue');
+  assert.equal(v.queue.label, 'Up next');
   assert.equal(v.queue.items.length, 1);
-  assert.equal(v.queue.items[0].text, 'Snatch · 3.4 s · about 10 s');
+  assert.equal(v.queue.items[0].text, 'Snatch · 3.4 s · ~10 s');
   assert.equal(v.queue.more, 0);
 });
 
@@ -124,7 +124,7 @@ test('a queued job waits: its place in the queue, nothing to measure, cancel off
   assert.equal(v.percent, 0);
   assert.equal(v.left, 'waiting');
   assert.deepEqual(v.stages.map(s => s.status), ['todo', 'todo', 'todo']);
-  assert.equal(v.queue.label, 'Ahead in the queue');
+  assert.equal(v.queue.label, 'Before this');
   assert.equal(v.queue.items[0].liftId, LR.id);
   assert.equal(v.actions.cancel, true);
   assert.equal(v.actions.retry, false);
@@ -144,28 +144,46 @@ test('a failed job: its reason in the engine\'s words, retry instead of cancel, 
   assert.equal(v.left, '');
 });
 
-test('d51: "Pick another video" is offered on "No person found" only; the other problems keep their buttons', async () => {
+test('d56: "Pick another video" is offered for every failed job whose problem has actions.another; the others keep their buttons', async () => {
   const { analysingView } = await model();
+  const { problemOf } = await load('ui', 'problem-model.mjs');
   const failed = error => analysingView([job(LR, 'failed', { progress: progress('pose', 120, 390), error })], { liftId: LR.id, lift: LR });
-  const nobody = failed('No person was found in the marked part of the video. detected in only 0 sampled frames');
-  assert.equal(nobody.problem.kind, 'no-person');
-  assert.equal(nobody.actions.another, true);
-  assert.equal(nobody.actions.retry, false);
-  for (const error of ['The pose engine failed: x', 'The video file ends early.', 'The analysis stopped responding: no progress for 30 s with the app open.']) {
+  const cases = [
+    ['No person was found in the marked part of the video. detected in only 0 sampled frames', 'no-person', true],
+    ['The video could not be read (unreadable): x', 'unreadable', true],
+    ['The video could not be read (decode-failed): x', 'unreadable', true],
+    ['The video could not be read (unsupported-codec): hvc1 is not supported', 'unsupported-codec', true],
+    ['The video could not be read (no-webcodecs): x', 'no-webcodecs', false],
+    ['The pose engine failed: x', 'engine-failed', false],
+    ['The analysis stopped responding: no progress for 30 s with the app open.', 'engine-failed', false],
+    ['The lifts do not fit on the phone', 'failed', false],
+    ['The video file ends early.', 'failed', false],
+  ];
+  for (const [error, kind, another] of cases) {
     const v = failed(error);
-    assert.equal(v.actions.another, false, error);
-    assert.equal(v.actions.retry, true, error);
+    assert.equal(v.problem.kind, kind, error);
+    assert.equal(v.actions.another, problemOf(error).actions.another, `${error}: from the problem`);
+    assert.equal(v.actions.another, another, error);
+    assert.equal(v.actions.retry, problemOf(error).actions.retry, error);
   }
-  assert.equal(failed('The video could not be read (unreadable): x').actions.another, false, 'unreadable keeps its own buttons on Q1');
+  assert.equal(failed(cases[0][0]).actions.retry, false);
   for (const state of ['pose', 'queued', 'cancelled', 'done']) {
     assert.equal(analysingView([job(LR, state, { progress: progress('pose', 1, 390) })], { liftId: LR.id }).actions.another, false, state);
   }
 });
 
-test('d51: Q1 draws the button on the panel, as a 44 px-class big button that goes to the import step', () => {
+test('d56: the model takes another from the problem, not from the name of one kind', () => {
+  const fs = require('node:fs');
+  const src = fs.readFileSync(path.join(APP, 'src', 'ui', 'analysing-model.mjs'), 'utf8');
+  assert.doesNotMatch(src, /kind === 'no-person'/);
+  assert.match(src, /problem\.actions\.another/);
+});
+
+test('d51/d53: Q1 draws the button on the panel, as a big button that opens the picker (PickVideo), and the lift step follows', () => {
   const fs = require('node:fs');
   const q1 = fs.readFileSync(path.join(APP, 'src', 'ui', 'screens', 'Q1.mjs'), 'utf8');
-  assert.match(q1, /view\.actions\.another \? html`<button type="button" class="button--primary button-big" onClick=\$\{\(\) => flow\.go\('import'\)\}>Pick another video<\/button>`/);
+  assert.match(q1, /view\.actions\.another \? html`<\$\{PickVideo\} flow=\$\{flow\} class="button--primary button-big">Pick another video<\/\$\{PickVideo\}>`/);
+  assert.doesNotMatch(q1, /go\(['"]import['"]\)/);
 });
 
 test('a cancelled job: stopped, retry offered, no reason', async () => {
@@ -272,7 +290,7 @@ test('leaving Q1 and coming back rebuilds the view from the queue, live', async 
   const back = followAnalysis(q, s => second.push(analysingView(s.jobs, { liftId: LR.id, lift: LR, rate: s.rate })));
   await new Promise(r => setImmediate(r));
   assert.equal(second.at(-1).percent, 75, 'rebuilt from the queue as it is now');
-  assert.equal(second.at(-1).left, 'about 8 s left');
+  assert.equal(second.at(-1).left, '~8 s left');
   assert.equal(first.at(-1).percent, 31, 'the first follow saw nothing after it left');
 
   // and live: the next change reaches the new view, the end included

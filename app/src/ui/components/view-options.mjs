@@ -39,7 +39,7 @@ export function ViewOptions({ options, controller, onClose }) {
               <button type="button" class="vo-switch" role="switch" aria-checked=${!!options[w.key]} onClick=${() => controller.setSwitch(w.key, !options[w.key])}>
                 <span class="vo-switch__text">
                   <span class="vo-switch__name">${w.label}</span>
-                  <span class="vo-switch__sub">${w.sub}</span>
+                  ${w.sub ? html`<span class="vo-switch__sub">${w.sub}</span>` : null}
                 </span>
                 <span class="vo-switch__track" aria-hidden="true"><span class="vo-switch__knob"></span></span>
               </button>`)}
