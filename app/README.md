@@ -37,6 +37,8 @@ pipeline/devlock.sh slice clips app/tools/make-phone-clips.sh ~/.cache/coach/c34
 node app/tools/check-media-apk.mjs --serial 4d42e62f --clips ~/.cache/coach/c34-clips   # curie only: the frame source and the cut on the phone, 5 runs each
 node app/tools/check-phone.mjs walk --port 9340 --lift snatch --clip NAME [--file PATH]   # curie only (c26): the app walked over a forwarded DevTools port
 node app/tools/check-phone.mjs tracks --in RUNS.jsonl --dir DIR --shell apk   # its stored tracks as the bench's results, for compare.mjs and difftrack.mjs
+node app/tools/check-capture-phone.mjs record --serial 4d42e62f --shell apk --port 9345 --buffers 10,60,300   # curie only (c30): the capture on the phone's camera, debug/capture.html
+node app/tools/check-capture-phone.mjs session --serial 4d42e62f --shell brave --port 9346   # R1, R2, Replay, R3 through the app's screens, with the memory
 ```
 
 `serve.mjs` serves what `assemble.mjs` made: assemble again after a change.
@@ -1833,7 +1835,10 @@ own `files/` (`run-as`), runs the engine, prints the JSON and uninstalls.
 `debug/media.mjs` (`c34`) adds the frame source's and the cut's measurements
 (`window.c34`) on clips set on the page's second input, `#media`;
 `tools/check-media-apk.mjs` drives them the same way, five runs each, with the
-memory sampled on the phone ([On the phone](#on-the-phone)).
+memory sampled on the phone ([On the phone](#on-the-phone)). `debug/capture.html`
+(`c30`, `window.c30`) records the camera with the real capture and times what it
+doesn't report; `tools/check-capture-phone.mjs` drives it, and R1 to R3 through
+the app's screens, in the APK or in Brave ([the capture on the phone](#on-the-phone-c30)).
 
 **On the Fairphone 6** (Android 16, LineageOS 4.4.1, WebView 153.0.8010.36,
 Adreno 810; the debug APK of 2026-11-02, `c20`'s report has every number):
