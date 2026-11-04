@@ -1693,8 +1693,20 @@ name (question 10), and changing the ID later breaks updates, so no tester
 gets an APK before `c33` sets it. The scheme is `https`: the page's origin is
 `https://localhost`, a secure context (OPFS, WebCodecs), never cross-origin
 isolated in a WebView ([spike/webview-shell](../spike/webview-shell/README.md)).
-No camera permission before milestone B (`c30`); only `INTERNET`, which
-Capacitor's local server needs.
+Two permissions (`c30`): `INTERNET`, which Capacitor's local server needs,
+and `CAMERA`, for the capture (R1, R2). The camera is a `<uses-feature>` with
+`android:required="false"` (`android.hardware.camera` and its autofocus, which
+`CAMERA` alone would imply as required), so a phone without one can still
+install the app and import a video. Nothing asks at start: the WebView asks
+Android when the page calls `getUserMedia` (R1), Capacitor's
+`BridgeWebChromeClient` turns that into Android's dialog, and a refusal reaches
+the page as `NotAllowedError`, R1's `camera-denied` panel. On the phone
+(`c30`, below): the dialog came up at R1's first open and the user's Allow
+opened the preview; with the permission refused for good (`pm revoke` and
+`user-fixed`, no dialog) R1 showed "Camera not allowed", and after `pm grant`
+its "Try again" opened the preview. The merged manifest also carries
+AndroidX's own `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`, a signature
+permission of the app itself, not one the user grants.
 
 **No Android backup** (`c43`). S1's privacy text says the lifts stay "in its
 own private storage on this phone, and nowhere else"; with Capacitor's default
