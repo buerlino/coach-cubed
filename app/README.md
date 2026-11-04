@@ -37,6 +37,8 @@ pipeline/devlock.sh slice clips app/tools/make-phone-clips.sh ~/.cache/coach/c34
 node app/tools/check-media-apk.mjs --serial 4d42e62f --clips ~/.cache/coach/c34-clips   # curie only: the frame source and the cut on the phone, 5 runs each
 node app/tools/check-phone.mjs walk --port 9340 --lift snatch --clip NAME [--file PATH]   # curie only (c26): the app walked over a forwarded DevTools port
 node app/tools/check-phone.mjs tracks --in RUNS.jsonl --dir DIR --shell apk   # its stored tracks as the bench's results, for compare.mjs and difftrack.mjs
+node app/tools/check-capture-phone.mjs record --serial 4d42e62f --shell apk --port 9345 --buffers 10,60,300   # curie only (c30): the capture on the phone's camera, debug/capture.html
+node app/tools/check-capture-phone.mjs session --serial 4d42e62f --shell brave --port 9346   # R1, R2, Replay, R3 through the app's screens, with the memory
 ```
 
 `serve.mjs` serves what `assemble.mjs` made: assemble again after a change.
@@ -663,7 +665,13 @@ await cap.resume(); await cap.stop(); cap.close();
   ring's groups rely on), at the frames' own size and the quality's rate, `hardwareAcceleration:
   'no-preference'`, `latencyMode: 'realtime'`, `avc: { format: 'avc' }`, **10 Mbit/s at 1080p30**
   (scaled by pixels per second for other sizes): what `c34`'s phone-like clips have, so the frame
-  source's and the cut's phone numbers hold for what the capture writes; 60 s of it is 75 MB.
+  source's and the cut's phone numbers hold for what the capture writes. On the Fairphone the hardware
+  encoder gives more than it is asked at 30 fps (11.7–11.9 Mbit/s, so 60 s is about 90 MB) and less at a lower
+  frame rate, about 5 Mbit/s at 14 fps ([On the phone](#on-the-phone-c30)). **Both kept by `c30`:** the phone took
+  Baseline every run in both shells, so `CODECS` stays as it is; and 10 Mbit/s stays because the phone's numbers
+  for the frame source, the cut and the stepper were measured on clips of about that rate, and the snapshots of
+  what it writes decoded whole at 6 (30 fps) to 15 (14 fps) times real time. Its memory is what the buffer's range has to fit
+  (`settings.mjs`'s `RANGES` stay provisional until nordmu decides).
   A **keyframe** is asked for at the first frame 1 s or more after the last one (by the frames'
   times, 1 ms of slack for their rounding), never every N frames, so a camera that slows down
   still gets one a second. While more than 4 frames wait in the encoder's queue a frame is
@@ -729,16 +737,87 @@ before 3 s back), `snapshot(5)` 8 and 4 ms, 5.17 and 5.15 s, 155 and 103 frames,
 decoded whole by the real decoder (`openFrameSource` 17 and 18 ms, all frames in 159 and 109 ms). The
 encoder's real bitrate on the fake camera's simple picture was 0.97 Mbit/s at 30 fps (0.68 at 20),
 a tenth of the 10 Mbit/s asked: so its snapshots were 0.48 MB (3 s) and 0.63 MB (5 s), and 60 s of
-it would be 7.3 MB. A phone's camera picture is what fills the 10 Mbit/s: 75 MB a minute, `c30`'s to
-measure.
+it would be 7.3 MB. A phone's camera picture fills it: [On the phone](#on-the-phone-c30).
 
-**What waits for the phone (`c30`):** the real camera (its rate in a dim gym, its timestamps'
-jitter, the back camera's `facingMode`), the hardware encoder (whether it takes Baseline at
-10 Mbit/s, its real bitrate on a lifter, its keyframes on demand, dropped frames under the pose
-engine's load), the frames' `rotation` in portrait, the ring's memory at 60 s and at S1's largest
-buffer (the provisional ranges in `settings.mjs` wait for it), the snapshot's time on the phone,
-the wake lock in the APK, an interruption by another app or the lock screen, and Android's camera
-permission.
+### On the phone (`c30`)
+
+Measured on 2026-11-04 by `c30` on the Fairphone 6 (LineageOS, Android 16, build BP2A.250805.005), in the debug
+APK (WebView 153.0.8010.36, 18,285,641 bytes, built from `c30`'s tree) and in Brave 1.98.63 (Chromium
+156.0.8078.80) in a tab, from the same debug `dist/` served by the laptop (`tools/serve.mjs --port 8791`, `adb
+reverse`). The page is `debug/capture.html` (`debug/capture.mjs`, `window.c30`; debug builds only), driven over
+DevTools by `tools/check-capture-phone.mjs`: the real `createCapture` with the browser's parts wrapped, so the page
+also sees each frame's timestamp, size and rotation, each frame's encode time (`encode()` to its chunk) and every
+chunk. Each run: `open()`, 1.5 s of preview, `start()`, `bufferS` + 10 s of recording, `snapshot(20)` and
+`snapshot(60)` (each opened and decoded end to end by the frame source), a 10 s cut from the middle of the last
+one (`cutVideo`, read back the same way), `stop()`, `close()`. The back camera, `1080p30`, interleaved runs
+(10, 60, 300 s, then again), medians of five unless said. Memory: a loop on the phone every second sums VmRSS
+and `dumpsys gpu --gpumem` of the shell's processes (`spike/pose-bench/phone-sample.sh`'s way: the APK's
+process and the WebView renderer it binds; Brave's every process, its other tab too), after a garbage
+collection (`HeapProfiler.collectGarbage`); the baseline is the median before the camera opened, and each
+figure is the peak over it. The hardware encoder and decoder run in Android's codec processes
+(`media.hwcodec`, `media.swcodec`), which the shell's figure doesn't count: their RSS, sampled apart, stayed at
+36–44 MB with no rise while encoding (their buffers are shared graphics memory, not in anyone's RSS), so
+**the encoder's own memory isn't in these numbers**. In the evening, in the room's lamp light, on USB power
+(the phone at 18–80 %, 24–37 °C). The phone stood in a holder with its top down (the accelerometer's y −8.9
+m/s², auto-rotate off, so the screen at rotation 0): the picture, the preview and R3 were the right way up all
+the same, and held top-up by hand, R3 was upright in both shells too (one screenshot each, deleted). Landscape:
+the screen turned with `user_rotation` 1 (`ROTATION_90`) and the phone on its side.
+
+| What | APK | Brave | How |
+| --- | --- | --- | --- |
+| The camera's rate, portrait, the lamp | **14.2 fps** (frames 70.4 ms apart, 90th 74.7 ms, at most 82–90 ms; jitter, the intervals' SD, 3.7–4.8 ms; no late frame) | 14.2 fps (70.5 ms, 90th 75.3 ms, jitter 4.1 ms) | the frames' timestamps over the whole recording; `status.fps` (the 2 s median) said 14.2–16.4 |
+| the same, the lamp off | 12.4 fps (80.4 ms; one run) | | |
+| the same, a person moving 2–3 m away in front of it | **29.9 fps** (33.5 ms, 90th 38.6 ms, jitter 4.6 ms; 4 runs) | | the rate follows the scene's light: a brighter view gives shorter exposures |
+| landscape, the camera on a lit screen | 29.4 fps (33.6 ms, jitter 7.1 ms; two runs had 254 and 441 late frames, the rate halving for a while) | | |
+| The size asked and given | 1920×1080 asked (as `ideal`); **1080×1920** in portrait, 1920×1080 in landscape | the same | the track's settings, every frame's `displayWidth` × `displayHeight` |
+| The frames' rotation | **0** on every frame, portrait and landscape: the browser turns the picture itself, so the MP4 carries no rotation and the frame source opens it upright (1080×1920 in portrait) | the same | `VideoFrame.rotation`, `status.rotation`, the snapshot's `info.rotation` |
+| The codec | **`avc1.42002A`** (Baseline, the first of `CODECS`) taken every run; the stream's own SPS says Baseline level 4.0 (`avc1.428028`) | the same | the configure, the first chunk's `decoderConfig.codec`, the snapshot's `info.codec` |
+| The real bitrate, asked 10 Mbit/s at 30 fps | **11.7 Mbit/s** with a person moving (30 fps), 11.9 in landscape (30 fps); 4.7–5.5 at 14–17 fps, 5.7 at 12 fps | 4.7–5.0 at 14 fps | the ring's `bytes` × 8 / `heldS`. The encoder spends its budget per frame at the configured 30 fps, so fewer frames give fewer bits, and at 30 fps it gives about 1.18 × what it is asked |
+| Encode time per frame | **24–27 ms** (90th 28–32 ms, at most 86–120 ms) | 24–25 ms (90th 27–29 ms) | `encode()` to the chunk's `output`, in the page |
+| Frames dropped | **0** in every run (60–310 s), `encodes` = frames read | 0 | `status.dropped` |
+| Keyframe spacing | **999–1074 ms** (median 1027–1056 ms: 1 s plus at most one frame) | 999–1074 ms | the key chunks' timestamps, as `check-capture.mjs`'s `keyframeGapsMs` |
+| The ring at `bufferS` 10 | `heldS` 10.35–10.69, **6.6 MB**; the app +62 MB | 10.34–10.63, 6.6 MB; Brave +70 MB | `status.heldS` and `bytes` at the end of the recording; memory as above |
+| at `bufferS` 60 | 60.35–60.67 s, **36.5 MB**; +130 MB. Landscape at 30 fps: 60.50–60.78 s, **90.4 MB**, +232 MB | 60.42–60.53 s, 37.0 MB; +108 MB | |
+| at `bufferS` 300 | 300.67–300.69 s, **208 MB** (16.5 fps); +307 MB (4 runs) | 300.37–300.53 s, 178 MB (14.2 fps); +287 MB | every `heldS` at least `bufferS` and under `bufferS` + one group (c27's bound) |
+| `snapshot(20)` | **19–29 ms**, 12–14 MB at 14–16 fps; 61 ms and 31 MB in landscape at 30 fps; decoded whole (149–336 frames, in order) in 1.4–1.6 s, 3.4 s at 30 fps | 21–28 ms, 12.3 MB; decoded in 1.4 s | `snapshot()` to its blob; `openFrameSource` and every frame |
+| `snapshot(60)` | **66–79 ms**, 37–42 MB; **161 ms, 89 MB** in landscape at 30 fps; decoded whole (865–1806 frames) in 4.0–4.7 s, 9.8 s at 30 fps | 60–70 ms, 36–37 MB; 4.0 s | the same |
+| Memory at the snapshots (peak over the baseline, the decode included) | +241 MB at `bufferS` 60 (+398 in landscape at 30 fps); +458 MB at `bufferS` 300 | +216 MB at 60, +399 MB at 300 | |
+| s32's cut of 10 s of `snapshot(60)` | **46–49 ms**, 6–7 MB, decoded whole (144–173 frames); 154 ms and 17 MB at 30 fps | 44–47 ms, 6.1 MB | `cutVideo` and the read-back |
+| `open()` and `start()` | 580–596 ms to the preview; `start()` 3–7 ms | 545–575 ms; 79–91 ms | |
+| The wake lock | **held** in every run | **held** (in a tab) | `status.wakeLock`; R2's line said "Screen stays on" in both |
+
+**R3 in each shell** (the app's own screens, every tap a touch over DevTools: H's gym card, R1, Start, 30 s on R2
+at `bufferS` 60, Replay; five sessions in portrait, one in landscape in the APK):
+
+| What | APK | Brave |
+| --- | --- | --- |
+| R2's Replay to R3's first frame on screen | **427 ms** (386–456 ms, 10 replays) | **571 ms** (548–756 ms) |
+| The snapshot played through | to its end every time (the `<video>` ended at 20.94–20.99 s of 20.95–20.99 s), then looped | the same (20.06–20.84 s) |
+| ½× | `playbackRate` 0.5: 1.00 s of video in 2.01 s (landscape) | 1.00 s in 2.01 s |
+| A scrub (a 1.5 s drag on the bar, 80 % to 20 %) | the position went to 0:04, paused, the stepper showing the frame | the same |
+| Memory over the baseline: recording / R3 playing / R3 paused (s38's stepper) / after the scrub | +197 / +234 / **+336** / +385 MB | +149 / +242 / **+317** / +321 MB |
+
+R3 paused holds s38's stepper, whose hardware decoder keeps frames open (`c26`: 10–14): pausing added about
+**100 MB** in the APK (75 MB in Brave) to R3 playing, and a scrub up to 150 MB; R3b and the stepper's budget are
+not changed here. Brave's baseline is all its processes (1.0–1.4 GB here, with its other tab), so only the rise
+counts.
+
+**The permission** (the APK): R1's first open brought up Android's dialog and the user's Allow opened the
+preview (1080×1920); with the permission refused for good (`pm revoke`, `user-fixed`: no dialog) R1 showed
+"Camera not allowed" (`camera-denied`, "NotAllowedError: Permission denied"), and after `pm grant` its "Try
+again" opened the preview again without a restart. In Brave, a `getUserMedia` run from DevTools without a
+touch was refused at once with no prompt; from a touch, Brave prompted and the user allowed it, and the grant
+held for the origin (`localhost:8791`) while the tab moved from the debug page to the app, so R1 didn't ask
+again.
+
+**In landscape** R2 scrolls (the screen is a least height), and a touch on Replay or End session while it had
+just scrolled was taken as the scroll's stop: the driver taps again (the second always worked). Whether a
+finger meets the same is `c30b`'s to check by hand.
+
+**What waits for `c30b`:** the capture interrupted by another app, a call or the lock screen, and resumed (and
+`c61`'s paths: a Start cut short, a `failed` capture's "Try again"); the encoder beside the pose engine
+(dropped frames and the rate under the engine's load); the wake lock against the real screen timeout; the app
+in the background.
 
 ## R1 and R2, the session
 
@@ -814,10 +893,14 @@ capture is made with it), the lift is a button each (the mockup's one button cyc
 mockup's "After the lift, walk back and tap Replay…": the place kept is one control high); the tip is the registry's sentence without the lift's name in front; the record disc has no "Start session" text beside it (its
 `aria-label` says it) and the line under the preview is one line. R2 has the queue line in a row of its own (at 360 px the REC chip, the rate and
 the queue line don't fit on one), the Replay button says its length ("20 s") instead of "the last 20 s", and there is a "Camera stopped" retry and a
-problem panel the mockup doesn't draw. Both screens use the fake camera's green in the tests; the real picture is `c30`'s.
+problem panel the mockup doesn't draw. Both screens use the fake camera's green in the tests; the real camera's picture is in the paragraph below.
 
-**On the phone (`c30`).** The APK has no `CAMERA` permission yet ([The Android shell](#the-android-shell)): R1 in the APK needs it, and the WebView's
-`getUserMedia` prompt, before the camera screens work there. The browser walks use headless Brave's fake camera.
+**On the phone (`c30`).** R1 and R2 ran on the Fairphone's back camera in the APK and in Brave ([the capture's numbers](#on-the-phone-c30)):
+the APK asks for `CAMERA` ([The Android shell](#the-android-shell)); R1's first open brought up Android's dialog, and with the permission refused
+R1 showed "Camera not allowed", whose "Try again" opened the preview once it was granted. The preview is 1080×1920 in portrait (1920×1080 in
+landscape), R2's rate read 12–17 fps in the evening's lamp light and 30 fps in landscape facing a lit screen, and its wake-lock line said
+"Screen stays on" in both shells. Not measured here, `c30b`'s: an interruption by another app or the lock screen and the way back, the encoder beside
+the pose engine, the wake lock against the real screen timeout and the app in the background. The browser walks use headless Brave's fake camera.
 
 ## R3, the replay
 
@@ -1693,8 +1776,20 @@ name (question 10), and changing the ID later breaks updates, so no tester
 gets an APK before `c33` sets it. The scheme is `https`: the page's origin is
 `https://localhost`, a secure context (OPFS, WebCodecs), never cross-origin
 isolated in a WebView ([spike/webview-shell](../spike/webview-shell/README.md)).
-No camera permission before milestone B (`c30`); only `INTERNET`, which
-Capacitor's local server needs.
+Two permissions (`c30`): `INTERNET`, which Capacitor's local server needs,
+and `CAMERA`, for the capture (R1, R2). The camera is a `<uses-feature>` with
+`android:required="false"` (`android.hardware.camera` and its autofocus, which
+`CAMERA` alone would imply as required), so a phone without one can still
+install the app and import a video. Nothing asks at start: the WebView asks
+Android when the page calls `getUserMedia` (R1), Capacitor's
+`BridgeWebChromeClient` turns that into Android's dialog, and a refusal reaches
+the page as `NotAllowedError`, R1's `camera-denied` panel. On the phone
+(`c30`, below): the dialog came up at R1's first open and the user's Allow
+opened the preview; with the permission refused for good (`pm revoke` and
+`user-fixed`, no dialog) R1 showed "Camera not allowed", and after `pm grant`
+its "Try again" opened the preview. The merged manifest also carries
+AndroidX's own `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`, a signature
+permission of the app itself, not one the user grants.
 
 **No Android backup** (`c43`). S1's privacy text says the lifts stay "in its
 own private storage on this phone, and nowhere else"; with Capacitor's default
@@ -1740,7 +1835,10 @@ own `files/` (`run-as`), runs the engine, prints the JSON and uninstalls.
 `debug/media.mjs` (`c34`) adds the frame source's and the cut's measurements
 (`window.c34`) on clips set on the page's second input, `#media`;
 `tools/check-media-apk.mjs` drives them the same way, five runs each, with the
-memory sampled on the phone ([On the phone](#on-the-phone)).
+memory sampled on the phone ([On the phone](#on-the-phone)). `debug/capture.html`
+(`c30`, `window.c30`) records the camera with the real capture and times what it
+doesn't report; `tools/check-capture-phone.mjs` drives it, and R1 to R3 through
+the app's screens, in the APK or in Brave ([the capture on the phone](#on-the-phone-c30)).
 
 **On the Fairphone 6** (Android 16, LineageOS 4.4.1, WebView 153.0.8010.36,
 Adreno 810; the debug APK of 2026-11-02, `c20`'s report has every number):

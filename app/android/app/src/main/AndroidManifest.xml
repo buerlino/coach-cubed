@@ -39,4 +39,10 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- c30: the capture (R1, R2); the WebView asks Android for it when the page calls getUserMedia. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- The camera is used, not needed: importing a video works on a phone without one (CAMERA alone would imply both as required). -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 </manifest>
