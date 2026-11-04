@@ -30,6 +30,14 @@ restructuring window, merged packages' details) are in [decisions-archive.md](de
 
 ### What 0.1.0 is
 
+- **2026-11-04 (late), nordmu: 0.1.0 is milestone A, as a PWA on
+  coach-cubed.org.** The gym session ships off by default behind a
+  "preview" switch (`d66`); Noah finishes milestone B (`c30b`, `c60`,
+  `c64`, `c31`, checkpoint B) after the handover, and the APK (`c33`). No
+  S8+ run before release: `c65`'s fallbacks are laptop-tested. The coach³
+  logo merges as it is. nordmu releases `v0.1.0` from
+  `buerlino/coach-cubed` through Pages (`c67`), then transfers the repo
+  and the domain to Noah (docs/handover.md).
 - **2026-11-04, nordmu, on c26's and c61's reports** (each as
   recommended): a camera lost between the ring's start and the wake
   lock's grant counts as a running session (R2's "Camera stopped", the

@@ -85,7 +85,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 107 | `d56` | Q1 offers "Pick another video" wherever another video helps (unreadable, unknown format) | dirac, sonnet | `d53`, `d55` | merged `dcc644b` |
 | 108 | `d57` | The layout check measures Q1's failed panels (No person found, unreadable) | dirac, sonnet | `d56` | merged `4ccac5d` |
 | | | **Checkpoint A:** nordmu uses milestone A on the Fairphone; feedback by screen ID. Then **2.7 and 2.8** with the queue empty (D8) | | `c26` | passed for laptop rows (nordmu, 2026-11-02: feedback given on the PWA, more to come; `c26` still runs by day; 2.7 done 2026-11-03 (LICENSE and the SPDX headers), 2.8 in its own session after `c26` (nordmu, 2026-11-03)) |
-| 109 | `c33` | The tester APK: the real name and ID, release signing | curie | checkpoint A, 2.8, question 10, the key's holder | id only: written after checkpoint A |
+| 109 | `c33` | The tester APK: the real name and ID, release signing | curie | checkpoint A, 2.8, question 10, the key's holder | held: Noah's, after 0.1.0 (the APK; package ID `io.github.noahsta.coachcubed`) |
 | 110 | `c27` | Capture and the rolling buffer: the camera's real rate, H.264 with a keyframe a second, the 60 s ring, snapshots as MP4, the wake lock; on fakes and headless Brave's fake camera | curie, opus | checkpoint A | merged `34b6ba8` (one fix round: the ring's dropped chunks; no `c27b`) |
 | 111 | `d28` | R1 and R2: setting up the camera, recording; the session | dirac, sonnet | `c27`, `s49`, `d53`, `d55` | merged `7cba248` (two fix rounds: S1's replay mode saved, then the page test's intro tap retried after a load flake) |
 | 112 | `d29` | R3, the replay, and marking a kept lift (back to R2 with it queued) | dirac, sonnet | `d28`, `d14`, `d54` | merged `1e180ca` (two fix rounds: a page-test `home -> home` once, guarded, cause unproven; then the queue-line tap) |
@@ -96,13 +96,16 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 59 | `s63` | A 59.94 fps clip keeps its last frame (c26's cable-2: the cut's 1/57600 timescale) | schrödinger, sonnet | `c26` | waits; laptop only (nordmu, 2026-11-04, c26's decision 3) |
 | 60 | `d62` | H's wordmark clears the status bar: the top inset in the shell, the screen height in one token | dirac, sonnet | `c26` | waits; laptop only; the next phone package glances at H in the APK (nordmu, 2026-11-04, c26's decision 5) |
 | 61 | `c65` | Chrome 101 fallbacks: the decode loop without `dequeue`, `100dvh`, the S8+'s tool gaps, a probe for c60 | curie, opus | `d62`, `c26` | waits; laptop only, no adb (nordmu, 2026-11-04: c60 split into c65 and c60) |
-| 62 | `c30` | The camera on the Fairphone: the permission, the real rate, the ring's memory | curie, opus | `d28`, `c26` | waits; phone: by day, nordmu told (after `c26`, by day); file checked against c27, d28, d29 and d29b on 2026-11-03 |
-| 63 | `c30b` | Recording and analysis together on the Fairphone: a job beside recording, the screen kept on, the app in the background | curie, opus | `c30`, `d29b` | waits; phone: by day, nordmu told; file checked against c27, d29 and d29b on 2026-11-03 |
-| 64 | `c60` | Milestone A on the Samsung S8+ (`ce011711cdc8a10c05`, Android 9, Chrome 101 as the WebView, kept: nordmu won't update it): the PWA in Chrome and the APK (question 3), c65's probe and fallbacks on the phone | curie, opus | `c65`, `c26` | waits; phone (the S8+): by day, nordmu told; run with `COACH_PHONE=ce011711cdc8a10c05` (written 2026-11-04) |
-| 65 | `c64` | The stepper's decoder holds at most a few frames on the phone (c26: 10–14 open) | curie, opus | `c65`, `c26` | waits; phone: by day, nordmu told; done at ≤ 4 open frames or a shown platform limit (nordmu, 2026-11-04) |
-| 66 | `c31` | A session on the Fairphone, 30–60 minutes: heat, battery, storage, memory | curie, sonnet | `c30b` | waits; phone: by day, nordmu present; the phone films the laptop playing an example clip (nordmu, 2026-11-02) |
+| 62 | `d66` | The gym session behind a switch, off in 0.1.0: no gym card on H, R1–R3b only with "Gym session (preview)" on | dirac, sonnet | `c65` | waits; laptop only (nordmu, 2026-11-04) |
+| 63 | `c67` | 0.1.0 on coach-cubed.org: the version, the Pages workflow, the release notes, the handover note for Noah | curie, sonnet | `d66` | waits; laptop only (nordmu, 2026-11-04) |
+| | | **Release 0.1.0:** nordmu tags `v0.1.0` on `main` and Pages deploys it; then the repo and the domain go to Noah (docs/handover.md, from `c67`) | | `c67` | |
+| 64 | `c30` | The camera on the Fairphone: the permission, the real rate, the ring's memory | curie, opus | `d28`, `c26` | waits; phone: by day, nordmu told (after `c26`, by day); file checked against c27, d28, d29 and d29b on 2026-11-03 |
+| 65 | `c30b` | Recording and analysis together on the Fairphone: a job beside recording, the screen kept on, the app in the background | curie, opus | `c30`, `d29b` | held: Noah's, after 0.1.0 (nordmu, 2026-11-04: 0.1.0 is milestone A) |
+| 66 | `c60` | Milestone A on the Samsung S8+ (`ce011711cdc8a10c05`, Android 9, Chrome 101 as the WebView, kept: nordmu won't update it): the PWA in Chrome and the APK (question 3), c65's probe and fallbacks on the phone | curie, opus | `c65`, `c26` | held: Noah's, after 0.1.0 (nordmu, 2026-11-04: 0.1.0 is milestone A) |
+| 67 | `c64` | The stepper's decoder holds at most a few frames on the phone (c26: 10–14 open) | curie, opus | `c65`, `c26` | held: Noah's, after 0.1.0 (nordmu, 2026-11-04: 0.1.0 is milestone A) |
+| 68 | `c31` | A session on the Fairphone, 30–60 minutes: heat, battery, storage, memory | curie, sonnet | `c30b` | held: Noah's, after 0.1.0 (nordmu, 2026-11-04: 0.1.0 is milestone A) |
 | | | **Checkpoint B:** nordmu runs a real gym session | | `c31` | |
-| 67 | `c40` | The handover: the pipeline runnable for Noah | curie | checkpoint B | id only; laptop only |
+| 69 | `c40` | The handover: the pipeline runnable for Noah | curie | checkpoint B | held: Noah's, after 0.1.0 (nordmu, 2026-11-04: 0.1.0 is milestone A) |
 
 Gates outside the queue ([../app-plan.md](../app-plan.md#gates-outside-the-sessions)): no APK goes to testers before
 `c33`, which needs the name and the package ID (question 10) and the signing key's holder.
