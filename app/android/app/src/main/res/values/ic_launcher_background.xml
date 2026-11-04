@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#FFFFFF</color>
+    <!-- The logo's ground, logo/coach-cubed_back.svg. -->
+    <color name="ic_launcher_background">#0E3B1E</color>
+    <!-- The launch screen's ground: the app's own (app/manifest.webmanifest). -->
+    <color name="splash_ground">#0E0F11</color>
 </resources>

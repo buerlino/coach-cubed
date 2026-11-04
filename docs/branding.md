@@ -62,15 +62,22 @@ and WIPO's Global Brand Database, Nice classes 9 (apps), 41 (coaching) and
 
 ## The logo
 
-The current logo (`logo/`) is a placeholder. The final one comes after the
-name, since the wordmark is the name.
+**The symbol arrived on 2026-11-03:** a green C with a fist in its bowl
+and an orange ³, as Android's two adaptive-icon layers on the 108-unit
+grid, `logo/coach-cubed_front.svg` (the symbol) and
+`logo/coach-cubed_back.svg` (the ground). Its colours: ground `#0E3B1E`,
+C `#47CA27`, ³ `#EF7F00`, white outlines. `app/tools/make-icon.mjs`
+renders every icon below from the two files; rerun it when they change.
 
-**The designer delivers three things,** each as SVG plus its source file:
-
-1. **The symbol:** the app icon, without text.
-2. **The wordmark:** the name set as artwork, and the symbol and the name
-   side by side if wanted.
-3. **The colours:** the main one and the background, as hex.
+**nordmu drew it** (Affinity Designer; the source is
+`logo/coach-cubed.afdesign`) and licensed it CC BY-SA 4.0 (2026-11-03,
+recorded in [THIRD_PARTY.md](../THIRD_PARTY.md) and the in-app credits).
+**Still open:** the wordmark (the name set as artwork).
+Checked against the list below: the symbol fits Android's safe circle (the
+³ touches its edge), the C³ reads at 48 px, and the fist's lines blur into
+texture below about 96 px, which is fine. The one-colour layer is derived
+by the script (every colour to one, the fist kept as lines); nordmu may want
+to draw one by hand.
 
 **What the symbol has to survive:**
 
@@ -86,12 +93,12 @@ name, since the wordmark is the name.
   recorded in [THIRD_PARTY.md](../THIRD_PARTY.md). The logo ships in the
   app, and F-Droid checks what ships.
 
-**Generated from them** (not by the designer):
+**Generated from them** (by the script, not by hand):
 
-| Where | Files |
-| --- | --- |
-| The Android APK | the two-layer icon and its one-colour layer, every launcher size (48–192 px), the splash-screen icon |
-| The PWA | 192 and 512 px icons, a maskable 512 px one, the browser-tab icon (SVG and 32 px) |
-| The iPhone home screen | a 180 px icon |
-| F-Droid and GitHub releases | a 512 px icon; optionally a 1024×500 banner |
-| In the app | the wordmark in the header and on the About screen |
+| Where | Files | Status |
+| --- | --- | --- |
+| The Android APK | the two-layer icon and its one-colour layer, every launcher size (48–192 px), the splash-screen icon | done |
+| The PWA | 192 and 512 px icons, a maskable 512 px one, the browser-tab icon (SVG and 32 px) | done |
+| The iPhone home screen | a 180 px icon | done |
+| F-Droid and GitHub releases | a 512 px icon (`logo/coach-cubed-512.png`); optionally a 1024×500 banner | icon done |
+| In the app | the wordmark in the header and on the About screen | waits for the wordmark |

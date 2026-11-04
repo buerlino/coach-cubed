@@ -215,13 +215,13 @@ test('the credits list every component of THIRD_PARTY.md\'s section for the new 
   for (const old of ['MediaPipe', 'three.js', 'BodyParts3D']) assert.doesNotMatch(text, new RegExp(old), `${old} is the old page's`);
   for (const c of CREDITS) {
     assert.ok(c.name && c.version && c.licence && c.notice && c.text, c.row);
-    assert.match(c.licence, /^(MIT|Apache-2\.0|OFL-1\.1|MPL-2\.0)$/);
+    assert.match(c.licence, /^(MIT|Apache-2\.0|OFL-1\.1|MPL-2\.0|CC-BY-SA-4\.0)$/);
   }
 });
 
 test('each credit\'s licence text is in the repo, or comes from the TF.js build, and is the licence it names', async () => {
   const { CREDITS } = await load('src', 'credits.mjs');
-  const MARK = { MIT: /Permission is hereby granted, free of charge/, 'Apache-2.0': /Apache License\s+Version 2\.0/, 'OFL-1.1': /SIL OPEN FONT LICENSE Version 1\.1/i, 'MPL-2.0': /Mozilla Public License Version 2\.0/ };
+  const MARK = { MIT: /Permission is hereby granted, free of charge/, 'Apache-2.0': /Apache License\s+Version 2\.0/, 'OFL-1.1': /SIL OPEN FONT LICENSE Version 1\.1/i, 'MPL-2.0': /Mozilla Public License Version 2\.0/, 'CC-BY-SA-4.0': /Attribution-ShareAlike 4\.0 International/ };
   for (const c of CREDITS) {
     const file = path.join(APP, c.text);
     if (c.built && !fs.existsSync(file)) continue; // app/vendor/tfjs/ is gitignored: made by build-tfjs.mjs

@@ -9,7 +9,7 @@ export function Placeholder({ flow, id, title, text, steps = [] }) {
   return html`
     <main class="screen" data-screen=${id}>
       <header class="screen__header">
-        <h1 class="wordmark">coach</h1>
+        <h1 class="wordmark">coach³</h1>
       </header>
       <div class="screen__body">
         <p class="label">${id}</p>
