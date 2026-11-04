@@ -1906,7 +1906,8 @@ worktree: no example clips, no `app/vendor/tfjs/`, no `app/models/`, no GPU.
    frame is 5 ± 0.5 s behind the capture's newest (read five times in the page from what R3b's canvas says it drew: `data-frame-us`, the
    frame's time, and `data-live-us`, the capture's clock at that draw, both on the recording's clock) → Keep this lift → M (M1, on the
    kept snapshot) → M's ✕ → R3b → End session → H, every camera track ended. The output gives the measured delay
-   (`page-test: delayed walk (…): measured 5.0xx s behind (5 s set), N frames drawn`) and names each step.
+   (`page-test: delayed walk (…): measured 5.0xx s behind (5 s set), N frames drawn`) and names each step; when the canvas
+   drew nothing, its problem quotes what R3b says over it (`c61`: "Starting: …" or the decoder's words, `note` in the output).
    Then (`d22`) A3 opens from "View options" with the mockup's switches and speeds and no lifter, a switch flips, a smoothing change
    scores again and is put back to 50 ms, and "Re-mark this lift" opens M in its ready state.
 4. **It fails** on a console error, an exception or unhandled rejection, a failed request or an HTTP error (page, workers and the

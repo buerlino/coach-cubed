@@ -604,7 +604,9 @@ try {
     const behind = samples.filter(x => x.frames > 0).map(x => x.behindS).sort((a, b) => a - b);
     dwalk.behindS = behind.length ? Number(behind[behind.length >> 1].toFixed(3)) : null;
     dwalk.behindAll = behind.map(b => Number(b.toFixed(3)));
-    if (!(dwalk.frames > 0)) problems.push('R3b: 7 s after the 5 s choice the canvas has drawn no frame');
+    // what R3b says over the canvas when it draws nothing (the decoder's words, or still "Starting"), for the report
+    dwalk.note = await evaluate(`document.querySelector('[data-screen="R3b"] .delayed-note')?.textContent ?? null`);
+    if (!(dwalk.frames > 0)) problems.push(`R3b: 7 s after the 5 s choice the canvas has drawn no frame (R3b says ${JSON.stringify(dwalk.note)})`);
     else {
       if (!samples.at(-1).painted) problems.push('R3b: the canvas has no picture at its centre');
       if (!(samples.at(-1).frames > samples[0].frames)) problems.push(`R3b: the canvas stopped drawing: ${samples[0].frames}, then ${samples.at(-1).frames} frames`);
