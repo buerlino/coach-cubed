@@ -32,15 +32,22 @@ test('Capacitor 8.5.3 is pinned exactly, in package.json and its lock file', () 
   }
 });
 
-test('the committed Android project: the placeholder ID, no camera permission, no release signing', () => {
+test('the committed Android project: the placeholder ID, INTERNET and CAMERA only, the camera optional, no release signing', () => {
   const gradle = read('android/app/build.gradle');
   assert.match(gradle, new RegExp(`applicationId "${PLACEHOLDER_ID.replace(/\./g, '\\.')}"`));
   assert.match(gradle, /noCompress \+= \['bin', 'mp4'\]/, 'the weights are stored, not deflated');
   assert.doesNotMatch(gradle, /signingConfig/, 'debug builds only: no release signing until c33');
   const manifest = read('android/app/src/main/AndroidManifest.xml');
-  assert.doesNotMatch(manifest, /CAMERA/, 'no camera permission before milestone B');
-  const perms = [...manifest.matchAll(/uses-permission android:name="([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(perms, ['android.permission.INTERNET'], 'Capacitor\'s local server needs INTERNET; nothing else');
+  const perms = [...manifest.matchAll(/<uses-permission\b[^>]*android:name="([^"]+)"/g)].map((m) => m[1]).sort();
+  // c30: Capacitor's local server needs INTERNET, the capture (milestone B) the CAMERA; nothing else
+  assert.deepEqual(perms, ['android.permission.CAMERA', 'android.permission.INTERNET']);
+  assert.doesNotMatch(manifest, /uses-permission-sdk|RECORD_AUDIO|WRITE_EXTERNAL|READ_EXTERNAL|READ_MEDIA/, 'no other permission in any form');
+  // the camera is a feature the app uses, not one it needs: import works on a phone without one
+  const features = [...manifest.matchAll(/<uses-feature\b[^>]*>/g)].map((m) => m[0]);
+  const camera = features.filter((f) => /android:name="android\.hardware\.camera(\.any)?"/.test(f));
+  assert.ok(camera.length >= 1, 'the camera is declared as a <uses-feature>');
+  for (const f of camera) assert.match(f, /android:required="false"/, f);
+  for (const f of features) assert.match(f, /android:required="false"/, `every feature is optional: ${f}`);
   const activity = `android/app/src/main/java/${PLACEHOLDER_ID.replace(/\./g, '/')}/MainActivity.java`;
   assert.ok(fs.existsSync(path.join(APP, activity)), activity);
   assert.ok(fs.existsSync(path.join(APP, 'android/gradlew')));
