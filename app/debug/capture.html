@@ -1,0 +1,24 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>coach: capture check</title>
+<!-- The capture's phone check (package c30): window.c30, driven over DevTools
+     by tools/check-capture-phone.mjs in the debug APK and in Brave. Debug
+     builds only (assemble.mjs --debug), like the rest of debug/; not linked
+     from the app. The preview shows what the camera films while it records. -->
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; padding: 8px; background: #0E0F11; color: #E8E6E1; font: 14px/1.4 system-ui, sans-serif; }
+  video { width: 100%; max-height: 60vh; background: #000; }
+  pre { white-space: pre-wrap; word-break: break-word; font-size: 12px; background: #1A1C20; padding: 8px; }
+</style>
+</head>
+<body>
+<video id="preview" muted playsinline autoplay></video>
+<pre id="out">ready</pre>
+<script type="module" src="./capture.mjs"></script>
+</body>
+</html>
