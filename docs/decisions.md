@@ -59,9 +59,11 @@ restructuring window, merged packages' details) are in [decisions-archive.md](de
   through the canvas first. Checkpoint A counts as passed for milestone B's
   laptop packages; `c26` still runs by day. `c27` runs on the laptop alone,
   `c30` and `c31` on the phone. Tonight's order: the fixes, `s49`, then B.
-- **2026-11-02, nordmu: the Android package ID is
-  `io.github.noahsta.coach`**, from the GitHub repo, not from the domain
-  (replaces `org.coach.placeholder`; it can't change once published).
+- **2026-11-04, nordmu: the Android package ID is
+  `io.github.noahsta.coachcubed`** (was `io.github.noahsta.coach`,
+  2026-11-02): the app's name under Noah's GitHub namespace, not the
+  domain; it replaces `org.coach.placeholder` in `c33` and can't change
+  once published.
 - **2026-11-02, nordmu: the validation set isn't part of the handover.**
   0.1.0 ships MoveNet Thunder; checking the analysis against real clips
   (3.0, 3.6) is Noah's work after the handover, so nothing waits on it.
