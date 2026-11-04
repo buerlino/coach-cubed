@@ -23,7 +23,8 @@
 // WebView renderer; Brave's every process, other tabs too), and, apart, the RSS of the media codec
 // processes (the hardware encoder and decoder run there; the shell's figure doesn't count them). The
 // samples carry the phone's clock, as the page's marks do (Date.now()), so each phase gets its own peak;
-// the baseline is the median before the camera opened. Before each run the battery is read: under 10 %
+// the baseline is the median before the camera opened, after a garbage collection (HeapProfiler.collectGarbage),
+// so a run's baseline doesn't hold the last run's ring. Before each run the battery is read: under 10 %
 // it stops, over 36 °C it waits (up to 5 min) to cool.
 // One JSON object per run, printed and appended (one line) to --out. Touches nothing but its own
 // /data/local/tmp/coach-c30-* file.
@@ -91,7 +92,7 @@ function sampler() {
   const loop = `i=0; while [ $i -lt 1200 ] && [ ! -e ${stop} ]; do ${pidsScript()}; `
     + `rss=0; for p in $pids; do r=$(awk '/VmRSS/{print $2}' /proc/$p/status 2>/dev/null); rss=$((rss + \${r:-0})); done; `
     + `g=0; mem=$(dumpsys gpu --gpumem); for p in $pids; do v=$(echo "$mem" | grep "Proc $p total" | awk '{print $4}'); g=$((g + \${v:-0})); done; `
-    + `c=0; for p in $(ps -A -o PID,NAME | grep -E 'media\\.codec|media\\.swcodec|c2@|codec2' | awk '{print $1}'); do r=$(awk '/VmRSS/{print $2}' /proc/$p/status 2>/dev/null); c=$((c + \${r:-0})); done; `
+    + `c=0; for p in $(ps -A -o PID,NAME | grep -E 'media\\.hwcodec|media\\.swcodec|media\\.codec|c2@' | awk '{print $1}'); do r=$(awk '/VmRSS/{print $2}' /proc/$p/status 2>/dev/null); c=$((c + \${r:-0})); done; `
     + `echo "$(date +%s%3N) $rss $g $c"; i=$((i+1)); sleep 1; done`;
   const child = spawn('adb', ['-s', SERIAL, 'shell', loop], { stdio: ['ignore', 'pipe', 'ignore'] });
   let text = '';
@@ -202,8 +203,11 @@ async function record() {
     for (const bufferS of buffers) {
       const b = await coolDown();
       if (b.level < 10) throw new Error(`battery at ${b.level} %: stopped`);
+      // the last run's ring and snapshots collected first, so the baseline is this run's own
+      await c.send('HeapProfiler.collectGarbage');
+      await sleep(2000);
       const s = sampler();
-      await sleep(4000);   // the baseline, before the camera opens
+      await sleep(5000);   // the baseline, before the camera opens
       let r;
       try {
         r = await c.evaluate(`window.c30.record(${JSON.stringify({ bufferS, seconds: bufferS + extra, snapshots: snapshots.filter(n => n <= bufferS + extra), cutS })})`, { timeout: (bufferS + extra + 300) * 1000 });
@@ -227,8 +231,10 @@ async function session() {
   const c = await cdp(PORT, SHELL === 'brave' ? 'localhost:' : 'https://localhost');
   const out = { shell: SHELL, tag: TAG, device: device(), battery: battery(), steps: [] };
   const step = (name, extra = {}) => out.steps.push({ name, t: Date.now(), ...extra });
+  await c.send('HeapProfiler.collectGarbage');
+  await sleep(2000);
   const s = sampler();
-  await sleep(4000);
+  await sleep(5000);
   const marks = {};
   try {
     marks.open = Date.now();
