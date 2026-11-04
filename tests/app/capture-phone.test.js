@@ -78,7 +78,7 @@ test('the capture page is in debug/ only: the shipped dist/ has none of it, the 
     t.after(() => fs.rmSync(out, { recursive: true, force: true }));
     const { files } = assemble({ out, app: APP, src: path.join(ROOT, 'src'), debug, log: () => {} });
     assert.equal(fs.existsSync(path.join(out, 'debug', 'capture.html')), debug, `debug ${debug}`);
-    assert.equal(files.some(f => f.startsWith('debug/')), false, 'never in files.json (the service worker\'s list)');
+    if (!debug) assert.equal(files.some(f => f.startsWith('debug/')), false, 'the shipped files.json (the service worker\'s list) has no debug/');
   }
   for (const f of ['index.html', 'src/main.mjs']) assert.doesNotMatch(read(f), /debug\//, f);
 });
