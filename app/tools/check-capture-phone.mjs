@@ -230,7 +230,6 @@ async function session() {
   const recordS = Number(arg('--record', 30));
   const c = await cdp(PORT, SHELL === 'brave' ? 'localhost:' : 'https://localhost');
   const out = { shell: SHELL, tag: TAG, device: device(), battery: battery(), steps: [] };
-  const step = (name, extra = {}) => out.steps.push({ name, t: Date.now(), ...extra });
   await c.send('HeapProfiler.collectGarbage');
   await sleep(2000);
   const s = sampler();
@@ -240,6 +239,7 @@ async function session() {
     marks.open = Date.now();
     await tap(c, '[data-card="session"]');
     out.preview = await waitFor(c, "document.querySelector('[data-record=\"start\"]') && !document.querySelector('[data-record=\"start\"]').disabled", 20000);
+    await waitFor(c, "(document.querySelector('.camera-stage video')?.videoWidth || 0) > 0", 5000);
     out.r1 = await c.evaluate("(() => { const v = document.querySelector('.camera-stage video'); const p = document.querySelector('[data-problem]'); return { video: v && { w: v.videoWidth, h: v.videoHeight }, problem: p && p.dataset.problem }; })()");
     if (!out.preview) throw new Error(`R1 shows no preview: ${JSON.stringify(out.r1)}`);
     marks.start = Date.now();
@@ -263,8 +263,8 @@ async function session() {
       await tap(c, '[data-record="replay"]');
       await waitFor(c, '!!window.__c30.firstFrame || !!document.querySelector(\'[data-screen="R3"][data-phase="problem"]\')', 20000);
       const first = await c.evaluate('({ ...window.__c30, phase: document.querySelector(\'[data-screen="R3"]\')?.dataset.phase, total: document.querySelector(\'[data-replay="position"]\')?.textContent })');
-      const r = { pass, tapToFirstFrameMs: first.firstFrame ? Math.round(first.firstFrame - first.tap) : null, tapToPlayingMs: first.playing ? Math.round(first.playing - first.tap) : null, phase: first.phase, total: first.total };
-      step(`replay${pass}`, r);
+      const r = { name: `replay${pass}`, t: t0, pass, tapToFirstFrameMs: first.firstFrame ? Math.round(first.firstFrame - first.tap) : null, tapToPlayingMs: first.playing ? Math.round(first.playing - first.tap) : null, phase: first.phase, total: first.total };
+      out.steps.push(r);   // the object itself: the play-through, the scrub and ½× are added below
       marks[`r3_${pass}`] = t0;
       if (pass === 1) {
         // played through: the loop wraps (or ends) once
@@ -281,11 +281,14 @@ async function session() {
         marks.scrubDone = Date.now();
         await tap(c, '[data-replay="speed"]');
         r.speed = await c.evaluate("document.querySelector('[data-replay=\"speed\"]')?.textContent");
-        const v0 = await c.evaluate("document.querySelector('[data-screen=\"R3\"] video').currentTime");
         await tap(c, '[data-replay="play"]');
-        await sleep(3000);
-        const v1 = await c.evaluate("({ t: document.querySelector('[data-screen=\"R3\"] video').currentTime, rate: document.querySelector('[data-screen=\"R3\"] video').playbackRate })");
-        r.half = { rate: v1.rate, advancedS: Math.round((v1.t - v0) * 100) / 100, overS: 3 };
+        // the video's own clock over 2 s, from 1 s after the tap (by then it has sought to the scrubbed place)
+        await sleep(1000);
+        const read = "({ t: document.querySelector('[data-screen=\"R3\"] video').currentTime, rate: document.querySelector('[data-screen=\"R3\"] video').playbackRate, wall: performance.now() })";
+        const v0 = await c.evaluate(read);
+        await sleep(2000);
+        const v1 = await c.evaluate(read);
+        r.half = { rate: v1.rate, advancedS: Math.round((v1.t - v0.t) * 100) / 100, overS: Math.round(v1.wall - v0.wall) / 1000 };
         marks.halfDone = Date.now();
       } else {
         await sleep(3000);
