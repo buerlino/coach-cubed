@@ -155,10 +155,15 @@ async function cdp(port, match) {
 
 /** A touch on the element's centre (or at fx, fy of its box), or a drag across it. */
 async function tap(c, selector, { fx = 0.5, fy = 0.5 } = {}) {
+  // in view first, and the page still (a landscape screen scrolls: a touch on a moving page only stops it)
+  const inView = await c.evaluate(`(() => { const e = document.querySelector(${JSON.stringify(selector)}); if (!e) return false; const y = scrollY; e.scrollIntoView({ block: 'nearest' }); return y !== scrollY ? 'scrolled' : true; })()`);
+  if (!inView) throw new Error(`no ${selector}`);
+  await sleep(inView === 'scrolled' ? 600 : 100);
   const box = await c.evaluate(`(() => { const e = document.querySelector(${JSON.stringify(selector)}); if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height, disabled: !!e.disabled }; })()`);
   if (!box) throw new Error(`no ${selector}`);
   const p = { x: box.x + box.w * fx, y: box.y + box.h * fy };
   await c.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [p] });
+  await sleep(60);   // a finger's tap, not a zero-length one
   await c.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   return box;
 }
@@ -261,9 +266,12 @@ async function session() {
       })(); true`);
       const t0 = Date.now();
       await tap(c, '[data-record="replay"]');
+      // R2 scrolls in landscape: a touch while it still moves can be taken as the scroll's stop; then once more
+      let retried = false;
+      if (!(await waitFor(c, "!!document.querySelector('[data-screen=\"R3\"]')", 3000))) { retried = true; await tap(c, '[data-record="replay"]'); }
       await waitFor(c, '!!window.__c30.firstFrame || !!document.querySelector(\'[data-screen="R3"][data-phase="problem"]\')', 20000);
       const first = await c.evaluate('({ ...window.__c30, phase: document.querySelector(\'[data-screen="R3"]\')?.dataset.phase, total: document.querySelector(\'[data-replay="position"]\')?.textContent })');
-      const r = { name: `replay${pass}`, t: t0, pass, tapToFirstFrameMs: first.firstFrame ? Math.round(first.firstFrame - first.tap) : null, tapToPlayingMs: first.playing ? Math.round(first.playing - first.tap) : null, phase: first.phase, total: first.total };
+      const r = { name: `replay${pass}`, t: t0, pass, tapToFirstFrameMs: first.firstFrame ? Math.round(first.firstFrame - first.tap) : null, tapToPlayingMs: first.playing ? Math.round(first.playing - first.tap) : null, phase: first.phase, total: first.total, retried };
       out.steps.push(r);   // the object itself: the play-through, the scrub and ½× are added below
       marks[`r3_${pass}`] = t0;
       if (pass === 1) {
