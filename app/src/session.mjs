@@ -12,6 +12,7 @@
 //   await session.end();                   // End session, or R1's back: stop, close, forget
 import { isLift } from './contracts/lifts.mjs';
 import { liveStateOf } from './flow/flow.mjs';
+import { CaptureError } from './media/capture-error.mjs';
 
 /**
  * @typedef {Object} SessionState
@@ -68,14 +69,23 @@ export function createSession({ makeCapture, now = () => Date.now() }) {
      * R1's Start: records, and keeps the lift, the start time and the live state.
      * @param {string} chosen a lift of the registry
      * @param {{replayMode?: 'replay'|'delayed'}} [mode] R1's replay mode at Start: it fixes the session's live state
+     * The session runs only when its capture records (c61): a capture closed meanwhile (R1's back, End session) or one
+     * that holds no ring is a CaptureError `stopped`, and nothing runs.
      * @throws {Error} a session runs already, no camera is open, or the lift is not the registry's; the
-     *   capture's own error when it can't record (no encoder)
+     *   capture's own error when it can't record (no encoder, `stopped`: the camera lost or closed during Start)
      */
     async start(chosen, { replayMode = 'replay' } = {}) {
       if (active) throw new Error('A session is already running.');
       if (!capture) throw new Error('The camera is not open: open() first.');
       if (!isLift(chosen)) throw new Error(`Not a lift of the registry: ${chosen}`);
-      await capture.start();
+      const mine = capture;
+      await mine.start();
+      // recording, or recording a moment ago and holding its ring (the camera lost while the wake lock was asked):
+      // R2's "Camera stopped" and Try again carry on from there
+      const s = mine.status;
+      if (capture !== mine || !(s.state === 'recording' || s.ringHeld === true)) {
+        throw new CaptureError('stopped', 'The camera stopped or was closed before recording started.');
+      }
       active = true; lift = chosen; startedAt = now(); liveState = liveStateOf(replayMode);
       emit();
     },

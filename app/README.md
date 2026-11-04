@@ -622,7 +622,7 @@ const cap = createCapture({ camera: 'back', quality: '1080p30', bufferS: 60 }); 
 await cap.open();              // R1: the camera for the preview; cap.stream is its MediaStream; nothing recorded
 await cap.start();             // R1's Start: frames -> H.264 -> the ring; the wake lock
 const off = cap.subscribe(s => …);  // now and at each change; cap.status is the latest:
-                                    //   { state, fps, width, height, rotation, sinceS, heldS, bytes, dropped, wakeLock, error }
+                                    //   { state, fps, width, height, rotation, sinceS, heldS, bytes, dropped, wakeLock, error, ringHeld }
 const snap = await cap.snapshot(20);   // R3: { blob, duration, start }, the last 20 s as an MP4 (null when nothing is held)
 for await (const c of cap.follow(t)) …  // R3b: { type, timestamp, duration, data, decoderConfig?, rotation? }, from the keyframe at or before t, then live
 cap.liveUs();                          // R3b: the recording's clock now, µs (the newest frame's time plus the wall time since); null before a frame
@@ -641,7 +641,17 @@ await cap.resume(); await cap.stop(); cap.close();
 - **The states:** `closed` → `open()` → `preview` → `start()` → `recording`; the camera's loss makes
   `interrupted`, `resume()` goes back; `stop()` returns to `preview` (the camera stays open for R1),
   `close()` to `closed` from anywhere. `failed` is an error at `open()`, `start()` or while
-  recording; `error` holds it. `sinceS` is the time since `start()` (R2's clock).
+  recording; `error` holds it. `sinceS` is the time since `start()` (R2's clock). `ringHeld` says
+  a ring is held (from `start()` to `stop()` or `close()`, also while `interrupted` or `failed`).
+- **One camera at a time** (`c61`): `open()` and `resume()` hand a second call made while the camera
+  is on its way the first one's promise, so a double tap on "Camera stopped" or "Try again" opens
+  one camera and one encoder, not two writing into the ring. A camera that arrives after `close()`
+  is stopped, never adopted. As a safety net, a new camera stops the one it replaces and a new
+  encoder session closes the one before it.
+- **A Start that didn't** (`c61`): `start()` checks the encoder's configs before it records; if the
+  capture was closed (R1's ‹) or its camera lost meanwhile, it throws a `CaptureError` with the
+  code `stopped` and starts nothing (the state stays `closed`, or `interrupted` with no ring, whose
+  `resume()` is the preview again). It never returns as if it had started.
 - **The camera:** `getUserMedia` with the `camera` setting's `facingMode` (`environment` for `back`,
   `user` for `front`) and the `quality` setting's size and rate (`1080p30`: 1920×1080 at 30 fps),
   all as `ideal`, no audio. The frames come from a clone of the track through
@@ -681,9 +691,13 @@ await cap.resume(); await cap.stop(); cap.close();
 - **Errors** are `CaptureError`s with a `code`: `insecure` (no `navigator.mediaDevices`: not https
   or localhost), `no-camera` (`NotFoundError`, `OverconstrainedError`), `camera-denied`
   (`NotAllowedError`), `camera-busy` (`NotReadableError`), `no-encoder` (no `VideoEncoder` or
-  `MediaStreamTrackProcessor`, or no H.264 config it supports), `encoder-failed`. Each keeps the
+  `MediaStreamTrackProcessor`, or no H.264 config it supports), `encoder-failed`, `stopped` (`c61`). Each keeps the
   browser's error as `cause` and its message in its own. An encoder that fails while recording
-  (or a camera that fails at `resume()`) leaves the ring as it was: a snapshot still works.
+  (or a camera that fails at `resume()`) leaves the ring as it was: a snapshot still works, and
+  (`c61`) `resume()` runs from `failed` while the ring is held: the camera again, recording on into
+  the same ring from a new keyframe, the wake lock and its visibility handler back. `resume()` from
+  a `failed` with no ring (a failed `open()`) does nothing: there `open()` starts afresh.
+  `stopped` (`c61`) is not a failure: `start()` found the capture closed or its camera lost.
   Every move to `failed` lets the wake lock go (`wakeLock` is `off`) and asks for none again when
   the page becomes visible: a capture that records nothing doesn't keep the screen on.
 - **The wake lock** (`navigator.wakeLock`, the screen kept on) is asked at `start()`, asked again
@@ -753,7 +767,10 @@ to every screen as a prop; it outlives them. It holds the capture (`media/captur
 `open(settings)` makes the capture and opens the camera for the preview (never throws: the capture's status says why; asked again after a
 failure it opens afresh, R1's "Try again"; if R1 was left while the camera opened, the camera that arrives is closed);
 `start(lift, { replayMode })` starts recording and keeps the lift, the start time and the live state (`liveState`, `d29b`; refused: a second `start` while one runs, a lift the registry lacks, no
-open camera; a capture that can't record, such as `no-encoder`, leaves no session); `end()` stops and closes the capture and forgets
+open camera; a capture that can't record, such as `no-encoder`, leaves no session). `c61`: the session runs only when its capture
+records (or recorded and holds its ring: a camera lost while the wake lock was asked is R2's "Camera stopped"); a Start cut short by R1's ‹,
+End session or a camera lost during the encoder check rejects with the capture's `stopped`, and nothing runs, so the flow stays on R1 (which
+shows "Camera stopped") or home, and H has no "Back to the session"; `end()` stops and closes the capture and forgets
 everything (R1's ‹ and R2's and R3b's End session call it); `active`, `lift`, `startedAt`, `liveState`, `settings` (the ones the capture was made from),
 `elapsedS()` (the capture's `sinceS`, H's clock), `subscribe(fn)`.
 
@@ -778,11 +795,19 @@ own and the queue and the wake-lock line sit at an edge, so nothing moves when t
 does not scroll vertically and every control is inside the window (the layout check). The window's height is a least height: a phone in
 landscape scrolls, with the ⌄ cue and nothing cut off. A camera lost while recording (`interrupted`) shows "Camera stopped" with a retry
 arrow (`button[data-record="resume"]`: the capture's `resume()`); the same on R1, where a camera lost during the preview is `interrupted` too.
+Every tap that resumes goes through `resumeCapture(session)` (record-model.mjs, `c61`): its rejection is caught, and the capture's `failed`
+state draws it as the problem panel; a second tap while the camera opens joins the first.
 
 **The errors** are d23's problem panel (`components/problem.mjs`), from `captureProblem(status)` (a `failed` capture) through
 `problem-model.mjs`: the kinds `camera-denied`, `no-camera`, `camera-busy`, `no-encoder`, `insecure` (R1) and `encoder-failed` (R2, an encoder
 that fails while recording), each with what happened and what the user can do, in d55's short style; the capture's own words are "Details".
 Where trying again can help (`actions.retry`) R1 offers "Try again", which asks for the camera afresh; ‹ is always there.
+**A failed camera keeps the lift** (`c61`, nordmu 2026-11-03): on R2 a capture `failed` while the session's ring is held (another app holds
+the camera at a resume, `camera-busy`; the encoder failed while recording, `encoder-failed`) shows "Try again" in the panel (R1's button,
+`button[data-record="retry"]`, `liveView`'s `canRetry`), which resumes into the same ring; Replay stays enabled while the ring holds video
+(`canReplay`: `bytes` above 0). The panel sits in the middle area, which is fixed, so nothing moves. `encoder-failed` now reads "Try again."
+(it said "End the session and start a new one", which the screen no longer asks); `camera-busy`'s "Close that app, then try again" is what
+R1, R2 and R3b offer.
 
 **Where the screens depart from the mockups:** R1 has no ✕ (a ‹ as the other screens), no "Switch camera" button (the camera is S1's setting, and the
 capture is made with it), the lift is a button each (the mockup's one button cycles) and the replay mode has no help line under it (the
@@ -862,7 +887,8 @@ its frames `media/delayed.mjs`'s.
 - **Fixed places** (`base.css`, "R3b, Delayed view"; sizes from `tokens.css`'s `--delayed-*`, `--size-delay`, `--size-keep`): the clock and
   the delay have widths of their own, so nothing moves while they change. At 360×640, 360×800, 412×760 and 412×915 no vertical scroll
   and every control inside the window (the layout check). A camera lost while recording shows "Camera stopped" with the resume, a failed
-  capture d23's problem panel, as on R2.
+  capture d23's problem panel, as on R2: with "Try again" (`button[data-record="retry"]`, `delayedView`'s `canRetry`) while the ring is
+  held, and "Keep this lift" enabled while the ring holds video (`canKeep`), `c61`.
 - **The page test's delayed walk** measures the delay on screen in headless Brave on its fake camera ([The page test](#the-page-test)).
 - **Where it departs from the mockup:** "Starting: 10 s behind" before the first frame, "Camera stopped", the problem panels; the
   picture is fitted, not cropped to the window as the mockup's drawing; no queue line (the mockup has none: the analysing lifts show on H
@@ -1880,7 +1906,8 @@ worktree: no example clips, no `app/vendor/tfjs/`, no `app/models/`, no GPU.
    frame is 5 ± 0.5 s behind the capture's newest (read five times in the page from what R3b's canvas says it drew: `data-frame-us`, the
    frame's time, and `data-live-us`, the capture's clock at that draw, both on the recording's clock) → Keep this lift → M (M1, on the
    kept snapshot) → M's ✕ → R3b → End session → H, every camera track ended. The output gives the measured delay
-   (`page-test: delayed walk (…): measured 5.0xx s behind (5 s set), N frames drawn`) and names each step.
+   (`page-test: delayed walk (…): measured 5.0xx s behind (5 s set), N frames drawn`) and names each step; when the canvas
+   drew nothing, its problem quotes what R3b says over it (`c61`: "Starting: …" or the decoder's words, `note` in the output).
    Then (`d22`) A3 opens from "View options" with the mockup's switches and speeds and no lifter, a switch flips, a smoothing change
    scores again and is put back to 50 ms, and "Re-mark this lift" opens M in its ready state.
 4. **It fails** on a console error, an exception or unhandled rejection, a failed request or an HTTP error (page, workers and the

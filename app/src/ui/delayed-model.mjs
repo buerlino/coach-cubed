@@ -11,7 +11,7 @@
 // The recording never stops: nothing here calls the capture except `snapshot()`.
 import { RANGES } from '../store/settings.mjs';
 import { problemOf } from './problem-model.mjs';
-import { clockText } from './record-model.mjs';
+import { canRetryCapture, clockText, holdsVideo } from './record-model.mjs';
 import { seconds } from './settings-model.mjs';
 
 /** The delays R3b offers (the mockup's), each inside RANGES.delayS. */
@@ -20,7 +20,8 @@ export const DELAY_CHOICES = Object.freeze([5, 10, 15, 20].filter(v => v >= RANG
 const NOTHING = 'The recording holds no video yet. Try again in a moment.';
 
 /**
- * What R3b draws: REC's clock, the delay ('10 s', '10 s behind'), the delay choices, and "Camera stopped".
+ * What R3b draws: REC's clock, the delay ('10 s', '10 s behind'), the delay choices, "Camera stopped", Try again and
+ * whether Keep works (c61).
  * @param {{status: {state: string, sinceS: number}, delayS: number}} input
  */
 export function delayedView({ status, delayS }) {
@@ -32,6 +33,9 @@ export function delayedView({ status, delayS }) {
     delays: DELAY_CHOICES.map(v => ({ value: v, label: seconds(v), pressed: v === delayS })),
     interrupted: stopped ? 'Camera stopped' : null,
     canResume: stopped,
+    // c61: a capture failed with the ring held tries again (R2's rule), and Keep works while the ring holds video
+    canRetry: canRetryCapture(status),
+    canKeep: holdsVideo(status),
   };
 }
 

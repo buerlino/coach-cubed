@@ -8,7 +8,7 @@
 //                       phrase (analysis/messages.mjs): no person found, the engine failing, the watchdog
 //   c8's store          StoreError `storage-full`, or its message when it reached a job as a string
 //   c27's capture       CaptureError, by `code` (camera-denied, no-camera, camera-busy, no-encoder, insecure,
-//                       encoder-failed), on R1 and R2 (d28)
+//                       encoder-failed), on R1 and R2 (d28) and R3b (d29b)
 // `engine` is the raising module's own words (the frame source's message, diagnostics.js's reason, the
 // worker's message, the store's), shown as they are; `title`, `what` and `can` are this screen's. Nothing is
 // invented: advice is only what the app can really do (pick another video, analyse again, delete lifts).
@@ -57,7 +57,8 @@ const KINDS = {
     can: "Delete lifts you don't need (in a lift's view options, or in Settings) or free space on the phone, then try again.",
     actions: { retry: true, another: false },
   },
-  // the camera's (d28): R1 and R2 draw them; trying again is the camera asked afresh (R1's button)
+  // the camera's (d28): R1, R2 and R3b draw them; trying again is the camera asked afresh: R1's button opens it anew,
+  // R2's and R3b's (c61) resume the session's recording into the same ring
   'camera-denied': {
     title: 'Camera not allowed',
     what: 'The camera permission was refused.',
@@ -91,8 +92,8 @@ const KINDS = {
   'encoder-failed': {
     title: 'Recording stopped',
     what: 'The video encoder failed while recording.',
-    can: 'End the session and start a new one.',
-    actions: { retry: false, another: false },
+    can: 'Try again.',
+    actions: { retry: true, another: false },
   },
   failed: {
     title: "That didn't work",

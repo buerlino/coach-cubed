@@ -96,12 +96,16 @@ export function createCapture(settings = {}, { api = browserCaptureApi(), now = 
   // the recording's clock across camera sessions: the last frame's time (µs) and when it came (ms)
   let lastFrameUs = null, lastFrameWall = null;
   let wake = 'off', sentinel = null, wakePending = null, offVisibility = null;
+  // c61: the camera asked for by open() or resume() while it is on its way (a second call gets the same promise),
+  // and close()'s count, so a camera that arrives after close() is stopped, never adopted
+  let cameraOp = null, closings = 0;
   const listeners = new Set();
 
   const status = () => ({
     state, fps, width, height, rotation,
     sinceS: startedAt === null ? 0 : (now() - startedAt) / 1000,
     heldS: ring ? ring.heldS : 0, bytes: ring ? ring.bytes : 0, dropped, wakeLock: wake, error,
+    ringHeld: ring !== null,
   });
   const emit = () => { const s = status(); for (const fn of [...listeners]) fn(s); };
   const set = (patch) => { if ('state' in patch) state = patch.state; if ('error' in patch) error = patch.error; emit(); };
@@ -124,6 +128,7 @@ export function createCapture(settings = {}, { api = browserCaptureApi(), now = 
     return { s, t };
   }
   function adoptCamera({ s, t }) {
+    if (stream && stream !== s) releaseCamera();   // c61's safety net: never two cameras open
     stream = s; track = t;
     const settingsNow = typeof t.getSettings === 'function' ? t.getSettings() : {};
     if (settingsNow.width) width = settingsNow.width;
@@ -162,6 +167,10 @@ export function createCapture(settings = {}, { api = browserCaptureApi(), now = 
     })();
     return wakePending;
   }
+  /** The page shown again: the lock asked for again while the ring records (the browser drops it when hidden). */
+  function watchVisibility() {
+    if (!offVisibility) offVisibility = api.onVisibilityChange(() => { if (ring && api.isVisible() && wake !== 'held') requestWake(); });
+  }
   function releaseWake() {
     const s = sentinel;
     sentinel = null;
@@ -173,6 +182,7 @@ export function createCapture(settings = {}, { api = browserCaptureApi(), now = 
 
   // ---- a recording session: one camera track, one encoder ----
   function startSession() {
+    if (session) endSession(session, { flush: false });   // c61's safety net: never two encoders writing into the ring
     const t = typeof track.clone === 'function' ? track.clone() : track;
     const s = {
       track: t, reader: api.readFrames(t), encoder: null, configured: null, rotations: [], seg: null,
@@ -279,6 +289,26 @@ export function createCapture(settings = {}, { api = browserCaptureApi(), now = 
     releaseCamera();
   }
 
+  /** The camera of open() or resume(): one at a time; a second call while one is on its way gets its promise. */
+  function cameraOnce(run) {
+    if (cameraOp) return cameraOp;
+    const p = (async () => {
+      try { await run(closings); } finally { if (cameraOp === p) cameraOp = null; }
+    })();
+    cameraOp = p;
+    return p;
+  }
+  /** The camera asked for; null when close() came while it was on its way (the late camera is stopped). */
+  async function askCamera(closed) {
+    let got;
+    try { got = await openCamera(); } catch (e) {
+      if (closings !== closed) return null;
+      releaseCamera(); fail(e);
+    }
+    if (closings !== closed) { for (const x of got.s.getTracks()) quietly(() => x.stop()); return null; }
+    return got;
+  }
+
   const cap = {
     /** The latest state: { state, fps, width, height, rotation, sinceS, heldS, bytes, dropped, wakeLock, error }. */
     get status() { return status(); },
@@ -291,13 +321,21 @@ export function createCapture(settings = {}, { api = browserCaptureApi(), now = 
       return () => listeners.delete(fn);
     },
 
-    /** R1: the camera for the preview. Nothing is recorded. After a failure it starts afresh. */
-    async open() {
-      if (state === 'preview' || state === 'recording' || state === 'interrupted') return;
-      teardown();
-      error = null;
-      try { adoptCamera(await openCamera()); } catch (e) { releaseCamera(); fail(e); }
-      set({ state: 'preview', error: null });
+    /**
+     * R1: the camera for the preview. Nothing is recorded. After a failure it starts afresh. A second call while the
+     * camera is on its way gets the first one's promise (c61: one camera, however often "Try again" is tapped).
+     */
+    open() {
+      if (cameraOp) return cameraOp;
+      if (state === 'preview' || state === 'recording' || state === 'interrupted') return Promise.resolve();
+      return cameraOnce(async closed => {
+        teardown();
+        error = null;
+        const got = await askCamera(closed);
+        if (!got) return;
+        adoptCamera(got);
+        set({ state: 'preview', error: null });
+      });
     },
 
     /** R1's Start: frames to H.264, a keyframe a second, into the ring; the wake lock. */
@@ -314,30 +352,39 @@ export function createCapture(settings = {}, { api = browserCaptureApi(), now = 
         try { ok = !!(await api.isEncoderConfigSupported(config)).supported; } catch { ok = false; }
         if (ok) { codec = c; break; }
       }
+      // c61: closed (R1's back) or the camera lost while asking: nothing was started, and the caller hears it
+      if (state !== 'preview') throw new CaptureError('stopped', `The camera ${state === 'closed' ? 'was closed' : 'stopped'} before recording started.`);
       if (!codec) fail(new CaptureError('no-encoder', `This browser's video encoder supports none of the H.264 configs the app records (${CODECS.join(', ')} at ${w}×${h}).`));
-      if (state !== 'preview') return;   // closed while asking
       ring = createRing({ bufferS });
       dropped = 0; fps = null; lastFrameUs = null; lastFrameWall = null;
       startedAt = now();
       try { startSession(); } catch (e) { ring.close(); ring = null; startedAt = null; fail(asCaptureError(e, 'encoder-failed', "The video encoder couldn't be started")); }
-      offVisibility = api.onVisibilityChange(() => { if (ring && api.isVisible() && wake !== 'held') requestWake(); });
+      watchVisibility();
       set({ state: 'recording', error: null });
       await requestWake();
     },
 
-    /** After an interruption: the camera again, recording on into the same ring from a new keyframe. */
-    async resume() {
-      if (state !== 'interrupted') return;
-      if (offTrack) offTrack();
-      offTrack = null;
-      if (stream) for (const t of stream.getTracks()) quietly(() => t.stop());
-      stream = null; track = null;
-      try { adoptCamera(await openCamera()); } catch (e) { releaseCamera(); fail(e); }
-      if (ring) {
-        try { startSession(); } catch (e) { fail(asCaptureError(e, 'encoder-failed', "The video encoder couldn't be started")); }
-        set({ state: 'recording', error: null });
-        if (wake !== 'held') await requestWake();
-      } else set({ state: 'preview', error: null });
+    /**
+     * After an interruption, or a failure while the ring is held (c61: R2's and R3b's Try again): the camera again,
+     * recording on into the same ring from a new keyframe. A second call while the camera is on its way gets the
+     * first one's promise.
+     */
+    resume() {
+      if (cameraOp) return cameraOp;
+      if (state !== 'interrupted' && !(state === 'failed' && ring)) return Promise.resolve();
+      return cameraOnce(async closed => {
+        if (session) endSession(session, { flush: false });
+        releaseCamera();
+        const got = await askCamera(closed);
+        if (!got) return;
+        adoptCamera(got);
+        if (ring) {
+          try { startSession(); } catch (e) { fail(asCaptureError(e, 'encoder-failed', "The video encoder couldn't be started")); }
+          watchVisibility();
+          set({ state: 'recording', error: null });
+          if (wake !== 'held') await requestWake();
+        } else set({ state: 'preview', error: null });
+      });
     },
 
     /** The last `seconds` of the ring as an MP4, or null when nothing is held. */
@@ -369,8 +416,10 @@ export function createCapture(settings = {}, { api = browserCaptureApi(), now = 
       set({ state: live ? 'preview' : (stream ? 'interrupted' : 'closed'), error: null });
     },
 
-    /** Releases the camera: every track stopped. */
+    /** Releases the camera: every track stopped; a camera still on its way is stopped when it comes. */
     close() {
+      closings++;
+      cameraOp = null;
       teardown();
       set({ state: 'closed', error: null });
     },

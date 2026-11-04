@@ -597,3 +597,189 @@ test('the browser\'s side: browserCaptureApi() over a fake global, nothing there
   assert.ok(api.createEncoder({}) instanceof g.VideoEncoder);
   assert.equal(api.isVisible(), true);
 });
+
+// ---- c61: one camera at a time, a Start that says when it didn't, a failed camera that keeps the lift ----
+
+/** The fake's cameras with a track still live (the preview's or a clone), and the encoders not closed. */
+const liveCameras = fake => fake.cameras.filter(c => c.tracks.some(t => t.readyState === 'live')).length;
+const openEncoders = fake => fake.log.encoders.filter(e => e.state !== 'closed').length;
+/** A promise the test lets go: `gate(f)` is f, called only once `release()` runs. */
+function gated(f) {
+  let release;
+  const ready = new Promise(r => { release = r; });
+  return { call: (...a) => ready.then(() => f(...a)), release: () => release() };
+}
+const busy = async () => { const e = new Error('Could not start video source'); e.name = 'NotReadableError'; throw e; };
+/** The snapshot's packets: the first a keyframe, the times rising (one encoder's chunks, never two interleaved). */
+function assertOneStream(mp4) {
+  assert.equal(mp4.packets[0].type, 'key', 'the ring starts on a keyframe');
+  const ts = mp4.packets.map(p => p.timestamp);
+  assert.ok(ts.every((t, i) => !i || t > ts[i - 1]), `the times rise: ${ts.join(', ')}`);
+}
+
+test('c61: two resume() calls at once from interrupted open one camera and one encoder, none after close(); the ring holds one encoder\'s chunks', async () => {
+  const { cap, fake, last } = await recording();
+  await fake.deliver(30);
+  fake.camera.end();
+  await fake.settle();
+  assert.equal(last().state, 'interrupted');
+  const a = cap.resume(), b = cap.resume();   // a double tap on "Camera stopped"
+  await Promise.all([a, b]);
+  assert.equal(last().state, 'recording');
+  assert.equal(fake.log.getUserMedia.length, 2, 'the camera asked for once more, not twice');
+  assert.equal(liveCameras(fake), 1, 'one live camera');
+  assert.equal(openEncoders(fake), 1, 'one encoder');
+  // every camera still live gets frames: two would mean two encoders writing into the ring
+  for (const cam of fake.cameras.filter(c => c.tracks.some(t => t.readyState === 'live'))) { fake.camera = cam; await fake.deliver(30); }
+  await fake.settle();
+  assert.deepEqual([...new Set(fake.log.encoded.slice(30).map(e => e.encoder))], [1], 'after the resume one encoder encodes');
+  const mp4 = await readMp4((await cap.snapshot(60)).blob);
+  assert.equal(mp4.packets.length, 60);
+  assertOneStream(mp4);
+  assert.equal(mp4.packets[30].type, 'key', 'the resumed run starts on a keyframe');
+  cap.close();
+  assert.equal(liveCameras(fake), 0, 'no track live after close()');
+  assert.equal(openEncoders(fake), 0, 'no encoder open after close()');
+});
+
+test('c61: two open() calls at once (and two after a failure, "Try again" tapped twice) open one camera; none after close()', async () => {
+  const { cap, fake, last } = await setup();
+  await Promise.all([cap.open(), cap.open()]);
+  assert.equal(last().state, 'preview');
+  assert.equal(fake.log.getUserMedia.length, 1);
+  assert.equal(liveCameras(fake), 1);
+  await cap.start();
+  assert.equal(openEncoders(fake), 1);
+  cap.close();
+  assert.deepEqual([liveCameras(fake), openEncoders(fake)], [0, 0]);
+
+  const real = fake.api.getUserMedia;
+  fake.api.getUserMedia = busy;
+  await assert.rejects(cap.open(), { code: 'camera-busy' });
+  fake.api.getUserMedia = real;
+  await Promise.all([cap.open(), cap.open()]);
+  assert.equal(fake.log.getUserMedia.length, 2, 'one camera more for two taps');
+  assert.equal(liveCameras(fake), 1);
+  cap.close();
+  assert.equal(liveCameras(fake), 0);
+});
+
+test('c61: a camera that arrives after close() is stopped: the capture stays closed', async () => {
+  const { cap, fake, last } = await setup();
+  const g = gated(fake.api.getUserMedia);
+  fake.api.getUserMedia = g.call;
+  const opening = cap.open();
+  await fake.settle();
+  cap.close();
+  g.release();
+  await opening.catch(() => {});
+  assert.equal(last().state, 'closed');
+  assert.equal(cap.stream, null);
+  assert.equal(liveCameras(fake), 0, 'the late camera is stopped');
+});
+
+test('c61: start() closed while it checks the encoder\'s configs rejects (code stopped): nothing recorded, no encoder, no wake lock', async () => {
+  const { CaptureError } = await load('src/media/capture.mjs');
+  const { cap, fake, last } = await setup();
+  await cap.open();
+  const g = gated(fake.api.isEncoderConfigSupported);
+  fake.api.isEncoderConfigSupported = g.call;
+  const starting = cap.start();
+  await fake.settle();
+  cap.close();   // R1's back
+  g.release();
+  await assert.rejects(starting, e => e instanceof CaptureError && e.code === 'stopped');
+  assert.equal(last().state, 'closed');
+  assert.equal(openEncoders(fake), 0);
+  assert.equal(fake.log.wakeLocks.length, 0);
+  assert.equal(liveCameras(fake), 0);
+});
+
+test('c61: start() whose camera ends while it checks the encoder\'s configs rejects (code stopped); interrupted with no ring, resume() is the preview again and Start works', async () => {
+  const { CaptureError } = await load('src/media/capture.mjs');
+  const { cap, fake, last } = await setup();
+  await cap.open();
+  const real = fake.api.isEncoderConfigSupported;
+  const g = gated(real);
+  fake.api.isEncoderConfigSupported = g.call;
+  const starting = cap.start();
+  await fake.settle();
+  fake.camera.end();
+  g.release();
+  await assert.rejects(starting, e => e instanceof CaptureError && e.code === 'stopped');
+  assert.equal(last().state, 'interrupted');
+  assert.equal(last().ringHeld, false, 'no ring');
+  assert.equal(openEncoders(fake), 0);
+  fake.api.isEncoderConfigSupported = real;
+  await cap.resume();
+  assert.equal(last().state, 'preview');
+  await cap.start();
+  assert.equal(last().state, 'recording');
+  cap.close();
+});
+
+test('c61: resume() that fails with camera-busy keeps the ring; a second resume() from failed reopens the camera and records on into the same ring from a new keyframe', async () => {
+  const { cap, fake, last } = await recording();
+  await fake.deliver(30);
+  fake.camera.end();
+  await fake.settle();
+  const real = fake.api.getUserMedia;
+  fake.api.getUserMedia = busy;
+  await assert.rejects(cap.resume(), { code: 'camera-busy' });
+  assert.equal(last().state, 'failed');
+  assert.equal(last().ringHeld, true, 'the ring is held');
+  assert.equal((await readMp4((await cap.snapshot(60)).blob)).packets.length, 30, 'snapshot() works while failed');
+  fake.api.getUserMedia = real;
+  await cap.resume();   // Try again
+  assert.equal(last().state, 'recording');
+  assert.equal(last().error, null);
+  assert.equal(last().wakeLock, 'held', 'the screen kept on again');
+  assert.equal(liveCameras(fake), 1);
+  assert.equal(openEncoders(fake), 1);
+  await fake.deliver(30);
+  await fake.settle();
+  const mp4 = await readMp4((await cap.snapshot(60)).blob);
+  assert.equal(mp4.packets.length, 60, 'the same ring: both runs in one snapshot');
+  assertOneStream(mp4);
+  assert.equal(mp4.packets[30].type, 'key');
+  // the page hidden and shown: the lock asked for again, as before the failure
+  fake.setVisible(false); fake.wakeLock._drop(); await fake.settle(); fake.setVisible(true); await fake.settle();
+  assert.equal(last().wakeLock, 'held');
+  cap.close();
+  assert.deepEqual([liveCameras(fake), openEncoders(fake)], [0, 0]);
+});
+
+test('c61: an encoder that failed while recording: resume() from failed reopens the camera and records on into the same ring from a new keyframe', async () => {
+  const { cap, fake, last } = await recording();
+  await fake.deliver(40);
+  await fake.settle();
+  const first = fake.camera;
+  fake.encoder.fail('Encoder hardware gone');
+  await fake.settle();
+  assert.equal(last().state, 'failed');
+  assert.equal(last().error.code, 'encoder-failed');
+  assert.equal(last().ringHeld, true);
+  await cap.resume();
+  assert.equal(last().state, 'recording');
+  assert.equal(fake.log.getUserMedia.length, 2, 'the camera asked for again');
+  assert.ok(first.tracks.every(t => t.readyState === 'ended'), 'the old camera stopped');
+  assert.deepEqual([liveCameras(fake), openEncoders(fake)], [1, 1]);
+  await fake.deliver(20);
+  await fake.settle();
+  const mp4 = await readMp4((await cap.snapshot(60)).blob);
+  assert.equal(mp4.packets.length, 60);
+  assertOneStream(mp4);
+  assert.equal(mp4.packets[40].type, 'key');
+  cap.close();
+  assert.deepEqual([liveCameras(fake), openEncoders(fake)], [0, 0]);
+});
+
+test('c61: resume() from failed without a ring (a failed open()) does nothing: R1\'s Try again is open()', async () => {
+  const { cap, fake, last } = await setup({ getUserMediaError: { name: 'NotReadableError', message: 'busy' } });
+  await assert.rejects(cap.open(), { code: 'camera-busy' });
+  await cap.resume();
+  assert.equal(last().state, 'failed');
+  assert.equal(fake.log.getUserMedia.length, 1);
+  assert.equal(last().ringHeld, false);
+  cap.close();
+});

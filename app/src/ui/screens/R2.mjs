@@ -3,14 +3,15 @@
 // camera's real rate and the queue line (a tap opens Q1, whose "Back to the session" comes back here) over it, the lift
 // and the buffer, the large Replay button (R3 is d29's), End session and the wake-lock line. The session is the app's
 // (src/session.mjs), injected; the capture is read through it. A camera lost while recording shows "Camera stopped" with a
-// resume; a capture that failed shows d23's problem panel. Fixed places: nothing moves when the queue, the rate or the
+// resume; a capture that failed shows d23's problem panel, with Try again while the session's ring is held (c61: the camera
+// again, recording on into the same ring; Replay works while the ring holds video). Fixed places: nothing moves when the queue, the rate or the
 // wake lock changes (base.css, "R2, Recording"). All of the logic is record-model.mjs's.
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../html.mjs';
 import { ReplayIcon, RetryIcon, StopIcon } from '../components/icons.mjs';
 import { Problem } from '../components/problem.mjs';
 import { followQueue } from '../home-model.mjs';
-import { captureProblem, goHome, liveView } from '../record-model.mjs';
+import { captureProblem, goHome, liveView, resumeCapture } from '../record-model.mjs';
 import { useCapture, useStream } from '../use-capture.mjs';
 
 export function R2({ flow, store, queue, session }) {
@@ -50,11 +51,14 @@ export function R2({ flow, store, queue, session }) {
         </div>
       </header>
       <div class="live-mid">
-        ${problem ? html`<${Problem} problem=${problem} />` : view.canResume ? html`
-          <button type="button" class="chip-button" data-record="resume" onClick=${() => session.capture && session.capture.resume()}><${RetryIcon} /><span>${view.interrupted}</span></button>` : null}
+        ${problem ? html`
+          <${Problem} problem=${problem}>
+            ${view.canRetry && problem.actions.retry ? html`<button type="button" class="button--primary button-big" data-record="retry" onClick=${() => resumeCapture(session)}>Try again</button>` : null}
+          <//>` : view.canResume ? html`
+          <button type="button" class="chip-button" data-record="resume" onClick=${() => resumeCapture(session)}><${RetryIcon} /><span>${view.interrupted}</span></button>` : null}
       </div>
       <div class="live-controls">
-        <button type="button" class="live-replay" data-record="replay" aria-label=${`Replay, the last ${view.replay}`} disabled=${status.state === 'failed'} onClick=${() => flow.go('replay')}>
+        <button type="button" class="live-replay" data-record="replay" aria-label=${`Replay, the last ${view.replay}`} disabled=${!view.canReplay} onClick=${() => flow.go('replay')}>
           <${ReplayIcon} />
           <span class="live-replay__text"><span class="live-replay__name">Replay</span><span class="live-replay__length">${view.replay}</span></span>
         </button>

@@ -339,3 +339,84 @@ test('d29 fix: End session tapped twice goes home once, without the illegal home
   assert.equal(flow.state, 'home');
   for (const f of ['R1', 'R2']) assert.match(read('src/ui/screens/' + f + '.mjs'), /goHome\(flow\)/, f);
 });
+
+// ---- c61: a failed camera that keeps the lift ----
+
+test('c61: failed with the ring held, R2 and R3b offer Try again, Replay and Keep; failed with no video, neither Replay nor Keep', async () => {
+  const { liveView } = await model();
+  const { delayedView } = await load('ui', 'delayed-model.mjs');
+  const { CaptureError } = await load('media', 'capture.mjs');
+  const held = status({ state: 'failed', error: new CaptureError('camera-busy', 'x'), ringHeld: true, heldS: 4, bytes: 5000 });
+  const r2 = liveView({ status: held, jobs: [], lift: 'snatch', settings: null });
+  assert.deepEqual([r2.canRetry, r2.canReplay], [true, true]);
+  const r3b = delayedView({ status: held, delayS: 10 });
+  assert.deepEqual([r3b.canRetry, r3b.canKeep], [true, true]);
+  const empty = status({ state: 'failed', error: new CaptureError('encoder-failed', 'x'), ringHeld: true, heldS: 0, bytes: 0 });
+  assert.deepEqual([liveView({ status: empty, jobs: [], lift: 'snatch', settings: null }).canRetry, liveView({ status: empty, jobs: [], lift: 'snatch', settings: null }).canReplay], [true, false]);
+  assert.deepEqual([delayedView({ status: empty, delayS: 10 }).canRetry, delayedView({ status: empty, delayS: 10 }).canKeep], [true, false]);
+  const noRing = status({ state: 'failed', error: new CaptureError('camera-busy', 'x'), ringHeld: false });
+  assert.equal(liveView({ status: noRing, jobs: [], lift: 'snatch', settings: null }).canRetry, false);
+  for (const s of [status({ ringHeld: true, bytes: 10 }), status({ state: 'interrupted', ringHeld: true, bytes: 10 })]) {
+    const v = liveView({ status: s, jobs: [], lift: 'snatch', settings: null });
+    assert.deepEqual([v.canRetry, v.canReplay], [false, true], s.state);
+    const d = delayedView({ status: s, delayS: 10 });
+    assert.deepEqual([d.canRetry, d.canKeep], [false, true], s.state);
+  }
+});
+
+test('c61: the problems R2 and R3b draw with Try again say so: camera-busy and encoder-failed offer retry, no "start a new one"', async () => {
+  const { problemOf } = await load('ui', 'problem-model.mjs');
+  const { CaptureError } = await load('media', 'capture.mjs');
+  for (const code of ['camera-busy', 'encoder-failed', 'camera-denied', 'no-camera']) {
+    const p = problemOf(new CaptureError(code, 'x'));
+    assert.equal(p.actions.retry, true, code);
+    assert.match(p.can, /try again/i, code);
+    assert.doesNotMatch(p.can, /start a new one/i, code);
+  }
+});
+
+test('c61: resumeCapture, the screens\' tap on "Camera stopped" and Try again: a resume that fails is caught and shown as the problem, one that works records on', async () => {
+  const { resumeCapture, captureProblem, liveView } = await model();
+  const { createSession } = await load('session.mjs');
+  const { createCapture } = await load('media', 'capture.mjs');
+  const { createFakeCapture } = require('./fake-webcodecs');
+  const fake = await createFakeCapture({ fps: 30 });
+  const session = createSession({ makeCapture: s => createCapture(s, { api: fake.api, now: fake.now }) });
+  const cap = await session.open({ camera: 'back', quality: '1080p30', bufferS: 60 });
+  await session.start('snatch');
+  await fake.deliver(30);
+  fake.camera.end();
+  await fake.settle();
+  const real = fake.api.getUserMedia;
+  fake.api.getUserMedia = async () => { const e = new Error('Could not start video source'); e.name = 'NotReadableError'; throw e; };
+  const unhandled = [];
+  const onUnhandled = e => unhandled.push(e);
+  process.on('unhandledRejection', onUnhandled);
+  try {
+    await resumeCapture(session);
+    await fake.settle();
+  } finally { process.off('unhandledRejection', onUnhandled); }
+  assert.deepEqual(unhandled, [], 'no unhandled rejection');
+  assert.equal(captureProblem(cap.status).kind, 'camera-busy', 'shown as the problem panel');
+  assert.equal(liveView({ status: cap.status, jobs: [], lift: 'snatch', settings: null }).canRetry, true);
+  fake.api.getUserMedia = real;
+  await resumeCapture(session);   // Try again
+  assert.equal(cap.status.state, 'recording');
+  assert.equal(session.active, true, 'the same session, the lift kept');
+  await session.end();
+  await resumeCapture(session);   // a tap that lands after the end: nothing to resume, nothing thrown
+});
+
+test('c61: R1, R2 and R3b resume through resumeCapture; R2 and R3b have Try again (data-record="retry") and enable Replay and Keep by the view', () => {
+  const r1 = read('src/ui/screens/R1.mjs'), r2 = read('src/ui/screens/R2.mjs'), r3b = read('src/ui/screens/R3b.mjs');
+  for (const [name, s] of [['R1', r1], ['R2', r2], ['R3b', r3b]]) {
+    assert.doesNotMatch(s, /\.resume\(\)/, `${name} calls no resume() of its own`);
+    assert.match(s, /resumeCapture\(session\)/, name);
+  }
+  for (const [name, s] of [['R2', r2], ['R3b', r3b]]) {
+    assert.match(s, /data-record="retry"/, `${name} has Try again`);
+    assert.match(s, /canRetry/, name);
+  }
+  assert.match(r2, /disabled=\$\{!view\.canReplay\}/);
+  assert.match(r3b, /disabled=\$\{keeping \|\| !view\.canKeep\}/);
+});

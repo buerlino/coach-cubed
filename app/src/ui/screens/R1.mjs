@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { html } from '../html.mjs';
 import { BackIcon, InfoIcon, LiftIcon, RetryIcon } from '../components/icons.mjs';
 import { Problem } from '../components/problem.mjs';
-import { captureProblem, goHome, saveMode, setupView, startSession } from '../record-model.mjs';
+import { captureProblem, goHome, resumeCapture, saveMode, setupView, startSession } from '../record-model.mjs';
 import { useCapture, useStream } from '../use-capture.mjs';
 import { DEFAULT_SETTINGS } from '../../store/settings.mjs';
 
@@ -74,7 +74,7 @@ export function R1({ flow, store, session }) {
           <${Problem} problem=${problem}>
             ${problem.actions.retry ? html`<button type="button" class="button--primary button-big" data-record="retry" onClick=${again}>Try again</button>` : null}
           <//>` : status.state === 'interrupted' ? html`
-          <button type="button" class="chip-button" data-record="resume" onClick=${() => session.capture && session.capture.resume()}><${RetryIcon} /><span>Camera stopped</span></button>` : html`
+          <button type="button" class="chip-button" data-record="resume" onClick=${() => resumeCapture(session)}><${RetryIcon} /><span>Camera stopped</span></button>` : html`
           <div class="setup-guide" aria-hidden="true">${view.tip ? html`<span>${view.guide}</span>` : null}</div>`}
         ${refused ? html`<p class="error" role="alert">${refused}</p>` : null}
       </div>
