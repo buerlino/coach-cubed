@@ -92,13 +92,15 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 55 | `d29b` | R3b, the delayed view, as a setting | dirac, opus | `d29` | merged `adbc83e` |
 | 56 | `d58` | A1 and A2 fit the window, A1's cue list fades, Welcome says it once (d54's and d55's follow-ups; nordmu, 2026-11-03) | dirac, sonnet | `d54`, `d55` | merged `1721b24` |
 | 57 | `c61` | One camera at a time, a Start that says when it didn't, a failed camera that keeps the lift (the milestone B review, 2026-11-03) | curie, opus | `d29b` | merged `0ff2fe0` (one fix round: the page test's R3b problem text); laptop only (nordmu, 2026-11-03: Try again and keep the lift) |
-| 58 | `s59` | s12's watchdog from c26's numbers: the stall time, restarts, tick and Q1's time left | schrödinger, sonnet | `c26` | id only: written from c26's report (nordmu, 2026-11-02); laptop only, can run the night after `c26` |
-| 59 | `c30` | The camera on the Fairphone: the permission, the real rate, the ring's memory | curie, opus | `d28`, `c26` | waits; phone: by day, nordmu told (after `c26`, by day); file checked against c27, d28, d29 and d29b on 2026-11-03 |
-| 60 | `c30b` | Recording and analysis together on the Fairphone: a job beside recording, the screen kept on, the app in the background | curie, opus | `c30`, `d29b` | waits; phone: by day, nordmu told; file checked against c27, d29 and d29b on 2026-11-03 |
-| 61 | `c60` | Milestone A on the Samsung S8+ (`ce011711cdc8a10c05`, Android 9, Chrome 101 as the WebView, kept: nordmu won't update it): the PWA in Chrome and the APK (question 3); what an old Chrome lacks gets a fallback (`100vh` before `100dvh`, Chrome 108+) | curie, opus | `c26` | id only: written from c26's report; phone: by day, nordmu told (nordmu, 2026-11-03) |
-| 62 | `c31` | A session on the Fairphone, 30–60 minutes: heat, battery, storage, memory | curie, sonnet | `c30b` | waits; phone: by day, nordmu present; the phone films the laptop playing an example clip (nordmu, 2026-11-02) |
+| 58 | `s59` | s12's watchdog from c26's numbers: the stall time, restarts, tick and Q1's time left | schrödinger, sonnet | `c26` | waits; laptop only; written 2026-11-04 from c26's report (nordmu: stall 20 s, tick 1 s, one restart, Q1 "estimating…" until the cut is open) |
+| 59 | `s63` | A 59.94 fps clip keeps its last frame (c26's cable-2: the cut's 1/57600 timescale) | schrödinger, sonnet | `c26` | waits; laptop only (nordmu, 2026-11-04, c26's decision 3) |
+| 60 | `d62` | H's wordmark clears the status bar: the top inset in the shell, the screen height in one token | dirac, sonnet | `c26` | waits; laptop only; the next phone package glances at H in the APK (nordmu, 2026-11-04, c26's decision 5) |
+| 61 | `c30` | The camera on the Fairphone: the permission, the real rate, the ring's memory | curie, opus | `d28`, `c26` | waits; phone: by day, nordmu told (after `c26`, by day); file checked against c27, d28, d29 and d29b on 2026-11-03 |
+| 62 | `c30b` | Recording and analysis together on the Fairphone: a job beside recording, the screen kept on, the app in the background | curie, opus | `c30`, `d29b` | waits; phone: by day, nordmu told; file checked against c27, d29 and d29b on 2026-11-03 |
+| 63 | `c60` | Milestone A on the Samsung S8+ (`ce011711cdc8a10c05`, Android 9, Chrome 101 as the WebView, kept: nordmu won't update it): the PWA in Chrome and the APK (question 3); what an old Chrome lacks gets a fallback (`100vh` before `100dvh`, Chrome 108+) | curie, opus | `c26` | id only: written from c26's report; phone: by day, nordmu told (nordmu, 2026-11-03) |
+| 64 | `c31` | A session on the Fairphone, 30–60 minutes: heat, battery, storage, memory | curie, sonnet | `c30b` | waits; phone: by day, nordmu present; the phone films the laptop playing an example clip (nordmu, 2026-11-02) |
 | | | **Checkpoint B:** nordmu runs a real gym session | | `c31` | |
-| 63 | `c40` | The handover: the pipeline runnable for Noah | curie | checkpoint B | id only; laptop only |
+| 65 | `c40` | The handover: the pipeline runnable for Noah | curie | checkpoint B | id only; laptop only |
 
 Gates outside the queue ([../app-plan.md](../app-plan.md#gates-outside-the-sessions)): no APK goes to testers before
 `c33`, which needs the name and the package ID (question 10) and the signing key's holder.
