@@ -30,6 +30,15 @@ restructuring window, merged packages' details) are in [decisions-archive.md](de
 
 ### What 0.1.0 is
 
+- **2026-11-04, nordmu, on c26's and c61's reports** (each as
+  recommended): a camera lost between the ring's start and the wake
+  lock's grant counts as a running session (R2's "Camera stopped", the
+  ring kept), as `c61` built it. `s59`: s12's stall time 30 → 20 s, the
+  tick 1 s and one restart stay; Q1 shows "estimating…" until the cut is
+  open. New: `d62` (H's wordmark under the status bar), `s63` (a 59.94 fps
+  clip's last frame), `c64` (the stepper's decoder holds 10–14 frames).
+  2.8 prepares and dry-runs beside `c30`; the real rewrite waits for a gap
+  after `c30` merges and nordmu's OK.
 - **2026-11-03, nordmu:** the S8+ runs `c60` after `c26`, on Chrome 101
   as it is (the oldest likely Chrome). A failed camera offers Try again and keeps the
   lift (`c61`). The PWA goes online unlisted once named: own domain, Pages
@@ -50,24 +59,6 @@ restructuring window, merged packages' details) are in [decisions-archive.md](de
   through the canvas first. Checkpoint A counts as passed for milestone B's
   laptop packages; `c26` still runs by day. `c27` runs on the laptop alone,
   `c30` and `c31` on the phone. Tonight's order: the fixes, `s49`, then B.
-- **2026-11-02, nordmu, checkpoint A round 1** (the review page in
-  [design/](../design/README.md); [ui-design.md](ui-design.md)): the picker,
-  then L1 "Which lift?", then M (`d53`); on M the steps are the buttons, ↶
-  undoes the last mark, a green step pressed again moves its mark, fixed
-  positions (`d54`, before B's `d29`); the whole wording pass and a ⌄ where
-  a screen goes on below (`d55`). The page is the record; the canvas
-  catches up later.
-- **2026-11-02, nordmu, on d22, d23 and d25:** a re-marked lift replaces
-  the old one once its analysis succeeds (`s50`); unsure-joint rings stay,
-  judged on the phone later; A3's smoothing becomes the default for later
-  analyses, capped at 300 ms in settings (`d51`); Q1's "No person found"
-  gets "Pick another video" (`d51`); the first-run text goes into the
-  wording pass; `introSeen` stays in settings. A4's 980 px breakpoint, phone
-  landscape scrolling to its buttons and A2's single column on a laptop
-  stay; no "Rep 1" before cues are scored per rep. The tools' browser
-  leaves no `org.chromium.Chromium.*` folders (`c52`). Noah takes the lift
-  side after 2.8 (`s49`). Settled entries moved to the archive.
-
 - **2026-11-02, nordmu: the Android package ID is
   `io.github.noahsta.coach`**, from the GitHub repo, not from the domain
   (replaces `org.coach.placeholder`; it can't change once published).
@@ -77,9 +68,8 @@ restructuring window, merged packages' details) are in [decisions-archive.md](de
 - **2026-11-02, nordmu: 0.1.0 is the handover.** It ships as planned, then
   coach goes back to Noah, who builds on with the pipeline (`c40`).
 
-- **2026-11-02, nordmu, later:** s12's stall time, restart, tick and time
-  left are set from `c26`'s phone numbers, in a package after it. Question
-  8: the squat, image and clean & jerk tabs are parked; the new UI offers
+- **2026-11-02, nordmu, later:** Question 8: the
+  squat, image and clean & jerk tabs are parked; the new UI offers
   only what 0.1.0 analyses, and they leave with the old page at step 5.8.
   Question 3: the test phones are the Fairphone 6, an old Samsung Galaxy
   S8+ (Google's Chrome and WebView) and an old iPhone XS Max (the PWA in

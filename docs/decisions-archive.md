@@ -19,6 +19,23 @@ log is [decisions.md](decisions.md).
   under the "failed" problem (`d29`); d29b's six points, a kept lift
   longer than the buffer and the 0.3 s skip lag included (both measured
   in `c30`/`c30b`).
+- **2026-11-02, nordmu, checkpoint A round 1** (the review page in
+  [design/](../design/README.md); [ui-design.md](ui-design.md)): the picker,
+  then L1 "Which lift?", then M (`d53`); on M the steps are the buttons, ↶
+  undoes the last mark, a green step pressed again moves its mark, fixed
+  positions (`d54`, before B's `d29`); the whole wording pass and a ⌄ where
+  a screen goes on below (`d55`). The page is the record; the canvas
+  catches up later.
+- **2026-11-02, nordmu, on d22, d23 and d25:** a re-marked lift replaces
+  the old one once its analysis succeeds (`s50`); unsure-joint rings stay,
+  judged on the phone later; A3's smoothing becomes the default for later
+  analyses, capped at 300 ms in settings (`d51`); Q1's "No person found"
+  gets "Pick another video" (`d51`); the first-run text goes into the
+  wording pass; `introSeen` stays in settings. A4's 980 px breakpoint, phone
+  landscape scrolling to its buttons and A2's single column on a laptop
+  stay; no "Rep 1" before cues are scored per rep. The tools' browser
+  leaves no `org.chromium.Chromium.*` folders (`c52`). Noah takes the lift
+  side after 2.8 (`s49`).
 - **2026-11-02, nordmu, on the first night's reports:** one contract
   package (`s35`): `frameTimes` in contract 5, a `reset` message in
   contract 1, contract 4's window may lack its end and the view records
