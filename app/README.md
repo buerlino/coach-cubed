@@ -30,6 +30,8 @@ pipeline/devlock.sh slice check-offline node app/tools/check-offline.mjs   # the
 npm --prefix app run test:page               # the page test (c21): the app offline in headless Brave/Chromium, a lateral raise and a snatch, ~5 s; see "The page test"
 npm --prefix app run check:layout            # the responsive check (d25): every screen at five window sizes in headless Brave/Chromium, ~45 s; see "A4 and the responsive check"
 node app/tools/assemble.mjs --debug          # the same, plus the check page (app/debug/) and its clip: the debug APK's dist/
+node app/tools/assemble.mjs --cname coach-cubed.org   # the release (c67): the same, plus a CNAME file; without --debug and --test
+node app/tools/check-dist.mjs --release app/dist   # the release's checks: files.json, no debug or dot files, sw.js's version, the model, TF.js, CNAME; exit 1 names each problem
 pipeline/devlock.sh slice apk-web app/tools/build-apk.sh web      # the debug APK, first half: npm ci, bundle, weights, assemble --debug, cap sync
 pipeline/devlock.sh slice apk-gradle app/tools/build-apk.sh apk   # second half: Gradle into app/out/coach-debug.apk (all: both, in one go)
 node app/tools/check-apk.mjs --serial 4d42e62f   # curie only, with the phone's lock: install, the shell, the check page, the engine; uninstall
@@ -1989,6 +1991,14 @@ request and a file not in the list go to the browser untouched.
   and claims the pages; the page's `controllerchange` makes the state
   `'ready'`. States: `'off'`, `'current'`, `'waiting'`, `'ready'`; `subscribe`
   gives the state now and at each change.
+- **Served at an origin's root** (coach-cubed.org, `c67`): `start_url` and `scope` are `./`, which resolve to `/`;
+  `sw.js` takes its scope from `self.registration.scope` and `updates.mjs` registers `./sw.js` with scope `./`, so
+  the same worker runs at a path (the dev server, a prefix) and at a root. `tests/app/sw.test.js` runs it at
+  `http://localhost:8090/` and at `https://coach-cubed.org/`.
+- **Pages' `Cache-Control: max-age=600` holds no update back:** the browser fetches the worker's own script past the
+  HTTP cache (`register()` passes no `updateViaCache`, so it is `'imports'`, and `sw.js` imports nothing), `files.json`
+  is fetched `cache: 'no-store'` and every file `cache: 'reload'`. A new version is seen at the next update check
+  (the app opening, the page coming back to the front, about once a day) whatever the headers say.
 - **"Update ready"** is a plain line on H (`<p class="update">`, no style yet:
   `dirac` styles it later): "Update ready · reload the app". A page already running keeps the modules it loaded; the new
   version is used from the next load.
@@ -2013,6 +2023,32 @@ exactly `files.json`'s files. Run it after `build-tfjs.mjs` and
 `fetch-models.sh`. Headless Brave's WebGL is SwiftShader, so it says the app
 loads and the engine answers, not how fast. The worker itself is tested in
 `tests/app/sw.test.js` on a fake Cache Storage and fetch.
+
+## Releasing: GitHub Pages
+
+`.github/workflows/pages.yml` (`c67`) publishes 0.1.0 and every later release to https://coach-cubed.org. It runs on a
+pushed tag `v*` and by hand; a manual run builds and checks and deploys only with the `deploy` input ticked (the first
+CI build is tested before anything goes live). The steps of the `build` job: the tag must equal `app/package.json`'s
+version (tags only); `npm --prefix app ci`; `npm --prefix app test` (not `test:page`, not `check:layout`; the runner's
+`google-chrome` serves the few tests that launch a browser); `build-tfjs.mjs`; `fetch-models.sh` (the weights from
+Kaggle, SHA-256 checked); `assemble.mjs --cname coach-cubed.org`; `check-dist.mjs --release app/dist`; the Pages
+artifact from `app/dist`. The `deploy` job (a tag, or `deploy` ticked) publishes it. Node 22: the repo pins none, 22 is
+the laptop's. Every action is pinned to a full commit SHA with its version in a comment; the workflow holds no secret.
+
+- **The size:** the dist is 144 files and 17,488,916 bytes (the weights about 12 MB); Pages allows 1 GB.
+- **CNAME:** a site deployed by Actions takes its domain from the repo's settings and ignores the file; it documents
+  the domain, is listed in `files.json` like any file, and `check-dist --release` wants it.
+- **Hidden files:** `actions/upload-pages-artifact` leaves out every file whose name starts with a dot unless
+  `include-hidden-files: true`. A file `files.json` lists but the site lacks fails the service worker's whole
+  install, so `assemble.mjs` skips every dot file (today `.npmrc`) and `check-dist.mjs` fails on one. The app's
+  README, `package.json` and `package-lock.json` stay out of `dist/` too; the version is read from `APP_VERSION`.
+- **Why tags only:** a deploy is a release; the service worker's version is the build's hash, so a merge to `main`
+  would ship an update to every installed copy. A manual run without `deploy` tests the build at any time.
+- **The version:** `app/package.json`'s `version`, equal to `APP_VERSION` (`tests/app/release.test.js`). The web app
+  manifest has no version member. Capacitor's app name and Android's `versionName` are `c33`'s.
+
+nordmu's steps (Pages' source, the domain, the environment's tag rule, the tag) and the handover to Noah:
+[docs/handover.md](../docs/handover.md). The notes: [docs/release-0.1.0.md](../docs/release-0.1.0.md).
 
 ## The tools' browser
 
