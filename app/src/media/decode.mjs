@@ -9,9 +9,23 @@
 // that stops answering ends it after `stallMs` with no progress, and an aborted
 // signal ends it at once. Whatever the end, the decoder is closed and every
 // frame still held is closed.
+//
+// A chunk taken by the decoder wakes the loop to feed the next one: the
+// decoder's `dequeue` event (Chrome 106 and later, from memory: c60 checks). A
+// decoder without it (no `ondequeue`: Chrome 101, the S8+'s WebView) wakes the
+// loop only by an output, and one that holds B-frames back gives none while the
+// loop waits with its queue full: the stepper's stream (one chunk at a time)
+// stalled. There, and only there, the loop re-checks decodeQueueSize every
+// DEQUEUE_POLL_MS while it waits with its queue full (package c65).
 import { MediaError, asMediaError } from './media-error.mjs';
 
+// the re-check of a decoder with no `dequeue` event: a repeating timer, which
+// Chrome clamps to 4 ms anyway after a few repeats
+export const DEQUEUE_POLL_MS = 4;
+
 const closeQuietly = x => { try { x.close(); } catch { /* already closed */ } };
+// Chrome 106+'s VideoDecoder has `ondequeue` (an EventTarget's handler); 101's has neither it nor the event
+const hasDequeue = decoder => 'ondequeue' in decoder && typeof decoder.addEventListener === 'function';
 
 /**
  * @param {Object} o
@@ -32,13 +46,17 @@ export async function* decodeFrames({ webcodecs, config, chunks, wants, signal, 
   const fail = e => { if (!error && !closed) error = asMediaError(e, 'decode-failed', 'The video decoder failed'); poke(); };
   const onAbort = () => { if (!error) error = new MediaError('closed', 'The video was closed.'); poke(); };
 
-  // no progress (an output, a chunk taken, the flush done) for stallMs is a stall
-  const waitForProgress = () => new Promise((resolve, reject) => {
+  // no progress (an output, a chunk taken, the flush done) for stallMs is a stall;
+  // `pollQueue`: a decoder with no dequeue event, waited on with its queue full
+  const waitForProgress = pollQueue => new Promise((resolve, reject) => {
+    let poll = null;
     const timer = setTimeout(() => {
+      clearInterval(poll);
       wake = null;
       reject(new MediaError('decode-stalled', `The video decoder did not answer for ${Math.round(stallMs / 1000 * 10) / 10} s, so the video was given up on.`));
     }, stallMs);
-    wake = () => { clearTimeout(timer); resolve(); };
+    wake = () => { clearTimeout(timer); clearInterval(poll); resolve(); };
+    if (pollQueue) poll = setInterval(() => { if (decoder.decodeQueueSize < maxQueueSize) poke(); }, DEQUEUE_POLL_MS);
   });
 
   try {
@@ -51,7 +69,7 @@ export async function* decodeFrames({ webcodecs, config, chunks, wants, signal, 
         output: frame => { if (closed || !wants(frame.timestamp)) closeQuietly(frame); else ready.push(frame); poke(); },
         error: fail,
       });
-      if (decoder.addEventListener) decoder.addEventListener('dequeue', poke);
+      if (hasDequeue(decoder)) decoder.addEventListener('dequeue', poke);
       decoder.configure(config);
     } catch (e) {
       throw asMediaError(e, 'decode-failed', "The video decoder couldn't be started");
@@ -81,7 +99,7 @@ export async function* decodeFrames({ webcodecs, config, chunks, wants, signal, 
       }
       if (ready.length) { yield ready.shift(); continue; }
       if (flushed) break;
-      await waitForProgress();
+      await waitForProgress(feeding && !hasDequeue(decoder) && decoder.decodeQueueSize >= maxQueueSize);
     }
     if (error) throw error;
   } finally {
