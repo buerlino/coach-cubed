@@ -53,6 +53,11 @@ jobs:
       - name: Install the build's inputs
         run: npm --prefix app ci
 
+      # Ubuntu 24.04's AppArmor blocks the unprivileged user namespaces Chrome's sandbox needs, so the
+      # runner's google-chrome crashed at launch in the first run (42004801286, browser.test.js's live tests).
+      - name: Let Chrome's sandbox start
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
       # The quick unit tests, not test:page and not check:layout. The runner's image has
       # google-chrome on PATH (app/tools/browser.mjs), so the few tests that launch a browser run.
       - name: Test
