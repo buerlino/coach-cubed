@@ -54,13 +54,23 @@ export function lengthOptions(field, current) {
 
 const row = (field, label, value, options, disabled) => ({ field, label, value, options, disabled });
 
+/** d66: the gym session's preview switch and its note (S1). */
+export const GYM_SWITCH = Object.freeze({ field: 'gymSession', label: 'Gym session (preview)', note: 'Unfinished: recording at the gym.' });
+
 /**
- * The recording settings: the mode switch, then the rows the mode shows. Each row says which
- * field it sets, the values it offers and whether it is disabled (NOT_YET).
+ * S1's gym session and lifts. `gym` is the preview switch (d66, off in 0.1.0); while it is off the view has no
+ * `modes`, no `rows` and no `note`: nothing of the gym session. `liftRows` holds the default lift, which L1 uses
+ * (milestone A), so it is there either way. Each row says which field it sets, the values it offers and whether it is
+ * disabled (NOT_YET).
  * @param {import('../store/settings.mjs').Settings} s
  */
 export function recordingView(s) {
   const off = f => NOT_YET.includes(f);
+  const shown = r => ({ ...r, shown: (r.options.find(o => o.value === r.value) || { label: String(r.value) }).label });
+  const on = s.gymSession === true;
+  const liftRows = [row('defaultLift', 'Default lift', s.defaultLift, liftChoices().map(c => ({ value: c.id, label: c.label })), off('defaultLift'))].map(shown);
+  const gym = { field: GYM_SWITCH.field, label: GYM_SWITCH.label, on, note: GYM_SWITCH.note };
+  if (!on) return { gym, liftRows, modes: [], modesDisabled: off('replayMode'), rows: [], note: null };
   const rows = [
     s.replayMode === 'delayed'
       ? row('delayS', 'Delay', s.delayS, lengthOptions('delayS', s.delayS), off('delayS'))
@@ -68,12 +78,13 @@ export function recordingView(s) {
     row('bufferS', 'Keep in memory', s.bufferS, lengthOptions('bufferS', s.bufferS).map(o => ({ ...o, label: `last ${o.label}` })), off('bufferS')),
     row('camera', 'Camera', s.camera, CAMERAS, off('camera')),
     row('quality', 'Quality', s.quality, [...new Set([s.quality, ...QUALITIES])].map(q => ({ value: q, label: qualityLabel(q) })), off('quality')),
-    row('defaultLift', 'Default lift', s.defaultLift, liftChoices().map(c => ({ value: c.id, label: c.label })), off('defaultLift')),
   ];
   return {
+    gym,
+    liftRows,
     modes: MODES.map(m => ({ ...m, on: s.replayMode === m.id })),
     modesDisabled: off('replayMode'),
-    rows: rows.map(r => ({ ...r, shown: (r.options.find(o => o.value === r.value) || { label: String(r.value) }).label })),
+    rows: rows.map(shown),
     note: 'Up to 30 fps; less in dim light.',
   };
 }
