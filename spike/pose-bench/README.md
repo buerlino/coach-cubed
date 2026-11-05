@@ -51,7 +51,7 @@ load, heat).
 | `lib/image.mjs` | Crop and resize through a canvas, normalise to planar floats. |
 | `serve.mjs` | Static server for the repo's `spike/pose-bench/`, `spike/capture-check/`, `src/` and `tests/fixtures/` (read-only), with COOP/COEP; takes each page's results. |
 | `run-cdp.mjs`, `plans/` | Runs a plan over the DevTools protocol, one cold page per run. |
-| `phone-sample.sh` | Battery, temperatures, RSS and GPU memory of the browser, every few seconds. |
+| `phone-sample.sh` | Battery, temperatures, RSS and GPU memory of the browser, every few seconds. `phone-sample.sh -s SERIAL OUT.csv …` samples another phone (else `ANDROID_SERIAL`, else the Fairphone, `4d42e62f`); on Android 9 (the S8+), which has no `dumpsys gpu` and no HAL temperatures, those columns are empty (c65). |
 | `compare.mjs` | Step 3.6: verdicts, phase windows and values against the references, and the thresholds. |
 | `difftrack.mjs` | Step 3.0's precondition: a re-extracted ViTPose-L track against the committed one (mean and max keypoint distance in pixels, meta, verdicts raw and smoothed). |
 | `summarize.mjs` | A plan's runs joined with `phone-sample.sh`'s samples inside each run's window: the numbers table. |

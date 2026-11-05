@@ -341,3 +341,54 @@ test('c65: the check page runs the probe at load (window.c20.compat), check-apk.
   assert.equal([...capture.matchAll(/hardwareAcceleration:/g)].length, 1, 'one builder, start() and configure() use it');
   assert.equal([...capture.matchAll(/encoderConfig\(/g)].length, 3);
 });
+
+// ---- the phone tools take any coach phone (the S8+ as well as the Fairphone) ----------------------------------------
+
+const { spawnSync } = require('node:child_process');
+// A fake adb on PATH: it logs its arguments and runs `shell` commands here, with fake dumpsys and ps beside it, as the
+// Fairphone (Android 16) or an Android 9 phone (no `dumpsys gpu`, no HAL temperatures in thermalservice) answers.
+function fakePhone(android) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'c65-adb-'));
+  const log = path.join(dir, 'adb.log');
+  const put = (name, body) => fs.writeFileSync(path.join(dir, name), `#!/bin/sh\n${body}\n`, { mode: 0o755 });
+  put('adb', `printf '%s %s %s\\n' "$1" "$2" "$3" >> '${log}'\n[ "$1" = -s ] && [ "$3" = shell ] && exec sh -c "$4"\nexit 0`);
+  put('ps', "printf '  PID NAME\\n 4242 com.brave.browser\\n'");
+  put('dumpsys', android >= 10
+    ? `case "$1" in battery) printf '  level: 57\\n  temperature: 301\\n';; gpu) printf 'Memory snapshot\\nProc 4242 total: 1000\\n';;
+thermalservice) printf 'Thermal Status: 1\\nCurrent temperatures from HAL:\\n Temperature{mValue=40.5, mType=0, mName=CPU0}\\n Temperature{mValue=38.25, mType=1, mName=GPU0}\\nCurrent cooling devices from HAL:\\n';; esac`
+    : `case "$1" in battery) printf '  level: 57\\n  temperature: 301\\n';; gpu) echo "Can't find service: gpu";;
+thermalservice) printf 'IsStatusOverride: false\\nThermalEventListeners:\\n';; esac`);
+  return { dir, log, clean: () => fs.rmSync(dir, { recursive: true, force: true }) };
+}
+function sample(android, args, env = {}) {
+  const phone = fakePhone(android);
+  const out = path.join(phone.dir, 'out.csv');
+  try {
+    const r = spawnSync('bash', [path.join(ROOT, 'spike', 'pose-bench', 'phone-sample.sh'), ...args.map(a => (a === 'OUT' ? out : a))], {
+      encoding: 'utf8', timeout: 1500, env: { ...process.env, ANDROID_SERIAL: '', ...env, PATH: `${phone.dir}${path.delimiter}${process.env.PATH}` },
+    });
+    const rows = fs.existsSync(out) ? fs.readFileSync(out, 'utf8').trim().split('\n') : [];
+    const calls = fs.existsSync(phone.log) ? fs.readFileSync(phone.log, 'utf8').trim().split('\n') : [];
+    return { r, rows, calls };
+  } finally { phone.clean(); }
+}
+
+test('c65: phone-sample.sh takes the phone\'s serial (-s or ANDROID_SERIAL), the Fairphone when called as before, -s on every adb call', () => {
+  for (const [args, env, serial] of [[['OUT', 'com.brave.browser', '0.2'], {}, '4d42e62f'], [['-s', 'ce011711cdc8a10c05', 'OUT', 'com.brave.browser', '0.2'], {}, 'ce011711cdc8a10c05'],
+    [['OUT', 'com.brave.browser', '0.2'], { ANDROID_SERIAL: 'ce011711cdc8a10c05' }, 'ce011711cdc8a10c05']]) {
+    const { rows, calls } = sample(16, args, env);
+    assert.ok(calls.length >= 2, `sampled more than once (${calls.length})`);
+    assert.ok(calls.every(c => c === `-s ${serial} shell`), `every call names ${serial}: ${calls}`);
+    assert.equal(rows[0], 'epoch_ms,level,battery_dc,rss_kb,gpu_bytes,procs,thermal_status,cpu_max_c,gpu_max_c');
+    assert.match(rows[1], /^\d{13},57,301,0,1000,1,1,40\.5,38\.25$/, rows[1]);
+  }
+});
+
+test('c65: phone-sample.sh on Android 9 (no dumpsys gpu, no HAL temperatures) writes empty columns, not an error or a 0', () => {
+  const { rows, r } = sample(9, ['-s', 'ce011711cdc8a10c05', 'OUT', 'com.brave.browser', '0.2']);
+  assert.ok(rows.length >= 2, r.stderr);
+  for (const row of rows.slice(1)) assert.match(row, /^\d{13},57,301,0,,1,,,$/, row);
+  const src = fs.readFileSync(path.join(ROOT, 'spike', 'pose-bench', 'phone-sample.sh'), 'utf8');
+  assert.match(src.split('\n').slice(0, 20).join('\n'), /Android 9/, 'the header says so');
+  assert.match(fs.readFileSync(path.join(ROOT, 'spike', 'pose-bench', 'README.md'), 'utf8'), /phone-sample\.sh[^\n]*-s/);
+});
