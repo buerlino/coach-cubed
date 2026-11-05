@@ -1024,7 +1024,11 @@ await queue.retry(id); await queue.dismiss(id);    // a failed or cancelled job 
   (scored and saved). The time left (`etaS`) is the frames left times the
   median wall time per frame so far in this job (decode, transfer and
   model); before the job's first frame, the last job's median; on a first
-  run, null.
+  run, null. Null too at `reading` 0/1 (`s59`): the cut isn't open, so the
+  range's frames aren't counted, and the last job's rate (seconds per second
+  of video) isn't scaled for this clip's frame rate. On the Fairphone (`c26`)
+  that first estimate was 19 s for a job of 9.8 s and 7 s for one of 15.6 s;
+  from `reading` 1/1 on it was within 0.6 s.
 - **One at a time, in order, on one engine,** created on first use
   (`warmUp()` creates it early). `reset()` (contract 1's `reset`, `s35`)
   runs once per clip: before a job when the engine has posed another clip,
@@ -1044,13 +1048,19 @@ await queue.retry(id); await queue.dismiss(id);    // a failed or cancelled job 
   queues again a job found running, which then runs from the start on its
   stored cut. A frozen WebView runs nothing, so a job resumes where it was;
   hidden time (`setVisible(false)`) never counts as a stall. A watchdog
-  ends a run with no progress for 30 s while visible: the engine is
+  ends a run with no progress for 20 s while visible: the engine is
   replaced and the job restarts once, then fails with "The analysis
   stopped responding". A decoder that stalls (`decode-stalled`) is treated
-  the same. The 30 s is provisional: on the Fairphone (`c26`, 40 jobs) the
-  longest wait between two progress events was 0.2–0.4 s (the first frame), or
-  0.8–1.0 s for the engine's warm-up right after an app start; c20's cold create
-  is 4.35 s. `s59` sets the values from these.
+  the same. The values (`s59`, nordmu 2026-11-04, from `c26`'s 40 jobs on the
+  Fairphone; none hung or restarted): **`stallMs` 20 s**, 4.6× c20's cold
+  engine create (4.35 s, the largest known wait), so a real hang is found
+  10 s sooner than with 30 s; the longest wait between two progress events
+  was 1,044 ms (the warm-up of a job started right after an app start;
+  768–1,044 ms in the APK), otherwise the first frame at 197–382 ms. **`tickMs`
+  1 s**, 5 % of the stall time; progress comes every 70–87 ms (p90), about 12
+  events a tick. **`maxRestarts` 1**: a restart costs an engine create plus the
+  job again, up to 39 s in `c26`'s runs. The frame source's own decoder stall
+  (15 s) fires before the queue's 20 s.
 - **The estimate before Analyse** (M1–M3): seconds per second of video
   from the last measured rate (the last job's median ms per frame at its
   frame rate, kept in `queue.json`), scaled by the marked video's frame
@@ -1504,7 +1514,7 @@ plain functions that Node runs (`tests/app/analysing.test.js`):
   95 %, scoring 95 to 100 %; only `done` is 100 %. (H's row has its own,
   coarser percent, `home-model.mjs`.)
 - **Time left:** `progress.etaS` as "~N s left" (seconds rounded up,
-  at least 1; whole minutes from two; `aboutTime`, shared with the queue line). `etaS` null (no rate measured yet) is
+  at least 1; whole minutes from two; `aboutTime`, shared with the queue line). `etaS` null (no rate measured yet, or the cut not yet open at `reading` 0/1, `s59`) is
   "estimating…", never a time. The next lift's "~10 s" is shown
   only when the queue has a measured rate.
 - **Words (`d55`):** the lift card is "14:32 · 13.0 s" (when it was kept, the marked length), the pose stage's detail "120 / 390", the queue

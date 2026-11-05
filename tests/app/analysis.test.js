@@ -100,9 +100,11 @@ function fakeEngine({ clock, ms = () => 100, keypoints = () => standing(), hold 
 // Timers the test drives: tick(n) runs every interval n times.
 function fakeTimers() {
   const fns = new Map();
+  const periods = [];   // the period each setInterval asked for
   let next = 1;
   return {
-    setInterval(fn) { fns.set(next, fn); return next++; },
+    periods,
+    setInterval(fn, ms) { periods.push(ms); fns.set(next, fn); return next++; },
     clearInterval(id) { fns.delete(id); },
     tick(n = 1) { for (let k = 0; k < n; k++) for (const fn of [...fns.values()]) fn(); },
     get active() { return fns.size; },
@@ -523,6 +525,60 @@ test('a hang while visible: the engine is replaced and the job restarts; a secon
   assert.match(end.error, /stopped responding/);
   assert.ok(made[2].closed);
   assert.equal(timers.active, 0, 'no watchdog left running');
+});
+
+test('s59: the watchdog\'s defaults (c26): 20 s without progress, a tick of 1 s, one restart', async () => {
+  // c26's numbers (report a51b9e8): the longest wait between two progress events was 1,044 ms, c20's cold engine create 4.35 s;
+  // nordmu, 2026-11-04 (docs/decisions.md): stallMs 20 s, tickMs 1 s, maxRestarts 1. No stallMs, tickMs or maxRestarts is passed here.
+  const never = () => new Promise(() => {});
+  const { store, queue, made, timers } = await setup({
+    stallMs: undefined, tickMs: undefined, maxRestarts: undefined,
+    engines: (k, clock) => fakeEngine({ clock, hold: n => (n === 3 ? never() : null) }),   // every engine hangs on its 3rd frame
+  });
+  const job = await queue.enqueue(await storeLift(store));
+  await until(() => made[0] && made[0].frames.length === 3, 'the first hang');
+  assert.deepEqual(timers.periods, [1000], 'the watchdog ticks every 1000 ms');
+  timers.tick(19);
+  await settle();
+  assert.equal(made.length, 1, 'not yet: 19 ticks of 1 s');
+  assert.ok(!made[0].closed);
+  timers.tick(1);
+  await until(() => made.length === 2 && made[1].frames.length === 3, 'the job restarted on a new engine after the 20th tick');
+  assert.ok(made[0].closed, 'the hung engine is closed');
+  timers.tick(19);
+  await settle();
+  assert.equal(made.length, 2, 'the restart has its own 20 s');
+  timers.tick(1);
+  await queue.idle();
+  const end = queue.jobs().find(j => j.id === job.id);
+  assert.equal(end.state, 'failed', 'one restart only');
+  assert.match(end.error, /stopped responding/);
+  assert.match(end.error, /20 s/);
+  assert.equal(made.length, 2);
+});
+
+test('s59: the time left is null until the cut is open (reading 0/1), then the last rate\'s ms per frame times the range\'s frames; Q1 says "estimating…" before', async () => {
+  const { analysingView } = await load('src/ui/analysing-model.mjs');
+  // 50 ms a frame at 30 fps: rate.sPerS = 1.5 s per second of video, so a range of 1 s unscaled would say 1.5 s
+  const { store, queue } = await setup({ engines: (k, clock) => fakeEngine({ clock, ms: () => 50 }) });
+  await queue.enqueue(await storeLift(store, { range: { t0: 0, t1: 1 } }));
+  await queue.idle();
+  assert.ok(queue.rate());
+  const rec = record(queue);
+  const lift = await storeLift(store, { range: { t0: 0, t1: 0.5 } });
+  const job = await queue.enqueue(lift);
+  await queue.idle();
+  const snaps = rec.seen.get(job.id).filter(j => j.state === 'reading' && j.progress);
+  const first = snaps.find(j => j.progress.done === 0);
+  const opened = snaps.find(j => j.progress.done === 1);
+  assert.equal(first.progress.etaS, null, 'before the cut is open the frame count is not known');
+  const total = rec.seen.get(job.id).find(j => j.state === 'pose').progress.total;   // the range's frames: 0 to 0.5 s at 30 fps, 16
+  assert.equal(total, 16);
+  assert.ok(Math.abs(opened.progress.etaS - 0.05 * total) < 1e-9, 'ms per frame x the range\'s frames');
+  const view = analysingView([first], { liftId: lift.id, lift, rate: queue.rate() });
+  assert.equal(view.kind, 'running');
+  assert.equal(view.left, 'estimating…');
+  assert.ok(!/\d/.test(view.left));
 });
 
 // ---- the cost while marking ----

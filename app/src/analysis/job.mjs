@@ -12,7 +12,10 @@
 //   scoring  smoothing and scoring, then the save: one unit
 // The time left is the frames still to pose times the median ms a frame has
 // taken so far in this job (the wall time per frame: decoding, the transfer and
-// the model); before its first frame, the last job's median, if any.
+// the model); before its first frame, the last job's median, if any. Not before
+// the cut is open (reading 0/1): the frame count isn't known yet, so there is no
+// time left then (s59; c26 measured the last job's rate, unscaled for this clip's
+// frame rate, 2x off).
 import { validateFrameSource } from '../contracts/frame-source.mjs';
 import { appTrackMeta, trackFromFrames } from '../contracts/track.mjs';
 import { scoreLift } from '../scoring/score.mjs';
@@ -82,7 +85,7 @@ function nearestIndex(times, t) {
 export async function runJob(job, ctx) {
   const { store, guard, emit, now, rate } = ctx;
   const { t0, t1 } = job.range;
-  emit('reading', { stage: 'reading', done: 0, total: 1, etaS: rate ? rate.sPerS * (t1 - t0) : null });
+  emit('reading', { stage: 'reading', done: 0, total: 1, etaS: null });
 
   const lift = await guard(store.getLift(job.liftId));
   if (!lift) throw new Error(`The lift ${job.liftId} is no longer stored.`);
