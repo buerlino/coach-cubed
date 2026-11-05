@@ -200,25 +200,33 @@ test('a failed capture is a problem; a working one is none', async () => {
 
 // ---- H, S1 ----
 
-test('H: the gym card opens R1; while a session runs it reads "Back to the session" with the clock and goes to live', async () => {
+test('H: the gym card opens R1; while a session runs it reads "Back to the session" with the clock and goes to live (d66: only with the switch on, or while a session runs)', async () => {
   const { gymCard } = await model();
-  assert.deepEqual(gymCard({ active: false, elapsedS: 0 }), { title: 'Gym session', clock: null, to: 'setup' });
-  assert.deepEqual(gymCard({ active: true, elapsedS: 252.4 }), { title: 'Back to the session', clock: '4:12', to: 'live' });
-  assert.deepEqual(gymCard(null), { title: 'Gym session', clock: null, to: 'setup' });
+  assert.deepEqual(gymCard({ enabled: true, active: false, elapsedS: 0 }), { title: 'Gym session', clock: null, to: 'setup' });
+  assert.deepEqual(gymCard({ enabled: true, active: true, elapsedS: 252.4 }), { title: 'Back to the session', clock: '4:12', to: 'live' });
+  // d66: the switch is off in 0.1.0: no card, unless a session runs
+  assert.equal(gymCard({ enabled: false, active: false, elapsedS: 0 }), null, 'switch off, nothing running: no card');
+  assert.equal(gymCard({ active: false, elapsedS: 0 }), null, 'no switch given: off');
+  assert.deepEqual(gymCard({ enabled: false, active: true, elapsedS: 252.4 }), { title: 'Back to the session', clock: '4:12', to: 'live' }, 'a session started before the switch went off can be reached and ended');
+  assert.equal(gymCard({ enabled: false, active: true, elapsedS: 5, liveState: 'delayed' }).to, 'delayed');
+  assert.equal(gymCard(null), null);
+  assert.equal(gymCard(undefined), null);
   const h = read('src/ui/screens/H.mjs');
   assert.doesNotMatch(h, /Coming later/);
   assert.doesNotMatch(h, /card--disabled/);
   assert.match(h, /gymCard\(/);
   assert.match(h, /flow\.go\(card\.to\)/);
+  assert.match(h, /card \? html`/, 'd66: H draws nothing in the card\'s place when there is none');
 });
 
 test('S1: the replay mode, the replay\'s length, the buffer, the camera and (d29b) the delay are enabled; the quality is not', async () => {
   const { recordingView } = await load('ui', 'settings-model.mjs');
   const { DEFAULT_SETTINGS } = await load('store', 'settings.mjs');
-  const v = recordingView({ ...DEFAULT_SETTINGS });
+  const v = recordingView({ ...DEFAULT_SETTINGS, gymSession: true });   // d66: the gym rows are behind the switch
   assert.equal(v.modesDisabled, false);
-  assert.deepEqual(v.rows.map(r => [r.field, r.disabled]), [['replayS', false], ['bufferS', false], ['camera', false], ['quality', true], ['defaultLift', false]]);
-  const d = recordingView({ ...DEFAULT_SETTINGS, replayMode: 'delayed' });
+  assert.deepEqual(v.rows.map(r => [r.field, r.disabled]), [['replayS', false], ['bufferS', false], ['camera', false], ['quality', true]]);
+  assert.deepEqual(v.liftRows.map(r => [r.field, r.disabled]), [['defaultLift', false]]);
+  const d = recordingView({ ...DEFAULT_SETTINGS, gymSession: true, replayMode: 'delayed' });
   assert.deepEqual(d.rows.map(r => [r.field, r.disabled]).slice(0, 1), [['delayS', false]], 'the delay, which R3b uses (d29b)');
   assert.equal(v.rows.find(r => r.field === 'quality').options.length, 1, 'the quality is information: its one value');
 });

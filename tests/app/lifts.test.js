@@ -79,7 +79,7 @@ test('a third lift, registered in the test only, reaches H\'s choices, the setti
     assert.equal(settings.readSettings({ defaultLift: TEST_LIFT.id }).defaultLift, TEST_LIFT.id);
     assert.equal(home.startLift({ defaultLift: TEST_LIFT.id }), TEST_LIFT.id);
     const { recordingView } = await load('src', 'ui', 'settings-model.mjs');
-    const s1 = recordingView(settings.readSettings({ defaultLift: TEST_LIFT.id })).rows.find(r => r.field === 'defaultLift');
+    const s1 = recordingView(settings.readSettings({ defaultLift: TEST_LIFT.id })).liftRows.find(r => r.field === 'defaultLift');
     assert.equal(s1.value, TEST_LIFT.id);
     assert.ok(s1.options.some(o => o.value === TEST_LIFT.id && o.label === TEST_LIFT.label), 'S1 offers it');
 

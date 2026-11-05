@@ -197,6 +197,7 @@ test('main.mjs makes the session once and passes it to every screen as a prop, a
   assert.equal((main.match(/createSession\(/g) || []).length, 1, 'one session');
   assert.match(main, /session=\$\{session\}/);
   assert.match(main, /sessionRunning:\s*\(\)\s*=>\s*session\.active/, 'the flow lets H go back to a running session');
+  assert.match(main, /gymSession:\s*\(\)\s*=>\s*session\.enabled/, 'd66: the flow gets the switch beside sessionRunning');
   assert.doesNotMatch(main, /\.open\(|getUserMedia/, 'no camera at boot');
   const app = fs.readFileSync(path.join(APP, 'src', 'ui', 'app.mjs'), 'utf8');
   assert.match(app, /session=\$\{session\}/);
@@ -267,7 +268,7 @@ test('c61: Back during Start (the capture closed while it checks the encoder): n
   assert.equal(session.liveState, null);
   assert.equal(flow.state, 'home');
   assert.equal(flow.can('live'), false, 'home does not lead to live');
-  assert.equal(gymCard({ active: session.active, elapsedS: session.elapsedS(), liveState: session.liveState }).title, 'Gym session');
+  assert.equal(gymCard({ enabled: true, active: session.active, elapsedS: session.elapsedS(), liveState: session.liveState }).title, 'Gym session');
   assert.equal(cap.status.state, 'closed');
   for (const t of fake.cameras.flatMap(c => c.tracks)) assert.equal(t.readyState, 'ended');
 });
@@ -298,4 +299,56 @@ test('c61: End session while Start waits for the wake lock: no session runs afte
   await assert.rejects(started, { name: 'CaptureError' });
   assert.equal(session.active, false);
   assert.equal(flow.state, 'home');
+});
+
+// ---- d66: the gym session behind a switch ----
+
+test('d66: a session made with the switch off makes no capture on open(), so no camera is asked for, and start() throws', async () => {
+  const { createSession } = await load('src', 'session.mjs');
+  const made = [];
+  const session = createSession({ makeCapture: s => { made.push(s); return stub(); }, enabled: false });
+  assert.equal(session.enabled, false);
+  const got = await session.open(SETTINGS);
+  assert.equal(got, null, 'nothing opened');
+  assert.equal(made.length, 0, 'makeCapture is never called');
+  assert.equal(session.capture, null);
+  await assert.rejects(() => session.start('lateral-raise'), /not open|off|preview/i);
+  assert.equal(session.active, false);
+  await session.end();   // harmless
+});
+
+test('d66: turned on, the session opens and starts as before; turned off again, a new open() makes nothing', async () => {
+  const { createSession } = await load('src', 'session.mjs');
+  const made = [];
+  const session = createSession({ makeCapture: () => { const c = stub(); made.push(c); return c; }, enabled: false });
+  session.setEnabled(true);
+  assert.equal(session.enabled, true);
+  const cap = await session.open(SETTINGS);
+  assert.equal(made.length, 1);
+  assert.equal(cap.status.state, 'preview');
+  await session.start('lateral-raise');
+  assert.equal(session.active, true);
+  session.setEnabled(false);   // a running session can still be reached and ended
+  assert.equal(session.active, true);
+  await session.end();
+  assert.equal(made[0].log.at(-1), 'close');
+  assert.equal(await session.open(SETTINGS), null);
+  assert.equal(made.length, 1);
+});
+
+test('d66: setEnabled takes a boolean only; without the option a session is on, as before', async () => {
+  const { createSession } = await load('src', 'session.mjs');
+  const session = createSession({ makeCapture: () => stub() });
+  assert.equal(session.enabled, true, 'the other tests make sessions without the option');
+  assert.throws(() => session.setEnabled('yes'), TypeError);
+  assert.equal(session.enabled, true);
+});
+
+test('d66: main.mjs reads the settings before the first draw, makes the session off and sets it from gymSession', () => {
+  const main = fs.readFileSync(path.join(APP, 'src', 'main.mjs'), 'utf8').replace(/^\s*\/\/.*$/gm, '');
+  assert.match(main, /createSession\(\{[^}]*enabled:\s*false/, 'made off');
+  assert.match(main, /setEnabled\(/);
+  assert.match(main, /gymSession/);
+  assert.ok(main.indexOf('setEnabled(') < main.indexOf('createFlow('), 'the switch is set before the flow is made');
+  assert.ok(main.indexOf('setEnabled(') < main.indexOf('render('), 'and before the first draw');
 });
