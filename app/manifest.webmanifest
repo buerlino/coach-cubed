@@ -1,6 +1,6 @@
 {
-  "name": "coach",
-  "short_name": "coach",
+  "name": "Coach Cubed",
+  "short_name": "coach³",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

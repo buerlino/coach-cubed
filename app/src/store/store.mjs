@@ -27,7 +27,7 @@ import { validateResultView } from '../contracts/cue-view.mjs';
 import { validateAnalysisJob } from '../contracts/analysis-job.mjs';
 import { applySettings, readSettings, validateSettings, validateSettingsPatch } from './settings.mjs';
 
-/** The app's version, stored with each lift (the manifest carries none yet). */
+/** The app's version, stored with each lift: app/package.json's version (the web app manifest has no version member); tests/app/release.test.js keeps the two equal. */
 export const APP_VERSION = '0.1.0';
 
 const INDEX = 'index.json';

@@ -2,10 +2,13 @@
 // Assembles the app into one folder, app/dist/ by default: what the PWA host
 // and Capacitor get, and what serve.mjs serves.
 //
-//   node app/tools/assemble.mjs [--debug] [--test] [--out DIR] [--app DIR] [--src DIR]
+//   node app/tools/assemble.mjs [--debug] [--test] [--cname DOMAIN] [--out DIR] [--app DIR] [--src DIR]
 //
-// - app/ without tools/, android/, dist/, debug/, out/ (the APK), capacitor.config.json and
-//   node_modules/ (any node_modules);
+// - app/ without tools/, android/, dist/, debug/, out/ (the APK), capacitor.config.json,
+//   node_modules/ (any node_modules), the dev files README.md, package.json and package-lock.json
+//   (c67: the version stays readable from APP_VERSION), and every file or folder whose name starts
+//   with a dot (.npmrc, .DS_Store): actions/upload-pages-artifact leaves those out of the Pages
+//   artifact, so a dot file in files.json would fail the service worker's whole install;
 // - with --debug only (the debug APK, tools/build-apk.sh): app/debug/, the
 //   check page (c20), and the test clip it poses, tests/app/clips/
 //   testsrc2-h264-30fps.mp4, into debug/clips/. The shipped dist/ is
@@ -24,6 +27,9 @@
 //   ship in the app, so they stay out. The licence texts the credits name sit next to
 //   their components in app/ (vendor/, licences/) and are copied with it;
 //   checkLicences() says which one is missing (the CLI runs it after assembling);
+// - with --cname DOMAIN only (the Pages release, c67): a file CNAME holding DOMAIN and a newline,
+//   written before the hash, so files.json lists it like any other file. A Pages site deployed by
+//   Actions takes its domain from the repo's settings and ignores it: it documents the domain;
 // - app/vendor/tfjs/ and app/models/ when present (gitignored, made by s6);
 //   absent, it says so and goes on;
 // - files.json for the service worker (c19): every file copied, sorted, and a
@@ -41,7 +47,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { LIFT_FIXTURES } from './lift-fixtures.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SKIP_TOP = new Set(['tools', 'android', 'dist', 'debug', 'page-test', 'out', 'node_modules', 'capacitor.config.json']);
+const SKIP_TOP = new Set(['tools', 'android', 'dist', 'debug', 'page-test', 'out', 'node_modules', 'capacitor.config.json',
+  'README.md', 'package.json', 'package-lock.json']);
 // What --debug adds: the check page's clip, from the repo's tests/ (relative to src/'s parent).
 export const DEBUG_CLIPS = ['testsrc2-h264-30fps.mp4'];
 // What --test adds: the committed tracks the replay engine answers with (tests/fixtures/global/, from src/'s
@@ -59,7 +66,9 @@ function listFiles(dir) {
   const out = [];
   const walk = (d) => {
     for (const e of readdirSync(d, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
-      if (e.name === 'node_modules' || e.name === '.DS_Store') continue;
+      // A name starting with a dot: actions/upload-pages-artifact leaves such files out of the Pages
+      // artifact (tar --exclude=.[^/]*), so files.json must never list one.
+      if (e.name === 'node_modules' || e.name.startsWith('.')) continue;
       const full = join(d, e.name);
       if (e.isDirectory()) walk(full);
       else if (e.isFile()) out.push(relative(dir, full).split(sep).join('/'));
@@ -75,7 +84,7 @@ function parseArgs(argv) {
     const a = argv[i];
     if (a === '--debug') { opts.debug = true; continue; }
     if (a === '--test') { opts.test = true; continue; }
-    if (!['--out', '--app', '--src'].includes(a) || i + 1 >= argv.length) throw new Error(`usage: assemble.mjs [--debug] [--test] [--out DIR] [--app DIR] [--src DIR] (got ${a})`);
+    if (!['--out', '--app', '--src', '--cname'].includes(a) || i + 1 >= argv.length) throw new Error(`usage: assemble.mjs [--debug] [--test] [--cname DOMAIN] [--out DIR] [--app DIR] [--src DIR] (got ${a})`);
     opts[a.slice(2)] = argv[++i];
   }
   return opts;
@@ -120,7 +129,7 @@ function copy(from, to) {
   copyFileSync(from, to);
 }
 
-export function assemble({ out, app, src, debug = false, test = false, log = console.log }) {
+export function assemble({ out, app, src, debug = false, test = false, cname = null, log = console.log }) {
   out = resolve(out); app = resolve(app); src = resolve(src);
   for (const [dir, what] of [[app, 'app'], [src, 'src']]) if (!existsSync(dir)) throw new Error(`${what} folder not found: ${dir}`);
   prepareOut(out, app, src);
@@ -172,6 +181,11 @@ export function assemble({ out, app, src, debug = false, test = false, log = con
     if (!html.includes(MAIN_TAG)) throw new Error(`--test: index.html has no ${MAIN_TAG}`);
     writeFileSync(join(out, 'index.html'), html.replace(MAIN_TAG, () => TEST_BOOT + MAIN_TAG));
   }
+  if (cname !== null) {
+    if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i.test(cname)) throw new Error(`--cname: ${JSON.stringify(cname)} is not a domain name`);
+    writeFileSync(join(out, 'CNAME'), `${cname}\n`);
+    copied.add('CNAME');
+  }
   for (const [dir, what] of OPTIONAL) {
     if (![...copied].some((f) => f.startsWith(`${dir}/`))) log(`${dir}/ absent, skipped: ${what}`);
   }
@@ -182,7 +196,7 @@ export function assemble({ out, app, src, debug = false, test = false, log = con
   const version = hash.digest('hex').slice(0, 16);
   if (copied.has('sw.js')) writeFileSync(join(out, 'sw.js'), stampWorker(readFileSync(join(out, 'sw.js'), 'utf8'), version));
   writeFileSync(join(out, 'files.json'), `${JSON.stringify({ version, files }, null, 2)}\n`);
-  log(`assembled ${files.length} files into ${out}, version ${version}${debug ? ' (debug: with the check page)' : ''}${test ? ' (test: with the replay engine)' : ''}`);
+  log(`assembled ${files.length} files into ${out}, version ${version}${debug ? ' (debug: with the check page)' : ''}${test ? ' (test: with the replay engine)' : ''}${cname !== null ? ` (CNAME ${cname})` : ''}`);
   return { version, files };
 }
 
@@ -204,7 +218,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     const o = parseArgs(process.argv.slice(2));
     const app = o.app ?? resolve(HERE, '..');
     const out = o.out ?? join(app, 'dist');
-    assemble({ out, app, src: o.src ?? resolve(app, '..', 'src'), debug: !!o.debug, test: !!o.test });
+    assemble({ out, app, src: o.src ?? resolve(app, '..', 'src'), debug: !!o.debug, test: !!o.test, cname: o.cname ?? null });
     const missing = await checkLicences(out, app);
     if (missing.length) throw new Error(`licence texts the credits name are missing from ${out}: ${missing.join(', ')}`);
     if (!existsSync(join(out, 'vendor', 'tfjs'))) console.log("TF.js's licence texts absent with the bundle: they are copied when it is built");

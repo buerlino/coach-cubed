@@ -226,7 +226,7 @@ test('permissions: contents read, pages write, id-token write; one deployment at
   assert.match(text, /^permissions:\s*\n\s+contents:\s*read\s*\n\s+pages:\s*write\s*\n\s+id-token:\s*write\s*$/m);
   assert.match(text, /concurrency:\s*\n\s+group:\s*pages\s*\n\s+cancel-in-progress:\s*false/);
   assert.match(text, /runs-on:\s*ubuntu-24\.04/);
-  assert.doesNotMatch(text, /runs-on:\s*(?!ubuntu-24\.04)/);
+  for (const l of lines().filter((x) => /runs-on:/.test(x))) assert.match(l, /runs-on:\s*ubuntu-24\.04\s*$/, l);
 });
 
 test('the build: assemble without --debug and --test, with the domain; check-dist --release before the upload; the deploy needs it', () => {
