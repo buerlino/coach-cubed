@@ -1,0 +1,306 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* The look, as tokens (docs/ui-design.md, "The look"): every colour, size and
+   space the screens use comes from here, nowhere else. Dark only. */
+:root {
+  color-scheme: dark;
+
+  /* Ground, surfaces and lines */
+  --ground: #0E0F11;
+  --surface: #17191C;
+  --surface-raised: #21242A;
+  --line: #2E3238;
+  --line-strong: #4A4F57;   /* a step not reached yet */
+
+  /* Text, strongest first */
+  --text: #F2F1EC;
+  --text-soft: #B4B8BF;
+  --text-quiet: #8E939B;
+
+  /* The accent: actions and marks. --on-accent is the text on it. */
+  --accent: #C8F04A;
+  --accent-hover: #DDF78A;
+  --on-accent: #0E0F11;
+
+  /* Recording */
+  --record: #FF4D4D;
+
+  /* A quiet destructive action (Q1's cancel) */
+  --danger-text: #FF6B6B;
+
+  /* Status: always with an icon and a word, never colour alone. The word is
+     in the token, so no screen types its own. */
+  --status-good: #6FB7FF;
+  --status-good-word: "Good";
+  --status-watch: #F2C14E;
+  --status-watch-word: "Watch";
+  --status-work-on: #FF8A4C;
+  --status-work-on-word: "Work on";
+  --status-cant-score: #8E939B;
+  --status-cant-score-word: "Can't score";
+
+  /* Type: Barlow for text, Barlow Condensed for the wordmark and headings */
+  --font-text: Barlow, system-ui, sans-serif;
+  --font-display: 'Barlow Condensed', Barlow, sans-serif;
+  --size-wordmark: 34px;
+  --size-percent: 56px;
+  --size-heading: 19px;
+  --size-button-big: 19px;
+  --size-button: 17px;
+  --size-mark: 12px;
+  --size-title: 22px;
+  --size-subtitle: 20px;
+  --size-row: 17px;
+  --size-body: 16px;
+  --size-label: 15px;
+  --size-small: 14px;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --tracking-label: 1.2px;
+  --tracking-wordmark: 0.5px;
+
+  /* Spacing, on a 4 px step */
+  --space-half: 2px;   /* the half steps, for the lists' fine spacing */
+  --space-1: 4px;
+  --space-1h: 6px;
+  --space-2: 8px;
+  --space-2h: 10px;
+  --space-3: 12px;
+  --space-3h: 14px;
+  --space-4: 16px;
+  --space-4h: 18px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  /* Corners */
+  --radius-xs: 3px;
+  --radius-s: 12px;
+  --radius-m: 14px;
+  --radius-l: 16px;
+  --radius-xl: 20px;
+  --radius-button: 18px;
+
+  /* The status bar's inset (d62). Capacitor 8.5.3's SystemBars draws the APK edge to edge on a WebView of 140 or later
+     (viewport-fit=cover in index.html) and puts the real insets in env(safe-area-inset-*); an older WebView is padded
+     natively and its inset is 0, as in a browser tab. #app pads its top by --inset-top; a screen that is a window high
+     is --screen-h, so that the page plus the inset is the window's height. The height is kept in this one token, with
+     its 100vh fallback for a browser without dvh at the end of this file (c65). */
+  --inset-top: env(safe-area-inset-top, 0px);
+  --screen-h: calc(100dvh - var(--inset-top));
+
+  /* Touch targets are 44 px or more */
+  --touch: 44px;
+  --icon-inline: 18px;   /* a status icon beside a count or a word on a row (d55) */
+  --more-fade: 84px;   /* the height of the fade under the "more below" cue (d55) */
+
+  /* Sizes of H's pieces (the mockup's): action card, thumbnail, list row, progress bar */
+  --card-min: 88px;
+  --card-min-primary: 104px;
+  --thumb: 56px;
+  --row-min: 52px;
+  --bar: 6px;
+
+  /* Sizes of Q1's pieces (the mockup's): the big bar, a step's mark, the buttons */
+  --bar-big: 10px;
+  --mark: 22px;
+  --button-big: 60px;
+  --button-wide: 56px;
+  --button-quiet: 48px;
+
+  /* L1's pieces (round 1's page): a lift's tile, its icon box and figure, the ring, the name; the small figure in M's header */
+  --lift-tile-min: 120px;
+  --lift-icon-box: 72px;
+  --lift-figure: 52px;
+  --lift-ring: 2px;
+  --size-lift: 24px;
+  --lift-figure-small: 28px;
+
+  /* Sizes of M's pieces (the mockup's, and round 1's page for the rows under the strip: design/checkpoint-a/round-1.html):
+     the stage's least height (it takes what the fixed rows leave), the filmstrip, a thumbnail, the playhead, the marks
+     on the strip; the text row (the frame steps, the text line two lines high), the steps row (↶ and the three steps,
+     a step's disc). The strip's 48 px a second is PX_PER_SECOND in ui/mark-model.mjs. */
+  --mark-stage-min: 140px;
+  --strip: 100px;
+  --strip-label: 40px;
+  --strip-thumb-w: 47px;
+  --strip-thumb-h: 64px;
+  --playhead: 2px;
+  --playhead-knob: 12px;
+  --mark-line: 3px;
+  --mark-pole: 4px;
+  --mark-flag-w: 20px;
+  --mark-flag-h: 18px;
+  --mark-ring: 2px;
+  --strip-tick-top: 14px;
+  --strip-thumb-top: 26px;
+  --strip-region-top: 24px;
+  --strip-pole-top: 20px;
+  --strip-pole-h: 72px;
+  --strip-playhead-top: 22px;
+  --strip-playhead-h: 78px;
+  --strip-knob-top: 14px;
+  --mark-read: 56px;
+  --mark-fine-w: 52px;
+  --mark-fine-h: 48px;
+  --mark-text-line: 20px;
+  --mark-text-h: 40px;   /* two lines of --mark-text-line */
+  --mark-undo-w: 52px;
+  --mark-tile-h: 68px;
+  --mark-disc: 26px;
+  --disabled-opacity: 0.35;   /* ↶ with nothing to undo: greyed out, never hidden */
+
+  /* The stage's black, the clock chip's scrim and the marked range's wash */
+  --stage-ground: #000000;
+  --scrim: rgba(14, 15, 17, 0.8);
+  --accent-wash: rgba(200, 240, 74, 0.22);
+
+  /* A1's pieces (the mockup's): the video stage, the skeleton (bones in the accent, joints in the
+     text colour with a ring in the ground colour), the timeline, the speed button, the chip */
+  --result-stage: 360px;
+  --result-stage-min: 200px;
+  --bone-width: 3px;
+  --joint-size: 7px;
+  --joint-ring: 1.5px;
+  --accent-bone: rgba(200, 240, 74, 0.95);
+  --accent-span: rgba(200, 240, 74, 0.55);
+  --timeline: 44px;
+  --timeline-bar: 8px;
+  --timeline-bar-top: 18px;
+  --timeline-knob-w: 4px;
+  --timeline-knob-h: 20px;
+  --timeline-knob-top: 12px;
+  --timeline-moment: 10px;
+  --timeline-moment-top: 6px;
+  --timeline-label-top: 30px;
+  --toggle-h: 36px;
+  --speed-w: 56px;
+  --speed-h: 40px;
+  --play-icon: 20px;
+  --timeline-phase-top: 27px;
+  --timeline-phase-h: 3px;
+
+  /* A1's cue cards (the mockup's): the closed card's height, the status icon's box, and where the open
+     card's text starts (under the title, past the icon) */
+  --card-cue-min: 64px;
+  --status-icon: 28px;
+  --card-indent: 54px;
+
+  /* A2's pieces (the mockup's): the frame at the worst moment, the plot (its box, the washes of the
+     verdict's bands, the two sides' band, the phase) */
+  --detail-stage: 280px;
+  --zone-good: rgba(111, 183, 255, 0.10);
+  --zone-watch: rgba(242, 193, 78, 0.12);
+  --zone-work-on: rgba(255, 138, 76, 0.14);
+  --plot-band: rgba(242, 241, 236, 0.16);
+  --plot-phase: rgba(200, 240, 74, 0.10);
+  --plot-height: 190px;
+  --plot-pad-left: 36px;
+  --plot-pad-right: 12px;
+  --plot-pad-top: 10px;
+  --plot-pad-bottom: 26px;
+  --plot-marker: 5px;
+  --plot-trace: 2.5px;
+  --plot-hairline: 1px;
+  --plot-dash: 4px;
+  /* the plot's text and marks: label gap from the axis, baseline drops and rises, the zone word's
+     first line, the time labels' gap from the bottom, the worst moment's label (gap, below the dot,
+     the top it must clear, the margin at the right edge where it flips), the playhead's and the dot's ring */
+  --plot-label-gap: 6px;
+  --plot-label-drop: 4px;
+  --plot-label-rise: 4px;
+  --plot-label-inset: 4px;
+  --plot-zone-label-top: 16px;
+  --plot-time-gap: 8px;
+  --plot-marker-gap: 8px;
+  --plot-marker-below: 18px;
+  --plot-marker-top: 10px;
+  --plot-flip-margin: 56px;
+  --plot-playhead: 1.5px;
+  --plot-ring: 2px;
+
+  /* A3's pieces (the mockup's): the sheet over A1 (its top, corners, grabber), the switch, the segmented
+     speed buttons, the sheet's buttons. --line-mid is the off switch, the grabber and the outlined button. */
+  --line-mid: #3A3F46;
+  --scrim-sheet: rgba(0, 0, 0, 0.6);
+  --sheet-top: 96px;
+  --radius-sheet: 24px;
+  --grabber-w: 40px;
+  --grabber-h: 5px;
+  --switch-row: 56px;
+  --switch-w: 48px;
+  --switch-h: 28px;
+  --switch-knob: 22px;
+  --switch-pad: 3px;
+  --radius-segment: 10px;
+  --button-sheet: 52px;
+  --slider-h: var(--touch);   /* a slider is a touch target too (d25) */
+
+  /* A4's pieces (the mockup's): the page's widest, the sidebar, the video at its tallest and widest, the
+     smaller wordmark of the wide header, the tiles' numbers and the status chip. The breakpoint itself is
+     WIDE_MIN_PX (ui/wide-model.mjs), written again in base.css's @media. */
+  --wide-max: 1280px;
+  --wide-aside: 340px;
+  --wide-stage: 480px;
+  --wide-stage-max: 560px;
+  --wide-main-min: 560px;
+  --wide-panel-min: 300px;   /* the selected cue's panel (the mockup's flex-basis); the video column gives way before it does */
+  --size-wordmark-wide: 30px;
+  --size-tile: 24px;
+  --chip-h: 28px;
+  --tile-min: 120px;
+  --timeline-min: 240px;
+  --frame-ratio: 0.5625;   /* the video's width over its height; A1 sets it for each video, this is the stand-in */
+
+  /* R1's and R2's pieces (the mockups', RecordSetup and RecordLive; d28): the lift buttons, the tip's least
+     height (three lines, so a longer tip does not move what is under it), the place kept for the replay-mode
+     choice (d29b: the segmented control's height), the record disc and its dot, the chips over the camera, the
+     clock's and the rate's widths (so the chips beside them do not move), REC's dot, the queue's spinner,
+     Replay's height, the framing guide's dash and corners */
+  --setup-lift-h: 56px;
+  --setup-lift-min: 140px;
+  --setup-tip-h: 80px;
+  --setup-mode-h: 52px;
+  --record-disc: 80px;
+  --record-disc-dot: 60px;
+  --record-ring: 4px;
+  --live-chip-h: 36px;
+  --live-clock-w: 64px;
+  --live-fps-w: 72px;
+  --rec-dot: 10px;
+  --spinner: 14px;
+  --replay-h: 96px;
+  --replay-icon: 34px;
+  --size-replay: 30px;
+  --guide-line: 2px;
+  --radius-guide: 24px;
+  --fade-top: 48px;   /* the fade under a camera screen's top chips and over its controls */
+
+  /* R3, Replay (d29): the chips' icon, the position's width, the speed button and the two buttons' heights */
+  --replay-chip-icon: 18px;
+  --replay-pos-w: 76px;
+  --replay-speed-w: 52px;
+  --replay-keep-h: 64px;
+  --replay-live-h: 56px;
+  --replay-knob: 18px;
+  --replay-bar-h: 4px;
+
+  /* R3b, Delayed view (the mockup's, DelayedView; d29b): the live view in the corner and its frame, the delay's
+     figure and its width (so "behind live" does not move when it changes), Keep this lift's height and type */
+  --delayed-inset-w: 96px;
+  --delayed-inset-h: 171px;
+  --delayed-inset-border: 2px;
+  --size-delay: 40px;
+  --delayed-behind-w: 64px;
+  --delayed-keep-h: 88px;
+  --size-keep: 28px;
+  --delayed-keep-icon: 30px;
+}
+
+/* --screen-h without dvh (c65): dvh needs Chrome 108 (from memory: c60 checks), and the S8+'s Chrome and WebView stay at
+   101. A 100vh line before a declaration that holds var() wouldn't do: such a declaration is found invalid only when
+   computed, and then falls back to unset, not to the line before. 100vh in an Android Chrome tab is the height with the
+   toolbar hidden, so a tab may scroll by the toolbar's height (c60 measures it); in the WebView there is no toolbar. */
+@supports not (height: 100dvh) {
+  :root { --screen-h: calc(100vh - var(--inset-top)); }
+}

@@ -7,8 +7,9 @@ height dropping as the set goes on is fatigue, not a one-off.
 
 **Scalar.** The same per-rep top-height reading `lateral-raise-top-height`
 makes (shoulder minus wrist elevation at each rep's peak, as % of torso
-length) — reused rather than re-derived, so the two diagnostics can't drift
-apart on what "this rep's height" means. Scored across reps instead of
+length). The formula is written out again here, not shared: a change to one
+has to be made in the other, or the two drift apart on what "this rep's
+height" means. Scored across reps instead of
 against shoulder height: **decline** = first rep's value minus the last rep's,
 in percentage points. Negative decline means the last rep was actually higher
 — not a fault, and the diagnostic says so.

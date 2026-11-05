@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // One subtest per fixture listed in tests/fixtures/{global,local}/manifest.json
 // — adding a new stance/clip needs nothing wired up here, only a golden
@@ -12,7 +13,7 @@ const path = require('node:path');
 
 const { loadDiagnostics } = require('./loadDiagnostics');
 
-const { FIXTURES_DIR, loadManifests, trackPathFor, goldenPathFor } = require('./fixtures');
+const { FIXTURES_DIR, loadManifests, trackPathFor, goldenPathFor, diagnosticsSet } = require('./fixtures');
 
 // Keyed "<scope>/<stance>/<clip-stem>", both scopes merged.
 const manifest = loadManifests();
@@ -29,9 +30,8 @@ for (const slug of Object.keys(manifest).sort()) {
 
     const Diagnostics = loadDiagnostics();
     // Each fixture scores against its own lift's diagnostic set — manifest's
-    // own "diagnostics" field, same key PAGES/DIAGNOSTIC_SETS use, falling back
-    // to "snatch" for fixtures predating that field so old goldens still match.
-    Diagnostics.setPage(manifest[slug].diagnostics || 'snatch');
+    // own "diagnostics" field, same key PAGES/DIAGNOSTIC_SETS use.
+    Diagnostics.setPage(diagnosticsSet(manifest, slug, Diagnostics));
     const track = JSON.parse(fs.readFileSync(trackPath, 'utf8'));
     const personId = track.meta.tracks.kept;
     const out = Diagnostics.computeResults(track.keypoints, track.meta, personId);

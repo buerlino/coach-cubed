@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /* coach: lifting diagnostics — one coaching cue -> one number, computed from
  * the pose track the frontend already has.
  *
@@ -583,7 +584,9 @@ function firstPullWindow(samples, scale, ax) {
 // the clean & jerk finishes overhead after the jerk, and in both the finish
 // position is four extended joints held still. It does NOT describe a lift that
 // finishes with the elbows bent (a clean left in the rack position, a curl),
-// which is why the tickbox in app.py can turn the markers off per clip.
+// which is why the tickbox in app.py can turn the markers off per clip. A lift
+// with no bar has no window at all: its set says so in LIFT_WINDOW_SETS, and
+// computeResults() doesn't run this for it.
 //
 // Four things this trigger is not:
 //
@@ -880,6 +883,17 @@ function makeFirstPullBackAngle(spec) {
     phaseLabel: 'first pull',
     cue: spec.cue,
     unit: '°',
+    provisional: true,   // SD_GOOD/SD_WARN
+    worstRule: 'farthest-from-mean',   // the verdict is the SD around the pull's mean
+    zones: null,   // the verdict reads the SD, which the plot (the angle itself) doesn't show
+    // rule(id)'s words and the bands of the value verdict() reads (the SD)
+    unitNoun: '° of spread (SD)',
+    verdictBasis: 'The spread (SD) of the back angle over the first pull decides, not the angle itself.',
+    bands: [
+      { status: 'good', from: null, to: SD_GOOD },
+      { status: 'warning', from: SD_GOOD, to: SD_WARN },
+      { status: 'critical', from: SD_WARN, to: null },
+    ],
 
     // Active phase: floor to bar-past-knee — both triggers come from
     // firstPullWindow, which is shared with the bar-axis estimate (see there for
@@ -1039,7 +1053,7 @@ function makeFirstPullBackAngle(spec) {
     // Everything the two triggers and the measurement rest on, drawn on the frame
     // itself while the playhead is inside the phase.
     //
-    // `view` is the track at the playhead's actual time (see pointsAtTime), not a
+    // `view` is the track at the playhead's actual time (see pointsAt), not a
     // sampled frame: view.p are the points now, view.at(t) the points at any other
     // instant inside the phase, view.dt the mean spacing of processed frames.
     overlay(ctx, view, phase, res, size) {
@@ -1161,6 +1175,17 @@ const secondPullTripleExtension = {
   phaseLabel: 'second pull',
   cue: 'At the top of the second pull the hips and knees open fully — "triple extension" — before the arms bend into the turnover.',
   unit: '°',
+  provisional: true,   // EXT_GOOD/EXT_WARN
+  worstRule: 'phase-end',   // the deficits are read over the phase's last samples
+  zones: null,   // the verdict reads the larger of two deficits averaged over the last samples, not one plotted value
+  // rule(id)'s words and the bands of the value verdict() reads (the larger deficit)
+  unitNoun: '° short of straight',
+  verdictBasis: 'The larger of the hip\'s and the knee\'s shortfall from straight, averaged over the last samples of the second pull, decides.',
+  bands: [
+    { status: 'good', from: null, to: EXT_GOOD },
+    { status: 'warning', from: EXT_GOOD, to: EXT_WARN },
+    { status: 'critical', from: EXT_WARN, to: null },
+  ],
 
   // Active phase: bar-past-knee (the first pull's own end trigger) to peak hip
   // elevation.
@@ -1371,7 +1396,7 @@ const secondPullTripleExtension = {
   // diagnostic 1 draws its knee/bar rules.
   //
   // `view` is the track at the playhead's actual time, not a sampled frame —
-  // see diagnostic 1's overlay and pointsAtTime.
+  // see diagnostic 1's overlay and pointsAt.
   overlay(ctx, view, phase, res, size) {
     const p = view.p;
     const lw = Math.max(2, size / 260);
@@ -1506,6 +1531,20 @@ const lateralRaiseTopHeight = {
   phaseLabel: null,   // one rep looks like any other on the video — no label needed there
   cue: 'At the top of each rep the arms lift to about shoulder height — not swung above it, not stopped short.',
   unit: '%',
+  provisional: true,   // TOP_GOOD/TOP_WARN
+  worstRule: 'summary-worst',   // the verdict is the worst rep's height
+  // The verdict reads the worst rep's size (worstAbs): too high and too low
+  // alike, so the bands are mirrored about shoulder height (0). Lowest first.
+  zones: [
+    { status: 'critical', from: null, to: -TOP_WARN },
+    { status: 'warning', from: -TOP_WARN, to: -TOP_GOOD },
+    { status: 'good', from: -TOP_GOOD, to: TOP_GOOD },
+    { status: 'warning', from: TOP_GOOD, to: TOP_WARN },
+    { status: 'critical', from: TOP_WARN, to: null },
+  ],
+  // rule(id)'s words; its bands are the zones
+  unitNoun: '% of torso length of shoulder height',
+  verdictBasis: 'The rep farthest from shoulder height decides, too high or too low alike.',
 
   // Active phase: every rep this clip contains, start to finish — the union of
   // lateralRaiseReps' rep list rather than one window, since the cue applies
@@ -1673,6 +1712,17 @@ const lateralRaiseTorsoLean = {
   phaseLabel: null,   // spans the whole set — no distinct sub-phase to name on the video
   cue: 'The trunk stays upright throughout the set: the weight is raised by the arms, not by leaning or swinging the torso.',
   unit: '°',
+  provisional: true,   // LEAN_GOOD/LEAN_WARN
+  worstRule: 'farthest-from-mean',   // the verdict is the SD around the set's mean
+  zones: null,   // the verdict reads the SD, which the plot (the angle itself) doesn't show
+  // rule(id)'s words and the bands of the value verdict() reads (the SD)
+  unitNoun: '° of sway (SD)',
+  verdictBasis: 'The spread (SD) of the trunk angle across the set decides, not the angle itself.',
+  bands: [
+    { status: 'good', from: null, to: LEAN_GOOD },
+    { status: 'warning', from: LEAN_GOOD, to: LEAN_WARN },
+    { status: 'critical', from: LEAN_WARN, to: null },
+  ],
 
   // Active phase: the same rep span lateralRaiseTopHeight uses, but measured
   // continuously frame-by-frame rather than only at each rep's peak — a lean
@@ -1825,6 +1875,16 @@ const lateralRaiseElbowLead = {
   phaseLabel: null,   // spans the whole set — no distinct sub-phase to name on the video
   cue: 'Through the raise the elbow stays at or slightly above the wrist — the wrist shouldn\'t flick up and lead the lift.',
   unit: '%',
+  provisional: true,   // ELBOW_GOOD/ELBOW_WARN
+  worstRule: 'summary-worst',   // the verdict is the lowest elbow lead
+  zones: [   // lowest first, as verdict() reads summary.worst
+    { status: 'critical', from: null, to: ELBOW_WARN },
+    { status: 'warning', from: ELBOW_WARN, to: ELBOW_GOOD },
+    { status: 'good', from: ELBOW_GOOD, to: null },
+  ],
+  // rule(id)'s words; its bands are the zones
+  unitNoun: '% of torso length',
+  verdictBasis: 'The lowest margin of the elbow over the wrist in the set decides.',
 
   phase(samples, scale, ax) {
     const notes = [];
@@ -1963,6 +2023,16 @@ const lateralRaiseTempo = {
   phaseLabel: null,   // spans the whole set — no distinct sub-phase to name on the video
   cue: 'The weight is lowered under control — the descent isn\'t noticeably faster than the raise.',
   unit: 'x',
+  provisional: true,   // TEMPO_GOOD/TEMPO_WARN
+  worstRule: 'summary-worst',   // the verdict is the fastest descent
+  zones: [   // lowest first, as verdict() reads summary.worst
+    { status: 'good', from: null, to: TEMPO_GOOD },
+    { status: 'warning', from: TEMPO_GOOD, to: TEMPO_WARN },
+    { status: 'critical', from: TEMPO_WARN, to: null },
+  ],
+  // rule(id)'s words; its bands are the zones
+  unitNoun: '× faster down than up',
+  verdictBasis: 'The rep lowered fastest against its own raise decides.',
 
   phase(samples, scale, ax) {
     const notes = [];
@@ -2069,6 +2139,9 @@ const lateralRaiseTempo = {
         samples[ph.startIdx].frame + '–' + samples[ph.endIdx].frame + '.',
       '<strong>Measurement</strong> — per rep, per side: wrist vertical speed from bottom to peak (ascent) and peak to bottom (descent), each as torso-lengths/second; the ratio descent÷ascent is the rep\'s value, averaged over the sides that could be measured.',
       axisNote(ctxExtra.axis),
+      '<strong>Time smoothing</strong> — ' + (ctxExtra.smoothingMs
+        ? 'trajectories were smoothed with a Gaussian of σ = ' + ctxExtra.smoothingMs + ' ms before scoring (the slider under the video), so the raise and descent durations are read off the smoothed wrist trajectory.'
+        : 'off — scored on raw per-frame detections, so pose jitter is counted as wrist movement in the raise and descent durations.'),
       '<strong>Caveat</strong> — a ratio nowhere near 1 in either direction can also mean a rep\'s ascent or descent was too short to time reliably at this frame stride, not necessarily a real tempo fault. The good/warning bands (' +
         fmt(TEMPO_GOOD, 1) + 'x / ' + fmt(TEMPO_WARN, 1) + 'x) are provisional and not fitted to labelled reps.',
     ].concat(res.notes.map(n => '<strong>Note</strong> — ' + n));
@@ -2107,6 +2180,17 @@ const lateralRaiseSymmetry = {
   phaseLabel: null,   // spans the whole set — no distinct sub-phase to name on the video
   cue: 'Every rep in the set reaches about the same height as the first — height dropping as the set goes on is fatigue, not a one-off.',
   unit: '%',
+  provisional: true,   // SYM_GOOD/SYM_WARN
+  worstRule: 'summary-last',   // the decline is measured to the last rep
+  zones: null,   // the verdict reads the decline, first rep minus last, which the plot (each rep's height) doesn't show
+  // rule(id)'s words and the bands of the value verdict() reads (the decline)
+  unitNoun: '% of torso length lost',
+  verdictBasis: 'The drop in height from the first rep to the last decides.',
+  bands: [
+    { status: 'good', from: null, to: SYM_GOOD },
+    { status: 'warning', from: SYM_GOOD, to: SYM_WARN },
+    { status: 'critical', from: SYM_WARN, to: null },
+  ],
 
   phase(samples, scale, ax) {
     const notes = [];
@@ -2131,9 +2215,9 @@ const lateralRaiseSymmetry = {
   },
 
   // Same measurement lateralRaiseTopHeight makes at each rep's peak — left and
-  // right shoulder->wrist deviation from shoulder height — reused here because
-  // it's the same reading, not re-derived, so the two diagnostics can't drift
-  // apart on what "this rep's height" means.
+  // right shoulder->wrist deviation from shoulder height. The formula is
+  // written out again here, not shared: change one, change both, or the two
+  // diagnostics drift apart on what "this rep's height" means.
   measure(samples, phase, ax) {
     const notes = [];
     const series = [];
@@ -2210,6 +2294,9 @@ const lateralRaiseSymmetry = {
         'rep ' + (i + 1) + ': ' + (sr.value >= 0 ? '+' : '') + fmt(sr.value) + '%').join(', ') + ' (vs shoulder height, same reading as the top-height diagnostic).',
       '<strong>Measurement</strong> — decline is the first rep\'s value minus the last rep\'s, in percentage points; a negative decline means the last rep was higher, not lower.',
       axisNote(ctxExtra.axis),
+      '<strong>Time smoothing</strong> — ' + (ctxExtra.smoothingMs
+        ? 'trajectories were smoothed with a Gaussian of σ = ' + ctxExtra.smoothingMs + ' ms before scoring (the slider under the video), so the difference between the first and last rep is taken on smoothed wrist heights.'
+        : 'off — scored on raw per-frame detections, so pose jitter is counted in each rep\'s height and in the difference between the first and last rep.'),
       '<strong>Caveat</strong> — with only a few reps in a clip, one noisy rep can dominate the first/last comparison. The good/warning bands (' +
         fmt(SYM_GOOD, 0) + 'pp / ' + fmt(SYM_WARN, 0) + 'pp) are provisional and not fitted to labelled sets.',
     ].concat(res.notes.map(n => '<strong>Note</strong> — ' + n));
@@ -2233,7 +2320,8 @@ const lateralRaiseSymmetry = {
 // what every function below iterates as DIAGNOSTICS. A set may be empty: a lift
 // whose diagnostics haven't been written yet still gets a fully working page
 // (upload, pose, plot), just no scored cues. To add a lift's diagnostics, write
-// the objects above and list them here under the page's key.
+// the objects above and list them here under the page's key, and say in
+// LIFT_WINDOW_SETS (below) whether the lift has a lift window.
 const DIAGNOSTIC_SETS = {
   'snatch': [firstPullBackAngle, secondPullTripleExtension],
   'lateral-raise': [lateralRaiseTopHeight, lateralRaiseTorsoLean, lateralRaiseElbowLead, lateralRaiseTempo, lateralRaiseSymmetry],
@@ -2241,10 +2329,32 @@ const DIAGNOSTIC_SETS = {
 };
 const DEFAULT_SET = 'snatch';
 
+// Whether each set's lift has a lift window (liftWindow, above): the start of
+// the first pull, then a held lockout. That trigger is the barbell's: the bar
+// below knee height, then four extended joints held still. A lift with no bar
+// has nothing for it to find, so its set says so here rather than getting the
+// trigger's "the bar never sits below knee height" as if the lift were missing
+// (nordmu, 2026-11-02: a lateral raise has no lift window and no error).
+// computeResults() reads it, describe(set) returns it. Every key of
+// DIAGNOSTIC_SETS is listed, true or false (checked just below); a page whose
+// name has no set (setPage's empty set) keeps the trigger, as before.
+const LIFT_WINDOW_SETS = {
+  'snatch': true,
+  'lateral-raise': false,
+  'clean-and-jerk': true,
+};
+for (const name of Object.keys(DIAGNOSTIC_SETS)) {
+  if (typeof LIFT_WINDOW_SETS[name] !== 'boolean') {
+    throw new Error('LIFT_WINDOW_SETS: say whether the set ' + name + ' has a lift window (true or false)');
+  }
+}
+const hasLiftWindow = name => LIFT_WINDOW_SETS[name] !== false;
+
 // The active set. `let`, not `const`: setPage() swaps it (and rebuilds the
 // panel) when the lift tab changes. Everything downstream reads this one array,
 // so nothing else needs to know which lift is selected.
 let DIAGNOSTICS = DIAGNOSTIC_SETS[DEFAULT_SET] || [];
+let liftWindowOn = hasLiftWindow(DEFAULT_SET);   // the active set's LIFT_WINDOW_SETS entry
 
 // Which diagnostics draw on the video. Only gates the overlay — a diagnostic
 // that's switched off is still computed, plotted and scored, since the tickbox
@@ -2269,6 +2379,16 @@ function personIds(kpByFrame) {
   return Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || (+a[0]) - (+b[0]));
 }
 
+// The lift when it can't be looked for: a track too short or without a body
+// scale (its error), or a set that has no lift window (no error, and it says
+// so). The same fields as liftWindow()'s, so every reader finds them.
+function liftOrNone(error) {
+  if (!liftWindowOn) {
+    return { hasLiftWindow: false, error: null, startIdx: -1, endIdx: -1, t0: null, t1: null, notes: [] };
+  }
+  return { error, startIdx: -1, endIdx: -1, t0: null, t1: null, notes: [], hasLiftWindow: true };
+}
+
 // Scores every diagnostic against one person's track. Pure function of its
 // arguments — no DOM, no module state — so it is both what run() below calls
 // and the headless entry point Diagnostics.computeResults() exposes for
@@ -2282,14 +2402,14 @@ function computeResults(keypoints, meta, personId) {
   if (samples.length < FILL_WIN) {
     const err = { error: `Person ${personId} was detected in only ${samples.length} sampled frame(s).` };
     for (const d of DIAGNOSTICS) results[d.id] = err;
-    return { samples, scale: null, axis: null, lift: { error: err.error, startIdx: -1, endIdx: -1, t0: null, t1: null, notes: [] }, results };
+    return { samples, scale: null, axis: null, lift: liftOrNone(err.error), results };
   }
   preparePoints(samples);
   const scale = torsoScale(samples);
   if (!scale) {
     const err = { error: 'No frame had a confident hip and shoulder on the same side, so there is no body scale to work from.' };
     for (const d of DIAGNOSTICS) results[d.id] = err;
-    return { samples, scale: null, axis: null, lift: { error: err.error, startIdx: -1, endIdx: -1, t0: null, t1: null, notes: [] }, results };
+    return { samples, scale: null, axis: null, lift: liftOrNone(err.error), results };
   }
   // One axis for the whole clip, computed here rather than inside any one
   // diagnostic: two diagnostics disagreeing about which way is up would be the
@@ -2305,10 +2425,12 @@ function computeResults(keypoints, meta, personId) {
 
   // The lift's own start/end, independent of which cues this page scores: it is
   // the same window whether the panel is showing two diagnostics or none, so it
-  // is computed here rather than inside the loop below. Whether a given lift
-  // HAS meaningful markers is the page's call (PAGES in app.py), not this
-  // file's — see liftWindow.
-  const lift = liftWindow(samples, scale, axis);
+  // is computed here rather than inside the loop below. Whether a lift HAS a
+  // window is its set's (LIFT_WINDOW_SETS, beside DIAGNOSTIC_SETS): a set
+  // without one gets no window and no error, `hasLiftWindow: false`.
+  const lift = liftWindowOn
+    ? Object.assign(liftWindow(samples, scale, axis), { hasLiftWindow: true })
+    : liftOrNone(null);
 
   for (const d of DIAGNOSTICS) {
     const phase = d.phase(samples, scale, axis);
@@ -2349,8 +2471,12 @@ function run() {
 // The interpolator is app.py's own (el.cubic), passed in rather than
 // reimplemented so the two can't drift apart, and el.smoothMotion() is the same
 // tickbox the mesh obeys. Linear if this is ever mounted without them.
-function mixAt(v0, v1, v2, v3, t0, t1, t2, t3, u) {
-  return el.cubic ? el.cubic(v0, v1, v2, v3, t0, t1, t2, t3, u) : v1 + (v2 - v1) * u;
+//
+// `motion` is { smooth, cubic }: whether to interpolate between samples at all,
+// and the interpolator (linear without one). The old page builds it from `el`
+// (pageMotion); the headless drawCue takes it from its caller.
+function mixAt(cubic, v0, v1, v2, v3, t0, t1, t2, t3, u) {
+  return cubic ? cubic(v0, v1, v2, v3, t0, t1, t2, t3, u) : v1 + (v2 - v1) * u;
 }
 
 function slotAtTime(samples, t) {
@@ -2366,12 +2492,11 @@ function slotAtTime(samples, t) {
 // of the gap is NOT blended — the nearer sample's value stands until halfway,
 // exactly as the mesh does it — so an interpolated mark is never built out of a
 // detection that isn't there.
-function pointsAtTime(t) {
-  const samples = state.samples;
+function pointsAt(samples, t, motion) {
   if (!samples || !samples.length || !samples[0].p) return null;
   const k = slotAtTime(samples, t);
   const a = samples[k], b = samples[k + 1];
-  if (!b || !(el.smoothMotion && el.smoothMotion())) return a.p;
+  if (!b || !(motion && motion.smooth)) return a.p;
   const span = b.t - a.t;
   const u = span > 1e-9 ? Math.min(Math.max((t - a.t) / span, 0), 1) : 0;
   const prev = samples[k - 1], next = samples[k + 2];
@@ -2382,13 +2507,184 @@ function pointsAtTime(t) {
     if (!qa || !qb) { out[i] = u < 0.5 ? qa : qb; continue; }
     const q0 = prev && prev.p[i], q3 = next && next.p[i];
     out[i] = {
-      x: mixAt(q0 && q0.x, qa.x, qb.x, q3 && q3.x, t0, a.t, b.t, t3, u),
-      y: mixAt(q0 && q0.y, qa.y, qb.y, q3 && q3.y, t0, a.t, b.t, t3, u),
+      x: mixAt(motion.cubic, q0 && q0.x, qa.x, qb.x, q3 && q3.x, t0, a.t, b.t, t3, u),
+      y: mixAt(motion.cubic, q0 && q0.y, qa.y, qb.y, q3 && q3.y, t0, a.t, b.t, t3, u),
       // a filled point on either side taints everything between them
       interp: qa.interp || qb.interp,
     };
   }
   return out;
+}
+
+// The old page's motion: its smooth-motion tickbox and app.py's interpolator.
+function pageMotion() {
+  return { smooth: !!(el.smoothMotion && el.smoothMotion()), cubic: el.cubic };
+}
+
+
+// --- one cue, from computeResults()'s output ----------------------------
+//
+// What the old page's panel and overlay do for one cue, as functions of the
+// cue and a result passed in: no DOM, no `el`, no `state`. The old page calls
+// them on its own state; the Diagnostics object's headless API (describe,
+// tiles, referenceLine, worstMoment, drawCue) calls them on whatever
+// computeResults() output the new app hands it.
+
+// Every cue of every set, by id. Ids are unique across sets (the clean's first
+// pull has its own), so a cue is found without knowing the active page.
+const CUE_BY_ID = new Map();
+for (const set of Object.values(DIAGNOSTIC_SETS)) for (const d of set) CUE_BY_ID.set(d.id, d);
+
+function cueById(id) {
+  const d = CUE_BY_ID.get(id);
+  if (!d) throw new Error('Unknown cue id: ' + id);
+  return d;
+}
+
+// The tiles above a cue's plot; none for a cue that can't be scored.
+function cueTiles(d, res) {
+  return (!res || res.error) ? [] : d.tiles(res.summary, res.verdict);
+}
+
+// The plot's dashed reference line, { value, label }, or null. Some cues draw
+// it at a fixed target, some at the set's own mean or first rep, so it needs a
+// scored result either way.
+function cueReferenceLine(d, res) {
+  return (!res || res.error || !d.referenceLine) ? null : d.referenceLine(res.summary);
+}
+
+// The worst moment: the one sample of a cue's series its verdict rests on, so
+// the new UI can show the frame (A2). Each cue names its rule as `worstRule`:
+//   'summary-worst'       the sample whose value the summary names as `worst`
+//   'summary-last'        the last sample, which the summary's `last` is
+//   'farthest-from-mean'  the sample farthest from the mean the verdict's SD is taken around
+//   'phase-end'           the last sample of the phase, where the verdict's value is read
+// A cue without a rule, or a result that can't be scored, has none (null).
+const WORST_RULES = {
+  'summary-worst': res => res.series.find(s => s.value === res.summary.worst),
+  'summary-last': res => res.series[res.series.length - 1],
+  'farthest-from-mean': res => res.series.reduce((a, s) =>
+    Math.abs(s.value - res.summary.mean) > Math.abs(a.value - res.summary.mean) ? s : a),
+  'phase-end': res => res.series[res.series.length - 1],
+};
+
+function cueWorstMoment(d, res) {
+  if (!res || res.error || !res.series || !res.series.length || !WORST_RULES[d.worstRule]) return null;
+  const s = WORST_RULES[d.worstRule](res);
+  return s ? { t: s.t, idx: s.idx, frame: s.frame, value: s.value, rule: d.worstRule } : null;
+}
+
+// A2's "How it's scored" block: the cue's transparency lines, the bullets the
+// old panel lists under its plot, as plain text. Every line is
+// '<strong>label</strong> — text'; the label is split off and nothing else may
+// be markup (a tag or an entity), so a cue can't slip HTML into the app: such
+// a line throws, naming the cue. A cue that can't be scored has none ([]).
+const LINE_RE = /^<strong>([^<>]+)<\/strong> — ([\s\S]*)$/;
+const MARKUP_RE = /[<>]|&(?:[a-zA-Z]+|#\d+|#x[0-9a-fA-F]+);/;
+
+function cueScoringLines(d, out, smoothingMs) {
+  const res = out && out.results ? out.results[d.id] : null;
+  if (!res || res.error) return [];
+  const ctxExtra = { smoothingMs, scale: out.scale, axis: out.axis };
+  return d.transparencyLines(res, out.samples, ctxExtra).map(line => {
+    const m = LINE_RE.exec(line);
+    if (!m || MARKUP_RE.test(m[1]) || MARKUP_RE.test(m[2])) {
+      throw new Error('Cue ' + d.id + ': a transparency line must be "<strong>label</strong> — text" ' +
+        'with no other markup: ' + JSON.stringify(line));
+    }
+    return { label: m[1], text: m[2] };
+  });
+}
+
+// Contract 4's status words (app/src/contracts/cue-view.mjs, VERDICT_STATUS)
+// for the verdict levels a cue's zones are declared in.
+const ZONE_STATUS = { good: 'good', warning: 'watch', critical: 'work on' };
+
+// The bands A2 draws behind the cue's plot, from the cue's own `zones`: an array
+// of { status, from, to } lowest first, in the cue's verdict levels and built
+// from its threshold constants, or null where the plot doesn't show the value
+// the verdict reads. A cue that declares neither throws, so a new cue can't
+// reach the app without saying which.
+function cueZones(d) {
+  if (d.zones === undefined) {
+    throw new Error('Cue ' + d.id + ' declares no zones: an array of bands, or null with the reason');
+  }
+  if (d.zones === null) return null;
+  return d.zones.map(z => {
+    if (!Object.prototype.hasOwnProperty.call(ZONE_STATUS, z.status)) {
+      throw new Error('Cue ' + d.id + ': no status word for the zone level ' + JSON.stringify(z.status));
+    }
+    return { status: ZONE_STATUS[z.status], from: z.from, to: z.to };
+  });
+}
+
+// The words A1's rule line and A2's "How it's scored" are built from (s45): the
+// unit's noun, the text after a number ("% of torso length"), the one sentence
+// saying what the verdict reads (`verdictBasis`), and the verdict's bands. The bands
+// are the zones where the plot shows the value the verdict reads; a cue whose
+// zones are null declares `bands` for that value instead (the SD, the decline,
+// the deficit), from the same constants and in the same shape. A cue missing
+// any of them, or declaring both zones and bands, throws, so a new cue brings
+// its own words.
+function cueRule(d) {
+  for (const f of ['unitNoun', 'verdictBasis']) {
+    if (typeof d[f] !== 'string' || !d[f]) throw new Error('Cue ' + d.id + ' declares no ' + f + ' for rule(id)');
+  }
+  const zones = cueZones(d);
+  if (zones && d.bands !== undefined) {
+    throw new Error('Cue ' + d.id + ' declares both zones and bands: its zones are its bands');
+  }
+  if (!zones && !Array.isArray(d.bands)) {
+    throw new Error('Cue ' + d.id + ' has no zones, so it declares the bands of the value its verdict reads');
+  }
+  return {
+    noun: d.unitNoun,
+    basis: d.verdictBasis,
+    bands: zones || cueZones({ id: d.id, zones: d.bands }),
+  };
+}
+
+function overlaySize(ctx) {
+  return ctx.canvas.height || 720;
+}
+
+// Draws one cue on the video at time `t` from `out` ({ samples, axis, results },
+// computeResults()'s shape) and says whether it drew: nothing for a cue that
+// can't be scored or a time outside its phase. `p`, the points at `t`, is
+// passed in by the old page's overlay so every cue drawing one instant draws
+// the same body; otherwise it is interpolated here with `motion`.
+function drawCueAt(ctx, d, out, t, motion, p) {
+  const res = out.results ? out.results[d.id] : null;
+  if (!res || res.error) return false;
+  const samples = out.samples;
+  const ph = res.phase;
+  // The phase is bounded by the times its triggers fired, so the marks come
+  // up at the instant the pull starts rather than at the next processed
+  // frame. On a coarse frame stride that boundary used to be a tenth of a
+  // second out, which is enough to see against the video.
+  const t0 = samples[ph.startIdx].t, t1 = samples[ph.endIdx].t;
+  if (t < t0 || t > t1) return false;
+  if (p === undefined) p = pointsAt(samples, t, motion);
+  if (!p) return false;
+  const steps = ph.endIdx - ph.startIdx;
+  const view = {
+    t, p,
+    axis: out.axis || IMAGE_AXIS,            // the clip's one bar direction
+    dt: steps > 0 ? (t1 - t0) / steps : 0,   // mean processed-frame spacing
+    at: u => (u < t0 || u > t1) ? null : pointsAt(samples, u, motion),
+  };
+  d.overlay(ctx, view, ph, res, overlaySize(ctx));
+  return true;
+}
+
+// A cue's phase label in the frame's top-left corner, `row` lines down, so the
+// labels of cues drawn at one instant stack rather than overwrite.
+function drawPhaseLabel(ctx, label, row) {
+  const size = overlaySize(ctx);
+  ctx.fillStyle = phaseColor(1);
+  ctx.font = Math.max(12, size / 38) + 'px system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(label, 8, Math.max(16, size / 30) + row * (size / 26));
 }
 
 
@@ -2427,7 +2723,7 @@ function drawChart(d, ds, time) {
   // apparent wobble), and wide enough to include the reference line.
   let vMin = Infinity, vMax = -Infinity;
   for (const s of res.series) { vMin = Math.min(vMin, s.lo); vMax = Math.max(vMax, s.hi); }
-  const ref = d.referenceLine ? d.referenceLine(res.summary) : null;
+  const ref = cueReferenceLine(d, res);
   if (ref) { vMin = Math.min(vMin, ref.value); vMax = Math.max(vMax, ref.value); }
   const span = Math.max(vMax - vMin, 10);
   const mid = (vMin + vMax) / 2;
@@ -2585,7 +2881,7 @@ function drawPanels(d, ds, ctxExtra) {
     ds.notes.innerHTML = '<p class="diag-note"><strong>Not scored.</strong> ' + res.error + '</p>';
     return;
   }
-  ds.stats.innerHTML = d.tiles(res.summary, res.verdict).map(t => tile(t.label, t.value, t.sub, t.status)).join('');
+  ds.stats.innerHTML = cueTiles(d, res).map(t => tile(t.label, t.value, t.sub, t.status)).join('');
   const items = d.transparencyLines(res, state.samples, ctxExtra);
   ds.notes.innerHTML = '<p class="diag-cue">' + d.cue + '</p><ul class="diag-notes">' +
     items.map(i => '<li>' + i + '</li>').join('') + '</ul>';
@@ -2704,14 +3000,132 @@ function buildSections() {
   }
 }
 
+// Two ways in. The old page mounts a panel: mount(), setPage(), setTrack(),
+// draw(), overlay(ctx, time), liftWindow(). The headless API needs no DOM and
+// no mounted panel; it is what the new app (app/) and the tests use:
+//
+//   computeResults(keypoints, meta, personId)
+//       Scores the active set (setPage) against one person's COCO-17 track.
+//       Returns { samples, scale, axis, lift, results }; results[id] is
+//       { phase, series, summary, verdict, notes } or { error }.
+//   describe(set) -> [{ id, title, cue, unit, phaseLabel, provisional }]
+//       A set's cues in the panel's order (set: a DIAGNOSTIC_SETS key, e.g.
+//       'snatch', 'lateral-raise'); an unknown set throws. phaseLabel is null
+//       for a cue spanning the whole set; provisional is true while its
+//       thresholds aren't checked on real lifts (all of them today). The
+//       array's own `hasLiftWindow` (true or false, LIFT_WINDOW_SETS) says
+//       whether the lift has a lift window; it isn't enumerable, so the array
+//       is still the plain list of cues to map, compare or JSON.
+//   computeResults().lift.hasLiftWindow says the same for the set it scored:
+//       false is a lift with no window and no error (t0, t1 null, no notes).
+//   tiles(id, result) -> [{ label, value, sub, status }]
+//       The tiles the old panel shows above the cue's plot; [] for a result
+//       that can't be scored. `result` is computeResults().results[id].
+//   referenceLine(id, result) -> { value, label } | null
+//       The plot's dashed line. Needs the result: some cues draw it at the
+//       set's own mean or first rep. null without a scored result.
+//   worstMoment(id, result) -> { t, idx, frame, value, rule } | null
+//       The series sample the cue's verdict rests on, by the cue's rule
+//       (`worstRule`, see WORST_RULES); null for a result that can't be scored.
+//   drawCue(ctx, id, t, computed, opts) -> boolean
+//       Draws the cue's overlay at time t (seconds) on any 2D context, from
+//       computed = computeResults()'s whole output (it needs the samples), in
+//       the frame's pixels; draws nothing and returns false outside the cue's
+//       phase or for a cue that can't be scored. opts: smooth (interpolate
+//       between samples, default false), cubic (the interpolator, linear
+//       without one), label (draw the phase label, default true), labelRow
+//       (its line, default 0). It is what overlay() draws for that cue.
+//   scoringLines(id, computed, { smoothingMs }) -> [{ label, text }]
+//       A2's "How it's scored" block: the cue's transparency lines, the
+//       bullets the old panel lists under its plot (the phase, the
+//       measurement, the bar axis, the time smoothing, the caveat with the
+//       provisional bands, the notes), as plain text: each line's <strong>
+//       label split off, so `<strong>label</strong> — text` is the panel's line
+//       again. A line with any other markup throws, naming the cue. computed
+//       is computeResults()'s whole output (the lines need its samples, scale
+//       and axis); smoothingMs is the σ in ms the track was smoothed with
+//       before computeResults() (0: the raw track), required, since the "Time
+//       smoothing" line says it. [] for a cue that can't be scored.
+//   zones(id) -> [{ status, from, to }] | null
+//       The verdict's bands on the plot's scale, in the cue's unit, lowest
+//       first, from the cue's own threshold constants: status is contract 4's
+//       word (good, watch, work on), from and to the band's edges, null where a
+//       band is open-ended. An edge value belongs to the band the cue's
+//       verdict() puts it in. For a cue whose verdict reads one value of its
+//       series (worstRule 'summary-worst'): the elbow lead and the tempo read
+//       the worst value as signed; the top height reads its size (worstAbs),
+//       so its bands are mirrored about shoulder height. null for a cue scored
+//       on something its series doesn't plot (the back angles' and the torso
+//       lean's SD, the symmetry's decline, the triple extension's deficits;
+//       contract 4's VERDICT_VALUE), where bands on the plot would mislead.
+//   rule(id) -> { noun, basis, bands }
+//       The words for A1's rule line and A2's "How it's scored" (s45), plain
+//       text next to the cue's thresholds: noun is what follows a number in
+//       the cue's unit, the unit's symbol first ('% of torso length', '° of
+//       sway (SD)', '× faster down than up'); basis is one sentence on what
+//       the verdict reads, by the cue's worstRule ('The lowest margin of the
+//       elbow over the wrist in the set decides.'); neither holds a number.
+//       bands are the verdict's good, watch and work-on bands, lowest first,
+//       in zones(id)'s shape and words, from the cue's own constants:
+//       zones(id) itself where it isn't null, else the bands of the value the
+//       verdict reads (the SD, the decline, the larger deficit), so every cue
+//       has them. A cue without its words, or with both zones and bands, throws.
+//
+// Every id is a cue id from any set (unknown ids throw); none of these read the
+// active page or the mounted state.
 const Diagnostics = {
-  // Headless entry point: scores every diagnostic against one person's track
-  // with no DOM involved, for tests running against a cached track.json (see
-  // tests/diagnostics.test.js). Returns { samples, scale, axis, results } —
-  // the same shape run() stashes onto the (DOM-mounted) module state, minus
-  // the DOM. Not used by the app itself; mount()/setTrack() below are.
   computeResults(keypoints, meta, personId) {
     return computeResults(keypoints, meta, personId);
+  },
+
+  describe(set) {
+    if (!Object.prototype.hasOwnProperty.call(DIAGNOSTIC_SETS, set)) {
+      throw new Error('Unknown diagnostic set: ' + set);
+    }
+    const cues = DIAGNOSTIC_SETS[set].map(d => ({
+      id: d.id, title: d.title, cue: d.cue, unit: d.unit,
+      phaseLabel: d.phaseLabel || null,
+      provisional: d.provisional === true,
+    }));
+    return Object.defineProperty(cues, 'hasLiftWindow', { value: hasLiftWindow(set), enumerable: false });
+  },
+
+  tiles(id, result) {
+    return cueTiles(cueById(id), result);
+  },
+
+  referenceLine(id, result) {
+    return cueReferenceLine(cueById(id), result);
+  },
+
+  worstMoment(id, result) {
+    return cueWorstMoment(cueById(id), result);
+  },
+
+  scoringLines(id, computed, opts) {
+    const d = cueById(id);
+    const ms = opts ? opts.smoothingMs : undefined;
+    if (typeof ms !== 'number' || !isFinite(ms) || ms < 0) {
+      throw new Error('scoringLines: opts.smoothingMs is the smoothing the track was scored with, in ms (0 for none)');
+    }
+    return cueScoringLines(d, computed, ms);
+  },
+
+  zones(id) {
+    return cueZones(cueById(id));
+  },
+
+  rule(id) {
+    return cueRule(cueById(id));
+  },
+
+  drawCue(ctx, id, t, computed, opts) {
+    const d = cueById(id);
+    const o = opts || {};
+    if (typeof t !== 'number' || !isFinite(t) || !computed || !computed.samples) return false;
+    if (!drawCueAt(ctx, d, computed, t, { smooth: !!o.smooth, cubic: o.cubic })) return false;
+    if (d.phaseLabel && o.label !== false) drawPhaseLabel(ctx, d.phaseLabel, o.labelRow || 0);
+    return true;
   },
 
   mount(opts) {
@@ -2740,6 +3154,7 @@ const Diagnostics = {
   // module state and mount() will build from it.
   setPage(name) {
     DIAGNOSTICS = DIAGNOSTIC_SETS[name] || [];
+    liftWindowOn = hasLiftWindow(name);
     enabled = new Set(DIAGNOSTICS.map(d => d.id));
     if (!el) return;
     buildToggles();
@@ -2802,9 +3217,11 @@ const Diagnostics = {
   // caching, since the window moves with the smoothing slider like everything
   // else derived from the track. `t1` is null when no finish was found — a
   // clip with a start marker and no end one is a normal outcome, explained by
-  // `notes`.
+  // `notes`. null too for a set without a lift window (LIFT_WINDOW_SETS): the
+  // page then draws no markers and no note, rather than a barbell trigger's
+  // reason on a lift that has no bar.
   liftWindow() {
-    return (state && state.lift) ? state.lift : null;
+    return (state && state.lift && state.lift.hasLiftWindow !== false) ? state.lift : null;
   },
 
   draw(time) {
@@ -2825,40 +3242,17 @@ const Diagnostics = {
     if (t == null) return;
     // Interpolated once and shared: every diagnostic drawing this instant is
     // drawing the same body, so they cannot disagree about where it is.
-    const p = pointsAtTime(t);
+    const motion = pageMotion();
+    const p = pointsAt(state.samples, t, motion);
     if (!p) return;
-    const samples = state.samples;
-    const size = ctx.canvas.height || 720;
     let shown = 0;
     for (const d of DIAGNOSTICS) {
       if (!enabled.has(d.id)) continue;
-      const res = state.results[d.id];
-      if (!res || res.error) continue;
-      const ph = res.phase;
-      // The phase is bounded by the times its triggers fired, so the marks come
-      // up at the instant the pull starts rather than at the next processed
-      // frame. On a coarse frame stride that boundary used to be a tenth of a
-      // second out, which is enough to see against the video.
-      const t0 = samples[ph.startIdx].t, t1 = samples[ph.endIdx].t;
-      if (t < t0 || t > t1) continue;
-      const steps = ph.endIdx - ph.startIdx;
-      const view = {
-        t, p,
-        axis: state.axis || IMAGE_AXIS,          // the clip's one bar direction
-        dt: steps > 0 ? (t1 - t0) / steps : 0,   // mean processed-frame spacing
-        at: u => (u < t0 || u > t1) ? null : pointsAtTime(u),
-      };
-      d.overlay(ctx, view, ph, res, size);
+      if (!drawCueAt(ctx, d, state, t, motion, p)) continue;
       // Only diagnostics scoped to a distinct sub-phase (first pull, top of
       // rep) earn a label here — one spanning the whole set has nothing to
       // name that the active tab doesn't already say.
-      if (d.phaseLabel) {
-        ctx.fillStyle = phaseColor(1);
-        ctx.font = Math.max(12, size / 38) + 'px system-ui, sans-serif';
-        ctx.textAlign = 'left';
-        ctx.fillText(d.phaseLabel, 8, Math.max(16, size / 30) + shown * (size / 26));
-        shown++;
-      }
+      if (d.phaseLabel) drawPhaseLabel(ctx, d.phaseLabel, shown++);
     }
   },
 };

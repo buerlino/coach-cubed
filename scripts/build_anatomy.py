@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Pack unmodified BodyParts3D OBJ surfaces into indexed browser geometry.
 
 Usage: python scripts/build_anatomy.py SOURCE_OBJ_DIR selected.json

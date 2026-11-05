@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // src/diagnostics.js is a browser script — an IIFE that attaches itself to
 // `window` and is otherwise silent about exports. The only thing it needs at

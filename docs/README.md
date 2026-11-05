@@ -1,0 +1,53 @@
+# Docs index
+
+What to read, and where each fact lives. One place per fact: the binding
+rules in [rules-core.md](rules-core.md), decisions and open questions in
+[decisions.md](decisions.md), open items in [backlog.md](backlog.md), the
+restructuring's steps and status in
+[restructure-plan.md](restructure-plan.md). Each doc is the source of truth
+for its own area: if you change something a doc describes, update that doc in
+the same commit. Update this index only when a doc is added, moved or
+removed. `npm test` checks every link, that every path named here exists, and
+the size budgets ([tests/docs.test.js](../tests/docs.test.js)).
+
+## Read first
+
+| Doc | Holds |
+| --- | --- |
+| [rules-core.md](rules-core.md) | **Binding:** the goal, the four principles, the hard rules (offline, nothing leaves the phone, licence-compatible dependencies), and the rules for changing this repo: relative paths, the minimal root, moving a file, landmines, when to stop and ask (in AGENTS.md until step 2.9). |
+| [restructure-plan.md](restructure-plan.md) | The restructuring toward an offline 0.1.0 (from 2026-10-31): "Next session starts here", the findings, the phases and their status. |
+| [map.md](map.md) | A frozen snapshot of 2026-10-31: every tracked file in 12 areas, what each does, offline feasibility, hidden couplings, provenance, and the phone test on the Fairphone 6. Read "Hidden couplings" before any move; current facts are in the docs below. |
+| [development.md](development.md) | For developers: the repo's layout (the map of its folders), running the old page and the ViTPose dev server, the tests, the naming conventions. The root README is the public page. |
+| [../AGENTS.md](../AGENTS.md) | The entry point every agent loads (CLAUDE.md points to it): what coach is, the commands, the workflow, the layout, the conventions. At most 40 lines and 6 kB. |
+
+## Where each fact lives
+
+| Doc | Holds |
+| --- | --- |
+| [decisions.md](decisions.md) | Every decision with who and when; the open questions and who answers them. |
+| [decisions-archive.md](decisions-archive.md) | Decisions about finished work: the restructuring window (Phases 0–2), merged packages' details. |
+| [backlog.md](backlog.md) | Open bugs, unverified assumptions and stale text in code that stays. |
+| [../THIRD_PARTY.md](../THIRD_PARTY.md) | Every third-party component, in the app and around it: name, version, licence, source. |
+| [authors.md](authors.md) | Who wrote how much of the code, for the licence consent (question 1). |
+| [server.md](server.md) | The Flask server as dev tooling: what runs, the checkpoints, the setup and launch scripts, testing under the `/coach/` prefix, its landmines, the sibling notes on the deploy machine. |
+| [branding.md](branding.md) | The app's name and logo: what the name needs, every name checked and where it is taken, nordmu's pick, and the logo: what it delivers and what is rendered from it. |
+| [pipeline.md](pipeline.md) | The agent pipeline: the agents and what each owns, the package format, how a run goes (worker, checks, audit, merge), the hard rules, the worker setup, the phone, the report, the definition of done, what the audit checks. The packages: [packages/](packages/README.md); the scripts: [../pipeline/](../pipeline/README.md). |
+| [ui-design.md](ui-design.md) | The new UI's design (step 5.2): nordmu's requirements, the mockups' screens and what they propose, the look, feasibility, how the design work continues, the open questions. The mockups' sources: [../design/](../design/README.md). |
+| [app-plan.md](app-plan.md) | The new app's build plan (Phase 5): what it builds on, the architecture and the contracts, the packages in stages with their sizes, nordmu's decisions D1–D4, the gates, the risks. The queue: [packages/](packages/README.md). |
+
+## Reference
+
+| Doc | Covers |
+| --- | --- |
+| [lifts.md](lifts.md) | For Noah and his agents: adding a cue (the `lifting-diagnostic` contract in short) or a lift (its set in `diagnostics.js`, one entry in the app's lift registry, a fixture and its golden), and the checks in order, from `npm --prefix app test` to the phone. |
+| [release-0.1.0.md](release-0.1.0.md) | The 0.1.0 release notes: what it does, where it was tested, what it needs, what is not in it, how to install it, the licences. |
+| [handover.md](handover.md) | For nordmu and Noah: the steps that release 0.1.0 on GitHub Pages and the ones that hand the repo and the domain over; what is left (the packages and their files) and the open questions. |
+| [pose-spike.md](pose-spike.md) | Step 3.7, the working pick (nordmu, 2026-11-01): the on-device pose spike's numbers on the Fairphone (speed, memory, agreement with ViTPose-L, capture, heat), the licence gate, F-Droid (3.8) and the decision. |
+| [fixture-data-contract.md](fixture-data-contract.md) | The consuming side: `track.json`/`manifest.json` schemas, where profiles live, the endpoints a page reads them through, and what the extracted data is actually like. |
+| [../tests/README.md](../tests/README.md) | What each test file covers, how to run the tests, and how a lift video becomes a fixture with a golden snapshot. |
+| [../tests/fixtures/README.md](../tests/fixtures/README.md) | The fixture layout, global vs. local scope, where each example clip came from and why none is committed, the limb and sign profiles. |
+| [dataset-stats.md](dataset-stats.md) | How many clips, how many survived pose extraction, why the rest didn't, and the command that regenerates each number. |
+| [clipper-pipeline.md](clipper-pipeline.md) | Step by step: how `scripts/sync_clipper_fixtures.py` turns a clip cut by clipper (its own repo, `weightlifting-clipper`, since step 2.3) into a coach test case. |
+| [train-data-todo.md](train-data-todo.md) | Open work on the clipper dataset: the playback failure, stance and gender labelling gaps, 3D calibration per session, and what has already been ruled out. Moves with the train tab. |
+| [../parked/README.md](../parked/README.md) | What is parked, since when, and what parked means. The research report's own guide: [../parked/report/README.md](../parked/report/README.md). |
+| [../src/anatomy/README.md](../src/anatomy/README.md) | The anatomy view and the Movement Lab: how to use them, and how their modules fit together. |

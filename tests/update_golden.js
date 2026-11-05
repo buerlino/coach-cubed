@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // Regenerates a golden snapshot from the current diagnostics.js against a
 // fixture. Run after a deliberate change to phase()/measure()/verdict() logic
@@ -12,7 +13,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { loadDiagnostics } = require('./loadDiagnostics');
-const { loadManifests, trackPathFor, goldenPathFor } = require('./fixtures');
+const { loadManifests, trackPathFor, goldenPathFor, diagnosticsSet } = require('./fixtures');
 
 function update(slug) {
   const manifest = loadManifests();
@@ -26,7 +27,7 @@ function update(slug) {
   const Diagnostics = loadDiagnostics();
   // Same per-fixture set as diagnostics.test.js, or the golden would be scored
   // against the wrong lift's cues.
-  Diagnostics.setPage(manifest[slug].diagnostics || 'snatch');
+  Diagnostics.setPage(diagnosticsSet(manifest, slug, Diagnostics));
   const out = Diagnostics.computeResults(track.keypoints, track.meta, personId);
 
   const goldenPath = goldenPathFor(slug);

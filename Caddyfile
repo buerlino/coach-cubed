@@ -1,10 +1,7 @@
 # Caddy reverse proxy for coach — terminates HTTPS and forwards to the app.
-# Copied from ../tecna/Caddyfile (same box, same tailnet, same TLS setup) with
-# only the project paths changed — see COACH_DEPLOY.md for why this is safe:
-# the two sites are never run at the same time, so reusing port 8080 and the
-# same hostnames/IPs is not a conflict. Dropped tecna's /qwen/openai/v1/* API
-# passthrough block since coach has no equivalent route (harmless either way,
-# but pointless to carry over).
+# A single-site reference copy from when coach was the only app on its box; it
+# is NOT the live config. The live gateway is ~/Caddyfile on Noah's machine,
+# which mounts coach at /coach/ beside the box's other apps (docs/server.md).
 #
 #   Client ──HTTPS/443──▶ Caddy (this) ──HTTP/8080──▶ waitress (app.py)
 #
@@ -28,7 +25,6 @@
 # 443 is privileged. Grant the binary the capability once, then run as your user:
 #     sudo setcap cap_net_bind_service=+ep ~/.local/bin/caddy
 #     caddy start --config /home/noah/coach/Caddyfile
-# (run_coach.sh does the `caddy start` half.)
 
 {
 	# Keep Caddy's data (incl. the local CA root cert) inside the project so it's

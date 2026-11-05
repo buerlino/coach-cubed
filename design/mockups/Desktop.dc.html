@@ -1,0 +1,171 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Result, wide layout</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&amp;family=Barlow+Condensed:wght@600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0E0F11}
+a{color:#C8F04A}a:hover{color:#DDF78A}
+</style>
+</helmet>
+<div style="min-height: 100vh; box-sizing: border-box; background: #0E0F11; color: #F2F1EC; font-family: Barlow, system-ui, sans-serif">
+  <div style="max-width: 1280px; margin: 0 auto; padding: 16px 24px 32px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px">
+
+    <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px">
+      <a href="Main.dc.html" style="font-family: 'Barlow Condensed', Barlow, sans-serif; font-weight: 700; font-size: 30px; color: #F2F1EC; text-decoration: none">coach</a>
+      <nav aria-label="Breadcrumb" style="display: flex; align-items: center; gap: 8px; font-size: 16px; color: #8E939B">
+        <a href="Main.dc.html" style="color: #B4B8BF; text-decoration: none">Today's session</a>
+        <span aria-hidden="true">/</span>
+        <span style="color: #F2F1EC; font-weight: 600">Lateral raise · 14:27 · 3.0 s</span>
+      </nav>
+      <div style="margin-left: auto; display: flex; flex-wrap: wrap; gap: 8px">
+        <a href="Mark.dc.html" style="height: 40px; padding: 0 14px; border: 1px solid #3A3F46; border-radius: 12px; color: #F2F1EC; display: flex; align-items: center; font-size: 15px; font-weight: 600; text-decoration: none">Re-mark</a>
+        <a href="ViewOptions.dc.html" style="height: 40px; padding: 0 14px; border: 1px solid #3A3F46; border-radius: 12px; color: #F2F1EC; display: flex; align-items: center; font-size: 15px; font-weight: 600; text-decoration: none">View options</a>
+      </div>
+    </header>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+
+      <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; flex-wrap: wrap; gap: 16px">
+          <div aria-label="Video with the pose skeleton, at 2.24 s" role="img" style="width: 270px; height: 480px; flex: none; position: relative; overflow: hidden; border-radius: 12px; background: linear-gradient(#2A2E34, #1C1F23)">
+            <sc-for list="{{body}}" as="b" hint-placeholder-count="10"><div style="position: absolute; {{b.s}}"></div></sc-for>
+            <sc-for list="{{bones}}" as="b" hint-placeholder-count="16"><div style="position: absolute; {{b.s}}"></div></sc-for>
+            <sc-for list="{{joints}}" as="j" hint-placeholder-count="17"><div style="position: absolute; width: 8px; height: 8px; margin: -5px 0 0 -5px; border-radius: 6px; background: #F2F1EC; border: 1.5px solid #0E0F11; left: {{j.x}}px; top: {{j.y}}px"></div></sc-for>
+            <span style="position: absolute; left: 10px; top: 10px; height: 28px; padding: 0 10px; border-radius: 14px; background: rgba(200,240,74,0.9); color: #0E0F11; font-size: 13px; font-weight: 700; display: flex; align-items: center">Rep 1</span>
+          </div>
+
+          <section aria-labelledby="sel-h" style="flex: 1 1 300px; min-width: 0; padding: 16px; border-radius: 16px; background: #17191C; display: flex; flex-direction: column; gap: 10px">
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+              <h2 id="sel-h" style="margin: 0; font-size: 20px; font-weight: 700">Elbow lead</h2>
+              <span style="height: 28px; padding: 0 10px; border-radius: 14px; background: rgba(255,138,76,0.16); color: #FF8A4C; display: flex; align-items: center; font-size: 14px; font-weight: 700">Work on · wrist rises above elbow</span>
+            </div>
+            <p style="margin: 0; font-size: 15px; line-height: 1.4; color: #B4B8BF">Through the raise the elbow stays at or slightly above the wrist — the wrist shouldn't flick up and lead the lift.</p>
+            <svg viewBox="0 0 640 220" role="img" aria-label="Elbow lead over the rep: lowest minus 11.4 percent at 2.24 seconds" style="width: 100%; height: auto; display: block">
+              <rect x="40" y="12" width="588" height="96.9" style="fill: rgba(111,183,255,0.10)"></rect>
+              <rect x="40" y="108.9" width="588" height="27.7" style="fill: rgba(242,193,78,0.12)"></rect>
+              <rect x="40" y="136.6" width="588" height="55.4" style="fill: rgba(255,138,76,0.14)"></rect>
+              <line x1="40" y1="108.9" x2="628" y2="108.9" style="stroke: #6FB7FF; stroke-width: 1; stroke-dasharray: 4 3"></line>
+              <line x1="40" y1="136.6" x2="628" y2="136.6" style="stroke: #FF8A4C; stroke-width: 1; stroke-dasharray: 4 3"></line>
+              <text x="34" y="113" style="fill: #8E939B; font: 13px Barlow, sans-serif; text-anchor: end">+5%</text>
+              <text x="34" y="141" style="fill: #8E939B; font: 13px Barlow, sans-serif; text-anchor: end">−5%</text>
+              <text x="620" y="30" style="fill: #6FB7FF; font: 600 13px Barlow, sans-serif; text-anchor: end">good</text>
+              <text x="620" y="127" style="fill: #F2C14E; font: 600 13px Barlow, sans-serif; text-anchor: end">watch</text>
+              <text x="620" y="184" style="fill: #FF8A4C; font: 600 13px Barlow, sans-serif; text-anchor: end">work on</text>
+              <polygon points="{{band}}" style="fill: rgba(242,241,236,0.16)"></polygon>
+              <polyline points="{{line}}" style="fill: none; stroke: #F2F1EC; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round"></polyline>
+              <line x1="392.8" y1="12" x2="392.8" y2="192" style="stroke: #F2F1EC; stroke-width: 1.5"></line>
+              <circle cx="392.8" cy="154.3" r="5.5" style="fill: #FF8A4C; stroke: #0E0F11; stroke-width: 2"></circle>
+              <text x="401" y="171" style="fill: #FF8A4C; font: 700 14px Barlow, sans-serif">−11.4%</text>
+              <text x="70.9" y="212" style="fill: #8E939B; font: 13px Barlow, sans-serif; text-anchor: middle">1.2 s</text>
+              <text x="194.7" y="212" style="fill: #8E939B; font: 13px Barlow, sans-serif; text-anchor: middle">1.6 s</text>
+              <text x="318.5" y="212" style="fill: #8E939B; font: 13px Barlow, sans-serif; text-anchor: middle">2.0 s</text>
+              <text x="442.3" y="212" style="fill: #8E939B; font: 13px Barlow, sans-serif; text-anchor: middle">2.4 s</text>
+              <text x="566.1" y="212" style="fill: #8E939B; font: 13px Barlow, sans-serif; text-anchor: middle">2.8 s</text>
+            </svg>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px">
+              <div style="padding: 10px 12px; border-radius: 12px; background: #21242A"><div style="font-size: 13px; color: #B4B8BF">Margin, worst</div><div style="font: 700 24px 'Barlow Condensed', Barlow, sans-serif; color: #FF8A4C">−11.4%</div></div>
+              <div style="padding: 10px 12px; border-radius: 12px; background: #21242A"><div style="font-size: 13px; color: #B4B8BF">Margin, mean</div><div style="font: 700 24px 'Barlow Condensed', Barlow, sans-serif">+9.0%</div></div>
+              <div style="padding: 10px 12px; border-radius: 12px; background: #21242A"><div style="font-size: 13px; color: #B4B8BF">Frames scored</div><div style="font: 700 24px 'Barlow Condensed', Barlow, sans-serif">24</div></div>
+              <div style="padding: 10px 12px; border-radius: 12px; background: #21242A"><div style="font-size: 13px; color: #B4B8BF">Left vs right</div><div style="font: 700 24px 'Barlow Condensed', Barlow, sans-serif">±8.7%</div></div>
+            </div>
+            <span style="font-size: 13px; color: #8E939B">Good from +5%, work on below −5%. Provisional: not yet checked on real lifts.</span>
+          </section>
+        </div>
+
+        <div style="padding: 12px 16px; border-radius: 16px; background: #17191C; display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+          <button type="button" aria-label="Play" style="width: 44px; height: 44px; flex: none; border: 0; border-radius: 22px; background: #F2F1EC; color: #0E0F11; display: flex; align-items: center; justify-content: center; cursor: pointer">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" style="fill: currentColor"><path d="M8 5v14l11-7z"></path></svg>
+          </button>
+          <span style="font-size: 15px; font-weight: 600; color: #B4B8BF">2.24 / 3.00 s</span>
+          <div style="flex: 1 1 240px; min-width: 0; height: 36px; position: relative">
+            <div style="position: absolute; left: 0; right: 0; top: 14px; height: 8px; border-radius: 4px; background: #2E3238"></div>
+            <div style="position: absolute; top: 14px; height: 8px; border-radius: 4px; background: rgba(200,240,74,0.55); left: 38.7%; width: 60%"></div>
+            <div style="position: absolute; left: 74.7%; top: 2px; width: 10px; height: 10px; margin-left: -5px; border-radius: 2px; transform: rotate(45deg); background: #FF8A4C"></div>
+            <div style="position: absolute; left: 74.7%; top: 8px; width: 4px; height: 20px; margin-left: -2px; border-radius: 2px; background: #F2F1EC"></div>
+          </div>
+          <span style="font-size: 14px; color: #8E939B">lift 1.16–2.96 s</span>
+          <button type="button" style="height: 40px; padding: 0 12px; border: 1px solid #3A3F46; border-radius: 12px; background: transparent; color: #F2F1EC; font: 700 15px Barlow, sans-serif; cursor: pointer">½×</button>
+        </div>
+      </main>
+
+      <aside aria-labelledby="cues-h" style="flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 8px">
+        <h2 id="cues-h" style="margin: 0; font-size: 15px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: #B4B8BF">5 cues</h2>
+        <div style="display: flex; gap: 14px; font-size: 15px; font-weight: 600"><span style="color: #FF8A4C">1 work on</span><span style="color: #6FB7FF">3 good</span><span style="color: #8E939B">1 can't score</span></div>
+
+        <button type="button" aria-pressed="true" style="min-height: 64px; padding: 10px 14px; border: 1px solid #C8F04A; border-radius: 16px; background: #21242A; color: #F2F1EC; display: flex; align-items: center; gap: 12px; text-align: left; font-family: Barlow, sans-serif; cursor: pointer">
+          <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style="flex: none; fill: none; stroke: #FF8A4C; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><path d="M12 3l9.5 17h-19z"></path><path d="M12 10v4.5M12 17.5h.01"></path></svg>
+          <span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 17px; font-weight: 600">Elbow lead</span><span style="font-size: 14px; color: #FF8A4C">Work on · wrist rises above elbow</span></span>
+          <span style="font: 700 20px 'Barlow Condensed', Barlow, sans-serif">−11.4%</span>
+        </button>
+        <button type="button" aria-pressed="false" style="min-height: 64px; padding: 10px 14px; border: 1px solid transparent; border-radius: 16px; background: #17191C; color: #F2F1EC; display: flex; align-items: center; gap: 12px; text-align: left; font-family: Barlow, sans-serif; cursor: pointer">
+          <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style="flex: none; fill: none; stroke: #6FB7FF; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><circle cx="12" cy="12" r="9.5"></circle><path d="M7.5 12.5l3 3 6-6.5"></path></svg>
+          <span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 17px; font-weight: 600">Top of rep</span><span style="font-size: 14px; color: #6FB7FF">Good · right at shoulder height</span></span>
+          <span style="font: 700 20px 'Barlow Condensed', Barlow, sans-serif">+10.8%</span>
+        </button>
+        <button type="button" aria-pressed="false" style="min-height: 64px; padding: 10px 14px; border: 1px solid transparent; border-radius: 16px; background: #17191C; color: #F2F1EC; display: flex; align-items: center; gap: 12px; text-align: left; font-family: Barlow, sans-serif; cursor: pointer">
+          <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style="flex: none; fill: none; stroke: #6FB7FF; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><circle cx="12" cy="12" r="9.5"></circle><path d="M7.5 12.5l3 3 6-6.5"></path></svg>
+          <span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 17px; font-weight: 600">Torso lean</span><span style="font-size: 14px; color: #6FB7FF">Good · stays upright</span></span>
+          <span style="font: 700 20px 'Barlow Condensed', Barlow, sans-serif">1.2°</span>
+        </button>
+        <button type="button" aria-pressed="false" style="min-height: 64px; padding: 10px 14px; border: 1px solid transparent; border-radius: 16px; background: #17191C; color: #F2F1EC; display: flex; align-items: center; gap: 12px; text-align: left; font-family: Barlow, sans-serif; cursor: pointer">
+          <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style="flex: none; fill: none; stroke: #6FB7FF; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round"><circle cx="12" cy="12" r="9.5"></circle><path d="M7.5 12.5l3 3 6-6.5"></path></svg>
+          <span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 17px; font-weight: 600">Tempo</span><span style="font-size: 14px; color: #6FB7FF">Good · controlled descent</span></span>
+          <span style="font: 700 20px 'Barlow Condensed', Barlow, sans-serif">1.07×</span>
+        </button>
+        <button type="button" aria-pressed="false" style="min-height: 64px; padding: 10px 14px; border: 1px solid transparent; border-radius: 16px; background: #17191C; color: #F2F1EC; display: flex; align-items: center; gap: 12px; text-align: left; font-family: Barlow, sans-serif; cursor: pointer">
+          <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style="flex: none; fill: none; stroke: #8E939B; stroke-width: 2.4; stroke-linecap: round"><circle cx="12" cy="12" r="9.5" style="stroke-dasharray: 3 3"></circle><path d="M8 12h8"></path></svg>
+          <span style="flex: 1; display: flex; flex-direction: column; gap: 2px"><span style="font-size: 17px; font-weight: 600">Rep-to-rep symmetry</span><span style="font-size: 14px; color: #8E939B; line-height: 1.3">Can't score · only one rep in this clip</span></span>
+          <span style="font: 700 20px 'Barlow Condensed', Barlow, sans-serif; color: #8E939B">—</span>
+        </button>
+        <p style="margin: 4px 4px 0; font-size: 14px; line-height: 1.35; color: #8E939B">Thresholds are provisional: not yet checked on real lifts.</p>
+      </aside>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":900}}'>
+class Component extends DCLogic {
+  bar(a, b, w, c) {
+    const f = n => n.toFixed(1), dx = b.x - a.x, dy = b.y - a.y;
+    return { s: 'left:' + f(a.x - w / 2) + 'px;top:' + f(a.y - w / 2) + 'px;width:' + f(Math.hypot(dx, dy) + w) + 'px;height:' + f(w) + 'px;border-radius:' + f(w / 2) + 'px;transform-origin:' + f(w / 2) + 'px 50%;transform:rotate(' + f(Math.atan2(dy, dx) * 180 / Math.PI) + 'deg);background:' + c };
+  }
+
+  renderVals() {
+    // Frame 56 (2.24 s) of lateral-raise-cable-1, COCO-17 [x, y] in thousandths.
+    const F = [594,235,613,223,578,219,626,206,517,190,628,232,408,222,778,218,262,239,943,202,260,195,606,472,464,478,583,630,446,643,538,766,401,798];
+    const W = 270, H = 480;
+    const P = Array.from({ length: 17 }, (_, k) => ({ x: F[2 * k] * W / 1000, y: F[2 * k + 1] * H / 1000 }));
+    const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+    const G = '#454A52';
+    const EDGES = [[0,1],[0,2],[1,3],[2,4],[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]];
+    // golden: lateral-raise-elbow-lead series, [t, value, lo, hi]
+    const S = [[1.88,27.2,20.2,34.2],[1.92,22.8,15.4,30.1],[1.96,17.1,12.2,21.9],[2,11.5,9.2,13.7],[2.04,4.8,4.0,5.6],[2.08,-1.8,-6.4,2.9],[2.12,-5.4,-11.5,0.7],[2.16,-8.7,-16.3,-1.1],[2.2,-11.1,-19.7,-2.4],[2.24,-11.4,-19.8,-3.0],[2.28,-10.2,-17.6,-2.8],[2.32,-8.9,-16.7,-1.0],[2.36,-0.9,-3.1,1.2],[2.4,-0.3,-5.2,4.5],[2.44,3.6,0.9,6.2],[2.48,7.4,5.7,9.1],[2.52,10.5,9.4,11.6],[2.56,14.2,13.4,15.1],[2.6,18.8,17.8,19.7],[2.64,21.0,19.5,22.4],[2.68,25.5,22.0,29.1],[2.72,28.4,25.3,31.4],[2.76,30.8,26.6,34.9],[2.8,31.9,26.8,37.0]];
+    const x = t => (40 + (t - 1.1) / 1.9 * 588).toFixed(1);
+    const y = v => (12 + (40 - Math.max(-25, Math.min(40, v))) * 180 / 65).toFixed(1);
+    return {
+      body: [
+        this.bar(mid(P[5], P[6]), mid(P[11], P[12]), 54, G),
+        this.bar(P[5], P[7], 17, G), this.bar(P[7], P[9], 15, G),
+        this.bar(P[6], P[8], 17, G), this.bar(P[8], P[10], 15, G),
+        this.bar(P[11], P[13], 23, G), this.bar(P[13], P[15], 19, G),
+        this.bar(P[12], P[14], 23, G), this.bar(P[14], P[16], 19, G),
+        this.bar(mid(P[3], P[4]), mid(P[3], P[4]), 35, G),
+      ],
+      bones: EDGES.map(([a, b]) => this.bar(P[a], P[b], 3.5, 'rgba(200,240,74,0.95)')),
+      joints: P.map(p => ({ x: p.x.toFixed(1), y: p.y.toFixed(1) })),
+      line: S.map(p => x(p[0]) + ',' + y(p[1])).join(' '),
+      band: S.map(p => x(p[0]) + ',' + y(p[3])).concat(S.slice().reverse().map(p => x(p[0]) + ',' + y(p[2]))).join(' '),
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Builds the 'coach' conda env: python 3.12 + torch + this app's deps.
 # Mirrors tecna/setup_conda_linux.sh (same box, same GPU, same reasoning) but
 # a separate env — coach's dependency set is much smaller than tecna's and
@@ -69,9 +70,6 @@ print("gpu    :", torch.cuda.get_device_name(0))
 import vitpose_backend
 print("checkpoints:", vitpose_backend.available())
 print("device :", vitpose_backend.DEVICE)
-import equipment_backend
-print("equipment:", equipment_backend.model_source() if equipment_backend.available()
-      else "MISSING (optional — see download_models.sh)")
 PY
 conda run -n $ENV python "$TMPDIR/verify.py"
 

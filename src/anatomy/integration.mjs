@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import {AnatomyViewer} from './viewer.mjs';
 import {fromCoco,withAnchors,ANCHORS,cleanAnchorTrack,nearestManual} from './pose-rig.mjs';
 import {buildSequence,trackEntries} from './sequence.mjs';

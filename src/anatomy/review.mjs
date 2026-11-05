@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import {GROUPS,analyseSession,explainRep} from '../squat/analysis.mjs';
 import {trackSession} from './track-session.mjs';
 const $=id=>document.getElementById(id);

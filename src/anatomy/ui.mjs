@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 document.body.dataset.workspace='original';
 // Each interface is a real page. The anatomy workspace is the user's original
 // movement-lab UI extended with the original diagnostic engine, not a reskin.

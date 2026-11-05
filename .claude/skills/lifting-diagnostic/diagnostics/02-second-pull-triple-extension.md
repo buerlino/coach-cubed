@@ -75,8 +75,8 @@ the same 9-sample mean the wrist speed uses — which *is* 0.3s at 30fps and
 stride 1, but spans 27 frames at stride 3, flattening the very peak it is used
 to find. On a synthetic pull whose hips peak at frame 70, the sample-based
 window ended the phase at frame 72/76/81 for stride 1/2/3; time-based it is
-frame 72 at all three. The wrist-speed trigger still uses a sample-based window
-and has the same latent stride sensitivity, less visibly.
+frame 72 at all three. The wrist-speed trigger uses the same time-fixed
+window.
 
 Verified stable (±1 frame across 12 seeded noise draws of ±2px) against
 synthetic tracks built the same way the wrist-speed trigger describes

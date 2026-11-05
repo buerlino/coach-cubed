@@ -1,6 +1,6 @@
 ---
 name: lifting-diagnostic
-description: Add or revise an exercise technique diagnostic in coach — a cue scored from ViTPose keypoints. Use when asked to implement a lifting cue, an efficiency measure, a repetition or phase trigger, or to change how a diagnostic is detected, measured or drawn. Covers the universal diagnostic contract, exercise-neutral pose conventions, exercise-specific phase strategies, visualization/transparency, and the registry in diagnostics.js.
+description: Add or revise an exercise technique diagnostic in coach — a cue scored from COCO-17 pose keypoints (ViTPose on the server, MediaPipe in the browser). Use when asked to implement a lifting cue, an efficiency measure, a repetition or phase trigger, or to change how a diagnostic is detected, measured or drawn. Covers the universal diagnostic contract, exercise-neutral pose conventions, exercise-specific phase strategies, visualization/transparency, and the registry in diagnostics.js.
 ---
 
 # Lifting diagnostic
@@ -106,8 +106,9 @@ barbell crossing is not.
 only a browser reload. A change to `src/app.py` itself needs
 `./scripts/restart.sh`.
 
-Add a diagnostic by writing one object and appending it to the `DIAGNOSTICS`
-array. The object's shape *is* the three-part structure:
+Add a diagnostic by writing one object and listing it under its lift's key in
+`DIAGNOSTIC_SETS` (`DIAGNOSTICS` is only the active set, swapped by
+`setPage`). The object's shape *is* the three-part structure:
 
 ```js
 {
@@ -116,6 +117,9 @@ array. The object's shape *is* the three-part structure:
   phaseLabel: 'first pull',        // short label for the chart heading and overlay
   cue: 'Keep the back angle to the floor constant until the bar passes the knee.',
   unit: '°',
+  provisional: true,               // its thresholds aren't checked on real lifts yet
+  worstRule: 'farthest-from-mean', // which sample is the worst moment: summary-worst,
+                                   // summary-last, farthest-from-mean or phase-end (WORST_RULES)
   phase(track, scale, axis)  -> { startIdx, endIdx, notes[], ... }  | { error }
   measure(track, phase, axis)-> { series[], summary{}, notes[] }    | { error }
   verdict(summary)           -> { label, status }         // status: good|warning|critical
@@ -134,6 +138,11 @@ instant inside the phase, `view.dt` the mean spacing of processed frames, and
 has to be continuous because the marks sit on top of `src/app.py`'s wireframe,
 which is itself interpolated — marks pinned to the nearest sampled frame
 visibly trail the body they claim to measure.
+
+The new app reads the same objects through the headless API documented
+above the `Diagnostics` object: `describe(set)`, `tiles`, `referenceLine`,
+`worstMoment` and `drawCue(ctx, id, t, computed)`. A new cue needs
+`provisional` and a `worstRule`, or the app shows no worst moment for it.
 
 The first four functions (`phase`/`measure`/`verdict`/`overlay`) are the
 three-part structure itself and are documented in detail below.
@@ -170,7 +179,10 @@ can't produce two independent estimates must say so in `notes` and set
 
 ## Keypoint conventions
 
-These come from `vitpose_backend.infer_video` and are easy to get backwards.
+These come from `vitpose_backend.infer_video` on the server, or from
+MediaPipe in the browser, mapped by `src/pose/coco17.mjs` (visibility becomes
+the confidence; `meta.source` is `'mediapipe-local'`). Either way they are easy
+to get backwards.
 
 - A keypoint is `[y, x, confidence]` — **y first**, and `y` grows *downward*.
   Elevation is therefore `-y`. "A is above B" is `A.y < B.y`.
@@ -209,7 +221,7 @@ presses, squats, or other movements without a meaningful bar axis.
 
 Every "height" in coach is measured against the **bar axis**, not against the
 image's bottom edge, and every rule drawn across the frame is parallel to it.
-It is one direction per clip, computed once in `run()` (`barAxis`) and handed to
+It is one direction per clip, computed once in `computeResults()` (`bodyAxis()`) and handed to
 every `phase`/`measure`/`overlay` — the same reason `barKneeCrossing` is shared:
 two diagnostics disagreeing about which way is up is a bug that looks correct in
 each one alone.
@@ -260,7 +272,7 @@ The API:
 A joint angle (`jointAngle`) is rotation-invariant and needs none of this. A
 segment's tilt (`trunkAngle`) does, and takes the axis as an argument.
 
-The one ordering constraint in `run()`: the axis needs the setup frame, and the
+The one ordering constraint in `computeResults()`: the axis needs the setup frame, and the
 setup frame comes from a trigger that needs an axis. `firstPullWindow` is run
 once against `IMAGE_AXIS` to break the cycle — safe, because the bar/knee
 crossing moves by at most a frame or two under any roll the axis will accept,
@@ -303,7 +315,7 @@ silently return a phase that starts at 0.
 `liftWindow` in `src/diagnostics.js` is the one window that belongs to the
 **lift**, not to a cue: where the attempt starts and where it finishes. It is
 not a diagnostic — no cue, no scalar, no plot, no entry in `DIAGNOSTIC_SETS`.
-It is computed once per track in `run()` alongside the bar axis, exposed as
+It is computed once per track in `computeResults()` alongside the bar axis, exposed as
 `Diagnostics.liftWindow()`, and drawn by `src/app.py` as the two markers on the
 video's and the 3D view's time sliders (the "lift start/end markers" tickbox).
 
@@ -326,7 +338,7 @@ before it shipped and fired early:
    while the lifter is still rising. The position is a finish; the movement
    isn't. So the hold also asks the body to be slow — and only slow, since a
    finish contains sway, a step back and the bar settling. `bodyMotion` reports
-   the **median** speed over every keypoint (so the arms under a settling bar
+   the **median** speed over the 12 body keypoints, face excluded (so the arms under a settling bar
    cannot veto a body that has plainly stopped) and `STILL_SPEED` is a third of
    a torso-length per second, not zero.
 3. **One threshold on speed** is still not enough, because slow is not the same
@@ -403,8 +415,9 @@ is the only legend the ramp gets.
 The transparency block under the plot is mandatory and lists, at minimum:
 which frames the phase spans and which trigger values chose them; how many
 samples were measured; what fraction of them were interpolated across a
-dropped detection; how many had both sides visible; and the mean disagreement
-between the two sides. When a diagnostic can't run, it says which trigger
+dropped detection; and how many had both sides visible. The mean disagreement
+between the two sides is a stat tile, and becomes a note only past the
+diagnostic's threshold. When a diagnostic can't run, it says which trigger
 failed — never an empty chart.
 
 ## Thresholds are provisional

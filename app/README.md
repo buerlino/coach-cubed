@@ -1,0 +1,2171 @@
+# app
+
+The new app (plan Phase 5): film a lift, mark it, get cue-by-cue feedback,
+all on the phone. Static files, no build step for our own code: plain ES
+modules, the screens in Preact written with htm. The plan and the
+architecture: [docs/app-plan.md](../docs/app-plan.md); the design:
+[docs/ui-design.md](../docs/ui-design.md) and the mockups in
+[design/mockups/](../design/README.md). What is here is the frame (package
+`d3`): every screen is a placeholder until its own package builds it.
+
+## Commands
+
+From the repo root:
+
+```sh
+node app/tools/assemble.mjs                  # app/ + diagnostics.js + src/track/ into app/dist/
+node app/tools/serve.mjs --port 8090         # app/dist/ on http://127.0.0.1:8090/ (no COOP/COEP)
+npm --prefix app test                        # the app's tests: tests/app/*.test.js (the root `npm test` runs them too)
+node app/tools/make-icon.mjs                 # every icon from logo/coach-cubed_*.svg: app/icons/, the APK's mipmaps and splash (needs rsvg-convert)
+npm --prefix app ci                          # esbuild, long, seedrandom (the TF.js build's inputs) and npm's TF.js (dev only, for the parity check)
+node app/tools/build-tfjs.mjs                # TF.js and pose-detection from source into app/vendor/tfjs/
+app/tools/fetch-models.sh                    # MoveNet Thunder's weights into app/models/, SHA-256 checked
+pipeline/devlock.sh slice check-tfjs node app/tools/check-tfjs.mjs   # the WebGL bundle in headless Brave
+pipeline/devlock.sh slice parity-tfjs nice node app/tools/parity-tfjs.mjs   # npm's TF.js against the from-source bundle: same keypoints?
+pipeline/devlock.sh slice check-pose node app/tools/check-pose.mjs   # the pose engine (client, worker, MoveNet) in headless Brave on synthetic frames
+node app/tools/check-media.mjs               # the frame source on a real WebCodecs decoder, in headless Brave, on tests/app/clips/
+npm --prefix app run check:capture           # the capture (c27) in headless Brave on its fake camera, at 30 and 20 fps, ~1 min; see "Capture and the rolling buffer"
+pipeline/devlock.sh slice check-media node app/tools/check-media.mjs --clips ~/.cache/coach/c34-clips   # the same, plus the step timings on c34's 1080p clips and the decoded frames an idle stepper holds
+pipeline/devlock.sh slice check-offline node app/tools/check-offline.mjs   # the app offline (c19): load, go offline over CDP, reload; needs the TF.js bundle and the weights
+npm --prefix app run test:page               # the page test (c21): the app offline in headless Brave/Chromium, a lateral raise and a snatch, ~5 s; see "The page test"
+npm --prefix app run check:layout            # the responsive check (d25): every screen at five window sizes in headless Brave/Chromium, ~45 s; see "A4 and the responsive check"
+node app/tools/assemble.mjs --debug          # the same, plus the check page (app/debug/) and its clip: the debug APK's dist/
+node app/tools/assemble.mjs --cname coach-cubed.org   # the release (c67): the same, plus a CNAME file; without --debug and --test
+node app/tools/check-dist.mjs --release app/dist   # the release's checks: files.json, no debug or dot files, sw.js's version, the model, TF.js, CNAME; exit 1 names each problem
+pipeline/devlock.sh slice apk-web app/tools/build-apk.sh web      # the debug APK, first half: npm ci, bundle, weights, assemble --debug, cap sync
+pipeline/devlock.sh slice apk-gradle app/tools/build-apk.sh apk   # second half: Gradle into app/out/coach-debug.apk (all: both, in one go)
+node app/tools/check-apk.mjs --serial 4d42e62f   # curie only, with the phone's lock: install, the shell, the check page, the engine; uninstall
+pipeline/devlock.sh slice clips app/tools/make-phone-clips.sh ~/.cache/coach/c34-clips k1   # c34's 1080p clips, outside the repo (one clip per slice)
+node app/tools/check-media-apk.mjs --serial 4d42e62f --clips ~/.cache/coach/c34-clips   # curie only: the frame source and the cut on the phone, 5 runs each
+node app/tools/check-phone.mjs walk --port 9340 --lift snatch --clip NAME [--file PATH]   # curie only (c26): the app walked over a forwarded DevTools port
+node app/tools/check-phone.mjs tracks --in RUNS.jsonl --dir DIR --shell apk   # its stored tracks as the bench's results, for compare.mjs and difftrack.mjs
+node app/tools/check-capture-phone.mjs record --serial 4d42e62f --shell apk --port 9345 --buffers 10,60,300   # curie only (c30): the capture on the phone's camera, debug/capture.html
+node app/tools/check-capture-phone.mjs session --serial 4d42e62f --shell brave --port 9346   # R1, R2, Replay, R3 through the app's screens, with the memory
+```
+
+`serve.mjs` serves what `assemble.mjs` made: assemble again after a change.
+It logs each request (`200 /index.html`); a `404` there is a broken path.
+
+## What's where
+
+| Path | What |
+| --- | --- |
+| `index.html`, `manifest.webmanifest` | The document and the PWA manifest: name and short name are the placeholder "coach" until question 10 is settled; `start_url` and `scope` `./`, standalone, the ground colour. Every path is relative. |
+| `icons/` | The icons, rendered from the logo (`logo/coach-cubed_*.svg`) by `tools/make-icon.mjs`: `icon-192`/`icon-512` (any), `icon-maskable-512`, `apple-touch-icon`, `favicon.svg` and `favicon-32`. The same run writes the APK's launcher icons (with the one-colour layer for themed icons) and its splash icon. |
+| `src/main.mjs` | Boot: the app's one session (`d28`), the flow, the queue and the store, then the shell. |
+| `src/session.mjs` | The gym session (`d28`): `createSession({ makeCapture })` holds the capture across R1, R2 and H; `open`, `start`, `end`, `active`, `lift`. See [R1 and R2, the session](#r1-and-r2-the-session). |
+| `sw.js`, `src/updates.mjs` | The service worker (`c19`) and the page's side of it: registration outside the APK, and an update that takes over when the queue is idle. See [Offline](#offline-the-service-worker). |
+| `src/flow/flow.mjs` | The state machine (`welcome` (`d23`: the first run, entered once at boot), home, lift (`d53`: L1, "Which lift?"), mark, queued, result, detail, settings, scoring, plus setup (`d28`: R1, "Set up the camera"), live (R2), replay (R3) and delayed (`d29b`: R3b, the delayed view) for milestone B; `d17`: `result → detail` opens A2, `detail → result` or `detail → home`; `d18`: `settings → scoring` opens S1's "How the cues are scored", `scoring → settings` returns). A plain module with no Preact: `createFlow()`, `go(to, params)`, `can(to)`, `subscribe(fn)`; `TRANSITIONS` says what leads where, `SCREEN_OF` which screen each state shows. `home → live` is not a step (a session starts on R1); the one exception is H's "Back to the session" while `createFlow`'s `sessionRunning()` says one runs (to `live` or `delayed`). `SESSION_STATES`, `liveStateOf(replayMode)` and `sessionReturn(from, session)` (`d29b`): a session's live state and every way back to it. An illegal transition throws. |
+| `src/ui/` | `app.mjs` (the shell: draws the screen the flow's state names), `screens/` (one component per screen ID: `H`, `L1` (`d53`), `M`, `Q1`, `A1`, `A2` (`d18`), `S1`, `S1b` ("How the cues are scored", `d18`), `R1` and `R2` (`d28`), `R3`, `R3b` (`d29b`)), `components/` (shared pieces), `home-model.mjs` (H's logic as plain functions, `d13`: `liftState`, `rowOf`, `homeView`, `pickStep`, `startLift`, `percentOf`; see [H](#h-home-the-picker-and-l1)), `lift-model.mjs` (L1's, `d53`: `liftTiles`, `chooseLift`), `analysing-model.mjs` (Q1's, `d15`; see [Q1](#q1-analysing)), `record-model.mjs` and `use-capture.mjs` (R1's and R2's logic and the capture's status for a screen, `d28`; see [R1 and R2](#r1-and-r2-the-session)), `lookback-model.mjs` (R3's, `d29`; see [R3](#r3-the-replay)), `delayed-model.mjs` (R3b's, `d29b`; see [R3b](#r3b-the-delayed-view)). Screens call the flow and never each other; the queue and the store reach H as props from `main.mjs`. `settings-model.mjs` (S1's, `d24`; see [S1](#s1-settings-and-about)), `mark-model.mjs` (M's, `d14`; see [M](#m1m3-marking-a-lift)). `player.mjs` and `player-model.mjs` (A1's player, `d16`; see [A1, the player](#a1-the-player-and-the-overlay)), `result-model.mjs` (A1's cards and timeline, `d17`; see [A1, the timeline and the cue cards](#a1-the-timeline-and-the-cue-cards)). `detail-model.mjs` and `rule-model.mjs` (A2's and S1b's texts, the rule sentence; `d18`; see [A2, a cue's detail](#a2-a-cues-detail)). `view-options-model.mjs` and `components/view-options.mjs` (A3's sheet and its controller; `d22`; see [A3, view options](#a3-view-options)). `wide-model.mjs`, `use-wide.mjs` and `components/cue-plot.mjs` (A4, the wide result; `d25`; see [A4 and the responsive check](#a4-and-the-responsive-check)). `html.mjs` is htm bound to Preact. |
+| `src/credits.mjs`, `licences/` | S1's credits (`d24`): `CREDITS` lists every component of THIRD_PARTY.md's section for the new app, each with where its licence text is in the assembled app. `licences/` holds the texts that have no home beside a component: Apache-2.0 (apache.org's text byte for byte, no holder filled in), Capacitor's MIT and esbuild's MIT (their npm packages' `LICENSE` files), and CC BY-SA 4.0 for the logo (creativecommons.org's `legalcode.txt`, byte for byte); sources in [THIRD_PARTY.md](../THIRD_PARTY.md#in-the-new-app-app). |
+| `src/styles/` | `tokens.css` (every colour, the status colours with their words, the type, the spacing, the 44 px touch target; dark only) and `base.css` (the `@font-face` rules, the reset and the classes every screen shares). A screen styles itself from tokens, never from literal values. |
+| `src/track/` | One-line stubs, see below. |
+| `src/contracts/` | The shapes the app's parts agree on: JSDoc types, validators, examples. See [Contracts](#contracts). |
+| `src/store/` | The store (`c8`): lifts, their cut videos, tracks and results, the index and the settings, in OPFS. See [The store](#the-store). |
+| `src/media/` | The frame source (`s9`): `openFrameSource(blob)` gives contract 5's source over mediabunny and WebCodecs. See [The frame source](#the-frame-source). The cut (`s32`): `cutVideo` and `keepVideo` keep the marked range as an MP4. See [Keeping the video](#keeping-the-video). The capture (`c27`): `createCapture(settings)` records the camera into the rolling buffer, `snapshot` and `follow` read it. See [Capture and the rolling buffer](#capture-and-the-rolling-buffer). R3b's delayed frames (`d29b`): `createDelayedFrames` follows the capture `delayS` behind and decodes it. See [R3b, the delayed view](#r3b-the-delayed-view). |
+| `src/scoring/` | The scoring adapter (`s11`): `scoreLift(track, lift, opts)` gives contract 4's `ResultView` from a raw track. See [Scoring](#scoring). |
+| `src/draw/` | The skeleton overlay (`d16`): the pose at a playhead time, the bones and the confidence gate, each cue's drawing through `drawCue`, the timeline's marks. A plain canvas module, ported from the old page and pinned to it. See [A1, the player](#a1-the-player-and-the-overlay). |
+| `src/analysis/` | The analysis job and its queue (`s12`): `appQueue()` is the app's one queue; Analyse keeps the cut (`s32`), then queues the job, which poses every frame of the range, builds the track and scores it. See [The analysis](#the-analysis). |
+| `src/pose/` | The pose engine (`s10`): `PoseEngine.create()` gives one async `estimate(frame, tMs)` over a worker running MoveNet Thunder on TF.js. See [The pose engine](#the-pose-engine). |
+| `vendor/` | Third-party files, each with its licence text, byte for byte from its npm package ([THIRD_PARTY.md](../THIRD_PARTY.md#in-the-new-app-app)): `preact/` (Preact 11.1.1 and its hooks), `htm/` (htm 3.1.1), `mediabunny/` (mediabunny 1.61.6, MPL-2.0, the frame source's one demuxer), `fonts/` (Barlow and Barlow Condensed, woff2, with `OFL.txt`). `vendor/tfjs/` is built by `tools/build-tfjs.mjs` (gitignored). |
+| `tools/` | `assemble.mjs`, `serve.mjs`, `make-icon.mjs`, and the TF.js build: `build-tfjs.mjs`, `fetch-models.sh`, `check-tfjs.mjs`, `patches/` ([below](#tfjs-from-source)), `check-media.mjs` (the frame source on a real decoder, [above](#the-frame-source)), `check-capture.mjs` (the capture on headless Brave's fake camera, [above](#capture-and-the-rolling-buffer)), and the debug APK's `build-apk.sh` and `check-apk.mjs` ([The Android shell](#the-android-shell)), and `make-phone-clips.sh` and `check-media-apk.mjs` (with `codec-names.mjs`, the decoder's name from the log, `c65`), the frame source and the cut on the phone ([On the phone](#on-the-phone)). Node only; only `build-tfjs.mjs` needs `app/node_modules/` (esbuild). Not copied into `dist/`. `page-test.mjs` is the page test ([below](#the-page-test)), `lift-fixtures.mjs` its fixture per lift (`s49`). `browser.mjs` is the one place a tool finds, launches and ends a headless browser (`c47`, [below](#the-tools-browser)), and holds the fake camera's flags (`FAKE_CAMERA`, `d28`). `layout-check.mjs` is the responsive check ([below](#a4-and-the-responsive-check)). |
+| `dist/` | The assembled app (gitignored): what the PWA host and Capacitor get. `files.json` lists every file in it, with a version hash, for the service worker. |
+| `android/`, `capacitor.config.json` | The Capacitor shell (`c20`): the Android project `npx cap add android` generated, committed; Gradle's outputs and the copied web assets are gitignored. See [The Android shell](#the-android-shell). |
+| `debug/` | The check page (`c20`; `media.mjs` `c34`, `compat.mjs` the probe for Chrome 101, `c65`), assembled only into the debug APK (`assemble.mjs --debug`), never into the shipped `dist/`. |
+| `page-test/` | The page test's test build only (`c21`, `assemble.mjs --test`): the replay engine and the boot that installs it. Never in the shipped `dist/`. See [The page test](#the-page-test). |
+| `out/` | `coach-debug.apk`, from `tools/build-apk.sh` (gitignored). |
+| `models/` | MoveNet SinglePose Thunder v4's weights, `movenet-thunder-4/` (`model.json` and three shards), fetched by `tools/fetch-models.sh` (gitignored). |
+
+## Preact and htm: which build, and why the import map
+
+Preact's hooks (`hooks.mjs`) import `preact` by its bare name. The browser
+needs an import map for that, so `index.html` has one, with relative URLs
+(`"preact": "./vendor/preact/preact.mjs"`, `preact/hooks`, `htm`). Our own
+modules use the same bare names, never a relative path to the vendored file:
+two copies of Preact would break hooks.
+
+htm has a variant, `htm/preact/standalone`, that carries htm's own build of
+Preact. It isn't used: choosing it would make that build the Preact in the
+app, not the pinned 11.1.1. The plain `htm` is bound to Preact's `h` in
+`src/ui/html.mjs`. So the version of Preact in the app is the one in
+`vendor/preact/`, and a bump is a change to those files and
+[THIRD_PARTY.md](../THIRD_PARTY.md#in-the-new-app-app) only.
+
+The bare names don't resolve in Node, so Node tests cover the plain modules
+(the flow and, later, the contracts, scoring, the store and the engine); the
+screens are checked in a browser (`c21`'s page test).
+
+## How imports reach `diagnostics.js` and `src/track/`
+
+They stay in the repo's `src/`, where the old page serves them and the tests
+load them. `assemble.mjs` copies them into `src/` of `dist/`:
+`dist/src/diagnostics.js` and `dist/src/track/`.
+
+A module in `app/src/<folder>/` imports track code as `../track/lift-window.mjs`.
+In `dist/` that is the real file. In the repo, `app/src/track/` holds a
+one-line stub per file (`export * from '../../../src/track/lift-window.mjs'`),
+so the same import works in Node (tests, dev). Assemble copies the real file
+over the stub; `tests/app/assemble.test.js` checks that each real file has its
+stub and that the copies are byte-identical. A new file in `src/track/` that
+the app needs gets a stub the same way.
+
+`diagnostics.js` is a classic script that sets `window.Diagnostics`: the
+browser loads it with a `<script src="./src/diagnostics.js">`, and the tests
+load it with `tests/loadDiagnostics.js`. `index.html` has a plain
+`<script src="./src/diagnostics.js">` before the module, so it runs first; the
+scoring adapter wraps it ([Scoring](#scoring)).
+
+## Contracts
+
+The interfaces between the app's parts, agreed before both sides build on
+them ([app-plan.md](../docs/app-plan.md#the-contracts-agreed-before-both-sides-build),
+package `s5`). One module per contract in `src/contracts/`, each with its
+JSDoc typedef, a `validate…(value)` that returns a list of errors (empty
+when valid; each error starts with the field it is about, and an unknown
+field is an error too) and a small valid example. They are plain modules
+with no dependencies and no DOM, so the pose worker imports them as well as
+the screens and the tests.
+
+| Module | For | Produced by | Consumed by |
+| --- | --- | --- | --- |
+| `pose-messages.mjs` | 1. The pose worker's messages: `init {backend}` → `ready {info}` or `error {error}`; `estimate {id, frame, tMs}` → `result {id, keypoints, ms}` or `result {id, error}`; `reset {id}` → `cleared {id}` or `cleared {id, error}` (`s35`: between clips, the worker clears MoveNet's crop after any estimate before it and keeps its model). pose-bench's, trimmed to MoveNet: no model choice, no detector, no box. | the pose client and its worker (`s10`) | the analysis job (`s12`), through the client |
+| `analysis-job.mjs` | 2. An analysis job: the lift, its `source` (the stored cut's path, D6, never a `File`), its range in the cut's timeline, the state, progress by stage with the time left (reading is one unit, the cut read and opened; pose one a frame; scoring one), the error, and `replaces` (`s50`): the lift a re-mark replaces once done, else null. `createJob(id, lift)` makes a queued one; a job read back after a restart is the same job. | Analyse in M3 (`d14`), through the queue (`s12`) | the queue (`s12`), Q1 (`d15`), H (`d13`) |
+| `stored-lift.mjs` | 3. A stored lift: id, created, lift, the cut's path, the range, the track's and the result's paths, the app version, the engine. `liftPaths(id)` is the folder's layout: `lifts/<id>/cut.mp4`, `track.json`, `result.json`. | the store (`c8`) at Analyse, with `s32`'s cut; completed by the job (`s12`) | H (`d13`), A1 and A3 (`d16`, `d17`, `d22`), the job (`s12`) |
+| `cue-view.mjs` | 4. The cue view model: per cue its id, title, cue, status word (good, watch, work on, can't score), verdict, value, tiles, reference line, series, phase, worst moment, provisional flag and, when it can't be scored, the engine's reason; plus whether the lift has a lift window at all (`hasLiftWindow`, diagnostics.js's per set; `s36`: false for a lateral raise, with no window and no reason), the lift window (`{t0, t1: null}` when diagnostics.js found the start and no held finish, its reason then the engine's note; `s35`), the notes and the `smoothing` (`{sigmaMs, keepVelocity}`) the verdicts were scored with. `CUE_VIEW_SOURCES` names where each field comes from (`computeResults()`, `s4`'s API, or the adapter); `VERDICT_VALUE` names, per cue rule, the summary field the verdict is scored on, which is the card's value (the SD for a cue scored on its spread, not the worst moment's sample). A lift's `result.json` holds one `ResultView`. | the scoring adapter (`s11`), in the job's scoring stage | A1, A2, A4 (`d17`, `d18`, `d25`), the page test (`c21`) |
+| `frame-source.mjs` | 5. A frame source: an opened video's info (duration, frame rate, upright size, rotation), `frameTimes` (every frame's start in seconds, presentation order, from the first frame at 0; required since `s35`: M1–M3's one-frame steps and the job's frame count), a frame at a time, a range as a stream of `VideoFrame`s, thumbnails, and (`s38`) the `stepper`: the frames around a playhead decoded once and kept, so M1–M3's one-frame step is a lookup, with its default budget `STEPPER_BUDGET`. `exampleFrameSource()` is a stand-in with no video behind it, for tests. | the media module (`s9`) | marking (`d14`), A1's player (`d16`), the job (`s12`) |
+| `track.mjs` | The track, `track.json`, in the fixture format ([fixture-data-contract.md](../docs/fixture-data-contract.md)), so the app's tracks and the committed fixtures read the same. `trackFromFrames()` builds one from the worker's results, `framesFromTrack()` reads one back. | the job (`s12`) | the scoring adapter (`s11`), A1's skeleton (`d16`), the page test (`c21`) |
+| `keypoints.mjs` | COCO-17 `[y, x, conf]` in the frame's pixels, or `null` ([rules-core.md](../docs/rules-core.md), principle 4). | the pose worker | the track, `diagnostics.js` |
+| `lifts.mjs` | The lift registry (`s49`): per lift its id (a `DIAGNOSTIC_SETS` key), label, store abbreviation, `provisional`, an optional `icon` (a figure: a head and a path) and an optional `framing` (how to film it, for milestone B's R1; nothing reads it yet). `SHIPPED_LIFTS` is the lateral raise, then the snatch; `LIFTS` its ids (a live binding); `liftOf`, `isLift`, `liftLabel`, `liftAbbr`; `registerLift(entry)` adds one and returns its undo (tests only). The one place in `app/src` a lift is written out, besides the settings' default and the contracts' examples (`tests/app/lifts.test.js` checks it, and that each shipped id has its set and its `LIFT_WINDOW_SETS` entry). How to add a lift: [docs/lifts.md](../docs/lifts.md). | | every module that names a lift: `common.mjs`'s `checkLift`, the settings, the store's ids, H, M, the icons |
+| `common.mjs` | What they share: the lifts (`LIFTS`, re-exported from `lifts.mjs`), ids, store paths, ranges, the checks. | | the modules above |
+
+A change to a contract is a package of its own: both sides build on it, so
+it is agreed first, with its tests, and then each side follows in its own
+package.
+
+## Scoring
+
+`src/scoring/score.mjs` turns a track into the cue view model (contract 4),
+the one thing the screens draw cues from, so a new cue in `diagnostics.js`
+needs no UI change.
+
+```js
+import { scoreLift } from './scoring/score.mjs';
+const { view, computed, personId, keypoints } = scoreLift(track, 'snatch', { sigmaMs: 50 });
+// view: a ResultView (passes validateResultView), view.smoothing included; computed: computeResults()'s output, for drawCue()
+// keypoints: the track's keypoints as scored (smoothed with the same σ and velocity option; raw for σ 0), for the skeleton
+```
+
+- **`keypoints`** (`s44`) is the smoothed keypoints the verdicts were scored on,
+  so A1 and A2 draw the skeleton from them and do not smooth the track a second
+  time (`grep smoothKeypoints app/src/ui/` finds nothing). It equals
+  `smoothKeypoints()` on the same track with the same σ and velocity option. It
+  is a new object only when σ is above 0 (the track passed in is never changed);
+  at σ 0 it is `track.keypoints` itself, so a caller must not change it. The job
+  stores only `view`.
+
+- **Order:** `src/track/`'s smoothing first (σ 50 ms, velocity kept, the old
+  page's defaults and S1's `smoothingSigmaMs`; `sigmaMs: 0` scores the raw
+  track), then `Diagnostics.setPage(lift)` and `computeResults()`, then the
+  view through `describe`, `tiles`, `referenceLine` and `worstMoment`
+  (`CUE_VIEW_SOURCES` names every field's source). The lifter is
+  `meta.tracks.kept`, else the person with most frames, else person 0.
+- **`diagnostics.js`** comes from `opts.Diagnostics` or `window.Diagnostics`
+  (the classic script's global, so on the page's main thread; a worker has no
+  `window`). It throws for a lift it has no set for.
+- **Honest verdicts:** every string on the view is diagnostics.js's (a test
+  checks each against what the engine returned); the adapter writes none. A
+  cue `computeResults()` can't score is "can't score" with the engine's error
+  as `reason`, for a track too short, without a body scale or with nobody in
+  it too. Each cue carries `describe()`'s `provisional` flag. A verdict level
+  the contract has no word for throws instead of showing as another word.
+- **Seconds:** the lift window, the phase, the series and the worst moment
+  are in seconds (the track's `frame_times_ms`). A start with no end keeps
+  its start: `liftWindow: {t0, t1: null}`, and its reason is the engine's
+  last note ("…the lift has no end marker"); the other notes stay in
+  `notes` (`s35`; before, the whole window was dropped).
+- **A lift without a window:** the window is the barbell's (the bar below
+  knee height, then a held lockout), so diagnostics.js says per set whether a
+  lift has one (`LIFT_WINDOW_SETS`, `describe(set).hasLiftWindow`; `s36`). A
+  lateral raise has none: `hasLiftWindow: false`, `liftWindow` and
+  `liftWindowReason` both null and no lift notes, since there is nothing to
+  find and nothing went wrong (before, it carried the trigger's "The bar never
+  sits below knee height…"). Every other lift has `hasLiftWindow: true` and the
+  window or its reason as above.
+- **The smoothing** is on the view, as numbers (`view.smoothing`, `{sigmaMs,
+  keepVelocity}`, `s35`), so `result.json` says what its verdicts were scored
+  with; the adapter writes no sentence about it.
+- **A2's plot and "How it's scored"** (`s39`) come from diagnostics.js's
+  headless API, not from the view, and the adapter doesn't change. d18 calls
+  `Diagnostics.scoringLines(id, computed, { smoothingMs: view.smoothing.sigmaMs })`
+  with the lift's `computed` (scoreLift's, or `computeResults()` again on the
+  stored track): each cue's transparency lines, the bullets the old panel
+  lists under its plot (the phase, the measurement, the bar axis, the time
+  smoothing, the caveat with the provisional bands, the notes), as plain text,
+  `[{label, text}]`; `[]` for a cue that can't be scored. The smoothing is the
+  view's, so the "Time smoothing" line says what the verdicts were scored with
+  (every scored cue has exactly one, the tempo's and the symmetry's since `s42`). A line with markup besides
+  its label throws, so no HTML reaches the screen. For the plot,
+  `Diagnostics.zones(id)` gives the verdict's bands in the cue's unit, lowest
+  first, `[{status, from, to}]` with contract 4's status words and `null` for
+  an open end: the elbow lead and the tempo, and the top height mirrored about
+  shoulder height (its verdict reads the worst rep's size). It is `null` for a
+  cue scored on something its series doesn't plot (an SD, a decline, a
+  deficit: `VERDICT_VALUE`): draw no bands then.
+- **The rule's words** (`s45`) come from diagnostics.js too, through
+  `Diagnostics.rule(id)`: `{noun, basis, bands}`, plain text declared on each
+  cue next to its threshold constants (`unitNoun`, `verdictBasis`, and `bands`
+  where `zones` is null), so a new cue brings its own. `noun` is what follows a
+  number in the cue's unit, its symbol first ("% of torso length", "° of sway
+  (SD)", "× faster down than up"); `basis` is one sentence on what the verdict
+  reads, by the cue's `worstRule` ("The lowest margin of the elbow over the
+  wrist in the set decides."); neither holds a number. `bands` are the good,
+  watch and work-on bands in `zones(id)`'s shape: `zones(id)` itself where it
+  isn't null, else the bands of the value the verdict reads (the SD, the
+  decline, the larger deficit), from the same constants. So every cue has a
+  rule, the ones with `zones: null` included. A method by id, not new fields
+  of `describe(set)`: `describe`'s fields are the ones contract 4's cue view
+  carries (`CUE_VIEW_SOURCES`), and the rule's words and bands are not stored
+  in `result.json` (they describe the engine, not a lift); A1, A2 and S1b ask
+  by id, as for `zones(id)`.
+- **What the tests pin** (`tests/app/scoring.test.js`): with smoothing off,
+  every committed fixture's verdicts, values, series, tiles, notes and
+  reasons are its golden's. The goldens score **raw** tracks; with the
+  default smoothing the result is `src/track/`'s smoothing followed by
+  `computeResults()`, which is the pinned old-page behaviour, not a golden.
+  So what the user sees (smoothed) is covered against the engine, not
+  against labelled lifts.
+
+## The store
+
+`src/store/` keeps what stays on the phone, in OPFS
+(`navigator.storage.getDirectory()`), nothing anywhere else: no
+`localStorage`, no IndexedDB, no network (`tests/app/store.test.js` scans its
+source for them). `createStore({ storage, now, appVersion })` takes
+`navigator.storage` by default; the tests pass the in-memory fake in
+`tests/app/fake-opfs.js`. The calls are async and run one at a time.
+
+The layout, from the store's root:
+
+```
+index.json              the lifts' records, newest first (a cache of the folders)
+settings.json           S1's choices and A3's view options
+meta.json               what persist() answered, and when it was asked
+queue.json              the analysis queue's jobs (contract 2) and the last measured rate
+lifts/<id>/cut.mp4      the cut video (D6)
+lifts/<id>/track.json   the track, once analysed (contract: track.mjs)
+lifts/<id>/result.json  the ResultView, once analysed (cue-view.mjs)
+lifts/<id>/lift.json    the lift's record: contract 3, a StoredLift
+```
+
+- **Saving** (`saveLift({lift, video, range, …})`) writes the cut, then the
+  track and result if given, then `lift.json`, then the index. `lift.json`
+  is written last: a folder with it is a complete lift. A save that fails
+  removes its folder. `updateLift(id, {track, result, engine, range})`
+  completes a lift when its job is done; every record passes
+  `validateStoredLift`, and a track or result passes `validateTrack` or
+  `validateResultView`, before anything is written (else `invalid`). An
+  update that fails puts back the old `lift.json` and the files it
+  overwrote, and removes the ones it made, so a record never names a file
+  that is not there. `updateLift(id, patch, {replaces: oldId})` (`s50`, a
+  re-mark's job) deletes `oldId` in the same step, after the new record and
+  the index are written, with the delete's own steps (below); an update that
+  fails never touches `oldId`, and an `oldId` already gone is nothing to do
+  ([The analysis](#the-analysis) has the order).
+- **The index** is written atomically: `index.json.tmp`, then
+  `move('index.json')`; `settings.json`, `meta.json` and `queue.json` too. When the index
+  is missing, isn't JSON, has the wrong shape or an invalid entry, it is
+  rebuilt from the folders' `lift.json` files and written back
+  (`rebuildIndex()` does it on demand and returns what it skipped: a folder
+  with no complete record, which it leaves alone).
+- **Deleting** (`deleteLift(id)`) removes `lift.json` first, then the whole
+  folder `lifts/<id>/` (the cut, the track, the result), then the index
+  entry. Nothing else is touched: other lifts, the settings and the
+  app's cached files stay. A delete that stopped halfway (the record gone,
+  the folder or the index entry still there) is finished by calling it
+  again; `not-found` only when neither is left.
+- **Lists:** `listLifts()` newest first; `listByDay()` splits today's (the
+  local calendar day) from earlier ones, for H. Ids look like
+  `20261101-174205-lr` (UTC time, the lift's `abbr` in `contracts/lifts.mjs`), with `-2`, `-3` for a clash.
+- **Settings:** `getSettings()` reads v1's defaults (a 20 s replay, a 60 s
+  buffer, videos kept, D2) over whatever `settings.json` holds; a field that
+  is missing or fails its check takes its default. `saveSettings(patch)`
+  checks the patch (`validateSettingsPatch`) and keeps the merge. The fields
+  are in `settings.mjs` (`introSeen`, `d23`: the first-run screen has been left; no row in S1). **The ranges are provisional** (nordmu, 2026-11-02):
+  a replay of 5–60 s, a buffer of 10–300 s, a delay of 5–20 s and a smoothing
+  of 0–300 ms (`RANGES` and the view fields in `settings.mjs`) stay as `c8`
+  chose them (the smoothing's cap was 1000 ms until `d51`, when nordmu set it to A3's
+  slider end, 2026-11-02) until `c30` measures the buffer's memory on the phone (`c27` built
+  the capture on the laptop alone, nordmu, 2026-11-02). S1
+  offers values only inside them. A record stored with a smoothing above 300 ms reads
+  back as 300 (`readSettings`), not as a damaged field; a patch above 300 is refused.
+- **`persist()`** is asked at the first save, once; the answer is kept in
+  `meta.json` (`persistAnswer()`), and a refusal doesn't stop the save.
+- **Quota:** `storageInfo()` gives `estimate()`'s usage and quota, the room
+  left and `persisted()`, for S1; `liftsBytes()` the bytes the lifts hold.
+- **Errors** are `StoreError`s with a `code` the UI can show: `storage-full`
+  (the disk or the quota is full, D3), `unavailable` (no OPFS), `not-found`,
+  `invalid` (the message says which field).
+
+- **The queue:** `readQueue()` and `saveQueue({jobs, rate})` keep the
+  analysis queue (`s12`) in `queue.json`: every job passes
+  `validateAnalysisJob`, ids are unique, and the rate is
+  `{msPerFrame, fps, sPerS}` or null (`validateQueueState`), else `invalid`.
+  A missing or damaged file reads as an empty queue; a job that breaks
+  contract 2 is left out.
+
+Not here: dropping the video after Analyse (`keepVideos` is only stored;
+nothing acts on it yet, see `s12`'s report).
+
+## S1, settings and about
+
+**Words (`d55`, round 1's table):** "Up to 30 fps; less in dim light.", "The delay comes later.", "Free for the app", "If the phone runs very low on space, the system may remove them.", "Can’t delete while lifts are being analysed.", "coach is built with these. Their licences are in the app, readable offline.", "Loading…", "Couldn’t load this licence.", "That didn’t work."; the privacy text, the credits and the licences are unchanged.
+
+`screens/S1.mjs` draws `settings-model.mjs`'s view (design/mockups/Settings.dc.html); the store and the queue come in as props.
+
+- **The gym session is behind a switch, off in 0.1.0 (`d66`).** 0.1.0 is milestone A (import a clip, get the cues); the gym session (R1, R2, R3, R3b, recording) is built but ships off, and Noah finishes it after the handover (`c30b`, `c31`, checkpoint B). S1's switch **"Gym session (preview)"** (`role="switch"`, `aria-checked`, `data-setting="gymSession"`, the look of A3's `.vo-switch`) carries the note "Unfinished: recording at the gym." and saves the settings field `gymSession` (`DEFAULT_SETTINGS.gymSession` is `false`, a boolean in `FIELDS`, no range; a record from before `d66` has no such field and reads as off, every other field kept, nothing rewritten). Tapping it also sets the app's session (`session.setEnabled`), the live value H and the flow read. **Off:** below the switch nothing of the gym session: no replay mode, no rows, no "Up to 30 fps" note. **On:** the replay mode, the replay's length or the delay, the buffer, the camera and the quality, as before, **below** the switch, so the switch itself never moves. **Default lift** is milestone A's (L1 rings it), so it left the gym rows for its own group, **"Lifts"**, above the switch, shown either way: it works and is saved (`defaultLift`); L1 rings it (`startLift(settings)` in `home-model.mjs`, read by `liftTiles`; the first lift while the settings load or if they can't be read; d41, d53) (`recordingView(s).liftRows`; `rows`, `modes` and `note` are empty while the switch is off). `tests/app/settings.test.js` and `tests/app/record.test.js` pin the view; the page test turns the switch on before the session walk, the layout check measures S1 both ways.
+
+- **Gym session rows** (only while the switch above is on, `d66`): since `d28` the replay mode, the replay's length, the buffer and the camera are enabled and saved (`saveSettings` checks them against `RANGES`; R1 and R2 read them). The **delay** is enabled since `d29b` built the delayed view (it shows only while the mode is "Delayed view": 5, 10, 15 or 20 s; R3b offers the same and saves the same field), and the **quality is information**, its one value (1080p · 30 fps; `NOT_YET` in `settings-model.mjs`). Every value S1 offers lies inside `RANGES` (provisional until `c30`, [The store](#the-store)).
+- **Videos are always kept** (nordmu, 2026-11-02): the mockup's "Keep the video of each analysed lift" switch is not drawn, since contract 3 needs every lift's cut and A1 plays it. `keepVideos` stays in the store; the switch comes back with a contract-3 change that allows a lift without its cut.
+- **Storage** is information: what the lifts hold, what the app uses, the room left (the store's `estimate()`), and whether the system promised to keep the files. `persisted: false` (the APK's WebView, `c20`) shows "No" with a plain sentence, never as an error. "Delete all lifts…" asks first and is held back while the queue has work.
+- **About:** the version, the privacy text (approved by nordmu on 2026-11-02, with no draft tag: it says what the app keeps, where, and that it sends nothing; it holds because the APK has no Android backup, see [The Android shell](#the-android-shell)), "Credits and licences", "How the cues are scored" (enabled since `d18`: S1b, see [A2](#a2-a-cues-detail)) and the source licence.
+- **Credits and licences** list `CREDITS`, one `<details>` each; opening one reads its licence text from the app's own files (`fetch`, so the service worker's cache serves it offline), and "The full list" shows THIRD_PARTY.md's section "In the new app (`app/`)" only, which `assemble.mjs` cuts out (its heading to the next `## `) and writes to `licences/THIRD_PARTY.md`: the old page's, the dev server's, the spike's and the other sections don't ship, so they never reach the credits. `assemble.mjs` also runs `checkLicences()` after assembling and fails when a text the credits name is missing; the TF.js texts are copied by `build-tfjs.mjs` into the gitignored `vendor/tfjs/`, so they are expected only when that bundle is in `dist/`. A row added to THIRD_PARTY.md's section needs its entry in `credits.mjs`: `tests/app/settings.test.js` compares the two.
+
+## The frame source
+
+`src/media/` opens a video from a `Blob` (the picked `File`, or the stored
+cut read back) and hands out contract 5's `FrameSource`
+([frame-source.mjs](src/contracts/frame-source.mjs)). mediabunny
+([`vendor/mediabunny/`](vendor/mediabunny/LICENSE), MPL-2.0, 1.61.6, the one
+demuxer in the app) reads the container; WebCodecs decodes. No `<video>`
+element: seeking one cost more than the pose model on the Fairphone.
+
+```js
+import { openFrameSource } from './media/frame-source.mjs';
+const src = await openFrameSource(file);   // MediaError if it can't be read or decoded
+src.info                    // { duration, fps, width, height, rotation, codec }: upright size
+src.frameTimes              // every frame's start time in seconds, presentation order: M1–M3's steps
+const f = await src.frameAt(t);               // last frame starting at or before t; f.close()
+for await (const f of src.frames(t0, t1)) …   // [t0, t1] in order, ends included; f.close()
+const bitmaps = await src.thumbnails(times, { height: 64 });
+const st = await src.stepper(t, { height: 1320 });   // M1–M3's steps: see "The stepper" below
+const { index, time, frame } = await st.step(+1);     // a lookup when held; frame is the stepper's, never close it
+st.close();
+src.close();                                          // closes its steppers too
+```
+
+| File | What |
+| --- | --- |
+| `frame-source.mjs` | `openFrameSource(blob, {webcodecs, stallMs})`; re-exports `MediaError`. |
+| `sample-table.mjs` | `buildSampleTable(packets)`: from the packets' types, times and durations, the frame times (from 0, the earliest frame), `indexAt(t)`, `indexRange(t0, t1)`, `keyBefore(d)` and `plan(first, last)`, the keyframe search. No file, no decoder. |
+| `decode.mjs` | `decodeFrames(…)`: chunks in, frames out, an async generator over a `VideoDecoder`. |
+| `stepper.mjs` | `openStepper(…)`, behind `src.stepper(t, opts)`: the one-frame steps' cache ([below](#the-stepper)). |
+| `webcodecs.mjs` | `browserWebCodecs()`: the browser's `VideoDecoder`, `EncodedVideoChunk`, the canvas turn and `createImageBitmap`, behind one object that tests replace (`tests/app/fake-webcodecs.js`). |
+| `media-error.mjs` | `MediaError` and its `code`s. |
+
+**How a request becomes frames.** Open lists every packet once with
+mediabunny's `metadataOnly` (no data read) into the sample table. A request
+for frames *first..last* (presentation order) becomes the packets from the key
+packet before the earliest-stored of them to the latest-stored of them (with
+B-frames a picture is stored after one shown later), those packets are read
+from the Blob, and a fresh decoder is fed them; frames the caller didn't ask
+for (those from the keyframe to the range) are closed in the decode loop. One
+decoder per call, so calls may overlap; `close()` aborts them all. Times are
+seconds from the first frame; a frame's `timestamp` is its time in µs.
+
+**Rotation** is applied once, here: a file with a 90°, 180° or 270° rotation
+in its metadata is turned on a canvas (`webcodecs.rotate`) and delivered as a
+`VideoFrame` with rotation 0; `info.width` and `info.height` are the upright
+sides, and `info.rotation` is what the file asked for. `check-media.mjs`
+compares such a frame with ffmpeg's own autorotation of the same stream.
+Mirroring in the file isn't applied.
+
+**Errors, never a hang.** Everything that goes wrong is a `MediaError`; `code`
+is one of `no-webcodecs`, `unreadable` (not a video, damaged, a file that
+ends early), `no-video`, `unsupported-codec`, `decode-failed`,
+`decode-stalled`, `range` (a time that isn't a number) and `closed`. Open
+asks the decoder whether it supports the file's codec string
+(`VideoDecoder.isConfigSupported`) and decodes the first frame, so HEVC on a
+WebView without it fails at import with `unsupported-codec` and the codec
+named (`error.codec`), and a decoder that says yes but fails is caught too.
+During a decode, the decoder's error callback ends the stream with
+`decode-failed`, and a decoder that makes no progress for `stallMs` (15 s)
+with `decode-stalled`. Whatever the end, the decoder and every frame still
+held are closed.
+
+**Backpressure.** The decode loop feeds the decoder only while few chunks and
+few decoded frames wait, so a slow consumer (the pose model) keeps the
+decoder a few frames ahead instead of filling memory; a hardware decoder's
+last frames come out while the loop is still draining, not after the flush.
+
+**Without the decoder's `dequeue` event (`c65`).** A chunk the decoder takes
+wakes the loop to feed the next one: the `dequeue` event, Chrome 106 and later
+(from memory: `c60` checks). Chrome 101, the Samsung S8+'s browser and WebView,
+has neither the event nor `VideoDecoder.prototype.ondequeue`, and there only an
+output woke the loop: the stepper's stream (one chunk fed at a time,
+`STREAM_QUEUES`) on a decoder that holds B-frames back waited for an output
+that never came, and ended with `decode-stalled`. Where `ondequeue` is
+missing, and only while the loop waits with its queue full, it re-checks
+`decodeQueueSize` every `DEQUEUE_POLL_MS` (4 ms, a timer, which Chrome clamps
+to that anyway). Where the event exists no timer runs (`tests/app/chrome101.test.js`)
+and the stepper's timing is unchanged (`c65`'s report: `check-media.mjs` in headless
+Brave against `s38f1`'s step times).
+
+### The stepper
+
+M1–M3 mark a lift one frame at a time, and `frameAt` decodes again from the
+keyframe before the frame on every call: 0.17 s a step on the Fairphone with a
+keyframe every second, 0.42 s (up to 0.83 s) with a phone camera's 2–5 s
+([below](#on-the-phone)). The stepper (`s38`, contract 5's `stepper`) decodes
+the frames around the playhead once and keeps them, so a step to a held frame
+is a lookup, in both directions, and decodes nothing.
+
+```js
+const st = await src.stepper(t, { height: 1320 });   // or { width }, or both; opened once frame t is held
+st.index; st.time; st.frame;                          // the playhead: frameTimes' index, its time, its ImageBitmap
+const r = await st.step(-1);                          // { index, time, frame, cached }; at the ends it stays put
+await st.seek(t2);                                    // the frame shown at t2 (a drag of the filmstrip)
+st.budget;                                            // { maxFrames, maxBytes, frameBytes, frames }
+st.held; st.bytes;                                    // what it holds now
+await st.settled();                                   // the refill has nothing left to do (tests, measurements)
+st.close();                                           // closes every frame it holds, stops the refill
+```
+
+- **The frames** are `ImageBitmap`s, upright and at the size asked for (a
+  missing side from the upright aspect), drawn from the turned frame as
+  thumbnails are; the decoded frame is closed once its bitmap is made. They are
+  the stepper's: draw one, never close it; it stays
+  valid until the next `step` or `seek` settles. `cached` says whether the
+  frame was held when the step was asked; such a step returns before the
+  refill does anything (it starts on the next task: turning a decoded frame
+  into a bitmap can hold the main thread, 23 ms a step in headless Brave
+  before this).
+- **The window:** the budget's frames, half ahead and half behind until the
+  first step, then three quarters on the side the steps go. A background
+  refill fills it nearest frame first, one decode at a time. Ahead, one decoder
+  keeps going from the keyframe before the playhead (it waits between frames),
+  so stepping on through a keyframe group decodes the group once, however long
+  it is. Behind, a decode runs from the keyframe of the group before to the
+  frame needed, once that whole group fits in the window, or when the missing
+  frame is a quarter of the window away; a group longer than the window behind
+  is decoded again for each window's worth, and given up when a step or seek
+  moves the window off it. The decoder ahead is fed one chunk at a time and
+  stops while a decoded frame waits (`STREAM_QUEUES` in `stepper.mjs`:
+  `maxQueued` 1, `maxQueueSize` 1), so while it waits between steps it holds
+  **at most 2 decoded frames** at the file's size, outside the budget and
+  `st.bytes`: the one waiting and the one its last chunk makes (`s38f1`; before,
+  decodeFrames' defaults let up to about 12 come out, and headless Brave held 8
+  1080p frames). A hardware decoder has few output buffers, so these are the
+  frames to keep few. **On the Fairphone's hardware decoder (`c2.qti.avc.decoder`)
+  the bound doesn't hold:** `c26` counted 14 decoded frames open at 440 px and
+  6–11 at 1320 px, every run (`idleDecoded`; none after the source is closed); see
+  [pose-spike.md](../docs/pose-spike.md#the-app-itself-on-the-fairphone-c26-2026-11-03). `frameAt`, `frames` and `thumbnails` keep decodeFrames'
+  defaults (4 frames waiting, 8 chunks fed): they run to their end, and a range
+  read stays a few frames ahead of the pose model. A frame decoded on the way
+  that is outside the window (from the keyframe to the window's edge) is
+  closed without being
+  turned or made into a bitmap. A step to a frame not held yet waits for it; a
+  step never starts a second decode of a group being decoded.
+- **The budget:** at most `maxFrames` frames and `maxBytes` bytes, a frame
+  being width × height × 4 bytes. The default (`STEPPER_BUDGET` in the
+  contract) is 90 frames and 128 MiB: three 1 s groups at 30 fps. A new frame
+  takes the place of the one farthest from the playhead (its distance over its
+  side of the window), which is closed first, so the budget is never exceeded;
+  the playhead's frame is never dropped, nor the frame on screen (`st.frame`)
+  while a step or seek waits for its own: it stays open until the new frame is
+  held. With a budget of one frame, the frame on screen is closed only when the
+  new one takes its place.
+- **Errors:** a decoder error or a stall (`stallMs`) in the refill ends it; a
+  step waiting for a frame rejects with the source's `MediaError`, else the next
+  step does (the playhead stays), and the step after that refills again.
+  `close()` and the source's `close()` reject a waiting step with `closed`.
+
+What the default budget costs at M1–M3's size: the mockup's video is 248 × 440
+CSS px, a 1080 × 1920 portrait video's 9 : 16, so a frame is that times the
+screen's pixel ratio, squared, times 4 bytes. (The Fairphone's pixel ratio is 3
+(`c26`): its frames are 2347 × 1320, 12.4 MB each, a budget of 10.) On top of the
+bitmaps, the paused decoder ahead holds at most 2 decoded frames at the
+file's own size: a 4:2:0 frame (I420 or NV12) is 1.5 bytes a pixel, so
+3,110,400 bytes (2.97 MiB) for a 1080p video, 5.9 MiB for two (4K: 11.9 MiB
+a frame, 23.7 MiB for two; a hardware decoder's buffers may be padded beyond
+that).
+
+| Pixel ratio | Frame | Bytes a frame | Frames held | Bitmaps | With the paused decoder (1080p, 2 frames) | Stepping back: frames behind |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 248 × 440 | 436,480 (0.42 MiB) | 90 | 37.5 MiB | 43.4 MiB | 67 |
+| 2 | 496 × 880 | 1,745,920 (1.67 MiB) | 76 | 126.5 MiB | 132.4 MiB | 57 |
+| 3 | 744 × 1320 | 3,928,320 (3.75 MiB) | 34 | 127.4 MiB | 133.3 MiB | 25 |
+
+In headless Brave (`check-media.mjs`, c34's 1080p clips, 782 × 440 frames,
+the default budget) a stepper with its window full holds 90 bitmaps, 118.1
+MiB, and the paused decoder 1 decoded frame, 3.0 MiB: 121.1 MiB (at most
+124.0 MiB with two). Before `s38f1` it held 8, 23.7 MiB more (141.8 MiB).
+Feeding one chunk at a time cost no measurable speed there: steps back to
+back (the refill's own rate) took a median 18.7 and 20.4 ms before, 19.0 and
+15.3 ms after on k1, 21.3 and 22.7 ms before, 23.5 and 23.4 ms after on
+k2to5 (two runs each), and a step to a held frame stays 0 ms (p90 0.1 ms).
+
+With a phone camera's groups of 60–150 frames, stepping forwards still
+decodes each group once; stepping backwards at a pixel ratio of 3 decodes a
+group again for every 25 frames, in the background. The check page's
+`stepCached` (`debug/media.mjs`, beside `step`'s `frameAt`) measures it on the
+phone (`c26`), and `seekCached` the seeks beside `frameAtRandom`'s
+`frameAt` on the same times; headless Brave's numbers are in `s38`'s report. On
+the Fairphone (`c26`, 1080p, pixel ratio 3): a step to a held frame 0.2–0.3 ms at a
+tap every 150 ms, against 165 and 429 ms for `frameAt` on the next frame (keyframes
+every 1 s, every 2–5 s); [pose-spike.md](../docs/pose-spike.md#the-app-itself-on-the-fairphone-c26-2026-11-03).
+
+**Opening and seeking cost more than a `frameAt`.** The stepper's open and a
+seek to a frame not held decode from the keyframe like `frameAt`, and the
+frames on the way that fall inside the window (up to the side behind the
+playhead: 44 frames with the default budget at a pixel ratio of 1) are made
+into bitmaps before the playhead's frame, so that group isn't decoded again.
+In headless Brave (software decode, c34's 1080p30 clips, 20 seeded seeks,
+medians): with the default budget at 782 × 440 a seek took 265 ms against
+`frameAt`'s 70 ms with a keyframe every second, and 1,016 ms against 202 ms
+with keyframes every 2–5 s; with a budget of 10 frames (1320 px high) 291 ms
+and 421 ms. A step to a held frame stays a lookup (0.1 ms). On the Fairphone's
+hardware decoder (`c26`) a seek took 188 and 393 ms against `frameAt`'s 151 and 383 ms.
+
+### On the phone
+
+Measured by `c34` on the Fairphone 6 (Android 16, LineageOS build
+BP2A.250805.005, WebView 153.0.8010.36, Android's decoder
+`c2.qti.avc.decoder`, the hardware one), in the debug APK (18,016,846 bytes,
+built from `c34`'s tree) by the check page's `debug/media.mjs`, driven by
+`tools/check-media-apk.mjs`: the clips (`tools/make-phone-clips.sh`: testsrc2
+with noise, 1080p H.264 at about 10 Mbit/s, B-frames on) copied into the app's
+own `files/` and set on the page's input. Each number is the median of five
+runs, interleaved (run 1 of every measurement, then run 2 …), on USB power at
+22–25 °C; wall time from `performance.now()` in the page.
+
+| What | Clip | On the phone |
+| --- | --- | --- |
+| `frames(0, 60)`, each frame closed at once | 1080p30, a keyframe every 1 s | **192 frames/s** (1,800 in 9.4 s); 115 ms to the first frame |
+| the same | keyframes every 2–5 s | 196 frames/s |
+| the same | 1080p60 | 208 frames/s (3,600 in 17.3 s) |
+| the same | 1080p30 at 13.5 Mbit/s (102 MB) | 170 frames/s |
+| the same | variable rate (1,543 frames) | 180 frames/s |
+| the same, a consumer taking 100 ms a frame | 1080p30 | 9.8 frames/s (100 ms + 2 ms); the wait for each next frame 0.1 ms (median), 15 ms at most: the decoder stays ahead |
+| `frameAt(t)` at 20 random times | keyframe every 1 s | **151 ms** (90th percentile of the 100 calls 223 ms, at most 243 ms) |
+| the same | keyframes every 2–5 s | **374 ms** (90th 623 ms, at most 802 ms) |
+| +1 frame with `frameAt`, 30 times from a random frame | keyframe every 1 s | **166 ms** a step (90th 228 ms, at most 247 ms; 47 of 150 over 200 ms) |
+| the same | keyframes every 2–5 s | **416 ms** a step (90th 578 ms, at most 828 ms; 117 of 150 over 200 ms) |
+| the canvas turn (rotation 90) | 1080p30 and 1080p60 | 1.3 ms a frame for the call; 25.6 ms when the turned frame's pixels are read back at once (a 1×1 `getImageData`, which waits for the GPU). In a range's decode it costs nothing measurable: 191.9 against 192.3 frames/s at 30 fps, 200 against 208 at 60 fps (0.2 ms a frame) |
+| `openFrameSource` (the packet listing and the first frame) | 102 MB | 113 ms, the same as the 75 MB file (113 ms) and the 60 fps one (121 ms): it lists packets, it doesn't read them. The first open after the app starts: 204 ms |
+| HEVC (1080p30, 10 s) | | **decodes**: it opens (86 ms, codec `hev1.1.6.L120.90`) and `frames()` gives all 300 frames, at 309 frames/s, on `c2.qti.hevc.decoder` |
+| `info.fps` and `frameTimes` | 1080p60 | 60; every gap 16.7 ms |
+| the same | variable rate | 25.7 (frames over duration); gaps 27.3–74.6 ms, median 35.2 ms, 195 distinct: `frameTimes` are the file's own times |
+| memory with the decoder running (VmRSS of the app's process and its WebView renderer, every 200 ms) | 1080p30 | about 490 MB before; +24 to +46 MB while a range decodes; +5 MB with the 100 ms consumer |
+
+What it means for the screens: the decode is about six times real time, and
+backpressure holds memory flat under a slow consumer. A frame at a random time
+is a keyframe's worth of decoding (about 5 ms a frame plus 115 ms to start), so
+it grows with the distance to the keyframe: with a phone camera's 2–5 s
+between keyframes, M1–M3's one-frame step takes 0.4 s, and up to 0.8 s. The
+JS heap (`performance.memory`) stayed at 12 MB in every run: the WebView rounds
+it, and frames and buffers live outside it. The decoder's own process (Android's
+codec service) isn't in the memory numbers.
+
+## Keeping the video
+
+`src/media/cut.mjs` (`s32`, D6) keeps the lift's video: at Analyse the marked
+range is cut to an MP4 and stored with the lift, so the job reads its source
+from the store (a queued job survives a restart) and A1 plays it.
+
+```js
+import { cutVideo, keepVideo } from './media/cut.mjs';
+const cut = await cutVideo(file, { t0, t1 });     // seconds in the file's timeline
+cut.blob; cut.range; cut.start; cut.duration      // the MP4; {t0, t1} in the cut's timeline; the keyframe's source time; its length
+const kept = await keepVideo(store, 'snatch', file, { t0, t1 });  // cutVideo, then c8's saveLift
+kept.lift;                                        // the StoredLift (contract 3): video 'lifts/<id>/cut.mp4', range = kept.range
+```
+
+- **A stream copy, no re-encode.** mediabunny reads the packets and writes
+  them again, byte for byte, with the same codec configuration and the file's
+  rotation. No decoder or encoder is involved (a test scans `cut.mjs` for
+  them), so it is fast, loses no quality, and an HEVC file the WebView can't
+  decode is still kept.
+- **Which packets:** the ones the frame source would decode for the range
+  (the sample table's `plan`): from the keyframe at or before `t0` to the
+  latest-stored frame starting at or before `t1` (a B-frame is stored after a
+  picture shown later, so the cut may hold a picture or two past `t1`). A
+  picture shown before the keyframe (an open group) is left out.
+- **The cut's timeline** starts at 0 on that keyframe: its times are the
+  source's minus `start`. `range` is the marked range in it, so `range.t0` is
+  how far into the cut the mark sits (up to a keyframe interval, about a
+  second on a phone's camera). A range past either end of the video is held to
+  its span; one with no frame in it, or `t1` before `t0`, is a `MediaError`
+  with code `range`.
+- **The cut's times are rounded (`s63`).** mediabunny's MP4 muxer stores video at a
+  timescale of 57600 when no frame rate is given, so each frame time in the cut is
+  rounded to a whole tick (up to ±8.7 µs). That is exact at 30, 60 and 25 fps, but
+  1001/60000 s (59.94 fps) is 960.96 ticks: `lateral-raise-cable-2`'s last frame (179) lay
+  2.78 µs past `range.t1`, outside the 1 µs slack of `framesInRange()` and the sample
+  table, and the job posed 179 of 180 (an 80-frame 59.94 fps clip: 79 of 80 for the whole
+  clip, 27 of 28 for frames 13..40, which rounds 8.3 µs early at the start). So `cutVideo`
+  reads the cut's packet times back after `finalize()` and widens `range` to the cut's own
+  times of the range's first and last frame (`t0` at most the first's, `t1` at least the
+  last's), no further: a mark between frames or past the end keeps its place. After it, 180
+  of 180, 80 of 80, 28 of 28. `addVideoTrack()` gets no `frameRate`: mediabunny would then
+  round every time to a multiple of 1/frameRate and move a variable rate's own times
+  (contract 5). A lift stored before `s63` keeps its old range.
+- **Errors:** a file that can't be read is a `MediaError`; a full disk is the
+  store's `StoreError` with code `storage-full`, passed through unchanged for
+  d23. The cut is built in memory before it is saved (a minute of 1080p phone
+  video is 75–130 MB; what that costs on the phone is below).
+- **Size:** as big as the range's share of the file plus the extra seconds from
+  the keyframe; see the numbers in the package's report.
+
+### On the phone
+
+Measured by `c34` on the Fairphone 6 like [the frame source's
+numbers](#on-the-phone) (the same device, WebView, APK, clips and driver;
+medians of five runs): `cutVideo` of 0–60 s of a 60 s 1080p30 file, then the
+store's `saveLift` of the cut into OPFS, the cut read back with `readVideo`,
+opened with `openFrameSource` and decoded end to end; the lift deleted after.
+
+| | 75.5 MB file (10 Mbit/s) | 102 MB file (13.5 Mbit/s) |
+| --- | --- | --- |
+| `cutVideo` | 352 ms | 447 ms |
+| `saveLift` (the write into OPFS) | 529 ms | 645 ms |
+| `keepVideo` (both, in one call) | 871 ms | |
+| the cut | 75,507,860 bytes (the source + 856) | 101,937,877 bytes |
+| memory at its peak (VmRSS, app and renderer, over the 490 MB before) | +198 MB | +289 MB |
+| the cut read back, opened, decoded | 9 ms, 93 ms, all 1,800 frames in order at 192 frames/s | 8 ms, 96 ms, 1,800 frames at 170 frames/s |
+
+So a real decoder opens a cut (s32's open question): the WebView's hardware
+decoder reads every frame of it, in order. The cut's peak memory is about 2.6
+to 2.8 times its size (the packets read, the MP4 built in a growing buffer,
+then the `Blob`); a minute of 1080p fits easily in a phone with 8 GB, and a
+marked lift of a few seconds is a few tens of MB.
+
+## Capture and the rolling buffer
+
+`src/media/capture.mjs` (`c27`, milestone B; D2: a 60 s buffer, a 20 s replay, several lifts per
+session) records the camera continuously: its frames are encoded to H.264 as they come, a keyframe
+a second, into a ring in memory that holds the last `bufferS` seconds. R3's replay is a snapshot of
+the ring as an MP4; R3b's delayed view (`d29b`) follows it. Step 3.4's spike showed the way
+([spike/capture-check/](../spike/capture-check/README.md): WebCodecs and mediabunny); the screens are
+`d28`, `d29` and `d29b`.
+
+```js
+import { createCapture } from './media/capture.mjs';
+const cap = createCapture({ camera: 'back', quality: '1080p30', bufferS: 60 });  // the settings' fields
+await cap.open();              // R1: the camera for the preview; cap.stream is its MediaStream; nothing recorded
+await cap.start();             // R1's Start: frames -> H.264 -> the ring; the wake lock
+const off = cap.subscribe(s => …);  // now and at each change; cap.status is the latest:
+                                    //   { state, fps, width, height, rotation, sinceS, heldS, bytes, dropped, wakeLock, error, ringHeld }
+const snap = await cap.snapshot(20);   // R3: { blob, duration, start }, the last 20 s as an MP4 (null when nothing is held)
+for await (const c of cap.follow(t)) …  // R3b: { type, timestamp, duration, data, decoderConfig?, rotation? }, from the keyframe at or before t, then live
+cap.liveUs();                          // R3b: the recording's clock now, µs (the newest frame's time plus the wall time since); null before a frame
+await cap.resume(); await cap.stop(); cap.close();
+```
+
+| File | What |
+| --- | --- |
+| `capture.mjs` | `createCapture(settings, { api, now })`, the one entry; re-exports `CaptureError` and `CAPTURE_ERROR_CODES`; the encoder's choices (`CODECS`, `BITRATE_1080P30`, `KEYFRAME_US`, `MAX_ENCODE_QUEUE`). |
+| `ring.mjs` | `createRing({ bufferS })`: the chunks in whole groups, `snapshot(seconds)`, `follow(t)`. No decoder, no encoder. |
+| `delayed.mjs` | `createDelayedFrames({ source, webcodecs, delayS })` (`d29b`): R3b's frames, `follow` from `delayS` behind `liveUs()`, decoded with `decode.mjs`, handed out when due ([R3b](#r3b-the-delayed-view)). |
+| `mp4-writer.mjs` | The snapshot's writer: packets into an MP4 through mediabunny, as `cut.mjs` writes a cut (which keeps its own copy: its test pins the packet source in its module). |
+| `capture-browser.mjs` | `browserCaptureApi()`: `getUserMedia`, `MediaStreamTrackProcessor`'s reader, `VideoEncoder`, `navigator.wakeLock` and the page's visibility, behind one object the tests replace (`tests/app/fake-webcodecs.js`'s `createFakeCapture`). A part the browser lacks is `null`. Nothing else in `app/src` touches the camera or the encoder (`tests/app/capture.test.js` scans for it). |
+| `capture-error.mjs` | `CaptureError` and its codes. |
+
+- **The states:** `closed` → `open()` → `preview` → `start()` → `recording`; the camera's loss makes
+  `interrupted`, `resume()` goes back; `stop()` returns to `preview` (the camera stays open for R1),
+  `close()` to `closed` from anywhere. `failed` is an error at `open()`, `start()` or while
+  recording; `error` holds it. `sinceS` is the time since `start()` (R2's clock). `ringHeld` says
+  a ring is held (from `start()` to `stop()` or `close()`, also while `interrupted` or `failed`).
+- **One camera at a time** (`c61`): `open()` and `resume()` hand a second call made while the camera
+  is on its way the first one's promise, so a double tap on "Camera stopped" or "Try again" opens
+  one camera and one encoder, not two writing into the ring. A camera that arrives after `close()`
+  is stopped, never adopted. As a safety net, a new camera stops the one it replaces and a new
+  encoder session closes the one before it.
+- **A Start that didn't** (`c61`): `start()` checks the encoder's configs before it records; if the
+  capture was closed (R1's ‹) or its camera lost meanwhile, it throws a `CaptureError` with the
+  code `stopped` and starts nothing (the state stays `closed`, or `interrupted` with no ring, whose
+  `resume()` is the preview again). It never returns as if it had started.
+- **The camera:** `getUserMedia` with the `camera` setting's `facingMode` (`environment` for `back`,
+  `user` for `front`) and the `quality` setting's size and rate (`1080p30`: 1920×1080 at 30 fps),
+  all as `ideal`, no audio. The frames come from a clone of the track through
+  `MediaStreamTrackProcessor`, so the preview's track is never the reader's.
+- **The frame rate** is the frames' own: the median interval of their timestamps over the last 2 s,
+  never the track's settings (headless Brave's fake camera says 30 and gives 20).
+- **The encoder:** H.264 Baseline (`avc1.42002A`, then Main and High if a device lacks it; the
+  spike's, checked on the phone; no B-frames, so the output order is the frames' order, which the
+  ring's groups rely on), at the frames' own size and the quality's rate, `hardwareAcceleration:
+  'no-preference'`, `latencyMode: 'realtime'`, `avc: { format: 'avc' }`, **10 Mbit/s at 1080p30**
+  (scaled by pixels per second for other sizes): what `c34`'s phone-like clips have, so the frame
+  source's and the cut's phone numbers hold for what the capture writes. On the Fairphone the hardware
+  encoder gives more than it is asked at 30 fps (11.7–11.9 Mbit/s, so 60 s is about 90 MB) and less at a lower
+  frame rate, about 5 Mbit/s at 14 fps ([On the phone](#on-the-phone-c30)). **Both kept by `c30`:** the phone took
+  Baseline every run in both shells, so `CODECS` stays as it is; and 10 Mbit/s stays because the phone's numbers
+  for the frame source, the cut and the stepper were measured on clips of about that rate, and the snapshots of
+  what it writes decoded whole at 6 (30 fps) to 15 (14 fps) times real time. Its memory is what the buffer's range has to fit
+  (`settings.mjs`'s `RANGES` stay provisional until nordmu decides).
+  A **keyframe** is asked for at the first frame 1 s or more after the last one (by the frames'
+  times, 1 ms of slack for their rounding), never every N frames, so a camera that slows down
+  still gets one a second. While more than 4 frames wait in the encoder's queue a frame is
+  **dropped** and counted (`dropped`), never queued. A frame's `rotation` (where the browser sets
+  one on a `VideoFrame`) goes into the MP4 track's rotation, as `s32` keeps a file's; a change of
+  size or rotation configures the encoder again.
+- **The ring** holds whole groups of pictures (a keyframe and the chunks after it). After each
+  chunk it drops the oldest group while the next group still starts `bufferS` or more behind the
+  newest chunk, so it holds at least `bufferS` and less than `bufferS` plus one group (about a
+  second). `heldS` (newest minus oldest chunk's time) and `bytes` (the chunks' data) are in the
+  state. A dropped chunk is let go of at once (its slot cleared), so `bytes` is what the ring
+  keeps alive, not half of it. A chunk belongs to a segment: one decoder config (which only the encoder's first output
+  after a configure carries) and one rotation.
+- **`snapshot(seconds)`** writes the chunks from the keyframe at or before the newest chunk's time
+  minus `seconds` (the ring's oldest if it holds less) to the newest, byte for byte, into an MP4:
+  no decoder and no re-encode. The first packet carries the decoder config, times start at 0 on
+  that keyframe, `start` is its time on the recording's clock (0 at the first recorded frame) and
+  `duration` the MP4's length. The frame source (`s9`) opens it and the cut (`s32`) cuts it like
+  any file. It never spans a change of decoder config: after the camera came back at another size
+  it starts at the first keyframe after the change.
+- **`follow(t)`** yields the chunks (times in µs on the recording's clock) from the keyframe at or
+  before `t`, then each new chunk as it is encoded, `decoderConfig` and the segment's `rotation` on the first one and again at
+  a change. It ends at `stop()` or `close()`, or when its caller stops reading (`break`). A
+  follower the ring has overtaken goes on from the oldest keyframe left.
+- **Errors** are `CaptureError`s with a `code`: `insecure` (no `navigator.mediaDevices`: not https
+  or localhost), `no-camera` (`NotFoundError`, `OverconstrainedError`), `camera-denied`
+  (`NotAllowedError`), `camera-busy` (`NotReadableError`), `no-encoder` (no `VideoEncoder` or
+  `MediaStreamTrackProcessor`, or no H.264 config it supports), `encoder-failed`, `stopped` (`c61`). Each keeps the
+  browser's error as `cause` and its message in its own. An encoder that fails while recording
+  (or a camera that fails at `resume()`) leaves the ring as it was: a snapshot still works, and
+  (`c61`) `resume()` runs from `failed` while the ring is held: the camera again, recording on into
+  the same ring from a new keyframe, the wake lock and its visibility handler back. `resume()` from
+  a `failed` with no ring (a failed `open()`) does nothing: there `open()` starts afresh.
+  `stopped` (`c61`) is not a failure: `start()` found the capture closed or its camera lost.
+  Every move to `failed` lets the wake lock go (`wakeLock` is `off`) and asks for none again when
+  the page becomes visible: a capture that records nothing doesn't keep the screen on.
+- **The wake lock** (`navigator.wakeLock`, the screen kept on) is asked at `start()`, asked again
+  when the page becomes visible (the browser drops it when hidden), released at `stop()`.
+  `wakeLock` is `off`, `held` or `refused`; a refusal, or a browser without it, is never an error.
+- **Interruptions:** the camera track's `ended` or `mute` (another app took the camera, the phone
+  locked) puts the capture in `interrupted`: the encoder is flushed (its last chunks reach the
+  ring) and closed, the ring is kept. `resume()` opens the camera again and records on into the
+  same ring from a new keyframe; the recording's clock goes on by the wall time between, so a
+  snapshot across the gap (same size, same config) has a long frame there.
+
+**The laptop check** (`npm --prefix app run check:capture`, `tools/check-capture.mjs`) runs the real
+capture with `bufferS` 5 in headless Brave on its fake camera (`--use-fake-device-for-media-stream`,
+`--use-fake-ui-for-media-stream`, a page on 127.0.0.1), twice: at `fps=30`, and at the fake device's
+own 20 fps. Open, start, 12 s, `snapshot(3)`, `snapshot(5)`, a `follow` read for 2 s, stop, close. It
+checks the rate (within 1 fps of the device's, as documented and as counted by the page), the
+keyframes (1 s apart ± 1 frame), the ring (5 s or more, less than 6 s), each snapshot on the real
+decoder (`openFrameSource`: every frame, in order; its length within a keyframe interval of what was
+asked), a cut of one, the follower, the wake lock (held or refused) and every track ended after
+`close()`, and no console error. It prints JSON and exits 1 on a failed check.
+
+**On the laptop** (headless Brave 156.0.8078.48, `Chrome/156.0.8078.48`, its fake camera at 1920×1080, a
+software encoder; laptop numbers, nothing about the phone): five runs, all passed, medians. The rate
+reported 30.03 fps at `fps=30` and 20 at the default (the page counted 29.81 and 20.1; the track's
+settings say 30 and 20); keyframes 999.0–1000.9 ms apart, once 1032.5 ms (a late frame: 1 s plus one);
+the ring held 5.967 s (30 fps) and 5.950 s (20 fps); no frame dropped; the wake lock held.
+`snapshot(3)` took 14 ms (30 fps) and 15 ms (20 fps) and was 4.0 s long (from the keyframe at or
+before 3 s back), `snapshot(5)` 8 and 4 ms, 5.17 and 5.15 s, 155 and 103 frames, each opened and
+decoded whole by the real decoder (`openFrameSource` 17 and 18 ms, all frames in 159 and 109 ms). The
+encoder's real bitrate on the fake camera's simple picture was 0.97 Mbit/s at 30 fps (0.68 at 20),
+a tenth of the 10 Mbit/s asked: so its snapshots were 0.48 MB (3 s) and 0.63 MB (5 s), and 60 s of
+it would be 7.3 MB. A phone's camera picture fills it: [On the phone](#on-the-phone-c30).
+
+### On the phone (`c30`)
+
+Measured on 2026-11-04 by `c30` on the Fairphone 6 (LineageOS, Android 16, build BP2A.250805.005), in the debug
+APK (WebView 153.0.8010.36, 18,285,641 bytes, built from `c30`'s tree) and in Brave 1.98.63 (Chromium
+156.0.8078.80) in a tab, from the same debug `dist/` served by the laptop (`tools/serve.mjs --port 8791`, `adb
+reverse`). The page is `debug/capture.html` (`debug/capture.mjs`, `window.c30`; debug builds only), driven over
+DevTools by `tools/check-capture-phone.mjs`: the real `createCapture` with the browser's parts wrapped, so the page
+also sees each frame's timestamp, size and rotation, each frame's encode time (`encode()` to its chunk) and every
+chunk. Each run: `open()`, 1.5 s of preview, `start()`, `bufferS` + 10 s of recording, `snapshot(20)` and
+`snapshot(60)` (each opened and decoded end to end by the frame source), a 10 s cut from the middle of the last
+one (`cutVideo`, read back the same way), `stop()`, `close()`. The back camera, `1080p30`, interleaved runs
+(10, 60, 300 s, then again), medians of five unless said. Memory: a loop on the phone every second sums VmRSS
+and `dumpsys gpu --gpumem` of the shell's processes (`spike/pose-bench/phone-sample.sh`'s way: the APK's
+process and the WebView renderer it binds; Brave's every process, its other tab too), after a garbage
+collection (`HeapProfiler.collectGarbage`); the baseline is the median before the camera opened, and each
+figure is the peak over it. The hardware encoder and decoder run in Android's codec processes
+(`media.hwcodec`, `media.swcodec`), which the shell's figure doesn't count: their RSS, sampled apart, stayed at
+36–44 MB with no rise while encoding (their buffers are shared graphics memory, not in anyone's RSS), so
+**the encoder's own memory isn't in these numbers**. In the evening, in the room's lamp light, on USB power
+(the phone at 18–80 %, 24–37 °C). The phone stood in a holder with its top down (the accelerometer's y −8.9
+m/s², auto-rotate off, so the screen at rotation 0): the picture, the preview and R3 were the right way up all
+the same, and held top-up by hand, R3 was upright in both shells too (one screenshot each, deleted). Landscape:
+the screen turned with `user_rotation` 1 (`ROTATION_90`) and the phone on its side.
+
+| What | APK | Brave | How |
+| --- | --- | --- | --- |
+| The camera's rate, portrait, the lamp | **14.2 fps** (frames 70.4 ms apart, 90th 74.7 ms, at most 82–90 ms; jitter, the intervals' SD, 3.7–4.8 ms; no late frame) | 14.2 fps (70.5 ms, 90th 75.3 ms, jitter 4.1 ms) | the frames' timestamps over the whole recording; `status.fps` (the 2 s median) said 14.2–16.4 |
+| the same, the lamp off | 12.4 fps (80.4 ms; one run) | | |
+| the same, a person moving 2–3 m away in front of it | **29.9 fps** (33.5 ms, 90th 38.6 ms, jitter 4.6 ms; 4 runs) | | the rate follows the scene's light: a brighter view gives shorter exposures |
+| landscape, the camera on a lit screen | 29.4 fps (33.6 ms, jitter 7.1 ms; two runs had 254 and 441 late frames, the rate halving for a while) | | |
+| The size asked and given | 1920×1080 asked (as `ideal`); **1080×1920** in portrait, 1920×1080 in landscape | the same | the track's settings, every frame's `displayWidth` × `displayHeight` |
+| The frames' rotation | **0** on every frame, portrait and landscape: the browser turns the picture itself, so the MP4 carries no rotation and the frame source opens it upright (1080×1920 in portrait) | the same | `VideoFrame.rotation`, `status.rotation`, the snapshot's `info.rotation` |
+| The codec | **`avc1.42002A`** (Baseline, the first of `CODECS`) taken every run; the stream's own SPS says Baseline level 4.0 (`avc1.428028`) | the same | the configure, the first chunk's `decoderConfig.codec`, the snapshot's `info.codec` |
+| The real bitrate, asked 10 Mbit/s at 30 fps | **11.7 Mbit/s** with a person moving (30 fps), 11.9 in landscape (30 fps); 4.7–5.5 at 14–17 fps, 5.7 at 12 fps | 4.7–5.0 at 14 fps | the ring's `bytes` × 8 / `heldS`. The encoder spends its budget per frame at the configured 30 fps, so fewer frames give fewer bits, and at 30 fps it gives about 1.18 × what it is asked |
+| Encode time per frame | **24–27 ms** (90th 28–32 ms, at most 86–120 ms) | 24–25 ms (90th 27–29 ms) | `encode()` to the chunk's `output`, in the page |
+| Frames dropped | **0** in every run (60–310 s), `encodes` = frames read | 0 | `status.dropped` |
+| Keyframe spacing | **999–1074 ms** (median 1027–1056 ms: 1 s plus at most one frame) | 999–1074 ms | the key chunks' timestamps, as `check-capture.mjs`'s `keyframeGapsMs` |
+| The ring at `bufferS` 10 | `heldS` 10.35–10.69, **6.6 MB**; the app +62 MB | 10.34–10.63, 6.6 MB; Brave +70 MB | `status.heldS` and `bytes` at the end of the recording; memory as above |
+| at `bufferS` 60 | 60.35–60.67 s, **36.5 MB**; +130 MB. Landscape at 30 fps: 60.50–60.78 s, **90.4 MB**, +232 MB | 60.42–60.53 s, 37.0 MB; +108 MB | |
+| at `bufferS` 300 | 300.67–300.69 s, **208 MB** (16.5 fps); +307 MB (4 runs) | 300.37–300.53 s, 178 MB (14.2 fps); +287 MB | every `heldS` at least `bufferS` and under `bufferS` + one group (c27's bound) |
+| `snapshot(20)` | **19–29 ms**, 12–14 MB at 14–16 fps; 61 ms and 31 MB in landscape at 30 fps; decoded whole (149–336 frames, in order) in 1.4–1.6 s, 3.4 s at 30 fps | 21–28 ms, 12.3 MB; decoded in 1.4 s | `snapshot()` to its blob; `openFrameSource` and every frame |
+| `snapshot(60)` | **66–79 ms**, 37–42 MB; **161 ms, 89 MB** in landscape at 30 fps; decoded whole (865–1806 frames) in 4.0–4.7 s, 9.8 s at 30 fps | 60–70 ms, 36–37 MB; 4.0 s | the same |
+| Memory at the snapshots (peak over the baseline, the decode included) | +241 MB at `bufferS` 60 (+398 in landscape at 30 fps); +458 MB at `bufferS` 300 | +216 MB at 60, +399 MB at 300 | |
+| s32's cut of 10 s of `snapshot(60)` | **46–49 ms**, 6–7 MB, decoded whole (144–173 frames); 154 ms and 17 MB at 30 fps | 44–47 ms, 6.1 MB | `cutVideo` and the read-back |
+| `open()` and `start()` | 580–596 ms to the preview; `start()` 3–7 ms | 545–575 ms; 79–91 ms | |
+| The wake lock | **held** in every run | **held** (in a tab) | `status.wakeLock`; R2's line said "Screen stays on" in both |
+
+**R3 in each shell** (the app's own screens, every tap a touch over DevTools: H's gym card, R1, Start, 30 s on R2
+at `bufferS` 60, Replay; five sessions in portrait, one in landscape in the APK):
+
+| What | APK | Brave |
+| --- | --- | --- |
+| R2's Replay to R3's first frame on screen | **427 ms** (386–456 ms, 10 replays) | **571 ms** (548–756 ms) |
+| The snapshot played through | to its end every time (the `<video>` ended at 20.94–20.99 s of 20.95–20.99 s), then looped | the same (20.06–20.84 s) |
+| ½× | `playbackRate` 0.5: 1.00 s of video in 2.01 s (landscape) | 1.00 s in 2.01 s |
+| A scrub (a 1.5 s drag on the bar, 80 % to 20 %) | the position went to 0:04, paused, the stepper showing the frame | the same |
+| Memory over the baseline: recording / R3 playing / R3 paused (s38's stepper) / after the scrub | +197 / +234 / **+336** / +385 MB | +149 / +242 / **+317** / +321 MB |
+
+R3 paused holds s38's stepper, whose hardware decoder keeps frames open (`c26`: 10–14): pausing added about
+**100 MB** in the APK (75 MB in Brave) to R3 playing, and a scrub up to 150 MB; R3b and the stepper's budget are
+not changed here. Brave's baseline is all its processes (1.0–1.4 GB here, with its other tab), so only the rise
+counts.
+
+**The permission** (the APK): R1's first open brought up Android's dialog and the user's Allow opened the
+preview (1080×1920); with the permission refused for good (`pm revoke`, `user-fixed`: no dialog) R1 showed
+"Camera not allowed" (`camera-denied`, "NotAllowedError: Permission denied"), and after `pm grant` its "Try
+again" opened the preview again without a restart. In Brave, a `getUserMedia` run from DevTools without a
+touch was refused at once with no prompt; from a touch, Brave prompted and the user allowed it, and the grant
+held for the origin (`localhost:8791`) while the tab moved from the debug page to the app, so R1 didn't ask
+again.
+
+**In landscape** R2 scrolls (the screen is a least height), and a touch on Replay or End session while it had
+just scrolled was taken as the scroll's stop: the driver taps again (the second always worked). Whether a
+finger meets the same is `c30b`'s to check by hand.
+
+**What waits for `c30b`:** the capture interrupted by another app, a call or the lock screen, and resumed (and
+`c61`'s paths: a Start cut short, a `failed` capture's "Try again"); the encoder beside the pose engine
+(dropped frames and the rate under the engine's load); the wake lock against the real screen timeout; the app
+in the background.
+
+## R1 and R2, the session
+
+`d28`, milestone B's first two screens: R1 sets up the camera, R2 records. They follow v1's mockups
+(`design/mockups/RecordSetup.dc.html` and `RecordLive.dc.html`) with round 1's rules applied: d55's short wording, symbols
+for words, fixed positions, the ⌄ cue where a screen goes on below. D2 settles that the lift is chosen before recording,
+here, with a 60 s buffer and a 20 s replay.
+
+**The flow.** `home → setup → live`, `setup → home` (‹), `live → replay | home | queued`, `queued → live`; `d29b`: `setup → delayed`,
+`delayed → mark | home | queued`, `mark → delayed`, `queued → delayed`.
+`home → live` is not a step: a session starts on R1. H's gym card goes to `setup`, or, while a session runs, reads "Back to the
+session" with the clock and goes to the session's live state; that is the one `home → live` (or `home → delayed`) the flow allows, and only while
+`createFlow(initial, { sessionRunning })` says a session runs (main.mjs passes `() => session.active`). R2's queue line opens Q1 with
+`{ from: 'live' }`, whose "Back to the session" returns. Q1's own ‹ goes home, where H's card brings the session back.
+
+**`d66`: R1 only with the switch on.** `createFlow(initial, { gymSession })` takes the switch as a function (read at each check; without the option it counts as on, so other tests are unchanged): while it is off `home → setup` is refused (`can('setup')` is false, `go('setup')` throws). `home → live | delayed` still works while `sessionRunning()` (a session started before the switch went off can be reached and ended). `session.mjs` takes `enabled` (the app's session is made off; `session.enabled`, `session.setEnabled(on)`): off, `open()` makes no capture, so **no camera is asked for**, and `start()` throws. `main.mjs` reads the settings once before the first draw, sets the session from `gymSession` and passes `gymSession: () => session.enabled` beside `sessionRunning`, so H's top never changes after it draws.
+
+**The session's live state** (`d29b`). A session runs on R2 (`live`) or on [R3b](#r3b-the-delayed-view) (`delayed`), by the replay mode
+R1 shows when Start is tapped (`session.start(lift, { replayMode })`, `liveStateOf` in flow.mjs); `session.liveState` keeps it until
+End session (null when none runs), so a change of the mode in S1 or R1 meanwhile changes the next session, not this one. Every way back
+to a running session goes to that state, never to `live` by name: M after Analyse and M's ✕ (`closeTarget(from, session)`), M's and Q1's
+"Back to the session" and H's card (`gymCard`), all through `sessionReturn(from, session)` in flow.mjs (`gymCard` reads `liveState` itself).
+`flow.go('live')` is left only where R3 goes back to R2.
+
+**The session** (`src/session.mjs`, a plain module; `tests/app/session.test.js`). main.mjs makes it once, like the queue, and passes it
+to every screen as a prop; it outlives them. It holds the capture (`media/capture.mjs`, [above](#capture-and-the-rolling-buffer)), made by
+`makeCapture(settings)` when R1 first shows: **nothing opens at boot** (no permission prompt before the user asks).
+`open(settings)` makes the capture and opens the camera for the preview (never throws: the capture's status says why; asked again after a
+failure it opens afresh, R1's "Try again"; if R1 was left while the camera opened, the camera that arrives is closed);
+`start(lift, { replayMode })` starts recording and keeps the lift, the start time and the live state (`liveState`, `d29b`; refused: a second `start` while one runs, a lift the registry lacks, no
+open camera; a capture that can't record, such as `no-encoder`, leaves no session). `c61`: the session runs only when its capture
+records (or recorded and holds its ring: a camera lost while the wake lock was asked is R2's "Camera stopped"); a Start cut short by R1's ‹,
+End session or a camera lost during the encoder check rejects with the capture's `stopped`, and nothing runs, so the flow stays on R1 (which
+shows "Camera stopped") or home, and H has no "Back to the session"; `end()` stops and closes the capture and forgets
+everything (R1's ‹ and R2's and R3b's End session call it); `active`, `lift`, `startedAt`, `liveState`, `settings` (the ones the capture was made from),
+`elapsedS()` (the capture's `sinceS`, H's clock), `subscribe(fn)`.
+
+**R1** (`screens/R1.mjs`, logic in `ui/record-model.mjs`'s `setupView`). The camera's live preview (`<video muted playsinline autoplay>` on
+`capture.stream`) fills the window with the framing guide over it. Over it, top to bottom: ‹ (`aria-label="Back"`); one button per registry
+lift (`data-lift`, `aria-pressed`: the chosen one pressed, S1's default ringed as on L1, the first lift while the settings load or name
+a lift the registry lacks; a provisional lift says so); the tip (the lift's registry `framing`, or "Whole body inside the frame" alone for a
+lift without one; the tip box is always as high as three lines, so a longer tip moves nothing under it); the guide, which takes what is
+left, with that line at its bottom; the replay mode (`d29b`, in the place d28 kept for it, `.setup-mode`, one segmented control high, so
+nothing else on R1 moved): "Replay button" or "Delayed view" (`button[data-mode]`, `aria-pressed`; the settings' `replayMode`, saved at
+each tap, `saveMode`); and the bar with the line from the settings (`1080p · 30 fps · last 60 s`) and the record disc (`button[data-record="start"]`,
+`aria-label="Start session"`), enabled only while the capture shows the preview. Start starts the session in the mode shown and goes to
+`live` or `delayed` by it (`startSession` in record-model.mjs).
+
+**R2** (`screens/R2.mjs`, `liveView`). The preview fills the stage; over it REC with the clock (`m:ss`, `h:mm:ss` from an hour on, the
+capture's `sinceS`), the camera's **real** rate (`29 fps`, rounded, `– fps` until the frames give one; never the asked one), the lift and
+the buffer (`Lateral raise · last 60 s`) and, in a row of its own that stays free when the queue is empty, the queue line (`1 analysing · 1
+waiting`; a tap opens Q1). Under it the large Replay button (`button[data-record="replay"]`, the replay's length from the settings,
+`20 s`; it opens [R3](#r3-the-replay)), End session (`button[data-record="end"]`: ends the session, goes home; `goHome` in record-model.mjs sends the flow home only if it is not there, so a second tap throws no `home -> home`) and the wake-lock
+line (`Screen stays on` when held, `Screen may turn off` when refused, nothing before it is asked). The clock and the rate have a width of their
+own and the queue and the wake-lock line sit at an edge, so nothing moves when they change; at 360×640, 360×800, 412×760 and 412×915 the screen
+does not scroll vertically and every control is inside the window (the layout check). The window's height is a least height: a phone in
+landscape scrolls, with the ⌄ cue and nothing cut off. A camera lost while recording (`interrupted`) shows "Camera stopped" with a retry
+arrow (`button[data-record="resume"]`: the capture's `resume()`); the same on R1, where a camera lost during the preview is `interrupted` too.
+Every tap that resumes goes through `resumeCapture(session)` (record-model.mjs, `c61`): its rejection is caught, and the capture's `failed`
+state draws it as the problem panel; a second tap while the camera opens joins the first.
+
+**The errors** are d23's problem panel (`components/problem.mjs`), from `captureProblem(status)` (a `failed` capture) through
+`problem-model.mjs`: the kinds `camera-denied`, `no-camera`, `camera-busy`, `no-encoder`, `insecure` (R1) and `encoder-failed` (R2, an encoder
+that fails while recording), each with what happened and what the user can do, in d55's short style; the capture's own words are "Details".
+Where trying again can help (`actions.retry`) R1 offers "Try again", which asks for the camera afresh; ‹ is always there.
+**A failed camera keeps the lift** (`c61`, nordmu 2026-11-03): on R2 a capture `failed` while the session's ring is held (another app holds
+the camera at a resume, `camera-busy`; the encoder failed while recording, `encoder-failed`) shows "Try again" in the panel (R1's button,
+`button[data-record="retry"]`, `liveView`'s `canRetry`), which resumes into the same ring; Replay stays enabled while the ring holds video
+(`canReplay`: `bytes` above 0). The panel sits in the middle area, which is fixed, so nothing moves. `encoder-failed` now reads "Try again."
+(it said "End the session and start a new one", which the screen no longer asks); `camera-busy`'s "Close that app, then try again" is what
+R1, R2 and R3b offer.
+
+**Where the screens depart from the mockups:** R1 has no ✕ (a ‹ as the other screens), no "Switch camera" button (the camera is S1's setting, and the
+capture is made with it), the lift is a button each (the mockup's one button cycles) and the replay mode has no help line under it (the
+mockup's "After the lift, walk back and tap Replay…": the place kept is one control high); the tip is the registry's sentence without the lift's name in front; the record disc has no "Start session" text beside it (its
+`aria-label` says it) and the line under the preview is one line. R2 has the queue line in a row of its own (at 360 px the REC chip, the rate and
+the queue line don't fit on one), the Replay button says its length ("20 s") instead of "the last 20 s", and there is a "Camera stopped" retry and a
+problem panel the mockup doesn't draw. Both screens use the fake camera's green in the tests; the real camera's picture is in the paragraph below.
+
+**On the phone (`c30`).** R1 and R2 ran on the Fairphone's back camera in the APK and in Brave ([the capture's numbers](#on-the-phone-c30)):
+the APK asks for `CAMERA` ([The Android shell](#the-android-shell)); R1's first open brought up Android's dialog, and with the permission refused
+R1 showed "Camera not allowed", whose "Try again" opened the preview once it was granted. The preview is 1080×1920 in portrait (1920×1080 in
+landscape), R2's rate read 12–17 fps in the evening's lamp light and 30 fps in landscape facing a lit screen, and its wake-lock line said
+"Screen stays on" in both shells. Not measured here, `c30b`'s: an interruption by another app or the lock screen and the way back, the encoder beside
+the pose engine, the wake lock against the real screen timeout and the app in the background. The browser walks use headless Brave's fake camera.
+
+## R3, the replay
+
+`d29`, milestone B's third screen (`screens/R3.mjs`, the mockup's `Replay.dc.html`; D2: the replay is the last 20 s). R2's Replay
+button (`d28`) goes to `replay`; the recording never stops there. All of its logic is `ui/lookback-model.mjs`'s `createReplay({ session, flow,
+replayS })`, a plain module (`tests/app/replay.test.js`, on a stand-in session and a stand-in player; it is called `lookback-model` because the page test's shipping check refuses any file name with "replay" in it); the screen draws what `view()` gives.
+
+- **On entry** it takes the session's `capture.snapshot(replayS)` (`replayS` is the settings' replay length; [the capture](#capture-and-the-rolling-buffer)
+  gives `{ blob, duration, start }`), opens the MP4 with the frame source and plays it **from its start at once** through `createPlayer`
+  (`ui/player.mjs`, [A1's player](#a1-the-player-and-the-overlay)): a `<video>` on an object URL plays, the stepper (s38) shows the frame when
+  paused or dragged. A replay has no track, so no overlay: the scene is empty and the player's flags draw nothing; it **loops** until the
+  user decides or the countdown ends.
+- **The words.** `REPLAY` with its arrow, the time ago (`12 s ago`: the snapshot's `duration` minus the playhead, rounded; `agoText`), "Still
+  recording" with the REC dot. The position is `m:ss / 0:20` (`clockMS`, seconds floored; the total is the replay length, or the snapshot's own
+  length rounded when the ring holds less). The play/pause button, the bar (a drag scrubs through `timeAtPointer`; ←/→ move a second) and ½×
+  (`replaySpeed`: 1× ↔ ½×, `HALF_SPEED` of `player-model.mjs`) are the player's.
+- **The way back to live.** "Not this one: back to live in 0:25" (`button[data-replay="live"]`). The countdown is `COUNTDOWN_S` = 25
+  (the mockup's; **provisional**, nordmu has not settled it). `tick(dt)` runs it only while the replay plays and no drag holds it: a pause or a
+  drag holds it, playing runs it on; at zero it goes to `live`. "Not this one" goes at once. Both **close the player and drop the snapshot**.
+  A drag that interrupted playing lets it go on after the finger lifts.
+- **Keep and mark the lift** (`button[data-replay="keep"]`) goes to `mark` with `{ file, lift, from: 'live' }`: the snapshot as a
+  `File` named `replay-<hh-mm-ss>.mp4` (local time), type `video/mp4`, and the session's lift. M opens in M1 (no `range`).
+- **A snapshot that fails** (a `CaptureError` from the ring or the encoder, an empty ring, a session whose camera is gone) shows d23's problem
+  panel with one button, "Back to live" (`data-replay="live"`). An empty ring is a plain `Error` ("The recording holds no video yet…") in
+  problem-model's `failed` kind, its words under "Details": no new problem kind. The countdown does not run on a problem.
+- **The recording never stops:** nothing in R3 or M calls `stop()`, `close()` or `end()` on the capture or the session (a test reads the
+  sources for it, and the fake capture of the tests records no such call).
+- **Fixed places** (`base.css`, "R3, Replay"; sizes and colours from `tokens.css`'s `--replay-*`): the snapshot fills the window under the
+  chips on top (REPLAY, the time ago, "Still recording") and the controls at the bottom (the bar row: play 44, the bar, the position at a width
+  of its own, ½× 52×44; Keep and mark 64 high; Not this one 56 high). The time ago, the position and the countdown have widths of their own,
+  so nothing moves while they change. The controls are drawn before the snapshot opens (disabled until it does). They are inside the window at
+  360×640, 360×800, 412×760 and 412×915 with no vertical scroll (the layout check).
+- **Where it departs from the mockup:** the position shows the real length when the ring holds less than 20 s; a problem panel and "Opening
+  the replay…" the mockup does not draw; ←/→ on the bar.
+
+## R3b, the delayed view
+
+`d29b`, milestone B (`screens/R3b.mjs`, the mockup's `DelayedView.dc.html`; D2: the delayed view as a setting beside R3's replay). The
+screen shows the camera 5–20 s late, with a small live view in the corner, and there is nothing to touch until "Keep this lift": no
+tapping with chalky hands, like the video-delay mirrors gyms use. A session runs on it in place of R2 when R1's replay mode (or S1's) is
+"Delayed view" ([the session's live state](#r1-and-r2-the-session)). Its logic is `ui/delayed-model.mjs` (plain, `tests/app/delayed.test.js`),
+its frames `media/delayed.mjs`'s.
+
+- **The delayed frames** (`media/delayed.mjs`, `createDelayedFrames({ source, webcodecs, delayS })`; `source` is the capture). It follows
+  the capture (`follow(t)`) from its newest frame's time minus the delay (`liveUs()`: the newest frame's time plus the wall time since it
+  came), from the keyframe at or before that point, and decodes with the decode loop (`decode.mjs`, `optimizeForLatency`). `take()`, at
+  each screen refresh, hands out the newest frame whose capture time plus the delay has come and closes the older due ones, so the delay
+  on screen stays within a frame interval of the setting while the decoder keeps up. Few frames wait: at most 2 decoded frames held for
+  the screen, 2 in the decode loop and 3 chunks in the decoder; the rest of the delay stays as chunks in the ring. **A decoder that falls
+  behind** (its newest frame more than 0.3 s, `MAX_LAG_US`, behind where the view should be, once the run has shown a frame: a slow
+  decoder, a page that was hidden) skips to the next keyframe at or after that point: the chunks in between are not decoded, the frames
+  already decoded are closed (`stats.skips` counts it). A new delay (`setDelay`) starts it again at the new delay, with a new decoder.
+  A new decoder config in the ring (the camera came back at another size) configures a new decoder; each frame carries its segment's
+  rotation and the screen turns it. Every frame the screen doesn't take is closed, as is every frame held at `close()`, and the decoder
+  with them; nothing calls the capture but `follow` and `liveUs`.
+- **The screen.** The delayed frames on a canvas that fills the stage (at its box's size × the pixel ratio, 2 at most; fitted, aspect
+  kept), "Starting: 10 s behind" until the first one is drawn. Over it: REC with the clock (the capture's `sinceS`, as R2's) and the
+  delay (`10 s` / BEHIND LIVE) on the left; the live view in the right corner (the capture's stream in a `<video muted playsinline
+  autoplay>`, 96×171, LIVE); at the bottom the delay's choices (`button[data-delay]`: 5, 10, 15, 20 s, `DELAY_CHOICES`, each inside
+  `RANGES.delayS`, the chosen one pressed; a choice saves `delayS`, `saveDelay`, and starts the view again at it), "Keep this lift"
+  (`button[data-delayed="keep"]`, "then mark start and end"), End session (`button[data-delayed="end"]`: ends the session, goes home) and
+  "Nothing to tap until you keep one". Leaving R3b closes the delayed frames; the recording goes on.
+- **Keep this lift** (`keepLift`) goes to `mark` with `{ file, lift, from: 'delayed' }`: the session's `snapshot(replayS + delayS)`
+  (the replay's length before the frame on screen, and everything since) as a `File` named `delayed-<hh-mm-ss>.mp4`, type `video/mp4`, and
+  the session's lift. M's ✕ and Analyse come back to R3b ([M](#m1m3-marking-a-lift)). A snapshot that fails or an empty ring stays on R3b
+  with d23's problem panel and OK.
+- **Fixed places** (`base.css`, "R3b, Delayed view"; sizes from `tokens.css`'s `--delayed-*`, `--size-delay`, `--size-keep`): the clock and
+  the delay have widths of their own, so nothing moves while they change. At 360×640, 360×800, 412×760 and 412×915 no vertical scroll
+  and every control inside the window (the layout check). A camera lost while recording shows "Camera stopped" with the resume, a failed
+  capture d23's problem panel, as on R2: with "Try again" (`button[data-record="retry"]`, `delayedView`'s `canRetry`) while the ring is
+  held, and "Keep this lift" enabled while the ring holds video (`canKeep`), `c61`.
+- **The page test's delayed walk** measures the delay on screen in headless Brave on its fake camera ([The page test](#the-page-test)).
+- **Where it departs from the mockup:** "Starting: 10 s behind" before the first frame, "Camera stopped", the problem panels; the
+  picture is fitted, not cropped to the window as the mockup's drawing; no queue line (the mockup has none: the analysing lifts show on H
+  and in Q1).
+- **What waits for the phone (`c30`):** the real decoder's latency and whether it keeps up at 1080p30 beside the encoder and the pose
+  engine (how often it skips), the frames' rotation in portrait, the canvas's cost, and the delay on screen as measured.
+
+## The analysis
+
+`src/analysis/` (`s12`) joins the frame source, the pose engine, the
+scoring adapter and the store. Analyse doesn't block: the lift joins a
+queue and the user carries on.
+
+```js
+import { appQueue } from './analysis/index.mjs';
+const queue = appQueue();                          // one per app: it outlives screen changes
+const off = queue.subscribe(jobs => …);            // now and at every change: contract 2's jobs, copies
+const cost = await queue.estimate(t1 - t0, { fps }); // M1–M3: { seconds, perSecond, measured, basis }
+const job = await queue.analyse('snatch', file, { t0, t1 });   // keepVideo first, then the job
+await queue.analyse('snatch', cut, range, { replaces: oldId });   // A3's re-mark: the new lift replaces oldId once done (s50)
+await queue.cancel(job.id);                        // between frames; resolves once stopped
+await queue.retry(id); await queue.dismiss(id);    // a failed or cancelled job again, or off the list
+```
+
+| File | What |
+| --- | --- |
+| `queue.mjs` | `createQueue(deps)`: the store, `createEngine`, `openFrameSource`, `keepVideo`, `Diagnostics`, the clock and the timers are all injected (`tests/app/analysis.test.js` runs it on fakes). |
+| `job.mjs` | `runJob(job, ctx)`: one run of one job through its stages. |
+| `estimate.mjs` | `estimateCost(durationS, rate, {fps})` and `DEFAULT_RATE`. |
+| `index.mjs` | `appQueue()`: the queue with the browser's parts (the store in OPFS, s9's source, s32's cut, s10's engine on WebGL, `window.Diagnostics`), following `visibilitychange`. |
+
+- **Analyse:** `analyse(lift, file, range)` calls `keepVideo` first; the
+  job is made from the stored lift (`createJob`), so its `source` is the
+  cut's path and its `range` is in the cut's timeline. A cut that can't be
+  stored queues nothing and its error (a `MediaError`, the store's
+  `storage-full`) comes through. `enqueue(storedLift)` queues a lift
+  already stored; a lift has one job at most.
+- **A job:** reads the cut back with `store.readVideo`, opens it
+  (`openFrameSource`), poses every frame `frames(t0, t1)` gives (the cut's
+  extra pictures past `t1` aren't), builds the track with
+  `trackFromFrames` and `appTrackMeta` (frame indices are the cut's, times
+  the decoder's timestamps, size and rate the source's), scores it with
+  `scoreLift` (σ from the settings' `view.smoothingSigmaMs`, kept in the
+  result as `smoothing`) and saves the track, the result and the engine
+  (`model`, `backend`, `runtime`) with `updateLift`. The frame count and the
+  frames' indices come from the source's `frameTimes`; a source that breaks
+  contract 5 (no `frameTimes`) fails the job in the contract's words.
+- **Stages and progress** (Q1): `reading` is one unit (the cut read and
+  opened), `pose` one unit a frame of the range, `scoring` one unit
+  (scored and saved). The time left (`etaS`) is the frames left times the
+  median wall time per frame so far in this job (decode, transfer and
+  model); before the job's first frame, the last job's median; on a first
+  run, null. Null too at `reading` 0/1 (`s59`): the cut isn't open, so the
+  range's frames aren't counted, and the last job's rate (seconds per second
+  of video) isn't scaled for this clip's frame rate. On the Fairphone (`c26`)
+  that first estimate was 19 s for a job of 9.8 s and 7 s for one of 15.6 s;
+  from `reading` 1/1 on it was within 0.6 s.
+- **One at a time, in order, on one engine,** created on first use
+  (`warmUp()` creates it early). `reset()` (contract 1's `reset`, `s35`)
+  runs once per clip: before a job when the engine has posed another clip,
+  and after a cancel. It clears MoveNet's crop and keeps the worker: 0–1 ms
+  on the laptop, where the old reset, a new worker, took 4.75 s (`s10`
+  measured 4.4 s; numbers in [The pose engine](#the-pose-engine)).
+- **Cancel** stops between frames: the frame in flight finishes, no next
+  one is sent, the stream and the source are closed, the engine is reset;
+  the lift stays stored, unanalysed. A job the queue has taken but not yet
+  started (its settings still being read) is the running one, so a cancel
+  then stops it before its first frame; a cancelled job stays cancelled.
+- **Failures** say why, in the words of whatever failed (`error`). An
+  engine that fails (a refused frame, the worker gone) is closed and
+  replaced and the job restarts once; failing again fails it.
+- **Cut off, never hanging:** the queue is kept in the store at every
+  change of state (`queue.json`); `load()` (which `appQueue()` calls)
+  queues again a job found running, which then runs from the start on its
+  stored cut. A frozen WebView runs nothing, so a job resumes where it was;
+  hidden time (`setVisible(false)`) never counts as a stall. A watchdog
+  ends a run with no progress for 20 s while visible: the engine is
+  replaced and the job restarts once, then fails with "The analysis
+  stopped responding". A decoder that stalls (`decode-stalled`) is treated
+  the same. The values (`s59`, nordmu 2026-11-04, from `c26`'s 40 jobs on the
+  Fairphone; none hung or restarted): **`stallMs` 20 s**, 4.6× c20's cold
+  engine create (4.35 s, the largest known wait), so a real hang is found
+  10 s sooner than with 30 s; the longest wait between two progress events
+  was 1,044 ms (the warm-up of a job started right after an app start;
+  768–1,044 ms in the APK), otherwise the first frame at 197–382 ms. **`tickMs`
+  1 s**, 5 % of the stall time; progress comes every 70–87 ms (p90), about 12
+  events a tick. **`maxRestarts` 1**: a restart costs an engine create plus the
+  job again, up to 39 s in `c26`'s runs. The frame source's own decoder stall
+  (15 s) fires before the queue's 20 s.
+- **The estimate before Analyse** (M1–M3): seconds per second of video
+  from the last measured rate (the last job's median ms per frame at its
+  frame rate, kept in `queue.json`), scaled by the marked video's frame
+  rate when given. On a first run it is `DEFAULT_RATE`, ui-design.md's
+  2.9 s per second of 30 fps video on the Fairphone, with `measured: false`
+  and `basis` saying so.
+- `busy()` and `idle()` say whether a job runs or waits: the service
+  worker's update (`c19`) waits for `idle()`.
+- **A re-mark replaces the old lift** (`s50`, nordmu, 2026-11-02). A3's
+  "Re-mark this lift" hands M the lift's id as `replaces`; M's Analyse hands it
+  to `analyse(lift, file, range, {replaces})`, and the job carries it (contract
+  2's `replaces`, the old lift's id; `null` for any other job; never the job's
+  own lift). The new lift is stored beside the old one at Analyse, as for any
+  file, and the old one goes only when the new one's analysis succeeds. The
+  order, so that a crash between any two steps leaves at worst both lifts,
+  never neither:
+  1. the new lift's track, result and record, then the index (`updateLift`,
+     called by the job's last step with `{replaces}`);
+  2. in the same store step, once the new record is whole, the old lift through
+     the store's own delete: its `lift.json`, its folder (the cut, the track,
+     the result), its index entry. One store step, so nothing the store answers
+     in between (H's listing at the queue's next change) sees both as done;
+  3. the job marked done, the old lift's ended jobs taken off the list,
+     `queue.json` written.
+
+  Cut off before step 1 ends, the job is queued again at `load()` and the old
+  lift is as it was; cut off between 1 and 3, the job runs again and finds the
+  old lift gone, which is nothing to do. A delete that stops halfway in step 2
+  leaves the new lift complete and the old one for its own delete to finish
+  (`deleteLift` finishes a stopped delete). A re-mark that fails, is cancelled or
+  is still waiting never reaches step 1: the old lift stays as it was, and a
+  retry of the same job still replaces it. A `queue.json` from before `s50`
+  reads back with `replaces: null` for each job. Q1 and H say nothing new.
+
+## M1–M3, marking a lift
+
+`screens/M.mjs` is one screen in the mockups' three states (start, end, ready:
+`Mark.dc.html`, `MarkEnd`, `MarkReady`); `mark-model.mjs` holds everything it
+decides as plain functions (`tests/app/mark.test.js`). The file and the lift
+arrive in the flow's params from L1 (`flow.go('mark', {file, lift})`, `lift-model.mjs`'s `chooseLift`); from A3's
+"Re-mark this lift" they come with `range` too, the old marks (`marksFromRange`), and M opens in M3 ([A3](#a3-view-options)); the
+queue is injected (`main.mjs`'s `appQueue()`, once, with `warmUp()` after the
+first screen draws), the frame source by `openSource` (default `openFrameSource`).
+
+- **The playhead** is a frame index into the source's `frameTimes` (contract 5),
+  never a time made up from the frame rate. The filmstrip moves under it at 48 px
+  a second (`PX_PER_SECOND`); a drag by `dx` px is `time - dx / 48` seconds, landing on
+  the frame at or before it (`dragTarget`). The marks are frame indexes too.
+- **The frame under the playhead** is s38's stepper (`src.stepper(0, fitSize(…))`:
+  the video fitted into the stage at the pixel ratio, 3 at most, the size the
+  stepper's budget is sized for). `createPlayhead` keeps the input path free: a
+  drag only calls `request(t)`; the stepper's `seek` runs one at a time and the
+  times that pile up while it decodes become one, the latest. A ±1 step is the
+  stepper's `step(±1)` (never `frameAt`, which decodes again from the keyframe),
+  queued behind a seek in flight. The frame is drawn on a canvas; the stepper's
+  bitmap is never closed by M. M closes playhead, stepper and source when it closes.
+- **The filmstrip's thumbnails** are one a second (`thumbSeconds`, `thumbTime`:
+  the second's middle), made in batches of six nearest the playhead by
+  `src.thumbnails` for the strip's window plus three seconds each way, and closed
+  beyond twelve (`dropFarThumbs`), so a long video holds a few dozen bitmaps.
+- **The steps are the buttons** (`d54`, checkpoint A's round 1, `design/checkpoint-a/round-1.html`, approved by nordmu
+  on 2026-11-02): 1 Start, 2 End and 3 Analyse in the bottom row, ↶ left of them. `pressStep(marks, 'start'|'end', index,
+  frameTimes)` sets that mark at the playhead's frame, or moves it there once it is set (a green step pressed again);
+  2 does nothing until the start is set. Refused, with no mark changed (`error` says why, the text line says it in
+  the work-on colour): an end fewer than `MIN_MARK_FRAMES` (3) frames after the start, a start moved to later than the
+  end minus 3 frames (both `end-before-start`, "The end has to come after the start"), a start with fewer than 3 frames
+  after it in the video (`start-too-late`, "No room for an end after this"). Moving the playhead clears the error
+  (`clearError`). `markView` gives each step its `state` (`next`, white, the one to press now; `wait`, disabled;
+  `done`, green with ✓ and the mark's clock as its label; `go`, 3 once both are set), `pressable`, and `name`, its
+  accessible name ("Set the start at the playhead", "Start at 0:03.2. Press to move it to the playhead."). The hooks:
+  `button[data-mark="start"|"end"|"analyse"|"undo"]`; `data-step` on the screen is `loading`, `start`, `end`, `ready`
+  or `problem`.
+- **Undo (↶, `UndoIcon`):** every press that changes a mark keeps the marks before it in `marks.history`; `undo(marks)`
+  brings back the last kept state, from the first mark on, so two presses after 1 and 2 clear both. A press on the
+  frame the mark is already on and a refusal keep nothing; a re-mark from A3 (`marksFromRange`) opens with nothing to
+  undo. ↶ is in the text colour, greyed out (`--disabled-opacity`) while there is nothing to undo, never hidden.
+- **The one text line,** between ‹ and › (two lines high, it never grows): M1 "Drag to just before the lift"; M2 "Drag
+  to just after it · 2.4 s" (the length to the playhead); M3 "13.0 s · analysed in about 38 s", or "13.0 s · about 38 s,
+  a first guess" before the phone has measured its own rate, or "13.0 s" before the estimate arrives; the refusals;
+  "Saving the clip…" while Analyse stores the cut (3 says "Saving…"); "Set 1 and 2 first" from `analyse()` without both
+  marks. `MARK_TEXT` holds the screen's other words: "Opening…" over the video while it opens, "No video to mark.".
+- **Nothing moves:** top to bottom, the header (60 px), the stage, the strip (100 px), the text row (`--mark-read`,
+  56 px: ‹ and › 52×48), the steps row (↶ 52×68, the three steps sharing the rest, 68 high: a numbered disc over a
+  short label; bottom padding plus the safe-area inset). Every height but the stage's is fixed, and every row is drawn
+  before the video opens, so only the stage takes what is left (at least 140 px, `--mark-stage-min`): M fits a portrait
+  phone from 640 px high with no page scroll. The video's canvas is sized by CSS to fit the stage (`object-fit:
+  contain`), never by its pixel size. `.mark` is `flex: none; height: var(--screen-h)`: before `d54`, `.screen`'s `flex: 1` (a
+  flex-basis of 0%) overrode `.mark`'s height, so in `#app` (only a `min-height`) M took its content's height, with the
+  stage at its full 440 px; at 412×760 in headless Brave that is a page 815 px high in M1 and M2 and 909 in M3, where the
+  hints under the strip grew by 94 px. That was nordmu's scroll at checkpoint A; the canvas was not the cause (drawn
+  248×440 inside the stage). **The shift check** in the page test ([below](#the-page-test)) and the layout check's M
+  sizes ([A4 and the responsive check](#a4-and-the-responsive-check)) keep it so.
+- **The cost:** `analyseCost` is the queue's `estimate(t1 - t0, {fps})`: the last
+  measured rate, or the first-run default, which the text line says it is ("a first guess").
+- **Analyse:** `analyse({flow, queue, lift, file, marks, frameTimes, replaces})` calls
+  `queue.analyse(lift, file, {t0, t1})` (the marked frames' own times; the cut is
+  kept first, s32; a re-mark adds `{replaces}`, the old lift's id from the flow's params, `s50`) and then `flow.go('queued', {liftId})` with the new lift's id,
+  which Q1 shows when two are queued. A cut that can't be stored shows `d23`'s problem screen, with "Back to the
+  marks"; a second tap while one is working does nothing. M's interface is `flow.go('mark', {file, lift, range?, from?})`.
+- **In a session** (`d29`, `d29b`): R3's "Keep and mark the lift" opens M with `from: 'live'` and the replay as the file ([R3](#r3-the-replay)),
+  R3b's "Keep this lift" with `from: 'delayed'` ([R3b](#r3b-the-delayed-view)).
+  Only where M leads changes; its layout, buttons and hooks are `d54`'s, and the page test's shift check stays. Analyse queues the lift as
+  it does now, then goes back to the session's live state (R2 or R3b), not `queued`, so recording goes on while the lift waits in the queue (R2's queue line shows it,
+  and opens Q1 with "Back to the session"). ✕ goes back to the session too (`closeTarget(from, session)`, flow.mjs's `sessionReturn`; home without `from`). `d23`'s problem screen offers
+  "Back to the session" (`data-way="session"`, `waysOn(problem, atAnalyse, from)`) in place of "Pick another video". Outside a session
+  nothing differs; the capture and the session are not touched.
+- **The lift** is chosen once, on L1 (nordmu, checkpoint A, 2026-11-02, point 5), and M only shows it
+  (`d53`): the header is the close button, then the lift's `LiftIcon`, its name and, for a provisional
+  lift, the `provisional` tag; quiet, not a button. M takes the lift from the flow's params and from
+  nowhere else: a flow with no file or no lift (nothing in 0.1.0 leads there) shows the "no video"
+  state. M has no lift switch and no default lift of its own.
+
+## A1, the player and the overlay
+
+`d16`. This is the video, the overlay and the controls; the cards under the
+player are [below](#a1-the-timeline-and-the-cue-cards) (`screens/A1.mjs`, the mockup's `Result.dc.html`).
+`A1({flow, store, openSource, diagnostics})` takes the lift's id from the flow's
+params (`liftId`, as H and Q1 hand it) and reads from the store the record
+(`getLift`), the result (`readResult`), the track (`readTrack`), the cut
+(`readVideo`) and the view options (`getSettings().view`: `skeleton`, `cues`,
+`loop`, `speed`; the Skeleton button and the speed button save theirs).
+
+**What plays and steps, and why** (`ui/player.mjs`, a plain module on injected
+elements, `tests/app/player.test.js` on fakes):
+
+- **Play** runs a `<video>` on the stored cut (an object URL of the blob), the
+  overlay painted from `requestVideoFrameCallback`: its `mediaTime` names the
+  frame the compositor shows, so the skeleton is on exactly that frame. Without
+  the callback an `requestAnimationFrame` reading `currentTime` is the fallback
+  (it can be a frame off). The video's frames are the ones the stepper's
+  `frameTimes` list; the frame source itself is not used to play, since a
+  `<video>` plays and decoding every frame ourselves would cost more than it gives.
+- **Pause and the one-frame steps** go through s38's stepper, opened on the cut
+  at the size the stage needs: a step to a held frame is a lookup, forwards and
+  back (a `<video>` cannot step back). The stepped frame is an `ImageBitmap` on
+  a canvas that covers the `<video>` until the video shows its first moving frame
+  and again whenever it is not playing. Pause shows the frame the video presented
+  last, from the stepper; a step while playing pauses first.
+- **The marked range** (the stored record's `range`, in the cut's timeline) is the
+  timeline: the clock and the bar count from its start, playing wraps at its end
+  (`view.loop`) or stops on its last frame, steps are held at its first and last
+  frame (the frames the job posed). The cut starts at the keyframe before the mark;
+  those frames before `range.t0` are never shown (no pose for them).
+- **A drag on the timeline** seeks through the stepper, the newest request wins.
+
+**The overlay** (`src/draw/`, a plain canvas module, no Preact; each part pinned to
+the old page's code in `tests/app/draw.test.js` through `tests/loadOldCode.js`):
+
+| File | What | The old page's |
+| --- | --- | --- |
+| `interpolate.mjs` | `poseAtTime(track, t)`: the pose at a time, cubic and monotone between the two bracketing samples, an unsure joint snapped at the halfway point, never faded; `cubicAt`, the interpolator `drawCue` takes | `poseAtTime`, `cubicAt`, `monoTangent`, `slotForTime` |
+| `skeleton.mjs` | `skeletonShapes`: the bones whose two ends are both sure and the sure joints (confidence 0.3 or more; `CONF_THRESHOLD`); `drawSkeleton`; `overlayStyle(read, scale)` reads the look from the tokens | `drawOverlay`'s bone and joint loops |
+| `cues.mjs` | `drawCues`: each scored cue through `Diagnostics.drawCue(ctx, id, t, computed, {smooth: true, cubic: cubicAt, labelRow})`, so the marks sit on the skeleton; labels stack | `Diagnostics.overlay` |
+| `marks.mjs` | `timelineMarks(view, range)`: the lift window's span and ends (a window with `t1: null` marks its start only, none marks none) and the worst moments of the cues that went wrong | `liftMarkHtml`, `renderLiftMarks` |
+| `overlay.mjs` | `paintOverlay`: clear, skeleton, cues, for one instant | `drawOverlay` |
+
+- **Missing and unsure joints:** a joint below the gate, or `null`, is not drawn,
+  and no bone that ends in it. The old page's joint loop throws on a `null` joint;
+  the port skips it (the test says so).
+- **`computed`** is `scoreLift(track, lift, {sigmaMs, keepVelocity})`'s, with the
+  *view's own* `smoothing` (`result.json` holds the view, not `computeResults()`'s
+  samples), and the skeleton is drawn from the same smoothed keypoints, so the marks
+  sit on the joints they measure. The skeleton is drawn from `scoreLift()`'s
+  `keypoints`; neither A1 nor A2 smooths the track.
+- **Colours, sizes and spacing** come from `styles/tokens.css`, the canvas code too:
+  `overlayStyle` reads `--accent-bone`, `--text`, `--ground`, `--bone-width`,
+  `--joint-size` and `--joint-ring` with `getComputedStyle`, and scales them to the
+  frame's pixels (the overlay canvas is the track's frame size, shown scaled).
+  `tests/app/draw.test.js` scans `app/src/ui/` and `app/src/draw/` for colour literals.
+- **Not drawn yet:** A3's "unsure joints" option (`view.unsure`), the lifter picker,
+  the "Rep 1" chip (the view holds no rep count).
+
+## A1, the timeline and the cue cards
+
+`d17`. `ui/result-model.mjs` (plain functions, `tests/app/result.test.js` on views
+the scoring adapter builds from committed fixture tracks) lays the view model
+(contract 4) out; `screens/A1.mjs` draws what it gives.
+
+- **The cards** are `cardsOf(view)`: one per `view.cues`, in diagnostics.js's
+  order, whatever the cue is called. A cue added to a set there appears with no
+  change here (the test adds one to a view; the screen and the model name no cue).
+  A card is the status icon, the title (before the " — "), the status word and
+  the verdict (for a cue that can't be scored, the engine's reason, two lines
+  at most) and the value (`valueText`: signed for a worst sample, "1.07×" for
+  a ratio, "—" for none). Opened, it shows the cue, the cue's notes (the camera
+  note) in a box, "Provisional", and "Details", which goes to A2 with
+  the lift's id and the cue's. The card that starts open is the first to work on,
+  else the first to watch.
+- **Status is an icon and a word, never colour alone:** `StatusIcon` (four icons,
+  `components/icons.mjs`) and base.css's `.status--…`, whose word is the token's
+  (`--status-…-word`); the model's `word` is the same text, for the card's
+  `aria-label` and the tests (which compare it to tokens.css).
+- **The timeline** is d16's one bar, extended: `timelineOf(view, range)` gives the lift window
+  (both ends, or the start alone with the view's `liftWindowReason`; none for a lift without
+  one: `hasLiftWindow` false shows no window and no reason) and each cue's phase and worst
+  moment, in seconds, in seconds into the range and as shares of the bar. The bar draws the
+  window, the worst moments of cues to watch or work on, and the phase of the open card's
+  cue. A tap on a worst-moment mark seeks to that moment (`seekTime`, 22 px); a drag follows
+  the finger, the arrow keys step.
+- **A1 fits its window** (`d58`). `.result` is `flex: none; height: var(--screen-h)`, as M's `.mark` (`d54`): `.screen`'s `flex: 1` is a flex
+  basis of 0% that overrode the height, and on phase-0 A1 took its content's height (1,185 px at 360×640, 1,148 px at 412×915), so the
+  *page* scrolled and the cue list did not. Now the header, the video (`flex: 0 1 var(--result-stage)`, shrinking to
+  `--result-stage-min`), the player's bar and the timeline keep their places and the list takes what is left and scrolls inside (the
+  page does not, and `d55`'s page cue does not show). A phone in landscape (a window under 520 px high: the media query cannot read a
+  token) keeps A1 as it was, as high as its content, because the list would get 28 px at 800×360. From 980 px, A4's `height: auto;
+  min-height: var(--screen-h)` is as it was.
+- **The list's fade** (`d58`, `ui/components/list-fade.mjs`): the page cue follows the page and A1's list scrolls inside, so the list has
+  a fade of its own at its bottom edge, the page cue's rule on the list's scroller: `moreBelow(list)` (`more-below-model.mjs`, the
+  same function), shown while the list has more than 8 px to go below, hidden at its end and when nothing scrolls. `ListFade` is the
+  last child of the `<aside class="cues">` and reads its parent: scroll, a `ResizeObserver`, a `MutationObserver` (a card opens, the
+  cues are scored again). The fade is `.list-fade`, a zero-high sticky box (the list's gap taken back) with a `--more-fade` high
+  `::before` from transparent to `--ground`, so showing it never changes the list's size (no flicker at the edge of the 8 px);
+  `pointer-events: none`, `transition: none` under `prefers-reduced-motion`; no new colour. **No ⌄ button** on it: the page cue's
+  button is for a thing the finger is not on, and here the finger is on the list; a button would sit over a card's text and a
+  second button would need its own name. In the wide layout the list does not scroll and the fade stays hidden. Tests:
+  `tests/app/list-fade.test.js`; the check: `layout-check.mjs` at 360×640.
+- **A2** is built (`d18`, [below](#a2-a-cues-detail)); the flow's `detail` state is d17's.
+- **The open card's rule line** (`d18`, `s45`; nordmu, 2026-11-02) is `rule-model.mjs`'s `ruleSentence(unit,
+  zones(id), rule(id))` and "Provisional" while the thresholds are: "Good from +5% of torso length, watch between
+  +5% and −5%, work on below −5% · Provisional". Where each word comes from: the numbers and the bands are
+  `rule(id).bands` (the cue's constants in diagnostics.js), the unit's noun after the good band's first number is
+  `rule(id).noun`, the other numbers carry the cue's unit (`unit`, `x` as "×"); "Good", "watch", "work on",
+  "from", "up to", "within", "between", "below", "beyond" and "Provisional" are the model's (the status words of
+  contract 4). A watch band reads "between A and B", A the edge it shares with the good band; a pair mirrored
+  about zero (the top height) once, unsigned. `cardsOf(view, zonesOf, ruleOf)` takes `id => Diagnostics.zones(id)`
+  and `id => ruleOf(Diagnostics, id)`; a cue whose `zones` is `null` has its rule from `rule(id)`'s bands. Without
+  `rule(id)` (an API before `s45`, or a null answer) the line is the shorter sentence from the zones, "Good from
+  +5%, work on below −5% · Provisional", and "Provisional" alone for a cue with no zones. A cue that can't be
+  scored has no verdict to explain: "Provisional" alone.
+
+## A3, view options
+
+**Words (`d55`):** the switches are "Skeleton" (no line under it), "Cue drawings" / "The lines each cue measures", "Unsure joints" / "Under 30 % sure", "Loop the lift only" / "Skips walking in and out"; the group is "Speed"; "Changes the scores. Thresholds assume 50 ms."; "Delete this lift and its video? This can’t be undone."; the errors "Couldn’t save this: …", "Couldn’t change the smoothing: …", "Couldn’t open this lift: …", "Couldn’t delete this lift: …".
+
+`components/view-options.mjs` is the sheet that opens over A1 from its "View options" button
+(`design/mockups/ViewOptions.dc.html`, package `d22`); `view-options-model.mjs` holds everything it decides, as plain
+functions and one controller, `createViewOptions({store, rec, track, view, Diagnostics, flags, player, flow})`
+(`tests/app/view-options.test.js`). A1 makes the controller when the player exists and gives it its `flags` object, which
+the controller changes in place and the player reads when it paints and plays. The skeleton chip and the speed button on A1
+are two of the controller's controls, the same state.
+
+- **Controls** (the mockup's, in its words): four switches under "On the video" (Skeleton, Cue drawings, Unsure joints,
+  Loop the lift only), the playback speed (¼×, ½×, 1×), "Advanced": Smoothing, a slider from 0 to 300 ms in steps of 5, and
+  "Changes the scores. The thresholds assume the default, 50 ms."; then "Re-mark this lift" and "Delete this lift". Not
+  drawn: the mockup's **Lifter** section. MoveNet SinglePose tracks one person, so there is nothing to choose
+  (`docs/app-plan.md`, "The pieces"); a model that tracks several brings it back.
+- **Kept:** every switch, the speed and the smoothing go to `saveSettings({view})` at once (`skeleton`, `cues`, `unsure`,
+  `loop`, `speed`, `smoothingSigmaMs`). The queue reads `smoothingSigmaMs` for the next analysis, so a change here is also
+  the σ of the next lift. A2's "Play the rep at ½×" sets the player's speed only; the stored speed stays the user's.
+- **Unsure joints** (off by default) draws the joints below the confidence gate (`CONF_THRESHOLD`, 0.3) as hollow rings in
+  `--text-quiet` (`unsureJoints`, `unsureStyle` in `draw/skeleton.mjs`; `overlayStyle` is unchanged). No bone leads to
+  them, and a joint that is missing (null) is not unsure, it is missing.
+- **Loop the lift only:** playing stays inside the lift window (`loopSpan(view, range)`): the window the analysis found,
+  held inside the marked range; for a window with a start and no end (`{t0, t1: null}`, s35) from its start to the range's
+  end; with no span at all, the whole range: a lift without a window (a lateral raise, `hasLiftWindow: false`, s36) or one
+  the analysis found none in. It wraps at the span's end, and playing from outside the span (a seek on the timeline, the
+  walk-in) starts at its start. With the switch off, playing runs the whole range once and stops on its last frame. Seeks
+  and one-frame steps may leave the window either way.
+- **Smoothing** scores the stored raw track again through `scoreLift` with the new σ and the velocity option the stored
+  verdicts used, saves the new `ResultView` with `updateLift(id, {result})` (its `smoothing` says which σ its verdicts
+  used; the notes say nothing about it), then hands the player the new scene (`setScene`: the skeleton and the cues' numbers)
+  and A1 the new view (cards, timeline, notes). The slider shows the σ of the stored verdicts, not the setting's. If
+  `updateLift` fails, nothing changes: the slider goes back, the sheet says why, the setting is not touched. A newer change
+  wins over one that has not begun. The scoring runs on the main thread and takes a few milliseconds.
+- **Re-mark** reads the stored cut and goes `result → mark` with `{file, lift, range}`. M turns `range` back into marks
+  (`marksFromRange`: the frames at its two times) and opens in M3 with the playhead on the start; Analyse then queues a new
+  lift from the cut, as for any file, with this lift's id as `replaces`: the new lift replaces this one once its
+  analysis is done, and a re-mark that fails or is cancelled leaves it as it was (`s50`, [The analysis](#the-analysis)).
+  The label stays "Re-mark this lift" (the wording pass after checkpoint A owns it).
+- **Delete** asks first ("Delete this lift and its video? This can’t be undone.",
+  Delete / Keep it); only the confirm calls `store.deleteLift(id)` and goes home. A delete that fails keeps the lift and says why.
+
+## A2, a cue's detail
+
+**Words (`d55`):** "No lift to show.", "No result yet.", "No such cue.", "Couldn’t show this cue." (A1 has "Couldn’t show this lift." and the card's button "Details"); the plot's line says "band: both sides". Cue texts, verdicts and reasons are `diagnostics.js`'s and unchanged.
+
+**It fits its window (`d58`):** `.detail` is `flex: none; height: var(--screen-h)` (as A1 and M: `.screen`'s `flex: 1` had made the page scroll, 2,000 px at
+360×800), so the header stays and `.detail-body` (the frame, the plot, the tiles, the text) scrolls inside. The page cue does not show.
+
+`d18`. `screens/A2.mjs` (design/mockups/CueDetail.dc.html) is `detail` in the flow, opened by A1's "Details"
+with `liftId` and `cue`; Back returns to `result`. It loads the stored result, track and cut, scores the
+track again with the view's own `smoothing` (`scoreLift`, so `computed` is what the verdicts were scored on),
+and draws what `detail-model.mjs`'s `detailOf` gives:
+
+- **The frame** at the worst moment (`src.frameAt`), with `paintCue` (`draw/overlay.mjs`): the skeleton and that
+  cue's `drawCue` only, `smooth: true` on d16's interpolator, at the frame's own time. A tap on the plot shows the
+  frame at that time; the chip says "Worst moment" at the worst moment and "At" elsewhere.
+- **The plot** (`draw/plot.mjs`, the app's own, plain canvas): `plotGeometry` (scales, the zones clipped to the
+  plot, the thresholds, the phase band, the reference line, the two sides' band, the trace, the worst moment),
+  `plotStyle` (every colour, size and font read from the tokens: `--zone-*`, `--plot-*`, `--status-*`), `drawPlot`,
+  `timeAtTap`. The zones are `Diagnostics.zones(id)` (s39): none for a cue whose answer is `null` (the back angles'
+  SD, the symmetry's decline, the triple extension's deficits: the plot doesn't show what the verdict reads). The
+  time axis counts from the marked range's start, as A1's clock does. The value axis spans at least 10 (1 for a
+  ratio) and holds the zones' own edges.
+- **The tiles** are the view's (s4's `tiles`); a tile's `status` colours its value only when it is a verdict level
+  (the snatch's drift tile carries a CSS colour from the engine, which the app does not draw).
+- **"How it's scored"** starts with the rule paragraph (`ruleParagraph`, `s45`): `rule(id).basis`, the sentence
+  on what the verdict reads, then A1's sentence with the noun and the watch band, closed with a full stop ("The
+  lowest margin of the elbow over the wrist in the set decides. Good from +5% of torso length, watch between +5%
+  and −5%, work on below −5%."); every word of the first sentence and the noun are diagnostics.js's, the rest
+  as on A1. Without `rule(id)` it is the shorter sentence (none for a cue with no zones). Then
+  `Diagnostics.scoringLines(id, computed, { smoothingMs: view.smoothing.sigmaMs })`, so "Time smoothing" says
+  the σ the verdicts were scored with.
+- A cue that can't be scored shows its reason and the cue's words, no frame, plot or tiles.
+- **"Play the rep at ½×"** (`d46`; nordmu, 2026-11-02: no second player in A2) is a button under the header, drawn
+  for a cue with a phase (`detailOf(...).playHalf`; none for a cue that can't be scored). It goes to `result` with
+  `{ liftId, cue, from, speed: 0.5 }`: the cue, the start of its phase and `HALF_SPEED`. A1 reads those params once,
+  in its load (`playRequest(flow.params, view, range)` in `player-model.mjs`: null for params that name no cue of the
+  result, no start time or a speed the button doesn't have, so A1 then opens as before): that cue's card is open,
+  the player starts at the phase's start (held inside the range) and plays (`player.playFrom(t)`) at ½×. The ½× is
+  the player's speed only: `settings.view.speed` is written by the speed button alone, so it stays the user's.
+  Back from A1 goes home as always.
+
+**S1b, "How the cues are scored"** (`screens/S1b.mjs`; the flow's `scoring` state, `settings → scoring → settings`):
+`scoringText` lists the cues of the newest analysed lift (else the default lift) with the cue, the rule paragraph
+as A2 has it (`rule(id)` and `zones`, `s45`) and, for a stored lift, the "Measurement", "Time smoothing" and "Caveat" lines of `scoringLines`.
+
+## A4 and the responsive check
+
+`d25`. One responsive app (decisions.md, "What 0.1.0 is"): phones first, widening on laptops.
+
+**A4 is A1 in a wide window**, not a screen of its own (design/mockups/Desktop.dc.html). `screens/A1.mjs` draws the same
+elements in the same places of the tree in both arrangements, so the player's canvases and its stepper are never remade when a
+window is resized across the breakpoint; CSS arranges them (a grid), and the JS adds only what the wide arrangement has more
+(`use-wide.mjs` asks `matchMedia`):
+
+- **From `WIDE_MIN_PX` (980, `ui/wide-model.mjs`; `base.css`'s one `@media` repeats it, and `tests/app/wide.test.js` checks that
+  the two agree):** the header is the wordmark, a breadcrumb ("Today / Lateral raise · 14:27 · 3.0 s", or "Earlier": the lift's day,
+  its name, its time and length) and the buttons "Re-mark" (A3's `remark()`) and "View options"; the video (at most 480 px tall,
+  560 px wide, from its own aspect ratio) and the **selected cue's panel** side by side (the cue's title, the status chip with the
+  verdict, the cue's sentence, its plot, its tiles, the rule's sentence and "Provisional: not yet checked on real lifts.", and "Details"
+  to A2); the player's bar under them (play, steps, the clock, the timeline, the speed); the cues in a 340 px sidebar
+  under "5 cues", the counts, and one button per cue, the selected one with `aria-pressed` and an accent outline. A card there
+  *selects* (it never opens in place: the panel is the open card); the first cue to work on, else to watch, else the first, starts
+  selected. The plot is A2's (`components/cue-plot.mjs`, shared: A2 uses it too), with the player's time as its playhead; a tap on
+  it moves the player.
+- **Below it** (a phone in either orientation and a portrait tablet: 800 px is the widest we check) nothing changes: A1 as `d16`
+  and `d17` drew it, one column. Why 980: the columns are the 340 px sidebar, a 300 px panel (the mockup's flex-basis) and the video, with 2 × 16 of gaps and
+  2 × 24 of padding; the mockup's 270 px video makes 990 px, so the video track gives (below), and a round number near it keeps 800
+  and 768 stacked. The mockup's row wraps when the video is wider; here the video column shrinks instead (`minmax(0, auto)`, the stage
+  at `max-width: 100%`) before the panel does (`--wide-panel-min`, 300 px): a landscape or square video asks for 560 px and gets 260 px
+  at 980 px (932 px of content), 304 px at 1024 px, and the full 560 px at 1280 px. The page is 1280 px wide at most, centred.
+- The rest of the screens are single columns of at most 640 px, centred in a wide window; A2 is unchanged.
+- `tokens.css` has A4's sizes (`--wide-*`, `--size-tile`, `--chip-h`, ...); A3's slider is `--slider-h: var(--touch)` now (44 px:
+  the check found 32).
+
+**The responsive check** (`tools/layout-check.mjs`, `npm --prefix app run check:layout`): the page test's build (`assemble.mjs
+--test`) served on a free port and opened in headless Brave over CDP, through `browser.mjs`. It walks the app (the first-run intro,
+H, S1, its credits, S1b, L1, M's three steps (pressed by `data-mark`) and its error screen, Q1 while it runs, when it is done and when it failed (`d57`: "Q1 (No person found)" and "Q1 (unreadable)", made by setting `globalThis.coachReplay.mode` before Analyse, see [The page test](#the-page-test); each with its "Pick another video"), A1, A3, A2; since `d28` R1 and R2, walked from H's gym card on the fake camera; since `d29` R3, reached from R2's Replay, paused so its countdown stays, and left by "Not this one"; since `d29b` R3b, from a second session started on R1 in the delayed view, which then puts R1's mode back to the replay) and sets each of seven sizes at each screen: phone portrait 360×800 and 412×915,
+phone landscape 800×360, tablet 768×1024, laptop 1280×800 (the emulation's own width, since a mobile window grows with a wide
+page), and the range just above A4's breakpoint, where the video column has to give way: a landscape tablet 1024×768 and a narrow
+window 980×720. A1 is walked twice, as the test clips are portrait (a narrow stage): once as it comes and once with a 16:9 video
+(`LANDSCAPE_VIDEO` sets the stage's ratio), which asks for the stage's full width. It fails on:
+
+- horizontal scrolling (the page wider than the window);
+- cut-off content: an element sticking out at the side with nothing that clips or scrolls it, text clipped by its own box
+  (`overflow` hidden with more inside; a `-webkit-line-clamp` is a choice, not a cut), a scrolling area squeezed to under 44 px;
+- a touch target under 44 px in either direction (buttons, links, inputs, selects, summaries, sliders; a link inside a sentence is
+  exempt, and a control inside a `<label>` counts by the label's box);
+- A1's arrangement: from 980 px the video and the panel in one row, the sidebar beside them, the bar under them, one cue selected, its
+  plot drawn; below, one column and no panel; and in the laptop window a card selects its cue and a tap on the plot moves the player;
+- R1 and R2 (`d28`), checked at the same nine sizes as M: at 360×640, 360×800, 412×760 and 412×915 no vertical scroll and every control (`SETUP_CONTROLS`, `LIVE_CONTROLS`) fully inside the window (`fitsWindow`), and at 360×800 the rate and the wake-lock line changing moves no other control; the queue line's row has to be a touch target high, so a queue chip moves nothing;
+- R3 (`d29`), reached from R2's Replay and paused (a playing replay counts its 25 s down while the nine sizes are walked): the same no-scroll rule at the four portrait sizes with every control (`REPLAY_CONTROLS`: the chips, the time ago, play, the bar, the position, ½×, Keep and mark, Not this one) inside the window; "Not this one" then returns to R2;
+- R3b (`d29b`), reached by a second session started in the delayed view: the same no-scroll rule at the four portrait sizes with every control (`DELAYED_CONTROLS`: REC and the clock, the delay, the live view, the delay's choices, Keep this lift, End session) inside the window; End session then ends it;
+- A1 and A2 (`d58`), checked at the nine sizes of M too: at 360×640, 360×800, 412×760 and 412×915 no vertical page scroll (the lists scroll
+  inside), no page cue, and every control fully inside the window (`RESULT_CONTROLS`: back, View options, the skeleton chip, play, the speed, the
+  timeline and the cue list; `DETAIL_CONTROLS`: back and the detail's body), by `fitsWindow`. On phase-0 every one of those sizes failed
+  (A1's page 1,148–1,185 px high, A2's 1,880–2,000 px); phone landscape (800×360) still scrolls, as for M. "A1 list fade" at 360×640:
+  the fade shows at the top of the list, is zero high in the flow, lets taps through and is gone once the list is scrolled to its end
+  and back at the top. The summary line counts them: `fit (no vertical page scroll, controls inside the window) at 360×640, 360×800,
+  412×760, 412×915: M 4, R1 4, R2 4, R3 4, R3b 4, A1 4, A2 4 of 4 sizes`;
+- M (`d54`), checked at 360×640 and 412×760 too: at 360×640, 360×800, 412×760 (about the Fairphone in Brave) and 412×915,
+  a vertical page scroll, or a control of M (`shift-check.mjs`'s list) not fully inside the window (`markFits`). Phone
+  landscape may scroll there (`d55`'s cue shows there), but the checks above still hold: nothing cut off, 44 px targets, and
+  in the portrait sizes the cue must not show;
+- **the "more below" cue** (`d55`): on S1 at 360×800 the cue shows at the top of the page, its ⌄ button is 44 px and inside the window and
+  scrolls the page, and at the bottom it is gone (the button is also a touch target of the ordinary check);
+- a console error or exception on the way.
+
+`--shots DIR` writes a PNG per screen and size (keep it out of the repo); `--break scroll|clip|small|cut` puts a fault in on purpose
+(four browser runs of up to a minute: `tests/app/wide.test.js` runs them only with `COACH_LAYOUT_BREAKS=1`, i.e.
+`npm --prefix app run test:layout-breaks`, since inside `npm --prefix app test` they loaded the machine and made other tests fail);
+no browser is one line and exit 1, or a skip with `COACH_PAGE_TEST_SKIP=1`, as the page test. **The "more below" cue** (`d55`, `ui/components/more-below.mjs`, drawn once by `App` for every screen): while the page can scroll
+more than 8 px further down (`moreBelow` in `ui/more-below-model.mjs`, a plain function, `tests/app/more-below.test.js`), a fade at
+the bottom edge of the window with a ⌄ button (44 px, `aria-label="More below"`) that scrolls down by most of a window
+(`scrollStep`: 0.8), without animation under `prefers-reduced-motion`. It goes at the bottom, with nothing to scroll, and while a sheet
+(A3, `aria-modal`) is open; it follows scrolling, resizing and content that grows (a `ResizeObserver` on the app, a `MutationObserver`
+for the sheet), lets taps through the fade (`pointer-events: none`) and keeps the safe-area inset. M fits its window in portrait
+(`d54`), so it shows there only in landscape. It follows the *page's* scroll: A1's cue list scrolls inside its own area, and the cue
+does not look at that; the list has its own fade (`d58`, `ui/components/list-fade.mjs`, [above](#a1-the-timeline-and-the-cue-cards)).
+
+**What it does not say:** at phone
+landscape (800×360) the video, M's stage and the like are as tall as the window, so their buttons are under the fold and the page
+scrolls to them; nothing is cut off, but landscape has no layout of its own (5.7).
+
+**The status bar's inset (`d62`).** `tokens.css` holds two tokens: `--inset-top: env(safe-area-inset-top, 0px)` and
+`--screen-h: calc(100dvh - var(--inset-top))`. `#app` pads its top by `--inset-top`, for every screen; each screen that is a window
+high (`.mark`, `.setup`, `.live`, `.replay`, `.delayed`, `.result`, `.detail`) uses `var(--screen-h)` where it had `100dvh`, so the page plus
+the inset is the window's height and M, A1 and A2 still don't scroll. No rule in `base.css` writes `100dvh`; the height lives in the
+one token, with its fallback for a browser without `dvh` (Chrome 108, from memory; `c65`): at the end of `tokens.css`,
+`@supports not (height: 100dvh) { :root { --screen-h: calc(100vh - var(--inset-top)); } }`. A `100vh` line before a declaration
+that holds `var()` wouldn't do: such a declaration is found invalid only when computed, and then falls back to `unset`, not to the line
+before. In the S8+'s WebView (Chrome 101) there is no toolbar, so `100vh` is the window; in its Chrome tab `100vh` is the height
+with the toolbar hidden, so a tab may scroll by the toolbar's height (`c60` measures it). The check page's probe reports which
+value applies (`height` in `window.c20.compat`, [The Android shell](#the-android-shell)). **Headless can't test the inset:** Brave gives no
+real inset (`env()` is 0), so `check:layout` and the page test see the layout as before; `tests/app/safe-area.test.js` reads the
+files, and the real check is the APK on a phone with WebView 140 or later.
+
+## The screens v1 doesn't draw (`d23`)
+
+Not in the mockups (docs/ui-design.md, "Open questions"), so built in v1's tokens and components and reviewed by
+nordmu in the app. Screenshots stay out of git; this is what each looks like.
+
+- **The errors.** `ui/problem-model.mjs`'s `problemOf(error)` turns an error from the module that raises it into
+  `{kind, title, what, can, engine, actions}`; `components/problem.mjs` draws it: the "work on" triangle and colour, the
+  title, what happened, the raising module's own words under "Details" (shown unchanged), what the user can do, and the
+  buttons. Nothing is invented: the advice is only what the app can do. The kinds, and where each comes from:
+
+  | Kind | Raised by | Title | Ways on |
+  | --- | --- | --- | --- |
+  | `unreadable` | s9's `MediaError` `unreadable`, `no-video`, `decode-failed`, `decode-stalled` | This video can't be read | pick another video (from M and, since `d56`, from Q1) |
+  | `unsupported-codec` | s9's `unsupported-codec` (names the codec) | This phone can't play this video | pick another video (from M and, since `d56`, from Q1) |
+  | `no-webcodecs` | s9's `no-webcodecs` | This app can't read videos here | back |
+  | `no-person` | s12's job: a track nobody is in (`kept_frames` 0) fails with `NO_PERSON` and diagnostics.js's reason | No person found | pick another video (from M and, since `d51`, from Q1: `queued → lift`); back to home |
+  | `engine-failed` | s12: `EngineError` (`ENGINE_FAILED` and the worker's message) and the watchdog's `StallError` | The pose engine stopped | analyse again |
+  | `storage-full` | c8's `StoreError` `storage-full`, at Analyse (`saveLift`) and in the job (`updateLift`, as the job's string) | Storage is full | try again after deleting lifts |
+  | `failed` | anything else, in its own words | That didn't work | try again |
+
+  A failed job keeps only a string (contract 2), so the job's own phrases are in `analysis/messages.mjs`
+  (`NO_PERSON`, `ENGINE_FAILED`, `STALLED`, and `MEDIA_FAILED` with the code: a `MediaError` raised during the job, e.g. `decode-failed`, is kept as `mediaFailure(e)`, so Q1 shows "This video can't be read" with no retry) and the model reads them back; the store's message is `STORAGE_FULL`.
+  **M** takes its whole screen for a video it can't open (`waysOn()`: Pick another video only where the problem allows it, Back to home) and for an Analyse the
+  store or the cutter refused (Try again, Back to the marks, Back to home). **Q1** shows the panel in place of the
+  old reason line; "Analyse again" is offered only where trying again can help (not for no person found). A person
+  found in only some frames is not an error: the cues say what they could not score.
+- **The first run.** `ui/welcome-model.mjs` and `screens/Welcome.mjs`: the flow's `welcome` state, entered at boot
+  once (`introSeen` in the settings, default false; `startState(store)` in `main.mjs`) and leading to `lift` (with the picked file) or
+  `home`; nothing leads back to it. One screen: the wordmark, "Feedback on your lift, cue by cue", three lines (what
+  the app does: "Pick a video, then mark the lift.", "coach finds the lifter and scores each cue.", "Nothing leaves this phone."; `d58`: that is all it says of it, the screen has no footer line, H's and L1's keep theirs), the "Import a video" card (a button that opens the phone's picker; `PickVideo`, below) and a quiet "Not
+  now". (`d55`: the words of round 1's wording pass.) Either saves `introSeen` (the card once a video is picked, `finishWelcome(store, flow, 'lift', { file })`); a store that can't be read starts at home, and a save that fails does not
+  stop the app (the intro then shows again).
+- **A snatch result.** A1 already draws the cards from the view, so the snatch's two cues need no new code; the header
+  adds the `provisional` tag beside "Snatch" (`headerOf`'s `provisional`, `home-model.mjs`'s `isProvisional`: the
+  snatch while step 3.6 is open), as L1 has it. `tests/app/states.test.js` builds the cards from a committed
+  snatch track.
+
+## Q1, analysing
+
+`d15`. `screens/Q1.mjs` follows the app's one queue (injected as a prop; the
+screen never makes one) and draws what `src/ui/analysing-model.mjs` gives,
+plain functions that Node runs (`tests/app/analysing.test.js`):
+
+- `analysingView(jobs, {liftId, lift, rate, visible})` is the whole view
+  state, rebuilt from the jobs at every change and never kept: `kind`
+  (`running`, `paused`, `waiting`, `done`, `failed`, `cancelled`, `idle`),
+  the heading, the lift card, the percent, the time left, the three stages,
+  the failure's reason, the other lifts in the queue and which buttons apply.
+  `liftId` is the flow's `queued` param (H passes it); without one the job
+  running now is shown, and the screen keeps that lift once it has one.
+- `followAnalysis(queue, fn)` is `followQueue` plus the measured rate: `fn`
+  gets nothing before `load()` has answered. Q1 unsubscribes on leaving; the
+  job goes on in the queue, and coming back subscribes again and shows the
+  queue as it is now.
+- **Percent** is the mockup's bands: reading to 10 %, the pose frames 10 to
+  95 %, scoring 95 to 100 %; only `done` is 100 %. (H's row has its own,
+  coarser percent, `home-model.mjs`.)
+- **Time left:** `progress.etaS` as "~N s left" (seconds rounded up,
+  at least 1; whole minutes from two; `aboutTime`, shared with the queue line). `etaS` null (no rate measured yet, or the cut not yet open at `reading` 0/1, `s59`) is
+  "estimating…", never a time. The next lift's "~10 s" is shown
+  only when the queue has a measured rate.
+- **Words (`d55`):** the lift card is "14:32 · 13.0 s" (when it was kept, the marked length), the pose stage's detail "120 / 390", the queue
+  "Up next" / "Before this" with "+2 more", the note "Keeps going if you leave." (only while it runs; nothing after it ended), "Nothing to analyse.",
+  and the buttons "Home" and "Cancel".
+- **Paused:** the page is hidden (`document.visibilityState`): a job in a
+  running stage reads "paused". The queue itself keeps its own state; this is
+  the screen's wording only.
+- **Buttons:** Open the result (done: `go('result', {liftId})`), Analyse again
+  (failed or stopped: the queue's `retry`, or `enqueue(lift)` when the queue
+  no longer holds the job), Home (with `from: 'live'` in the params,
+  "Back to the session", to the session's live state, `sessionReturn`), Cancel (`queue.cancel`), and
+  (`d51`, `d53`) Pick another video (`actions.another`, a `PickVideo` button that opens the phone's picker and goes on to L1: `queued → lift` is legal) on the panel of every problem whose
+  `actions.another` is true (`d56`, taken from the problem: "This video can't be read", "This phone can't play this video", "No person found"), a big primary
+  button like "Analyse again"; the other problems keep their buttons.
+
+## H, home, the picker and L1
+
+**`d66`: no gym card while the switch is off.** `gymCard({ enabled, active, elapsedS, liveState })` returns `null` when the switch (`session.enabled`) is off and no session runs, and H draws nothing in its place: the import card is the first card, nothing else on H changes. With the switch on it is the card as before; while a session runs it is "Back to the session" whatever the switch says.
+
+`d13`. `src/main.mjs` makes the flow, `createStore()` and `appQueue({ store })`
+once, so the queue and H share one store, draws the app, and after the first
+paint (`requestAnimationFrame`, then a timeout) calls `queue.warmUp()`, so the
+engine is ready by Analyse. `App` gives `queue` and `store` to every screen as
+props; H follows `queue` through `followQueue`, which passes nothing on until
+`queue.load()` has read the kept queue (`subscribe` first calls with `[]`, and
+a queued or failed lift would show as stopped until the load emits), and reads `store.listByDay()` and the ready
+lifts' `readResult` again when a job's state changes, not at every frame.
+
+`src/ui/home-model.mjs` is plain (Node runs it, `tests/app/home.test.js`):
+
+- `liftState(lift, jobs)`: `ready` (the record `isAnalysed`), `waiting` (job
+  `queued`; `waitingText(ahead)`: "Waiting · next" for
+  one job ahead, "Waiting · 2 ahead" (the number) for more), `analysing` (`reading`, `pose`, `scoring`; `percent` is `percentOf(job)`, the one rule H and Q1 share
+  (d41): reading 0-10 %, pose 10-95 %, scoring 95-100 %, never 100 while it runs; a done job
+  whose lift is not yet stored as analysed shows 99), `failed` (the job's `error`),
+  `stopped` (unanalysed with no job, or a cancelled one: "Stopped"; the lift stays stored).
+- **H's words (`d55`, round 1's table):** "Gym session" (no line under it; `d28`: it opens R1, and while a session runs it reads "Back to the session" with the clock and goes to R2, or R3b in the delayed view), "Import a video" (no line under it), "Today" with "3 lifts",
+  "Your lifts show up here.", "Couldn’t read your lifts.", "Nothing leaves this phone.", "Update ready · reload the app". A row says "46 %" beside the
+  bar, a failed job a work-on triangle and "Couldn’t analyse" (the reason is on Q1). A ready row draws its counts as **A1's status icons with the
+  count, worst first** (`summariseResult` gives `icon`, the `StatusIcon` name); the words (`summaryLabel`: "1 work on, 3 good") are the row's
+  `aria-label` for screen readers.
+- `rowOf`, `homeView(listByDay(), jobs, results)`: today's rows in the
+  store's order, earlier lifts grouped by local day ("Thu 29 Oct · 4 lifts",
+  "Lateral raise, snatch"), the empty state. A ready lift opens `result`, every
+  other `queued` (Q1), with `{ liftId }` as the flow's params.
+- `pickStep(flow, file)` (`d53`): a picked file goes to `lift` with `{ file }`. No file (the picker
+  cancelled) changes nothing and says nothing (`{ ok: false, error: null }`); a file whose type is set and
+  isn't `video/*` changes nothing and says `That’s not a video.` (an empty type is let through: some Android
+  pickers give none). `pickCheck(file)` is the same check without the step (the first run saves that it was
+  shown before it goes on).
+- `liftChoices()`, `liftLabel`, `isProvisional`, `startLift`: L1's
+  choices and S1's default-lift row, in the order of the lift registry
+  (`contracts/lifts.mjs`, `s49`), read when called, so a lift added there is
+  offered with no other edit; H's and Q1's figure is the entry's `icon`
+  (`LiftIcon`, the lateral raise's when it has none).
+
+**The picker (`d53`).** Nordmu, checkpoint A, 2026-11-02, point 5: the lift was chosen twice (on Import, before the
+video, and on M's switch). Now: *upload a video, then the first page asks which lift, then marking.* The flow is
+`home → lift → mark` (and `welcome → lift`, `mark → lift` and `queued → lift` for "Pick another video"); there is no
+`import` state. The picker is the phone's own, opened by a real button: `components/PickVideo.mjs` is a `<button>`
+that clicks a hidden `<input type="file" accept="video/*">` and runs the pick step on the file; a refused file's
+words show right under the button, where the picker was (on H, below the cards). It is H's "Import a video" card,
+the first run's card (`pick` is `Welcome`'s own step), M's problem screen and Q1's "No person found" panel.
+
+**L1** (`screens/L1.mjs`, `lift-model.mjs`; round 1's page `design/checkpoint-a/round-1.html`): a ‹ Back button
+(`aria-label="Back"`, to H, which drops the file); the heading "Which lift?"; the picked file's name, quiet, with a
+small film icon; one big tile per lift of the registry, in the registry's order (`liftTiles(settings)`), each a
+`<button data-lift="<id>">` with the lift's figure (`LiftIcon`), its label and, where the registry says so, the
+`provisional` tag; S1's default lift's tile is ringed in the accent and its accessible name ends `, default`
+(`liftTiles`' `name`; the default is the first lift while the settings load or if they name a lift the registry lacks). One tap
+(`chooseLift`) goes to M with `{ file, lift }`; there is no Next. The footer line with the lock is H's. A third lift
+registered in `contracts/lifts.mjs` is a third tile with no other edit.
+
+## TF.js from source
+
+The pose runtime ships built from source
+([rules-core.md](../docs/rules-core.md), "Licence-compatible dependencies";
+[pose-spike.md](../docs/pose-spike.md#maintaining-tfjs-ourselves)), not
+from npm's built `dist/`. `tools/build-tfjs.mjs`:
+
+1. **Clones** tensorflow/tfjs at `tfjs-v4.22.0` (commit `e5d5e93`) and
+   tensorflow/tfjs-models at `pose-detection-v2.1.3` (`f588523`), shallow,
+   and refuses a clone whose HEAD isn't the pinned commit.
+2. **The cache** is outside the repo: `$XDG_CACHE_HOME/coach/`, by default
+   `~/.cache/coach/` (`tfjs-v4.22.0/`, `pose-detection-v2.1.3/`, and
+   `downloads/` for `fetch-models.sh`). The root `npm test` runs test files
+   anywhere in the tree, so a clone inside it would run tfjs's own tests;
+   the script refuses a cache inside the repo. A second run reuses the
+   clones (a marker file records the commit and the patches); to start
+   over, delete the folder.
+3. **Generates** the converter's op lists (`tfjs-converter/src/operations/op_list/*.ts`)
+   from the tag's JSON as tfjs's Bazel rule does (`scripts/gen_op.ts`),
+   with the year npm's 4.22.0 carries in the header, so a rebuild is the
+   same. These are the only generated sources.
+4. **Bundles** with esbuild 0.28.2 (pinned in `package.json` and
+   `package-lock.json`) from the TypeScript, through the tag's root
+   `tsconfig.json`, whose path map sends each `@tensorflow/*` package to
+   its `src/index.ts`. Two of the build's choices matter:
+   `ignoreAnnotations`, because the packages' `sideEffects` lists name
+   `dist/*.js`, not the `.ts` sources, and honoured they would drop the
+   kernel registrations; and `long` 4.0.0 and `seedrandom` 3.0.5, the two
+   plain-JS dependencies of tfjs-core and the CPU backend, from
+   `app/node_modules/` at the versions tfjs-core's `yarn.lock` pins.
+5. **pose-detection is cut to MoveNet** by an entry of ours, inside the
+   script: MoveNet's loader, `SupportedModels`, `movenet.modelType`, and a
+   `createDetector` that refuses any other model, and a config without
+   `modelUrl`: MoveNet's `load()` at the tag would fetch the weights from
+   tfhub.dev then, and the app is offline. So PoseNet, BlazePose
+   and `@mediapipe/pose` (a closed wasm) never enter the bundle; the stub
+   for `@mediapipe/pose` from the spike stays as a guard. pose-detection's
+   WebGPU import is PoseNet's, so the WebGL bundle carries no WebGPU.
+
+Out, in `vendor/tfjs/`: `tfjs-webgl.mjs` and `tfjs-webgpu.mjs` (browser),
+`tfjs-cpu.mjs` (Node, for `s7`: tfjs-core's Node platform calls
+`require('util')`, so it gets a `require` of its own), each exporting
+`{ tf, converter, poseDetection }`; `build-info.json` (the commits, each
+bundle's size and SHA-256); and the licences: `LICENSE-tfjs.txt`,
+`LICENSE-tfjs-models.txt` (Apache-2.0), `LICENSE-long.txt` (Apache-2.0),
+`LICENSE-seedrandom.txt` (MIT, from its sources: the package has no
+LICENSE file). Each bundle's banner names the sources, the commits, the
+licences and the patched files; the upstream `@license` comments are kept
+at the end.
+
+**Patches** go in `tools/patches/<repo>/NNNN-name.patch` (`<repo>` is
+`tfjs` or `tfjs-models`), a `git apply` patch against the tag with a
+`Reason:` line; the script applies them in name order and names each
+changed file in the bundles' banner. **None are needed at these tags:**
+esbuild takes every construct the bundled packages use (the `const enum`
+the spike feared doesn't occur in them). Apache-2.0 §4(b) asks for a
+notice on each changed file: when a patch is added, its files are listed
+here, as `tfjs/<path>` or `tfjs-models/<path>`
+(`tests/app/build-tfjs.test.js` checks it).
+
+Changed files: none.
+
+**The weights:** `tools/fetch-models.sh` fetches MoveNet SinglePose
+Thunder v4 for TF.js from the spike's pinned source (Google's upload on
+Kaggle), checks the archive's SHA-256 (`9ab8399b…`), keeps it in the
+cache's `downloads/` and unpacks `model.json` and its shards into
+`models/movenet-thunder-4/`. It unpacks into a hidden folder in `models/`
+and renames it when the files check out; a trap removes that folder if
+anything stops the script first, so a half-unpacked copy never reaches
+`dist/`.
+
+**The check:** `tools/check-tfjs.mjs [--backend webgl|webgpu|cpu]` serves
+`app/` on a free local port, opens it in headless Brave, imports the
+bundle, sets the backend, creates a Thunder detector from `models/` and
+runs one fixed random image through it. Headless Brave's WebGL is
+SwiftShader, software: it shows the bundle works, not how fast. With
+`--backend cpu` the check runs in Node, against the same local server: the
+CPU bundle is built for Node and doesn't load in a browser.
+
+## The pose engine
+
+`src/pose/` is the engine behind contract 1 (`pose-messages.mjs`): pose-bench's
+worker and client, copied and trimmed to MoveNet SinglePose Thunder on the
+WebGL bundle. Nothing is imported from `spike/`.
+
+```js
+import { PoseEngine } from './pose/pose-client.mjs';
+const engine = await PoseEngine.create({ backend: 'webgl' });  // loads the weights, warms up; engine.info is the lift's `engine`
+const { keypoints, ms } = await engine.estimate(videoFrame, tMs); // COCO-17 [y, x, conf] in pixels, or null
+await engine.reset();    // between clips: the crop cleared, the worker and its model kept
+engine.close();
+```
+
+| File | What |
+| --- | --- |
+| `pose-client.mjs` | `PoseEngine`: owns the worker, sends `init`, `estimate` and `reset`, matches `result` and `cleared` to their call by `id`. Calls made together wait in order and go out one at a time (contract 1: the next after the last answer), since MoveNet's crop follows the previous pose. A frame is transferred; the worker closes it. A frame that never reaches the worker (a refused call, a failed transfer, a closed engine) is closed by the client, so the caller never closes a frame it passed in. |
+| `pose-worker.mjs` | The module worker's wiring: `self.onmessage` to the handler, `self.postMessage` out. |
+| `worker-core.mjs` | `createWorkerHandler({load, post})`: init, estimate, reset, the errors. Handles messages one at a time (a reset after the estimates before it), closes every frame once, turns an engine's exception into `result {id, error}` or `cleared {id, error}` and a failed load into `error`. No worker or TF.js in it, so Node tests drive it with a fake engine. |
+| `movenet.mjs` | `loadMoveNet(backend)`: imports `../../vendor/tfjs/tfjs-webgl.mjs`, sets the backend, creates the Thunder detector from `../../models/movenet-thunder-4/model.json` (relative URLs, no network), smoothing off (`src/track/` smooths), runs one blank 256 × 256 frame to compile the shaders, then resets the detector's crop; the engine's `reset()` is that `detector.reset()`. Only `webgl` for now; WebGPU and one-thread WASM come later. |
+| `coco17.mjs` | pose-detection's keypoint objects to `[y, x, conf]`; refuses a count other than 17 and a name out of COCO-17's order. |
+| `check.mjs` | What a result must be before the worker posts it and the client believes it: contract 1's shape, and in the frame's pixels (a pose whose every coordinate is within 0..1 on a frame of hundreds of pixels is normalised, and refused). |
+
+- **Errors.** A failed estimate rejects that call only (`result {id, error}`);
+  the engine goes on. A failed `init`, a worker that dies (`onerror`) or
+  `close()` ends the engine: what is waiting or in flight rejects, later calls
+  reject with the same words.
+- **`reset()`** sends contract 1's `reset {id}` (`s35`): the worker, after
+  the estimate in flight, calls pose-detection's `detector.reset()`, which
+  clears MoveNet's crop, and answers `cleared {id}`; the next estimate starts
+  from no previous pose, so a new clip never starts from the last clip's.
+  The worker, the weights and the compiled shaders stay. A failed reset
+  (`cleared {id, error}`) rejects that call only and the engine goes on, as
+  after a failed estimate. On the laptop (`tools/check-pose.mjs`, headless
+  Brave on SwiftShader, five resets each, medians, `s35`): 0 ms (0–1 ms)
+  for the reset, against 4.75 s (4.69–5.09 s) for the old one (a new worker: weights and warm-up
+  again; `s10` measured 4.4 s); frame 0 after a reset 560 ms against
+  frame 1's 595 ms, where after the old reset frame 0 took 688 ms against
+  580 ms: a clip's first frame no longer compiles the crop's shaders again
+  (108 ms more before, nothing measurable now). One run each, back to back,
+  the old engine from `phase-0`'s `app/` under the same check script.
+- **`null`** is MoveNet saying nobody is there (its pose score is under its
+  own minimum); the confidences of a pose are passed on as they are, and
+  nothing here thresholds them: the cues do.
+- **The check:** `tools/check-pose.mjs` runs the engine in headless Brave (a
+  real module worker, software WebGL) on a few synthetic frames, then
+  `--resets` times (3) a `reset()` and frames 0 and 1 again, with the
+  reset's time and the two frames' (`resets`, medians in `resetMs` and
+  `afterReset`). It shows that the engine loads and answers; the phone's
+  speed is `c20`'s and `c26`'s ([pose-spike.md](../docs/pose-spike.md#the-app-itself-on-the-fairphone-c26-2026-11-03)).
+- **Tests:** `tests/app/pose-engine.test.js`, against a fake worker and a fake
+  engine.
+
+## Parity with npm's TF.js
+
+The spike measured every speed and agreement number with npm's TF.js
+([pose-spike.md](../docs/pose-spike.md)); the app runs the from-source
+bundle. `tools/parity-tfjs.mjs` checks that the same input gives the same
+keypoints, on the CPU backend in Node. Rerun it after a change to
+`build-tfjs.mjs`, a patch, or a bump of the TF.js pins:
+
+```sh
+npm --prefix app ci                       # npm's packages (dev-only devDependencies) next to esbuild
+node app/tools/build-tfjs.mjs             # the from-source bundles
+app/tools/fetch-models.sh                 # the weights
+pipeline/devlock.sh slice parity-tfjs nice node app/tools/parity-tfjs.mjs [--calls N] [--json out.json]
+```
+
+It takes about 3.5 minutes of CPU, so run it through `devlock.sh slice` (two
+Node processes, one per build: tfjs-core keeps its engine on `globalThis`,
+so two copies in one process would share it; the CPU backend runs Thunder at
+several seconds a call). The **npm side** is `@tensorflow/tfjs-core`, `-converter`,
+`-backend-cpu` and `@tensorflow-models/pose-detection` at the spike's
+pinned versions (4.22.0, 2.1.3), bundled in memory the way
+`spike/pose-bench/build-tfjs.mjs` bundles them (esbuild, the packages'
+`module` builds, `@mediapipe/pose` stubbed). They are devDependencies of
+`app/package.json` with the lock file, never in `dist/`;
+`app/.npmrc` sets `legacy-peer-deps` so that pose-detection's peers (the
+closed `@mediapipe/pose`, `-wasm`, `-webgl`) are not installed with them
+(`-webgpu` is, because pose-detection's ES build imports it). The **source side** is
+`vendor/tfjs/tfjs-cpu.mjs`. npm's packages sit in `app/node_modules/`, which
+the from-source build searches for `long` and `seedrandom`, so the build checks
+every bundle's esbuild metafile and fails if any input is under
+`node_modules/@tensorflow/` or `node_modules/@tensorflow-models/`; the count
+(0) is recorded as `npmTensorflowInputs` in `build-info.json`, and the parity
+script exits 2 if the record is missing (build again) or not 0. Without it
+the comparison could be npm against npm.
+
+Inputs, all drawn by the script (no image from anywhere, no random
+generator): the graph model alone on one fixed `[1,256,256,3]` tensor (and
+the detector's own step from that output to keypoints); a 640×480 pattern of
+gradients and hash noise; a shaded figure moved a little each frame; and the
+same figure frames with the crop set to the figure's box. Each sequence goes
+through `estimatePoses()` six times in a row, because MoveNet crops each call
+from the last pose (the model finds the figure, not the noise). For each
+call it keeps the model's raw output (`[1,1,17,3]`), the keypoints, the pose
+score and the crop region, and it compares the names of the CPU kernels each
+build registers.
+It prints, per output, the maximum and mean absolute difference over all
+calls, and exits 1 if one is beyond float rounding (1e-6 on the raw output,
+1e-4 pixels on keypoints and crops) or a size or the kernel names differ: that is a finding
+(an op, a patch) to settle before the engine builds on the bundle, not a
+tolerance to widen. Exit 2: something it needs is missing.
+
+Not covered: real clips (headless Brave runs WebGL in software), the WebGL
+and WebGPU backends, and speed. On the Fairphone (`c26`): the app's keypoints in
+Brave are npm's bundle's, bit for bit, on the four example clips; [pose-spike.md](../docs/pose-spike.md#the-app-itself-on-the-fairphone-c26-2026-11-03).
+
+## The Android shell
+
+`android/` is Capacitor 8.5.3's project (`@capacitor/core`, `cli` and
+`android`, MIT, pinned in `package.json`), generated by `npx cap add android`
+and committed; the one change to it is in `android/app/build.gradle`: the
+weights' `.bin` shards and `.mp4` are stored in the APK, not deflated.
+`capacitor.config.json`: `webDir` `dist`, the name "coach", and the
+**placeholder app ID `org.coach.placeholder`**: the real one waits for the
+name (question 10), and changing the ID later breaks updates, so no tester
+gets an APK before `c33` sets it. The scheme is `https`: the page's origin is
+`https://localhost`, a secure context (OPFS, WebCodecs), never cross-origin
+isolated in a WebView ([spike/webview-shell](../spike/webview-shell/README.md)).
+Two permissions (`c30`): `INTERNET`, which Capacitor's local server needs,
+and `CAMERA`, for the capture (R1, R2). The camera is a `<uses-feature>` with
+`android:required="false"` (`android.hardware.camera` and its autofocus, which
+`CAMERA` alone would imply as required), so a phone without one can still
+install the app and import a video. Nothing asks at start: the WebView asks
+Android when the page calls `getUserMedia` (R1), Capacitor's
+`BridgeWebChromeClient` turns that into Android's dialog, and a refusal reaches
+the page as `NotAllowedError`, R1's `camera-denied` panel. On the phone
+(`c30`, below): the dialog came up at R1's first open and the user's Allow
+opened the preview; with the permission refused for good (`pm revoke` and
+`user-fixed`, no dialog) R1 showed "Camera not allowed", and after `pm grant`
+its "Try again" opened the preview. The merged manifest also carries
+AndroidX's own `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`, a signature
+permission of the app itself, not one the user grants.
+
+**No Android backup** (`c43`). S1's privacy text says the lifts stay "in its
+own private storage on this phone, and nowhere else"; with Capacitor's default
+`allowBackup="true"` Android could copy the WebView's storage (the lifts'
+videos too) to the user's Google Drive or to a new phone. So the manifest has
+`android:allowBackup="false"` and `android:dataExtractionRules` naming
+`res/xml/data_extraction_rules.xml`, which excludes every domain (root, file,
+database, sharedpref, external) from both `<cloud-backup>` and
+`<device-transfer>`: on Android 12 and later (the app targets SDK 36)
+`allowBackup="false"` alone stops the cloud backup but not the device-to-device
+transfer. `tests/app/android-shell.test.js` checks both files statically. What
+`c26` checked on the phone (2026-11-03): the installed package's flags (`dumpsys package
+org.coach.placeholder`) are `[ DEBUGGABLE HAS_CODE ALLOW_CLEAR_USER_DATA ]`, no `ALLOW_BACKUP`.
+
+**Debug APKs only**, signed with Android's own debug key (`~/.android/`), until
+the name, the ID and the signing key's holder (6.2) are settled.
+`tools/build-apk.sh [all|web|apk]` builds one from a clean checkout:
+
+1. `web`: `npm ci` when Capacitor or esbuild is missing, `build-tfjs.mjs` (the
+   clones cached outside the repo), `fetch-models.sh` (its archive cached
+   there too), `assemble.mjs --debug` into `dist/`, `npx cap sync android`;
+2. `apk`: Gradle's `assembleDebug`, `nice -n 19`, one worker, no daemon (the
+   laptop is shared), copied to `out/coach-debug.apk`.
+
+On the laptop each half runs as a slice of its own (the commands above); with
+warm caches the web half takes about 2 s and Gradle about 35 s.
+
+**The check page** (`debug/check.html`, `check.mjs`) is copied into `dist/`
+only by `assemble.mjs --debug`, with s9's test clip
+(`tests/app/clips/testsrc2-h264-30fps.mp4`) in `debug/clips/`; the shipped
+`dist/` (no option) has neither, and the app links nowhere into it. It
+reports, as JSON on the page and in `window.c20`: the WebView (version,
+secure context, isolation, Capacitor), WebGL 2 and its renderer, OPFS (a
+4 MB file in a folder of its own, written, read back, removed), `persist()`,
+a picked file opened by the frame source, and, with `?engine=N` or its
+button, s10's engine on every frame of the clip, N times: `create()`,
+`estimate()` per frame, `reset()`, frames 0 and 1 again, with medians.
+`tools/check-apk.mjs` drives it on the phone over the WebView's DevTools
+(a debug build has them on): it installs the APK, checks the app shell drew,
+opens the check page, clicks the file input with a user gesture (Android's
+picker opens, then Back), sets the input to the clip copied into the app's
+own `files/` (`run-as`), runs the engine, prints the JSON and uninstalls.
+`debug/media.mjs` (`c34`) adds the frame source's and the cut's measurements
+(`window.c34`) on clips set on the page's second input, `#media`;
+`tools/check-media-apk.mjs` drives them the same way, five runs each, with the
+memory sampled on the phone ([On the phone](#on-the-phone)); since `c65` it also counts the idle stepper's
+decoded frames at M1–M3's size on the phone at hand (`idleM-`, 440 × the page's `devicePixelRatio`, beside `idle-`
+at 440 and `idle1320-`, the Fairphone's), and finds the decoder's name among Codec2's (`c2.…`) and OMX's
+(`OMX.…`, Android 9 and older) in the app's log lines (`tools/codec-names.mjs`). `debug/capture.html`
+(`c30`, `window.c30`) records the camera with the real capture and times what it
+doesn't report; `tools/check-capture-phone.mjs` drives it, and R1 to R3 through
+the app's screens, in the APK or in Brave ([the capture on the phone](#on-the-phone-c30)).
+
+**The compatibility probe** (`debug/compat.mjs`, `c65`) runs at the check page's load as `window.c20.compat`, for `c60` on the
+Samsung S8+, whose Chrome and WebView stay at 101: one function over the page's globals (so `tests/app/chrome101.test.js` runs it
+on fakes) that returns, as JSON, `decoderDequeue` (`'ondequeue' in VideoDecoder.prototype`: Chrome 106's event, which the decode
+loop falls back from, [above](#the-frame-source)); `opfs` (`getDirectory`, a file's `createWritable` and `move`, the move over an
+existing name that the store's `writeAtomic` does, in a folder of its own, `c65-compat`, removed after; the store has no fallback
+without the first two); `height` (`CSS.supports('height', '100dvh')`, the `--screen-h` that applies and what it measures, beside
+`innerHeight`); `videoDecoder1080p` (`VideoDecoder.isConfigSupported` for H.264 at 1920 × 1080: a phone camera's `avc1.640028`
+and the capture's three `CODECS`); `videoEncoder` (`VideoEncoder.isConfigSupported` for each config the capture's `start()`
+asks, from capture.mjs's own `encoderConfig`, at 1080p30 both ways up, then the first without `hardwareAcceleration` and
+without `latencyMode`, so a refusal names its key; no camera is opened); `mediaStreamTrackProcessor`; `wakeLock`;
+`requestVideoFrameCallback`; `workerWebgl2` (WebGL 2 in an `OffscreenCanvas` in a worker of its own); and `userAgent`. A part
+that throws is its `{error}`. `tools/check-apk.mjs` prints it as `compat`. How `c60` reads it on the phone (`<serial>` is the
+phone's; curie only, with its lock):
+
+- **In the debug APK:** `node app/tools/check-apk.mjs --serial <serial> --engine 0` (the APK from `tools/build-apk.sh`):
+  `compat` in its JSON.
+- **In Chrome:** a `--debug` dist served from the laptop through the reverse: `node app/tools/assemble.mjs --debug --out
+  /tmp/coach-debug-dist`, `node app/tools/serve.mjs --dir /tmp/coach-debug-dist --port 8791`, `adb -s <serial> reverse tcp:8791
+  tcp:8791`; open `http://localhost:8791/debug/check.html` in Chrome on the phone (localhost is a secure context: OPFS and
+  WebCodecs are there); `adb -s <serial> forward tcp:9340 localabstract:chrome_devtools_remote`, then `node
+  app/tools/check-phone.mjs eval --port 9340 --origin http://localhost:8791 'window.c20.compat'`. After: `adb -s <serial> forward
+  --remove tcp:9340`, `adb -s <serial> reverse --remove tcp:8791`, and the tab closed.
+
+In headless Brave on the laptop (Brave 1.98.60, Chromium 156; `c65`'s report has the whole JSON) every feature is there, `ondequeue`
+included, and `--screen-h` is `calc(100dvh - 0px)`, 443 px, the window's `innerHeight`. The check page links the app's `tokens.css`
+for it (its first run, without, read no `--screen-h`).
+
+**On the Fairphone 6** (Android 16, LineageOS 4.4.1, WebView 153.0.8010.36,
+Adreno 810; the debug APK of 2026-11-02, `c20`'s report has every number):
+the shell opens, WebGL 2, OPFS and the file picker work, `persist()` answers
+false. s10's engine on the test clip (96 × 54, 90 frames), medians of five:
+75 ms a frame (frames 2–89); `create()` 4.35 s for the first engine in a
+freshly installed app, 1.0 s for each later one in the same app; `reset()`
+1.0 s; frame 0 165 ms and frame 1 104 ms (235 ms for the first frame of the
+first engine): the shaders that depend on the crop's size compile on the
+first real frames, again after every `reset()`. These `reset()` numbers are
+the old, respawning reset's (a new worker each time, `s10`); since `s35` a
+reset keeps the worker and its shaders: on the phone (`c26`) a job after another
+reached its first pose 1–3 ms after reading, the first frame 197–232 ms later.
+
+**The service worker isn't registered in the APK** (`c20`'s choice, for
+`c19`): there the files come from the APK through Capacitor's local server,
+so the app is offline already; a worker would keep a second copy of `dist/`
+(the 12.6 MB weights) and could serve the old version after an APK update.
+`c19` registers it only in a browser ([Offline](#offline-the-service-worker)): when `window.Capacitor?.isNativePlatform?.()`
+isn't true (Capacitor injects `window.Capacitor` into the page even though the
+app imports nothing of it).
+
+**The status bar (`d62`).** Android 16 draws the APK edge to edge on a WebView of 140 or later: Capacitor 8.5.3's SystemBars plugin
+(its default `insetsHandling` "css", which `capacitor.config.json` leaves alone) sees `viewport-fit=cover` in `index.html` and gives
+the page the real insets in `env(safe-area-inset-*)`, so the page reaches under the status bar. The shell pads its top by that
+inset (`#app { padding-top: var(--inset-top) }`, [below](#a4-and-the-responsive-check)). An older WebView (the S8+'s Chrome 101)
+is padded natively by Capacitor and its insets are 0, as they are in a browser tab; the padding is then 0 and nothing changes.
+The bottom insets (`env(safe-area-inset-bottom, 0px)` in the controls' padding) were already used.
+
+## Offline: the service worker
+
+`sw.js` (scope `./`, a classic script) makes the PWA work with no network. It
+precaches **only the app's own files**: what `files.json` lists (every file of
+`dist/`: the shell, `src/`, the TF.js bundle, the weights, the fonts, the
+vendored libraries) and `files.json` itself, under the cache
+`coach-<version>`. Nothing else is ever stored: another origin, a non-GET
+request and a file not in the list go to the browser untouched.
+
+- **Install:** reads `files.json` (never from the HTTP cache), fetches every
+  file (6 at a time, `cache: 'reload'`), stores it. One file that is missing
+  or fails fails the **whole install, loudly** (the error names the file),
+  removes the half-filled cache and leaves the running version alone; the
+  browser tries again at its next update check. A `files.json` that is not
+  the version the worker was built for (a deploy half done) fails the same way.
+- **Fetch:** a GET inside the scope on this origin is answered from this
+  version's cache, the query string ignored, `./` as `index.html`; never from
+  the network. If the cache is gone (the browser evicted it), the network
+  answers instead of an error.
+- **Updates:** `assemble.mjs` hashes `sw.js` as it is in `app/`, then writes
+  the version into the copy in `dist/` (`const BUILT_VERSION = null;` becomes
+  the version): the worker's bytes change with every version, which is what
+  makes a browser look for an update, and the worker knows which cache is its
+  own. The repo's copy has no version and refuses to install. A new version
+  installs **alongside** the running one (both caches exist, each worker
+  serves its own) and waits; it never skips the waiting itself.
+- **The queue's idle state:** `src/updates.mjs`'s `createUpdates({queue})`
+  registers `./sw.js` (`main.mjs` calls `register()` once the first screen is
+  drawn and the engine's warm-up has settled, so the precache doesn't compete
+  with the weights' first load). When a new worker is installed and a worker
+  already controls the page, it waits for `queue.idle()` (and `busy()` false)
+  and then sends `{type: 'skip-waiting'}`: an update never lands under a
+  running job. On activation the worker removes every other `coach-*` cache
+  and claims the pages; the page's `controllerchange` makes the state
+  `'ready'`. States: `'off'`, `'current'`, `'waiting'`, `'ready'`; `subscribe`
+  gives the state now and at each change.
+- **Served at an origin's root** (coach-cubed.org, `c67`): `start_url` and `scope` are `./`, which resolve to `/`;
+  `sw.js` takes its scope from `self.registration.scope` and `updates.mjs` registers `./sw.js` with scope `./`, so
+  the same worker runs at a path (the dev server, a prefix) and at a root. `tests/app/sw.test.js` runs it at
+  `http://localhost:8090/` and at `https://coach-cubed.org/`.
+- **Pages' `Cache-Control: max-age=600` holds no update back:** the browser fetches the worker's own script past the
+  HTTP cache (`register()` passes no `updateViaCache`, so it is `'imports'`, and `sw.js` imports nothing), `files.json`
+  is fetched `cache: 'no-store'` and every file `cache: 'reload'`. A new version is seen at the next update check
+  (the app opening, the page coming back to the front, about once a day) whatever the headers say.
+- **"Update ready"** is a plain line on H (`<p class="update">`, no style yet:
+  `dirac` styles it later): "Update ready · reload the app". A page already running keeps the modules it loaded; the new
+  version is used from the next load.
+- **Not in the APK** (`c20`'s choice): nothing is registered when
+  `window.Capacitor?.isNativePlatform?.()` is true, or when the browser has no
+  service workers (`state()` is `'off'`). The first install is not an update:
+  no "waiting" and no "ready" for the worker that claims a page that had none.
+  The page also asks the browser to look for a new `sw.js` whenever it comes
+  back to the front.
+
+**The browser check** (`tools/check-offline.mjs`, heavy: through a slice): it
+assembles the app into a temporary folder, serves it, opens headless Brave
+over CDP, waits for the worker to be active with all 91 entries cached, then
+takes the network away (`Network.emulateNetworkConditions` offline, **and** the
+server shut down, so nothing could answer) and does a plain reload (a hard one
+bypasses every worker, by design). It asserts: the app drew; every same-origin
+request of the reload came from the worker (`fromServiceWorker`), none failed,
+none was an HTTP error, none reached the server, no console error; the engine
+(`PoseEngine.create()` on WebGL, so the worker loads the weights from the
+cache) answers a frame; and the caches are exactly `coach-<version>` with
+exactly `files.json`'s files. Run it after `build-tfjs.mjs` and
+`fetch-models.sh`. Headless Brave's WebGL is SwiftShader, so it says the app
+loads and the engine answers, not how fast. The worker itself is tested in
+`tests/app/sw.test.js` on a fake Cache Storage and fetch.
+
+## Releasing: GitHub Pages
+
+`.github/workflows/pages.yml` (`c67`) publishes 0.1.0 and every later release to https://coach-cubed.org. It runs on a
+pushed tag `v*` and by hand; a manual run builds and checks and deploys only with the `deploy` input ticked (the first
+CI build is tested before anything goes live). The steps of the `build` job: the tag must equal `app/package.json`'s
+version (tags only); `npm --prefix app ci`; `npm --prefix app test` (not `test:page`, not `check:layout`; the runner's
+`google-chrome` serves the few tests that launch a browser); `build-tfjs.mjs`; `fetch-models.sh` (the weights from
+Kaggle, SHA-256 checked); `assemble.mjs --cname coach-cubed.org`; `check-dist.mjs --release app/dist`; the Pages
+artifact from `app/dist`. The `deploy` job (a tag, or `deploy` ticked) publishes it. Node 22: the repo pins none, 22 is
+the laptop's. Every action is pinned to a full commit SHA with its version in a comment; the workflow holds no secret.
+
+- **The size:** the dist is 144 files and 17,488,916 bytes (the weights about 12 MB); Pages allows 1 GB.
+- **CNAME:** a site deployed by Actions takes its domain from the repo's settings and ignores the file; it documents
+  the domain, is listed in `files.json` like any file, and `check-dist --release` wants it.
+- **Hidden files:** `actions/upload-pages-artifact` leaves out every file whose name starts with a dot unless
+  `include-hidden-files: true`. A file `files.json` lists but the site lacks fails the service worker's whole
+  install, so `assemble.mjs` skips every dot file (today `.npmrc`) and `check-dist.mjs` fails on one. The app's
+  README, `package.json` and `package-lock.json` stay out of `dist/` too; the version is read from `APP_VERSION`.
+- **Why tags only:** a deploy is a release; the service worker's version is the build's hash, so a merge to `main`
+  would ship an update to every installed copy. A manual run without `deploy` tests the build at any time.
+- **The version:** `app/package.json`'s `version`, equal to `APP_VERSION` (`tests/app/release.test.js`). The web app
+  manifest has no version member. Capacitor's app name and Android's `versionName` are `c33`'s.
+
+nordmu's steps (Pages' source, the domain, the environment's tag rule, the tag) and the handover to Noah:
+[docs/handover.md](../docs/handover.md). The notes: [docs/release-0.1.0.md](../docs/release-0.1.0.md).
+
+## The tools' browser
+
+`tools/browser.mjs` (package `c47`) is how `page-test.mjs`, `check-tfjs.mjs`, `check-offline.mjs`, `check-pose.mjs` and
+`check-media.mjs` (and, since `d25`, `layout-check.mjs`, and since `c27`, `check-capture.mjs`; since `d28` the page test and the layout check pass `FAKE_CAMERA`, the fake camera's two flags, from here) get their headless Brave or Chromium: `findBrowser()` (`--browser PATH`, then `COACH_BROWSER`, then
+Brave/Chromium/Chrome on `PATH`) and `launchBrowser(profile, args)`, which returns the child, its DevTools port and
+`close()`. No tool spawns a browser itself (`tests/app/browser.test.js` checks the source).
+
+Why: `/usr/bin/brave-browser` (and Fedora's chromium) is a bash wrapper whose last line is `"$HERE/brave" "$@" || true`,
+**without `exec`**. `child.kill()` on what a tool spawned signals only the wrapper: bash exits and the real browser and its GPU
+process live on as children of systemd (~0.5 GB each; 90 of them filled the laptop on 2026-11-02). So `close()` ends the whole
+tree (the wrapper's descendants by `pgrep -P`, and anything else with the profile in its command line), SIGTERM, up to 5 s,
+then SIGKILL; it is idempotent, and the tool removes its profile after it. The browser is not `detached`: it stays in the
+check's session, so the pipeline's own kill of a check reaches it too. While a browser is open the helper closes it on SIGTERM,
+SIGINT and SIGHUP (what `timeout` sends) and on `exit`. A **SIGKILL** to the test can't be caught, so a test killed that way can
+still leave a browser behind; `ps -eo args | grep -c '[-]-user-data-dir=/tmp/coach-'` counts them.
+
+**The temp folder** (`c52`). Chromium makes `org.chromium.Chromium.*` folders in `$TMPDIR`: its singleton folder for the
+profile (`SingletonCookie`, `SingletonSocket`), removed on a clean exit and left when the browser is killed, which is what
+`close()` does; and Brave's component updater's scratch folders (`…BraveComponentUpdater_chrome_url_fetcher_.*`,
+`…_Unpacker_BeginUnzipping.*`: new-tab wallpapers and extensions), made by every headless launch, killed or not. On 2026-11-02 `/tmp` held 1,431 such folders (1,269 made in two hours of tests; 363 MB, mostly the updater's).
+Checked: the singleton folder lands in `TMPDIR` under Brave. The updater folders never appeared in the runs here, so they
+could not be reproduced and are only expected to follow `TMPDIR`. So `launchBrowser` gives each browser a `$TMPDIR` of its own,
+`<profile>/t` (short: a socket path holds about 108 bytes); `close()` removes it once the processes are gone, and the `exit`
+handler (`killNow()`) removes it right after sending SIGKILL, without waiting for the processes to end. The removal is best
+effort (`c52f1`): a folder that can't be removed (`EACCES`, or `ENOTEMPTY`/`EBUSY` once its retries run out) stays inside the
+profile, and `close()` still resolves and the `exit` handler still kills the other open browsers. Nothing
+outside the browser's own folders is touched, and nothing is left in `os.tmpdir()`. A tool that removes its profile
+removes this too; a test killed with SIGKILL leaves the profile (and with it `t/`), never an `org.chromium.*` folder in `/tmp`.
+The component updater is also switched off in every tools' browser (`--disable-component-update`,
+`--disable-background-networking`): a test has no use for Brave's downloads. `tests/app/browser.test.js` checks it with a
+stand-in browser that makes those folders in its `$TMPDIR` (after `close()`, after `killNow()`, after the processes were
+killed from outside) and once with the real one, each in a private `TMPDIR` so nothing else on the machine can count.
+
+## The page test
+
+`npm --prefix app run test:page` (`tools/page-test.mjs`, package `c21`, plan step 5.6) walks the app the way a person does, in
+headless Brave or Chromium over the DevTools protocol, offline, for each lift with a fixture in `tools/lift-fixtures.mjs` (`s49`:
+the lateral raise and the snatch). A lift of the registry with none is not walked and is listed: `untested` in the output's JSON and
+a line `page-test: not walked, no fixture in app/tools/lift-fixtures.mjs: …`. It runs in about 5 s in a pipeline
+worktree: no example clips, no `app/vendor/tfjs/`, no `app/models/`, no GPU.
+
+**`d66`: the switch.** The gym session is off by default, so after the offline reload H has no `[data-card="session"]` and the page has counted no `getUserMedia` call (wrapped in the page); at the end of the lift walks, still none. Before the session walk (below): H → "Settings and about" → S1 → the switch on (`[data-setting="gymSession"]`, `aria-checked="true"`) → "Back to home" → H with the gym card. The output names each step (`page-test: gym session switch …`). The walks that follow run as before.
+
+1. **The test build.** `assemble.mjs --test` (into a temporary folder; `dist/` is not touched) adds `page-test/` to the assembled app:
+   `replay.mjs`, an engine that answers the k-th decoded frame with the k-th frame of a committed fixture track
+   (`tests/fixtures/global/example/lateral-raise-cable-1` and `athlete-a-trim`, `TEST_TRACKS` in `assemble.mjs`, from `lift-fixtures.mjs`), through contract 1's
+   messages (the real `PoseEngine` client and `worker-core.mjs` on a stand-in for the Worker); `boot.mjs`, which `index.html` loads
+   before `main.mjs` and which makes the app's one queue with that engine; and the two tracks, `page-test/tracks.json` listing them.
+   The job takes the fixture's `fps`, `width` and `height` (the clip is 108×192, the keypoints are in the fixture's 1080×1920): the
+   replay wraps the job's frame source, so the pictures are the clip's decoded for real and only the track's meta is the fixture's.
+   The clip picks its track by frame rate and frame count. The shipped `dist/` (assemble without `--test`) has none of this
+   (`tests/app/page-test.test.js`).
+   **The two failing modes** (`d57`): `boot.mjs` shares the replay's control as `globalThis.coachReplay`, and its `mode`, read when
+   the next job opens its clip, makes that job fail. `'no-person'`: the engine answers every frame with no keypoints, so the
+   track keeps no frames and `job.mjs` throws `NoPersonError` (problem kind `no-person`, Q1's "No person found"). `'unreadable'`:
+   the replay refuses the clip with a `MediaError` `unreadable` (problem kind `unreadable`, Q1's "This video can't be read").
+   `null` replays the track, as before; the page test never sets a mode. `tests/app/page-test.test.js` pins both through the real
+   queue and job. The responsive check sets them ([below](#a4-and-the-responsive-check)).
+2. **The clips**, `tests/app/clips/testsrc2-lateral-raise-25fps-75f.mp4` and `testsrc2-snatch-30fps-107f.mp4`: ffmpeg `testsrc2`,
+   108×192, H.264, 10–12 kB, the frame rate and frame count of their fixtures ([tests/README.md](../tests/README.md#the-test-clips-testsappclips)).
+3. **The walk.** Serve on `127.0.0.1:$COACH_PORT` (a free port without it); load; wait for the service worker's whole cache; go offline
+   (`Network.emulateNetworkConditions` and the server shut down); reload; then per lift H → the picker (H's file input is set to the clip) → L1 (a tap on `[data-lift="<id>"]`, once per lift) → M (1 Start, a
+   refused 2 on the same frame, a drag of the filmstrip to the end, 2 End, ↶, 2 again, 3 Analyse) → Q1 (until "Open the result") → A1.
+   **The shift check** (`d54`, `tools/shift-check.mjs`): in M the boxes of the header, the strip, ‹, the text line, ›, ↶ and
+   the three steps must be the same, to 0.5 px, after 1, after the refused 2, after 2, after ↶ and after 2 again as in M1
+   before any mark; a control that moved fails the run, naming the control and the step ("lateral-raise: M moved after 1:
+   the strip (y 596 → 556)"). The cue cards (`.cue-card`, per `data-cue`)
+   must equal `cardsOf(scoreLift(fixtureTrack).view)`, computed in Node: per cue the status class, the verdict line, the value and the
+   card's label (which carries the status word). On the first scored cue, the open card's rule line must hold the page's
+   `Diagnostics.rule(id).noun` and a watch band, and A2's "How it's scored" must start with `rule(id).basis` (`s45`).
+   Then (`d28`) **the session walk**: H → the gym card → R1 (the preview plays; a tap on the last lift presses it and only it; the line under the preview reads `1080p · 30 fps · last 60 s`) → Start → R2 (the clock moves by 2 s or more; the rate reads 30 fps ± 1; the lift line) → (`d29`, below) → End session → H; a hook in the page records every camera track (`getUserMedia`'s and `clone()`'s) and, after End session, every one has `readyState` `ended`. The browser has the fake camera (`--use-fake-device-for-media-stream=fps=30 --use-fake-ui-for-media-stream`, `FAKE_CAMERA` in `browser.mjs`). The output's `session` object and the line `page-test: session walk …` name it.
+   **The replay walk** (`d29`), inside the session walk, after the clock and the rate: wait 4 s; R2's Replay → R3 (the snapshot opens, the
+   `<video>` plays; the position `m:ss / …` moves over three seconds; the label reads `N s ago`; ½× sets the video's rate to 0.5 and
+   back to 1×; a pause holds the countdown for 1.6 s and playing runs it on) → Keep and mark → M (M1; 1, a drag of the strip to the
+   end, 2, then 3 Analyse) → R2 with the queue line showing the lift (a page observer records its text, the job being short) → the queue line →
+   Q1 → **the recorded lift's job is cancelled** → Back to the session → R2 → End session. A recording matches none of the fixture tracks
+   (the replay engine picks one by the clip's rate and frame count), so its job would fail at once: `boot.mjs` holds the next jobs at their
+   clip while `globalThis.coachReplay.hold` is a promise, which the walk sets before 3 Analyse and clears after the cancel. The output
+   names each step (`page-test:   R2 → Replay → R3` …, "Q1: the recorded lift's job cancelled (…)").
+   **The delayed walk** (`d29b`), a second session after the first one's End session: H → R1, "Delayed view" → Start → R3b; its 5 s
+   (the view starts again at 5 s) → 7 s later the canvas has drawn frames and goes on drawing, its centre is not empty, and the newest
+   frame is 5 ± 0.5 s behind the capture's newest (read five times in the page from what R3b's canvas says it drew: `data-frame-us`, the
+   frame's time, and `data-live-us`, the capture's clock at that draw, both on the recording's clock) → Keep this lift → M (M1, on the
+   kept snapshot) → M's ✕ → R3b → End session → H, every camera track ended. The output gives the measured delay
+   (`page-test: delayed walk (…): measured 5.0xx s behind (5 s set), N frames drawn`) and names each step; when the canvas
+   drew nothing, its problem quotes what R3b says over it (`c61`: "Starting: …" or the decoder's words, `note` in the output).
+   Then (`d22`) A3 opens from "View options" with the mockup's switches and speeds and no lifter, a switch flips, a smoothing change
+   scores again and is put back to 50 ms, and "Re-mark this lift" opens M in its ready state.
+4. **It fails** on a console error, an exception or unhandled rejection, a failed request or an HTTP error (page, workers and the
+   service worker), a request that reaches the server after it was taken away, a job that does not finish in its time (60 s,
+   `COACH_PAGE_TEST_JOB_S`), an empty cue list, or cards that differ from the adapter's. `--break console|http|rejection|stall|hang|cards|shift`
+   puts each fault in on purpose, to see it fail (`shift`: M's text row grows once the start is set). No browser (`--browser PATH`, `COACH_BROWSER`, then Brave/Chromium/Chrome on `PATH`):
+   one clear line and exit 1, unless `COACH_PAGE_TEST_SKIP=1` (then it says it skipped, exit 0).
+5. **`--real CLIP`** (off by default): the real engine on one example clip (`lateral-raise-cable-1` or `athlete-a-trim`), read in place
+   from the `phase-0` worktree's `tests/fixtures/local/example/` (found with `git worktree list`), with that worktree's TF.js bundle and
+   weights copied into the temporary folder if this one has none. Online, MoveNet on WebGL, which headless Brave runs in software (the
+   app has no other backend), so a minute a clip: `pipeline/devlock.sh slice page-real node app/tools/page-test.mjs --real athlete-a-trim`.
+   The cards are printed next to the adapter's on the fixture and may differ (ViTPose's track against MoveNet's pose); it fails on an
+   error, a job that does not finish (540 s) or an empty list. Real clips on the phone: `c26`, [pose-spike.md](../docs/pose-spike.md#the-app-itself-on-the-fairphone-c26-2026-11-03).
+
+## The tests
+
+`tests/app/` holds them (`d55`: `wording.test.js` pins the words of Q1, A1, A2, A3 and S1, `more-below.test.js` the cue's rule), because the pipeline's red-first check reads only
+`tests/`: `flow.test.js` (the state machine), `draw.test.js` (the overlay, pinned to the old page) and `player.test.js` (A1's player on fakes), `view-options.test.js` (A3: the options on the player, the re-score, loop, re-mark, delete), `home.test.js` (H's logic: a lift's state, the lists, the pick step, `main.mjs`'s boot), `lift.test.js` (L1: the tiles from the registry, the default ring, the step to M, the pickers, `d53`), `assemble.test.js` (assemble
+into a temporary folder, the manifest and `index.html`), `serve.test.js` (the
+dev server), `contracts.test.js` (the contracts, against the committed tracks
+and `diagnostics.js`'s headless API), `lifts.test.js` (the lift registry: a test-only third lift reaches H, the settings, the store and the icons; every shipped lift has its set in `diagnostics.js`; the fixtures per lift; `tests/app/import-map.mjs` gives Node `index.html`'s import map, so it draws `LiftIcon` with Preact), `store.test.js` (the store, on `fake-opfs.js`, an in-memory OPFS), `frame-source.test.js` (the frame source and its stepper, on our own clips in `tests/app/clips/` and a fake decoder), `delayed.test.js` (`d29b`: the delayed frames on the real ring and the fake decoder, R3b's logic, R1's replay mode, S1's delay, the ways back to a running session), `capture.test.js` (the capture and its ring, `c27`, on `fake-webcodecs.js`'s fake camera, encoder and wake lock: the rate, the keyframes, the drops, the ring, snapshots that the frame source and the cut open, `follow`, the errors, the wake lock, interruptions, stop and close), `pose-engine.test.js` (the pose engine's client and worker handler, against fakes), `media-phone.test.js` (the check page's media measurements, their driver and the clips' script; the shipped `dist/` without them), `android-shell.test.js` (the Capacitor config, the committed Android project, the pins and `build-apk.sh`), `sw.test.js` (the service worker run as a script on a fake Cache Storage and fetch, the registration module on a fake browser and queue, assemble's version stamp), `page-test.test.js` (the replay engine behind the real pose client, the test build and the shipped `dist/` without it, the script's no-browser line), `build-tfjs.test.js` (the TF.js
+build's pins, cache, op lists and patch notices, the MoveNet entry's
+refusal of a config without `modelUrl`, and `fetch-models.sh`'s checks and
+clean-up, all without the network). Every test runs in a fresh worktree, which has neither
+`app/vendor/tfjs/` nor `app/models/`: a test that needs them makes its own
+fake. `tests/paths.test.js` scans `app/` for absolute asset paths (not
+`vendor/`, `dist/`, `android/` or `node_modules/`).
+
+## Open
+
+- The name (question 10): the manifest's name is a placeholder, and so is
+  the APK's app ID, `org.coach.placeholder`. The icons are the logo's
+  (2026-11-03); the wordmark isn't in the app yet.

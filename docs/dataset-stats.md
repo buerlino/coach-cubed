@@ -32,13 +32,13 @@ drop-in, not in the shell).
 | **total** | **72** | **121.6** | **3226** | **2002** | **1117** | **107** |
 
 Arafura is all `unknown` by design: that production shows no referee lights at
-all, so the pipeline cannot read a verdict (see `clipper/README.md`,
+all, so the pipeline cannot read a verdict (see clipper's `README.md`,
 "Limitations"). 3,119 clips carry a `lights_t`; anchoring was 1,925 via lights
 and 1,301 via the attempt clock.
 
 Clip length is the dominant quality variable downstream: min 3.5, p25 3.9,
 median 5.6, p75 8.5, p90 15.3, max 16.2 s. **712 clips (22%) sit exactly on the
-`MIN_LEN = 3.5 s` floor** in `clipper/src/final.py`.
+`MIN_LEN = 3.5 s` floor** in clipper's `src/final.py`.
 
 ```sh
 python3 - <<'PY'
@@ -71,11 +71,19 @@ earlier hand-run sessions.
 The one failure is `division by zero` on
 `06-2023-pacific-games-oceania-championships-session-6-…_57_1h59m27s_made.mp4`.
 All 30 skips are one session,
-`18-2025-australian-senior-junior-championships-session-8-and-9-…` — the
-filename pattern in `scripts/sync_clipper_fixtures.py` does not cope with
-`session-8-and-9`.
+`18-2025-australian-senior-junior-championships-session-8-and-9-…`. The
+session name parses. The likely cause is the attempt number: the filename
+pattern in `scripts/sync_clipper_fixtures.py` takes exactly two digits
+(`\d{2}`; `src/app.py` takes `\d+`), so a session that runs past attempt 99
+loses every attempt after it.
 
-### What the accepted 1,720 are labelled
+**Fixed 2026-11-02, not yet re-run on the full dataset:** the pattern takes
+`\d+` now, and the sync sorts clips by attempt number
+(`tests/test_sync_clipper_fixtures.py`). How many of the 30 come back is
+unknown until the sync runs again over this session's clips; the skip lines in
+`log/pose-sync.log` hold their names.
+
+### What the 1,722 in the manifest are labelled
 
 ```
 stance    snatch 1470   clean-and-jerk 252          85:15, against a true ~50:50
@@ -102,14 +110,14 @@ a pose problem** — the window opens after the lift has already started.
 
 ### Accept rate by clip length (all 3,224 clips with a readable duration)
 
-| length | accepted | held | usable |
+| length | accepted | not accepted | usable |
 | --- | ---: | ---: | ---: |
 | 3.5–4 s | 202 | 658 | **23%** |
 | 4–6 s | 428 | 414 | 51% |
 | 6–10 s | 665 | 252 | 73% |
 | 10 s+ | 425 | 180 | 70% |
 
-Widening `_tighten()` in `clipper/src/final.py` for short-burst attempts and
+Widening `_tighten()` in clipper's `src/final.py` for short-burst attempts and
 re-cutting the 860 clips under 4 s is the single highest-yield fix available.
 Held clips are deliberately **not** recorded in `.clipper_sync_state.json`, so
 they re-extract with no bookkeeping once the windows are better.
@@ -153,6 +161,6 @@ coverage table in [`docs/train-data-todo.md`](train-data-todo.md) item 4.
 - Every count above is a snapshot. Re-running the pose pass, widening clipper
   windows or re-cutting invalidates stage 2 and 3 wholesale.
 - `made` / `miss` come from reading referee lights, not from results sheets.
-  `clipper/README.md` lists the failure modes.
+  clipper's `README.md` lists the failure modes.
 - Stance is inferred from the pose trace and **has never been validated against
   a hand-label**. Treat the 85:15 split as evidence it is wrong.

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
 .anatomy-toolbar {display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 12px;background:var(--surface,#15232d);border:1px solid var(--line,#34454b);border-radius:8px;margin:8px 0}
 .anatomy-toolbar label {display:flex;align-items:center;gap:6px;font-size:13px}
 .anatomy-toolbar select,.anatomy-toolbar button {font-size:12px}

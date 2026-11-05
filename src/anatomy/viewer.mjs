@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import * as THREE from '../squat/vendor/three.module.js';
 import {REST,ANCHORS,withAnchors,clamp} from './pose-rig.mjs';
 import {barbellPose} from './barbell.mjs';

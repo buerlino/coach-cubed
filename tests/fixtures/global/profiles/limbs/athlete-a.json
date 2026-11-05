@@ -1,5 +1,5 @@
 {
- "notes": "Measured off a still of athlete-a standing square to the lens with the arms locked out overhead and the legs straight, so each segment's projection IS its length: a press photo (kept out of the repo), run through the same ViTPose the clips use (person conf 0.95). Left and right agreed to 1.7% on the thigh, 0.6% on the shank and 4.3% on the upper arm, which is the check that the pose really was frontal; the forearm's 10.5% is the weakest of the four and she is gripping a bar there. Every segment came out SHORTER than the population prior, by 0.06-0.16 torso.",
+ "notes": "Measured off a press photo of athlete-a (the lifter in global/example/athlete-a-trim) standing square to the lens with the arms locked out overhead and the legs straight, so each segment's projection IS its length. The photo stays out of the repo. It was run through the same ViTPose the clips use (person conf 0.95). Left and right agreed to 1.7% on the thigh, 0.6% on the shank and 4.3% on the upper arm, which is the check that the pose really was frontal; the forearm's 10.5% is the weakest of the four and the athlete is gripping a bar there. Every segment came out SHORTER than the population prior, by 0.06-0.16 torso.",
  "ratios": {
   "farm": 0.442,
   "shank": 0.707,

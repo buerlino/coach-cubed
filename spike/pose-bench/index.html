@@ -1,0 +1,69 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pose bench</title>
+<style>
+  body { font: 14px/1.4 system-ui, sans-serif; margin: 16px; background: #fff; color: #111; }
+  label { display: inline-block; margin: 0 12px 8px 0; }
+  pre { background: #f3f3f3; padding: 8px; white-space: pre-wrap; font-size: 12px; }
+  @media (prefers-color-scheme: dark) { body { background: #111; color: #eee; } pre { background: #222; } }
+</style>
+<!-- diagnostics.js is a classic script that sets window.Diagnostics. -->
+<script src="../../src/diagnostics.js"></script>
+</head>
+<body>
+<h1>Pose bench</h1>
+<p>Phase 3 spike: a clip decoded with WebCodecs, pose in a worker, scored as the old page scores.
+Results land in <code>spike/pose-bench/results/</code> on the laptop.</p>
+<label>clip <select id="clip"></select></label>
+<label>model <select id="model">
+  <option>mediapipe-lite</option><option selected>mediapipe-full</option><option>mediapipe-heavy</option>
+  <option>vitpose-s</option><option>vitpose-b</option><option>rtmpose-s</option><option>rtmpose-m</option>
+  <option>movenet-thunder</option><option>movenet-lightning</option><option>blazepose-tfjs-full</option>
+  <option>blazepose-onnx-full</option>
+</select></label>
+<label>runtime <select id="ep"><option>webgpu</option><option>wasm</option>
+  <option>tfjs-webgl</option><option>tfjs-webgpu</option><option>tfjs-wasm</option></select></label>
+<label>fps <select id="fps"><option>20</option><option>30</option><option>full</option></select></label>
+<label>detector <select id="det"><option>yolox-nano</option><option>yolox-tiny</option><option>frame</option></select></label>
+<button id="go">run</button>
+<pre id="log"></pre>
+<script type="module">
+import { listClips, run } from './bench.mjs';
+const $ = id => document.getElementById(id);
+const log = s => { $('log').textContent += s + '\n'; };
+const clips = await listClips();
+for (const c of clips) $('clip').add(new Option(`${c.path} (${c.set || '?'})`, c.path));
+$('go').onclick = async () => {
+  const clip = clips.find(c => c.path === $('clip').value);
+  const fps = $('fps').value === 'full' ? 'full' : Number($('fps').value);
+  try {
+    const r = await run({ clip, model: $('model').value, ep: $('ep').value, fps, detector: $('det').value }, log);
+    log(JSON.stringify({ timings: r.timings, perFrame: r.perFrame, scores: r.scores }, null, 1));
+  } catch (e) { log('error: ' + (e.stack || e)); }
+};
+// For the CDP driver (run-cdp.mjs): window.bench.run({ clip: 'example/x.mp4', ... }).
+window.bench = {
+  clips,
+  isolated: self.crossOriginIsolated,
+  async run(opts) {
+    const clip = clips.find(c => c.path === opts.clip);
+    if (!clip) throw new Error('no clip ' + opts.clip);
+    const lines = [];
+    const r = await run({ ...opts, clip }, s => { lines.push(s); log(s); });
+    delete r.track;   // saved on the laptop already; keep the CDP reply small
+    return { ...r, log: lines };
+  },
+};
+// Keep the screen on during long runs (re-acquired when the page is shown
+// again); the page's own request, not a phone setting.
+const wake = async () => { try { await navigator.wakeLock?.request('screen'); } catch {} };
+wake();
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') wake(); });
+log(`${clips.length} clips; cross-origin isolated: ${self.crossOriginIsolated}; WebGPU: ${!!navigator.gpu}`);
+</script>
+</body>
+</html>

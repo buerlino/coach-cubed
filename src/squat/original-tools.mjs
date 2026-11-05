@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 /** Real original diagnostic engine + geometric backend in the anatomy UI. */
 export function mountOriginalTools({videoClock,redraw,onDepth,getExercise}){
  const $=id=>document.getElementById(id),D=window.Diagnostics;

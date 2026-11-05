@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 const test=require('node:test'),assert=require('node:assert/strict');
 const modules=Promise.all([import('../src/anatomy/grip.mjs'),import('../src/anatomy/sequence.mjs'),import('../src/anatomy/pose-rig.mjs')]);
 function entries(R){return Array.from({length:90},(_,i)=>{const points=structuredClone(R.REST),shift=.03*Math.sin(i/15);for(const p of Object.values(points)){p[0]+=shift;p[1]-=.9;}points.leftWrist[0]+=.006*(i%2?1:-1);return {time:i/30,idx:i,pose:{points,aspect:1,space:'image',confidence:Object.fromEntries(Object.keys(points).map(k=>[k,1]))},videoWidth:1000,videoHeight:1000};});}

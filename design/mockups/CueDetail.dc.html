@@ -1,0 +1,155 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cue detail: elbow lead</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&amp;family=Barlow+Condensed:wght@600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0E0F11}
+a{color:#C8F04A}a:hover{color:#DDF78A}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; background: #0E0F11; color: #F2F1EC; font-family: Barlow, system-ui, sans-serif">
+
+  <header style="height: 56px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 8px">
+    <a href="Result.dc.html" aria-label="Back to the result" style="width: 44px; height: 44px; border-radius: 22px; color: #F2F1EC; display: flex; align-items: center; justify-content: center; text-decoration: none">
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round"><path d="M15 5l-7 7 7 7"></path></svg>
+    </a>
+    <h1 style="margin: 0; font-size: 19px; font-weight: 700">Elbow lead</h1>
+    <span style="margin-left: auto; margin-right: 8px; height: 30px; padding: 0 12px; border-radius: 15px; background: rgba(255,138,76,0.16); color: #FF8A4C; display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round"><path d="M12 3l9.5 17h-19z"></path><path d="M12 10v4.5M12 17.5h.01"></path></svg>
+      Work on
+    </span>
+  </header>
+
+  <div style="flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column">
+    <div style="height: 280px; flex: none; position: relative; background: #000">
+      <div aria-label="The worst moment, 2.24 s: the wrists sit above the elbow line" role="img" style="position: absolute; left: 116px; top: 0; width: 158px; height: 280px; overflow: hidden; background: linear-gradient(#2A2E34, #1C1F23)">
+        <sc-for list="{{body}}" as="b" hint-placeholder-count="10"><div style="position: absolute; {{b.s}}"></div></sc-for>
+        <sc-for list="{{bones}}" as="b" hint-placeholder-count="16"><div style="position: absolute; {{b.s}}"></div></sc-for>
+        <sc-for list="{{lines}}" as="b" hint-placeholder-count="2"><div style="position: absolute; height: 0; border-top: 2px dashed #FF8A4C; {{b.s}}"></div></sc-for>
+        <sc-for list="{{marks}}" as="j" hint-placeholder-count="4"><div style="position: absolute; width: 12px; height: 12px; margin: -7px 0 0 -7px; border-radius: 8px; border: 2px solid #0E0F11; left: {{j.x}}px; top: {{j.y}}px; background: {{j.c}}"></div></sc-for>
+      </div>
+      <span style="position: absolute; left: 10px; bottom: 10px; padding: 6px 10px; border-radius: 10px; background: rgba(14,15,17,0.8); font-size: 14px; line-height: 1.3; max-width: 100px">Worst moment<br><strong style="font-size: 16px">2.24 s</strong></span>
+      <span style="position: absolute; right: 10px; bottom: 10px; padding: 6px 10px; border-radius: 10px; background: rgba(14,15,17,0.8); font-size: 14px; line-height: 1.3; max-width: 100px; color: #FF8A4C">Wrists above the elbow line</span>
+    </div>
+
+    <div style="padding: 12px 16px 24px; display: flex; flex-direction: column; gap: 14px">
+      <a href="Result.dc.html" style="align-self: flex-start; height: 44px; padding: 0 14px; border-radius: 12px; background: #21242A; color: #F2F1EC; display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; text-decoration: none">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" style="fill: currentColor"><path d="M8 5v14l11-7z"></path></svg>
+        Play the rep at ½×
+      </a>
+
+      <section aria-labelledby="plot-h" style="border-radius: 16px; background: #17191C; padding: 12px 0 8px">
+        <h2 id="plot-h" style="margin: 0 16px 2px; font-size: 16px; font-weight: 600">Elbow above wrist</h2>
+        <p style="margin: 0 16px 6px; font-size: 13px; color: #8E939B">% of torso length, while the arms are raised · band: left vs right arm</p>
+        <svg viewBox="0 0 358 190" width="358" height="190" role="img" aria-label="Elbow lead over time: it drops below minus 5 percent from 2.1 to 2.35 seconds, lowest minus 11.4 percent at 2.24 seconds" style="display: block">
+          <rect x="36" y="10" width="312" height="84" style="fill: rgba(111,183,255,0.10)"></rect>
+          <rect x="36" y="94" width="312" height="24" style="fill: rgba(242,193,78,0.12)"></rect>
+          <rect x="36" y="118" width="312" height="48" style="fill: rgba(255,138,76,0.14)"></rect>
+          <line x1="36" y1="94" x2="348" y2="94" style="stroke: #6FB7FF; stroke-width: 1; stroke-dasharray: 4 3"></line>
+          <line x1="36" y1="118" x2="348" y2="118" style="stroke: #FF8A4C; stroke-width: 1; stroke-dasharray: 4 3"></line>
+          <text x="30" y="98" style="fill: #8E939B; font: 12px Barlow, sans-serif; text-anchor: end">+5</text>
+          <text x="30" y="122" style="fill: #8E939B; font: 12px Barlow, sans-serif; text-anchor: end">−5</text>
+          <text x="30" y="62" style="fill: #8E939B; font: 12px Barlow, sans-serif; text-anchor: end">+20</text>
+          <text x="30" y="158" style="fill: #8E939B; font: 12px Barlow, sans-serif; text-anchor: end">−20</text>
+          <text x="342" y="26" style="fill: #6FB7FF; font: 600 12px Barlow, sans-serif; text-anchor: end">good</text>
+          <text x="342" y="110" style="fill: #F2C14E; font: 600 12px Barlow, sans-serif; text-anchor: end">watch</text>
+          <text x="342" y="160" style="fill: #FF8A4C; font: 600 12px Barlow, sans-serif; text-anchor: end">work on</text>
+          <polygon points="{{band}}" style="fill: rgba(242,241,236,0.16)"></polygon>
+          <polyline points="{{line}}" style="fill: none; stroke: #F2F1EC; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round"></polyline>
+          <line x1="160.8" y1="10" x2="160.8" y2="166" style="stroke: #F2F1EC; stroke-width: 1.5"></line>
+          <circle cx="160.8" cy="133.4" r="5" style="fill: #FF8A4C; stroke: #0E0F11; stroke-width: 2"></circle>
+          <text x="168" y="148" style="fill: #FF8A4C; font: 700 13px Barlow, sans-serif">−11.4%</text>
+          <text x="64.4" y="184" style="fill: #8E939B; font: 12px Barlow, sans-serif; text-anchor: middle">1.9 s</text>
+          <text x="149.5" y="184" style="fill: #8E939B; font: 12px Barlow, sans-serif; text-anchor: middle">2.2 s</text>
+          <text x="234.5" y="184" style="fill: #8E939B; font: 12px Barlow, sans-serif; text-anchor: middle">2.5 s</text>
+          <text x="319.6" y="184" style="fill: #8E939B; font: 12px Barlow, sans-serif; text-anchor: middle">2.8 s</text>
+        </svg>
+      </section>
+
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+        <div style="padding: 12px; border-radius: 14px; background: #17191C; display: flex; flex-direction: column; gap: 2px">
+          <span style="font-size: 13px; color: #B4B8BF">Elbow lead margin</span>
+          <span style="font: 700 26px 'Barlow Condensed', Barlow, sans-serif; color: #FF8A4C">−11.4%</span>
+          <span style="font-size: 13px; color: #8E939B">wrist rises above elbow</span>
+        </div>
+        <div style="padding: 12px; border-radius: 14px; background: #17191C; display: flex; flex-direction: column; gap: 2px">
+          <span style="font-size: 13px; color: #B4B8BF">Mean margin</span>
+          <span style="font: 700 26px 'Barlow Condensed', Barlow, sans-serif">+9.0%</span>
+          <span style="font-size: 13px; color: #8E939B">across the working range</span>
+        </div>
+        <div style="padding: 12px; border-radius: 14px; background: #17191C; display: flex; flex-direction: column; gap: 2px">
+          <span style="font-size: 13px; color: #B4B8BF">Frames scored</span>
+          <span style="font: 700 26px 'Barlow Condensed', Barlow, sans-serif">24</span>
+          <span style="font-size: 13px; color: #8E939B">while the arm was raised</span>
+        </div>
+        <div style="padding: 12px; border-radius: 14px; background: #17191C; display: flex; flex-direction: column; gap: 2px">
+          <span style="font-size: 13px; color: #B4B8BF">Left vs right</span>
+          <span style="font: 700 26px 'Barlow Condensed', Barlow, sans-serif">±8.7%</span>
+          <span style="font-size: 13px; color: #8E939B">how much the arms disagree</span>
+        </div>
+      </div>
+
+      <section aria-labelledby="cue-h" style="display: flex; flex-direction: column; gap: 6px">
+        <h2 id="cue-h" style="margin: 0; font-size: 15px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: #B4B8BF">The cue</h2>
+        <p style="margin: 0; font-size: 16px; line-height: 1.45">Through the raise the elbow stays at or slightly above the wrist — the wrist shouldn't flick up and lead the lift.</p>
+      </section>
+
+      <section aria-labelledby="rule-h" style="padding: 12px 14px; border-radius: 14px; border: 1px solid #2E3238; display: flex; flex-direction: column; gap: 6px">
+        <h2 id="rule-h" style="margin: 0; font-size: 15px; font-weight: 600">How it's scored · provisional</h2>
+        <p style="margin: 0; font-size: 15px; line-height: 1.4; color: #B4B8BF">The lowest margin in the rep decides: good from +5% (elbow clearly above the wrist), watch between +5% and −5%, work on below −5%. These limits aren't checked on real lifts yet.</p>
+      </section>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  bar(a, b, w, c) {
+    const f = n => n.toFixed(1), dx = b.x - a.x, dy = b.y - a.y;
+    return { s: 'left:' + f(a.x - w / 2) + 'px;top:' + f(a.y - w / 2) + 'px;width:' + f(Math.hypot(dx, dy) + w) + 'px;height:' + f(w) + 'px;border-radius:' + f(w / 2) + 'px;transform-origin:' + f(w / 2) + 'px 50%;transform:rotate(' + f(Math.atan2(dy, dx) * 180 / Math.PI) + 'deg);background:' + c };
+  }
+
+  renderVals() {
+    // Frame 56 (2.24 s) of lateral-raise-cable-1, COCO-17 [x, y] in thousandths.
+    const F = [594,235,613,223,578,219,626,206,517,190,628,232,408,222,778,218,262,239,943,202,260,195,606,472,464,478,583,630,446,643,538,766,401,798];
+    const W = 158, H = 280;
+    const P = Array.from({ length: 17 }, (_, k) => ({ x: F[2 * k] * W / 1000, y: F[2 * k + 1] * H / 1000 }));
+    const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+    const G = '#454A52';
+    const EDGES = [[0,1],[0,2],[1,3],[2,4],[5,6],[5,7],[7,9],[6,8],[8,10],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16]];
+    // golden: lateral-raise-elbow-lead series, [t, value, lo, hi]
+    const S = [[1.88,27.2,20.2,34.2],[1.92,22.8,15.4,30.1],[1.96,17.1,12.2,21.9],[2,11.5,9.2,13.7],[2.04,4.8,4.0,5.6],[2.08,-1.8,-6.4,2.9],[2.12,-5.4,-11.5,0.7],[2.16,-8.7,-16.3,-1.1],[2.2,-11.1,-19.7,-2.4],[2.24,-11.4,-19.8,-3.0],[2.28,-10.2,-17.6,-2.8],[2.32,-8.9,-16.7,-1.0],[2.36,-0.9,-3.1,1.2],[2.4,-0.3,-5.2,4.5],[2.44,3.6,0.9,6.2],[2.48,7.4,5.7,9.1],[2.52,10.5,9.4,11.6],[2.56,14.2,13.4,15.1],[2.6,18.8,17.8,19.7],[2.64,21.0,19.5,22.4],[2.68,25.5,22.0,29.1],[2.72,28.4,25.3,31.4],[2.76,30.8,26.6,34.9],[2.8,31.9,26.8,37.0]];
+    const x = t => (36 + (t - 1.8) / 1.1 * 312).toFixed(1);
+    const y = v => (10 + (40 - Math.max(-25, Math.min(40, v))) * 2.4).toFixed(1);
+    return {
+      body: [
+        this.bar(mid(P[5], P[6]), mid(P[11], P[12]), 31, G),
+        this.bar(P[5], P[7], 10, G), this.bar(P[7], P[9], 9, G),
+        this.bar(P[6], P[8], 10, G), this.bar(P[8], P[10], 9, G),
+        this.bar(P[11], P[13], 13, G), this.bar(P[13], P[15], 11, G),
+        this.bar(P[12], P[14], 13, G), this.bar(P[14], P[16], 11, G),
+        this.bar(mid(P[3], P[4]), mid(P[3], P[4]), 20, G),
+      ],
+      bones: EDGES.map(([a, b]) => this.bar(P[a], P[b], 2.5, 'rgba(200,240,74,0.9)')),
+      // The elbow line on each side, out past the wrist.
+      lines: [[7, 9, 1], [8, 10, -1]].map(([e, w, d]) => {
+        const x0 = Math.min(P[e].x, P[w].x + d * 14) - 4, x1 = Math.max(P[e].x, P[w].x + d * 14) + 4;
+        return { s: 'left:' + x0.toFixed(1) + 'px;top:' + P[e].y.toFixed(1) + 'px;width:' + (x1 - x0).toFixed(1) + 'px' };
+      }),
+      marks: [7, 8, 9, 10].map(k => ({ x: P[k].x.toFixed(1), y: P[k].y.toFixed(1), c: k >= 9 ? '#FF8A4C' : '#F2F1EC' })),
+      line: S.map(p => x(p[0]) + ',' + y(p[1])).join(' '),
+      band: S.map(p => x(p[0]) + ',' + y(p[3])).concat(S.slice().reverse().map(p => x(p[0]) + ',' + y(p[2]))).join(' '),
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,119 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>View options</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&amp;family=Barlow+Condensed:wght@600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0E0F11}
+a{color:#C8F04A}a:hover{color:#DDF78A}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; position: relative; overflow: hidden; background: #0E0F11; color: #F2F1EC; font-family: Barlow, system-ui, sans-serif">
+
+  <div aria-hidden="true" style="position: absolute; inset: 0; display: flex; flex-direction: column">
+    <div style="height: 56px; display: flex; align-items: center; padding: 0 60px; font-size: 19px; font-weight: 700">Lateral raise</div>
+    <div style="height: 360px; background: #000; position: relative">
+      <div style="position: absolute; left: 94px; top: 0; width: 202px; height: 360px; background: linear-gradient(#2A2E34, #1C1F23)"></div>
+    </div>
+  </div>
+  <a href="Result.dc.html" aria-label="Close view options" style="position: absolute; inset: 0; background: rgba(0,0,0,0.6)"></a>
+
+  <section role="dialog" aria-labelledby="vo-h" style="position: absolute; left: 0; right: 0; bottom: 0; top: 96px; border-radius: 24px 24px 0 0; background: #17191C; display: flex; flex-direction: column">
+    <div style="flex: none; padding: 8px 12px 4px 20px">
+      <div style="width: 40px; height: 5px; border-radius: 3px; background: #3A3F46; margin: 0 auto 8px"></div>
+      <div style="display: flex; align-items: center; justify-content: space-between">
+        <h2 id="vo-h" style="margin: 0; font-size: 20px; font-weight: 700">View options</h2>
+        <a href="Result.dc.html" style="height: 44px; padding: 0 12px; border-radius: 12px; display: flex; align-items: center; color: #C8F04A; font-size: 16px; font-weight: 600; text-decoration: none">Done</a>
+      </div>
+    </div>
+
+    <div style="flex: 1; min-height: 0; overflow-y: auto; padding: 4px 20px 24px; display: flex; flex-direction: column; gap: 20px">
+      <div role="group" aria-labelledby="ov-h" style="display: flex; flex-direction: column">
+        <h3 id="ov-h" style="margin: 0 0 4px; font-size: 14px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: #B4B8BF">On the video</h3>
+        <sc-for list="{{switches}}" as="w" hint-placeholder-count="3">
+          <button type="button" role="switch" aria-checked="{{w.on}}" onClick="{{w.flip}}" style="min-height: 56px; padding: 6px 0; border: 0; border-bottom: 1px solid #2E3238; background: transparent; color: #F2F1EC; display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; font-family: Barlow, sans-serif; cursor: pointer">
+            <span style="display: flex; flex-direction: column; gap: 2px">
+              <span style="font-size: 17px; font-weight: 500">{{w.label}}</span>
+              <span style="font-size: 14px; color: #8E939B; line-height: 1.3">{{w.sub}}</span>
+            </span>
+            <span style="width: 48px; height: 28px; flex: none; border-radius: 14px; position: relative; background: {{w.track}}">
+              <span style="position: absolute; top: 3px; width: 22px; height: 22px; border-radius: 11px; background: #F2F1EC; left: {{w.knob}}px"></span>
+            </span>
+          </button>
+        </sc-for>
+      </div>
+
+      <div role="group" aria-labelledby="pb-h" style="display: flex; flex-direction: column; gap: 10px">
+        <h3 id="pb-h" style="margin: 0; font-size: 14px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: #B4B8BF">Playback speed</h3>
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 14px; background: #21242A">
+          <sc-for list="{{speeds}}" as="p" hint-placeholder-count="3">
+            <button type="button" aria-pressed="{{p.on}}" onClick="{{p.pick}}" style="height: 44px; border: 0; border-radius: 10px; font: 700 16px Barlow, sans-serif; cursor: pointer; background: {{p.bg}}; color: {{p.fg}}">{{p.label}}</button>
+          </sc-for>
+        </div>
+      </div>
+
+      <div role="group" aria-labelledby="li-h" style="display: flex; flex-direction: column; gap: 8px">
+        <h3 id="li-h" style="margin: 0; font-size: 14px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: #B4B8BF">Lifter</h3>
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+          <span style="display: flex; flex-direction: column; gap: 2px">
+            <span style="font-size: 17px; font-weight: 500">Person 1, in all 75 frames</span>
+            <span style="font-size: 14px; color: #8E939B; line-height: 1.3">3 brief detections of other people were ignored</span>
+          </span>
+          <button type="button" style="height: 44px; padding: 0 14px; border: 1px solid #3A3F46; border-radius: 12px; background: transparent; color: #F2F1EC; font: 600 15px Barlow, sans-serif; cursor: pointer">Change</button>
+        </div>
+      </div>
+
+      <div role="group" aria-labelledby="ad-h" style="display: flex; flex-direction: column; gap: 8px">
+        <h3 id="ad-h" style="margin: 0; font-size: 14px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase; color: #B4B8BF">Advanced</h3>
+        <label for="sigma" style="display: flex; justify-content: space-between; font-size: 17px; font-weight: 500">Smoothing <span style="color: #B4B8BF">{{sigma}} ms</span></label>
+        <input id="sigma" type="range" min="0" max="300" step="5" value="{{sigma}}" onChange="{{setSigma}}" style="width: 100%; height: 32px; accent-color: #C8F04A">
+        <span style="font-size: 14px; color: #8E939B; line-height: 1.35">Changes the scores. The thresholds assume the default, 50 ms.</span>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 8px; padding-top: 4px">
+        <a href="Mark.dc.html" style="height: 52px; border-radius: 14px; background: #21242A; color: #F2F1EC; display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 600; text-decoration: none">Re-mark this lift</a>
+        <button type="button" style="height: 52px; border: 0; border-radius: 14px; background: transparent; color: #FF6B6B; font: 600 16px Barlow, sans-serif; cursor: pointer">Delete this lift</button>
+      </div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const s = Object.assign({ skel: true, cue: true, low: false, loop: true, speed: 1, sigma: 50 }, this.state || {});
+    const SW = [
+      { id: 'skel', label: 'Skeleton', sub: 'The pose, joint by joint' },
+      { id: 'cue', label: 'Cue drawings', sub: 'What each cue measures, like the elbow line' },
+      { id: 'low', label: 'Unsure joints', sub: 'Joints the model was less than 30% sure of' },
+      { id: 'loop', label: 'Loop the lift only', sub: 'Skip the walk-in and walk-out' },
+    ];
+    return {
+      switches: SW.map(w => ({
+        label: w.label, sub: w.sub, on: s[w.id],
+        track: s[w.id] ? '#C8F04A' : '#3A3F46',
+        knob: s[w.id] ? 23 : 3,
+        flip: () => this.setState({ [w.id]: !s[w.id] }),
+      })),
+      speeds: [0.25, 0.5, 1].map(v => ({
+        label: v === 1 ? '1×' : v === 0.5 ? '½×' : '¼×',
+        on: s.speed === v,
+        bg: s.speed === v ? '#F2F1EC' : 'transparent',
+        fg: s.speed === v ? '#0E0F11' : '#B4B8BF',
+        pick: () => this.setState({ speed: v }),
+      })),
+      sigma: s.sigma,
+      setSigma: e => this.setState({ sigma: Number(e.target.value) }),
+    };
+  }
+}
+</script>
+</body>
+</html>

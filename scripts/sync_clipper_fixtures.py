@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Pull newly-cut clips out of clipper's output and turn them
 into coach test fixtures, end to end — no manual clips_inbox/ copying.
 
@@ -6,8 +7,8 @@ into coach test fixtures, end to end — no manual clips_inbox/ copying.
     python scripts/sync_clipper_fixtures.py --clipper-dir /path/to/clipper/downloads
     python scripts/sync_clipper_fixtures.py --dry-run     # classify, don't persist fixtures
 
-clipper/ (formerly the standalone weightlifting-clipper repo, merged in with
-its history intact) writes one folder per source video, named after the video
+clipper (its own repo, weightlifting-clipper; it lived in coach as clipper/
+from 2026-09-23 to 2026-10-31) writes one folder per source video, named after the video
 and sitting beside it, and puts that video's cut attempts in <that
 folder>/clips/, named
 "<session>_NN_HhMMmSSs_<made|miss>.mp4" (see its README/src/cut.py). It knows
@@ -72,23 +73,29 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # Where clipper put its output. $CLIPPER_OUT is the same variable clip.sh reads
 # for its own -o default, so moving the downloads off this box's 288G SSD onto
 # bulk storage needs setting it once, not passing a path to two tools that must
-# agree. Unset falls back to the in-repo path, which keeps a fresh clone working
-# with no environment at all.
-DEFAULT_CLIPPER_DIR = Path(os.environ.get("CLIPPER_OUT")
-                           or REPO_ROOT / "clipper" / "downloads")
+# agree. clipper is its own repo again since 2026-10-31, so there is no in-repo
+# fallback any more: set CLIPPER_OUT or pass --clipper-dir.
+DEFAULT_CLIPPER_DIR = Path(os.environ["CLIPPER_OUT"]) if os.environ.get("CLIPPER_OUT") else None
 STATE_FILE = REPO_ROOT / "tests" / "fixtures" / "local" / ".clipper_sync_state.json"
 
-# session_NN_HhMMmSSs_result.mp4 — see clipper/src/cut.py. "unknown" is a real
+# session_NN_HhMMmSSs_result.mp4 — see src/cut.py in the clipper repo. NN is
+# {i:02d} there: two digits up to attempt 99, three from attempt 100 on. "unknown" is a real
 # verdict here, not a parse failure: some productions show no referee lights at
 # all, and clipper labels those attempts honestly rather than guessing.
-CLIP_NAME_RE = re.compile(r"^(?P<session>.+)_(?P<idx>\d{2})_(?P<hh>\d+)h(?P<mm>\d{2})m(?P<ss>\d{2})s_(?P<result>made|miss|unknown)\.mp4$")
+CLIP_NAME_RE = re.compile(r"^(?P<session>.+)_(?P<idx>\d+)_(?P<hh>\d+)h(?P<mm>\d{2})m(?P<ss>\d{2})s_(?P<result>made|miss|unknown)\.mp4$")
 
 
 def discover_clips(clipper_dir):
     # Searched at any depth rather than at a fixed one: the per-video folder
     # sits wherever its video does, which is one level down for a playlist and
     # at the top level for a single video or a --local run.
-    return sorted(clipper_dir.rglob("clips/*.mp4"))
+    # Sorted by attempt number, not by name: as text "_100_" sorts before "_99_".
+    # The stem keeps the number as clipper wrote it, so 99 and 100 never share
+    # a fixture slug.
+    def key(path):
+        m = CLIP_NAME_RE.match(path.name)
+        return (path.parent, m["session"], int(m["idx"]), path.name) if m else (path.parent, path.name, 0, path.name)
+    return sorted(clipper_dir.rglob("clips/*.mp4"), key=key)
 
 
 def sha256_file(path):
@@ -127,7 +134,6 @@ def write_fixture(out_dir, manifest, clip, stance, result, attempt_result, args,
         "source_file": clip.name,
         "model_size": args.size,
         "frame_stride": args.frame_stride,
-        "detect_equipment": args.detect_equipment,
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "frame_count": meta.get("frame_count"),
         "frames_processed": meta.get("frames_processed"),
@@ -135,9 +141,9 @@ def write_fixture(out_dir, manifest, clip, stance, result, attempt_result, args,
         "labels": existing.get("labels", []),
         "notes": existing.get("notes") or note,
         # DIAGNOSTIC_SETS key this fixture is scored against — our stance
-        # names match those keys exactly. batch_extract_tracks.py only ever
-        # preserves an existing value here; a brand new fixture needs it set
-        # explicitly or every test/golden falls back to "snatch".
+        # names match those keys exactly. The tests fail on a fixture without
+        # the field, so every entry gets it; unlike batch_extract_tracks.py,
+        # which keeps a hand-set value on a re-extract, this sets it afresh.
         "diagnostics": stance,
         "attempt_result": attempt_result,
     }
@@ -147,14 +153,13 @@ def write_fixture(out_dir, manifest, clip, stance, result, attempt_result, args,
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--clipper-dir", type=Path, default=DEFAULT_CLIPPER_DIR,
-                     help=f"clipper's downloads/ dir (default: {DEFAULT_CLIPPER_DIR})")
+                     help=f"clipper's downloads/ dir (default: $CLIPPER_OUT, now {DEFAULT_CLIPPER_DIR or 'unset'})")
     ap.add_argument("--host", default="127.0.0.1:8080", help="host:port the coach app is listening on")
     ap.add_argument("--scope", default="local", choices=("local", "global"),
                      help="local (default): gitignored, this machine only; "
                           "global: committed — use deliberately, not for a routine sync")
     ap.add_argument("--size", default="l", choices=("l", "h"), help="ViTPose checkpoint size")
     ap.add_argument("--frame-stride", type=int, default=1)
-    ap.add_argument("--detect-equipment", action="store_true")
     ap.add_argument("--stance-override", action="append", default=[], metavar="SUBSTRING=STANCE",
                      help="force this stance for any session name containing SUBSTRING "
                           "(case-insensitive); repeatable, checked before the pose classifier")
@@ -176,9 +181,11 @@ def main():
         substr, stance = spec.split("=", 1)
         overrides.append((substr, stance))
 
+    if args.clipper_dir is None:
+        ap.error("set CLIPPER_OUT or pass --clipper-dir: clipper's output lives outside this repo")
     if not args.clipper_dir.is_dir():
         sys.exit(f"no such directory: {args.clipper_dir}\n"
-                 f"(pass --clipper-dir, or set it up at the default location)")
+                 f"(pass --clipper-dir, or set CLIPPER_OUT)")
 
     clips = discover_clips(args.clipper_dir)
     if args.shuffle is not None:
@@ -224,7 +231,7 @@ def main():
                                  if substr.lower() in m["session"].lower()), None)
 
         try:
-            bet.start_job(base_url, clip, args.size, args.frame_stride, args.detect_equipment)
+            bet.start_job(base_url, clip, args.size, args.frame_stride)
             result = bet.wait_for_result(base_url, clip)
         except Exception as e:
             print(f"FAILED {clip.relative_to(args.clipper_dir)}: {e}")

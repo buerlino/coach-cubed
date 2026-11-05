@@ -3,8 +3,8 @@ __pycache__/
 .tmp/
 log/*.log
 .caddy/
-# LaTeX build byproducts. The report itself only ever builds inside report/
-# (see report/Makefile) — these patterns exist for the root so a `pdflatex`
+# LaTeX build byproducts. The report itself only ever builds inside
+# parked/report/ (see parked/report/Makefile) — these patterns exist for the root so a `pdflatex`
 # run from the wrong directory can't accidentally get committed again.
 /*.aux
 /*.log
@@ -22,6 +22,9 @@ private/
 clips_inbox/*
 !clips_inbox/.gitkeep
 .DS_Store
+# The old login password's hash: nothing reads it, and it leaves the history
+# in step 2.8 (docs/decisions.md, question 5).
+.auth_password
 # Private fixtures/examples: clips you don't want in the repo. Same layout as
 # tests/fixtures/global/ (own manifest.json, <stance>/ subfolders); the app
 # merges both into one example gallery and the tests score both. Their golden
@@ -30,3 +33,27 @@ tests/fixtures/local/*
 !tests/fixtures/local/.gitkeep
 tests/golden/local/*
 !tests/golden/local/.gitkeep
+
+# Spike results: tracks of third-party videos and device probes stay local.
+# Model weights and the runtimes npm installs are downloads, not source
+# (their pinned versions and checksums are in each spike's README).
+spike/**/results/
+spike/**/models/
+spike/**/node_modules/
+
+# Third-party clips are never committed (tests/fixtures/README.md, "Videos"):
+# a global fixture's clip lives under local/, and the report's copy stays beside
+# the notebook on machines that have it. A clip that may be published needs
+# `git add -f`.
+tests/fixtures/global/**/*.mp4
+parked/report/examples/*.mp4
+
+# The new app (app/): the assembled folder, MoveNet's weights and the TF.js
+# bundle are built or fetched (docs/app-plan.md), not source.
+app/dist/
+app/models/
+app/vendor/tfjs/
+app/node_modules/
+# The debug APK (app/tools/build-apk.sh); app/android/ is committed, and its
+# own .gitignore keeps Gradle's outputs and the copied web assets out.
+app/out/

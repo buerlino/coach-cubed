@@ -1,0 +1,38 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0E0F11">
+<title>coach³</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="./icons/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png">
+<link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+<link rel="stylesheet" href="./src/styles/tokens.css">
+<link rel="stylesheet" href="./src/styles/base.css">
+<link rel="preload" href="./vendor/fonts/barlow/barlow-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<!-- Preact's hooks import "preact" by bare name; the map points every bare
+     name at the vendored, pinned file. htm is the plain build, not
+     htm/preact/standalone (which carries its own copy of Preact). -->
+<script type="importmap">
+{
+  "imports": {
+    "preact": "./vendor/preact/preact.mjs",
+    "preact/hooks": "./vendor/preact/hooks.mjs",
+    "htm": "./vendor/htm/htm.mjs"
+  }
+}
+</script>
+</head>
+<body>
+<div id="app"></div>
+<noscript>coach needs JavaScript.</noscript>
+<!-- diagnostics.js is a classic script that sets window.Diagnostics; the scoring
+     adapter (src/scoring/) reads it from there. Plain, so it runs before the
+     deferred module below. assemble.mjs copies it into src/ of dist/. -->
+<script src="./src/diagnostics.js"></script>
+<script type="module" src="./src/main.mjs"></script>
+</body>
+</html>

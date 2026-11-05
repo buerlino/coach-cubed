@@ -1,0 +1,248 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mark the lift</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&amp;family=Barlow+Condensed:wght@600;700&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; background: #0E0F11; color: #F2F1EC; font-family: Barlow, system-ui, sans-serif">
+
+  <header style="height: 60px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 12px">
+    <a href="Main.dc.html" aria-label="Close" style="width: 44px; height: 44px; border-radius: 22px; color: #F2F1EC; display: flex; align-items: center; justify-content: center; text-decoration: none">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+    </a>
+    <h1 style="margin: 0; font-size: 19px; font-weight: 700">Mark the lift</h1>
+    <button type="button" onClick="{{nextLift}}" style="margin-left: auto; height: 40px; padding: 0 12px 0 14px; border: 1px solid #3A3F46; border-radius: 20px; background: transparent; color: #F2F1EC; font: 600 15px Barlow, sans-serif; display: flex; align-items: center; gap: 4px; cursor: pointer">
+      {{liftLabel}}
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round"><path d="M6 9l6 6 6-6"></path></svg>
+    </button>
+  </header>
+
+  <div style="height: 440px; flex: none; position: relative; background: #000">
+    <div aria-label="The kept video at the playhead" role="img" style="position: absolute; left: 71px; top: 0; width: 248px; height: 440px; overflow: hidden; background: linear-gradient(#262A30, #1B1E22 70%)">
+      <div style="position: absolute; left: 0; right: 0; top: 372px; bottom: 0; background: #16181B; border-top: 1px solid #2A2E34"></div>
+      <sc-for list="{{fig}}" as="b" hint-placeholder-count="14"><div style="position: absolute; {{b.s}}"></div></sc-for>
+    </div>
+    <span style="position: absolute; left: 12px; top: 12px; padding: 4px 10px; border-radius: 10px; background: rgba(14,15,17,0.8); font: 700 18px 'Barlow Condensed', Barlow, sans-serif; letter-spacing: 0.5px">{{clock}}</span>
+  </div>
+
+  <ol aria-label="Steps" style="height: 44px; flex: none; margin: 0; padding: 0 16px; list-style: none; display: flex; align-items: center; gap: 6px">
+    <sc-for list="{{steps}}" as="st" hint-placeholder-count="3">
+      <li style="display: flex; align-items: center; gap: 6px; flex: 1; font-size: 15px; font-weight: 600; color: {{st.fg}}">
+        <span style="width: 24px; height: 24px; flex: none; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; box-sizing: border-box; background: {{st.bg}}; border: 2px solid {{st.ring}}; color: {{st.numFg}}">{{st.num}}</span>
+        {{st.label}}
+      </li>
+    </sc-for>
+  </ol>
+
+  <div onPointerDown="{{down}}" onPointerMove="{{move}}" onPointerUp="{{up}}" onKeyDown="{{key}}" role="slider" tabindex="0" aria-label="Playhead position, drag the filmstrip" aria-valuemin="0" aria-valuemax="30" aria-valuenow="{{tNow}}" aria-valuetext="{{clock}}" style="height: 100px; flex: none; position: relative; overflow: hidden; cursor: grab; touch-action: none; user-select: none">
+    <div style="position: absolute; top: 4px; width: 1440px; height: 92px; left: {{stripLeft}}px">
+      <sc-for list="{{ticks}}" as="tk" hint-placeholder-count="31">
+        <div style="position: absolute; top: 14px; width: 1px; background: #4A4F57; left: {{tk.left}}px; height: {{tk.h}}px"></div>
+        <span style="position: absolute; top: 0; width: 40px; margin-left: -20px; text-align: center; font-size: 12px; font-weight: 600; color: #8E939B; left: {{tk.left}}px">{{tk.label}}</span>
+      </sc-for>
+      <sc-for list="{{thumbs}}" as="th" hint-placeholder-count="30">
+        <div style="position: absolute; top: 26px; width: 47px; height: 64px; overflow: hidden; border-radius: 3px; background: linear-gradient(#2A2E34, #1E2125); left: {{th.left}}px">
+          <div style="position: absolute; left: 5px; top: 0; width: 36px; height: 64px">
+            <sc-for list="{{th.fig}}" as="b" hint-placeholder-count="14"><div style="position: absolute; {{b.s}}"></div></sc-for>
+          </div>
+        </div>
+      </sc-for>
+      <sc-if value="{{hasRegion}}" hint-placeholder-val="{{ false }}">
+        <div style="position: absolute; top: 24px; height: 64px; box-sizing: border-box; border-top: 3px solid #C8F04A; border-bottom: 3px solid #C8F04A; background: rgba(200,240,74,0.22); left: {{regionLeft}}px; width: {{regionWidth}}px"></div>
+      </sc-if>
+      <sc-if value="{{hasStart}}" hint-placeholder-val="{{ false }}">
+        <div style="position: absolute; top: 20px; width: 4px; height: 72px; margin-left: -2px; border-radius: 2px; background: #C8F04A; left: {{startLeft}}px"></div>
+        <span style="position: absolute; top: 0; width: 20px; height: 18px; margin-left: -10px; border-radius: 4px; background: #C8F04A; color: #0E0F11; font-size: 12px; font-weight: 700; text-align: center; line-height: 18px; left: {{startLeft}}px">S</span>
+      </sc-if>
+      <sc-if value="{{hasEnd}}" hint-placeholder-val="{{ false }}">
+        <div style="position: absolute; top: 20px; width: 4px; height: 72px; margin-left: -2px; border-radius: 2px; background: #C8F04A; left: {{endLeft}}px"></div>
+        <span style="position: absolute; top: 0; width: 20px; height: 18px; margin-left: -10px; border-radius: 4px; background: #C8F04A; color: #0E0F11; font-size: 12px; font-weight: 700; text-align: center; line-height: 18px; left: {{endLeft}}px">E</span>
+      </sc-if>
+    </div>
+    <div aria-hidden="true" style="position: absolute; left: 194px; top: 22px; width: 2px; height: 78px; background: #F2F1EC"></div>
+    <div aria-hidden="true" style="position: absolute; left: 189px; top: 14px; width: 12px; height: 12px; background: #F2F1EC; transform: rotate(45deg); border-radius: 2px"></div>
+  </div>
+
+  <div style="flex: 1; padding: 8px 20px 0; display: flex; flex-direction: column; gap: 6px">
+    <p role="status" style="margin: 0; font-size: 16px; line-height: 1.35; color: {{hintColor}}">{{hint}}</p>
+    <p style="margin: 0; font-size: 14px; line-height: 1.35; color: #8E939B">{{subHint}}</p>
+    <sc-if value="{{ready}}" hint-placeholder-val="{{ false }}">
+      <button type="button" onClick="{{redo}}" style="align-self: flex-start; height: 44px; padding: 0 14px; margin-left: -14px; border: 0; border-radius: 12px; background: transparent; color: #C8F04A; font: 600 16px Barlow, sans-serif; cursor: pointer">Redo the marks</button>
+    </sc-if>
+  </div>
+
+  <div style="flex: none; padding: 0 16px 20px; display: flex; align-items: center; gap: 10px">
+    <button type="button" onClick="{{stepBack}}" aria-label="One frame back" style="width: 56px; height: 56px; flex: none; border: 1px solid #3A3F46; border-radius: 16px; background: #17191C; color: #F2F1EC; display: flex; align-items: center; justify-content: center; cursor: pointer">
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round"><path d="M16 6l-6 6 6 6M8 6v12"></path></svg>
+    </button>
+    <sc-if value="{{notReady}}" hint-placeholder-val="{{ true }}">
+      <button type="button" onClick="{{setMark}}" style="flex: 1; height: 56px; border: 0; border-radius: 16px; background: #F2F1EC; color: #0E0F11; font: 700 19px Barlow, sans-serif; cursor: pointer">{{setLabel}}</button>
+    </sc-if>
+    <sc-if value="{{ready}}" hint-placeholder-val="{{ false }}">
+      <a href="Analysing.dc.html" style="flex: 1; height: 56px; border-radius: 16px; background: #C8F04A; color: #0E0F11; display: flex; align-items: center; justify-content: center; gap: 8px; font: 700 19px Barlow, sans-serif; text-decoration: none">Analyse {{lenLabel}}</a>
+    </sc-if>
+    <button type="button" onClick="{{stepFwd}}" aria-label="One frame forward" style="width: 56px; height: 56px; flex: none; border: 1px solid #3A3F46; border-radius: 16px; background: #17191C; color: #F2F1EC; display: flex; align-items: center; justify-content: center; cursor: pointer">
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" style="fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round"><path d="M8 6l6 6-6 6M16 6v12"></path></svg>
+    </button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"step":{"editor":"enum","options":["start","end","ready"],"default":"start"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  // Where each step opens: M1 starts fresh, M2 has the start set, M3 both.
+  cur() {
+    const INIT = {
+      start: { step: 'start', t: 7.2, start: null, end: null },
+      end: { step: 'end', t: 20.6, start: 7.6, end: null },
+      ready: { step: 'ready', t: 20.6, start: 7.6, end: 20.6 },
+    };
+    return Object.assign({ drag: null, lift: 'lateral-raise', err: false }, INIT[this.props.step] || INIT.start, this.state || {});
+  }
+
+  ease(x) { return x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x); }
+
+  // The demo lifter at time t (s) of a 30 s buffer, in frame units (100 wide,
+  // 178 tall): walks in 1-6 s, four lateral raises 8-20 s, walks out 23-28 s.
+  pose(t) {
+    const e = x => this.ease(x);
+    let cx = 50, walking = false;
+    if (t < 6) { cx = 135 - 85 * e((t - 1) / 5); walking = t > 1; }
+    else if (t > 23) { cx = 50 - 85 * e((t - 23) / 5); walking = t < 28; }
+    let th = 4;
+    if (t >= 8 && t < 20) {
+      const p = ((t - 8) % 3) / 3;
+      th = 4 + 84 * (p < 0.4 ? e(p / 0.4) : p < 0.5 ? 1 : 1 - e((p - 0.5) / 0.5));
+    }
+    const sw = walking ? Math.sin(t * 7) * 5 : 0;
+    const r = th * Math.PI / 180, f = th * 0.9 * Math.PI / 180;
+    const arm = s => {
+      const sh = { x: cx + s * 12, y: 58 };
+      const el = { x: sh.x + s * 21 * Math.sin(r), y: sh.y + 21 * Math.cos(r) };
+      const wr = { x: el.x + s * 19 * Math.sin(f), y: el.y + 19 * Math.cos(f) };
+      return { sh, el, wr };
+    };
+    return {
+      cx, sw, head: { x: cx, y: 44 }, L: arm(-1), R: arm(1),
+      hipL: { x: cx - 8, y: 99 }, hipR: { x: cx + 8, y: 99 },
+      kneeL: { x: cx - 9 + sw * 0.6, y: 128 }, kneeR: { x: cx + 9 - sw * 0.6, y: 128 },
+      ankL: { x: cx - 9 + sw, y: 156 }, ankR: { x: cx + 9 - sw, y: 156 },
+    };
+  }
+
+  // The lifter as rounded bars, W px wide frame: one style string per part.
+  figure(t, W, body, bell) {
+    const k = W / 100, p = this.pose(t), out = [];
+    const f = n => n.toFixed(1);
+    const seg = (a, b, w, c) => {
+      const dx = (b.x - a.x) * k, dy = (b.y - a.y) * k, ww = w * k;
+      const ang = Math.atan2(dy, dx) * 180 / Math.PI;
+      out.push({ s: 'left:' + f(a.x * k - ww / 2) + 'px;top:' + f(a.y * k - ww / 2) + 'px;width:' + f(Math.hypot(dx, dy) + ww) + 'px;height:' + f(ww) + 'px;border-radius:' + f(ww / 2) + 'px;transform-origin:' + f(ww / 2) + 'px 50%;transform:rotate(' + f(ang) + 'deg);background:' + c });
+    };
+    seg({ x: p.cx, y: 56 }, { x: p.cx, y: 97 }, 22, body);
+    seg(p.L.sh, p.R.sh, 9, body);
+    seg(p.hipL, p.hipR, 12, body);
+    for (const [h, kn, an] of [[p.hipL, p.kneeL, p.ankL], [p.hipR, p.kneeR, p.ankR]]) {
+      seg(h, kn, 10, body); seg(kn, an, 8, body);
+    }
+    for (const a of [p.L, p.R]) {
+      seg(a.sh, a.el, 7, body); seg(a.el, a.wr, 6, body);
+      const dx = a.wr.x - a.el.x, dy = a.wr.y - a.el.y, n = Math.hypot(dx, dy) || 1;
+      seg({ x: a.wr.x - dy / n * 5, y: a.wr.y + dx / n * 5 }, { x: a.wr.x + dy / n * 5, y: a.wr.y - dx / n * 5 }, 5, bell);
+    }
+    out.push({ s: 'left:' + f((p.head.x - 8) * k) + 'px;top:' + f((p.head.y - 9) * k) + 'px;width:' + f(16 * k) + 'px;height:' + f(18 * k) + 'px;border-radius:50%;background:' + body });
+    return out;
+  }
+
+  renderVals() {
+    const PX = 48, DUR = 30, FPS = 30;
+    const s = this.cur();
+    const clamp = t => Math.max(0, Math.min(DUR - 1 / FPS, Math.round(t * FPS) / FPS));
+    const fmt = t => Math.floor(t / 60) + ':' + (t % 60).toFixed(1).padStart(4, '0');
+    if (!this._thumbs) {
+      this._thumbs = Array.from({ length: DUR }, (_, i) => ({ left: i * PX, fig: this.figure(i + 0.5, 36, '#5A616B', '#8A9099') }));
+      this._ticks = Array.from({ length: DUR + 1 }, (_, i) => ({ left: i * PX, h: i % 2 ? 6 : 10, label: i % 2 ? '' : fmt(i).replace(/\.0$/, '') }));
+    }
+    const len = s.start != null ? ((s.end != null ? s.end : s.t) - s.start) : 0;
+    const lenLabel = len.toFixed(1) + ' s';
+    const LIFTS = { 'lateral-raise': 'Lateral raise', 'snatch': 'Snatch' };
+    const order = ['start', 'end', 'ready'];
+    const at = order.indexOf(s.step);
+    const steps = ['Start', 'End', 'Analyse'].map((label, i) => {
+      const done = i < at, now = i === at;
+      return {
+        label, num: done ? '✓' : String(i + 1),
+        bg: done ? '#C8F04A' : 'transparent',
+        ring: done ? '#C8F04A' : now ? '#F2F1EC' : '#4A4F57',
+        numFg: done ? '#0E0F11' : now ? '#F2F1EC' : '#8E939B',
+        fg: now ? '#F2F1EC' : done ? '#B4B8BF' : '#8E939B',
+      };
+    });
+    const HINTS = {
+      start: 'Drag the filmstrip until the playhead sits just before the lift starts, then tap Set start.',
+      end: 'Now drag to just after the last rep ends, then tap Set end.',
+      ready: lenLabel + ' marked. About ' + Math.round(len * 2.9) + ' s to analyse on this phone; it runs in the background while you train.',
+    };
+    return {
+      fig: this.figure(s.t, 248, '#4D535C', '#8A9099'),
+      thumbs: this._thumbs,
+      ticks: this._ticks,
+      clock: fmt(s.t),
+      tNow: Math.round(s.t),
+      stripLeft: (195 - s.t * PX).toFixed(1),
+      liftLabel: LIFTS[s.lift],
+      nextLift: () => this.setState({ lift: s.lift === 'lateral-raise' ? 'snatch' : 'lateral-raise' }),
+      steps,
+      hasStart: s.start != null,
+      hasEnd: s.end != null,
+      hasRegion: s.start != null && len > 0,
+      startLeft: s.start != null ? (s.start * PX).toFixed(1) : 0,
+      endLeft: s.end != null ? (s.end * PX).toFixed(1) : 0,
+      regionLeft: s.start != null ? (s.start * PX).toFixed(1) : 0,
+      regionWidth: Math.max(0, len * PX).toFixed(1),
+      hint: s.err ? 'The end has to come after the start: drag right, past the lift.' : HINTS[s.step],
+      hintColor: s.err ? '#FF8A4C' : '#F2F1EC',
+      subHint: s.step === 'ready'
+        ? 'The marks only need to bracket the lift; the analysis finds its exact start and end.'
+        : 'Rough is fine: coach finds the exact lift inside your marks. Shorter marks analyse faster.',
+      notReady: s.step !== 'ready',
+      ready: s.step === 'ready',
+      setLabel: s.step === 'start' ? 'Set start' : 'Set end',
+      lenLabel,
+      setMark: () => {
+        if (s.step === 'start') this.setState({ start: s.t, step: 'end', err: false });
+        else if (s.t > s.start + 0.3) this.setState({ end: s.t, step: 'ready', err: false });
+        else this.setState({ err: true });
+      },
+      redo: () => this.setState({ step: 'start', start: null, end: null, err: false }),
+      stepBack: () => this.setState({ t: clamp(s.t - 1 / FPS) }),
+      stepFwd: () => this.setState({ t: clamp(s.t + 1 / FPS) }),
+      key: e => {
+        if (e.key === 'ArrowLeft') { e.preventDefault(); this.setState({ t: clamp(s.t - 1 / FPS) }); }
+        if (e.key === 'ArrowRight') { e.preventDefault(); this.setState({ t: clamp(s.t + 1 / FPS) }); }
+      },
+      down: e => {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        const r = e.currentTarget.getBoundingClientRect();
+        this.setState({ drag: { x: e.clientX, t: s.t, k: r.width / 390 } });
+      },
+      move: e => {
+        const d = this.cur().drag;
+        if (d) this.setState({ t: clamp(d.t - (e.clientX - d.x) / d.k / PX) });
+      },
+      up: () => this.setState({ drag: null }),
+    };
+  }
+}
+</script>
+</body>
+</html>

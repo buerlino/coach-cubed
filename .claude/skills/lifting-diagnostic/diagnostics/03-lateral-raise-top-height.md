@@ -20,7 +20,7 @@ uncertainty band — same contract as every snatch diagnostic.
 **Efficiency measure.** The worst rep (largest absolute deviation from 0%) is
 the headline; the mean across reps is reported alongside it. Provisional
 bands on the worst rep: **≤ 15% good, ≤ 30% warning, > 30% critical**, full red
-at 45%. Eyeballed against the two bundled cable examples, nothing more.
+at 45%. Eyeballed against the two cable examples (`global/example/lateral-raise-cable-*`), nothing more.
 
 ## Active phase definition
 

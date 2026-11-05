@@ -1,0 +1,3 @@
+# What the parked detectors need on top of ../../requirements.txt
+# (moved out of it on 2026-10-31, restructuring step 2.3).
+transformers  # Grounding DINO (IDEA-Research/grounding-dino-base) — text-prompted bar/plate boxes for the 3D anchor (needs >=4.40; grounding-dino landed then)

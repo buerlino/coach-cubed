@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 'use strict';
 // Regression tests for clicking a joint in the 3D view to flip its depth sign.
 //

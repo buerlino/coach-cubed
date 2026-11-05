@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Builds the 'coach' conda env on macOS (Apple Silicon): python 3.12 + torch
 # (MPS) + this app's deps. macOS counterpart to setup_conda_linux.sh.
 #
@@ -52,9 +53,6 @@ print("mps    :", bool(mps and mps.is_available()))
 import vitpose_backend
 print("checkpoints:", vitpose_backend.available())
 print("device :", vitpose_backend.DEVICE)
-import equipment_backend
-print("equipment:", equipment_backend.model_source() if equipment_backend.available()
-      else "MISSING (optional — see download_models.sh)")
 PY
 conda run -n $ENV python "$TMPDIR/verify.py"
 

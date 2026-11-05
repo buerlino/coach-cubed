@@ -1,4 +1,5 @@
 #!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Sets up a local Python 3 venv for CPU-only execution (no Conda needed).
 set -e
 

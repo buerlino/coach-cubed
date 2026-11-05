@@ -1,0 +1,844 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+'use strict';
+// The analysis job and its queue (package s12, app/src/analysis/): a stored
+// cut read back, every frame of the marked range through the pose engine, the
+// track in the fixture format, the scoring adapter, the track and the result
+// saved through the store; one job at a time, in order, with progress by stage,
+// the time left, cancel, and a job cut off (the app closed, the WebView frozen)
+// restarted or resumed, never left hanging.
+//
+// What is real here: the store (c8) over the in-memory OPFS fake, the contracts,
+// the scoring adapter (s11) with diagnostics.js, and in the Analyse test s32's
+// keepVideo on s9's committed clip. What is fake: the frame source (Node has no
+// WebCodecs), the pose engine (no worker, no TF.js) and the clock and timers.
+//
+// Where the expected values come from:
+//  - the frames in a range, from the fake source's own frame times (worked out
+//    here, not by the job);
+//  - the time left, from the per-frame times the fake engine is told to take,
+//    with the median written out below;
+//  - the first-run estimate, ui-design.md ("What the mockups add"): about 2.9 s
+//    of processing per second of 30 fps video, MoveNet Thunder, WebGL, Brave on
+//    the Fairphone;
+//  - the result of a committed fixture track, from scoreLift() on that track
+//    alone (tests/fixtures/global/, the adapter's own test pins it to the goldens).
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const { pathToFileURL } = require('node:url');
+
+const { createFakeStorage } = require('./fake-opfs.js');
+const { loadDiagnostics } = require('../loadDiagnostics');
+const { trackPathFor } = require('../fixtures');
+
+const APP = path.join(__dirname, '..', '..', 'app');
+const load = rel => import(pathToFileURL(path.join(APP, rel)).href);
+const CLIP = path.join(__dirname, 'clips', 'testsrc2-h264-30fps.mp4');
+const Diagnostics = loadDiagnostics();
+const ENGINE_INFO = { model: 'movenet-thunder', backend: 'webgl', runtime: 'tfjs 4.22.0', initMs: 1 };
+const NOW = () => new Date('2026-11-02T09:00:00.000Z');
+
+// ---- fakes ----
+
+// A standing person, in the frame's pixels: a made-up shape, as scoring.test.js has.
+function standing() {
+  const pts = Array.from({ length: 17 }, () => [100, 100, 0.9]);
+  pts[0] = [150, 220, 0.9]; pts[5] = [250, 215, 0.95]; pts[6] = [250, 225, 0.95];
+  pts[11] = [400, 155, 0.95]; pts[12] = [400, 165, 0.95];
+  return pts;
+}
+
+// A frame source over no video: frames shaped like VideoFrames at the given times
+// (seconds), each knowing its index for the fake engine; frames(t0, t1) gives the
+// ones starting in [t0, t1], as contract 5 says.
+function fakeSource({ fps = 30, width = 640, height = 480, frameTimes }) {
+  const times = frameTimes || Array.from({ length: 60 }, (_, i) => i / fps);
+  const made = [];
+  const frame = i => {
+    const f = { index: i, timestamp: times[i] * 1e6, duration: 1e6 / fps, displayWidth: width, displayHeight: height, closed: false,
+      close() { f.closed = true; } };
+    made.push(f);
+    return f;
+  };
+  const src = {
+    info: { duration: times[times.length - 1] + 1 / fps, fps, width, height, rotation: 0, codec: 'avc1.64001f' },
+    frameTimes: Object.freeze(times.slice()),
+    made, closed: false,
+    async frameAt(t) { return frame(Math.max(0, times.findLastIndex(x => x <= t))); },
+    async *frames(t0, t1) {
+      for (let i = 0; i < times.length; i++) if (times[i] >= t0 - 1e-6 && times[i] <= t1 + 1e-6) yield frame(i);
+    },
+    async thumbnails() { return []; },
+    async stepper() { throw new Error('the job never steps'); },   // contract 5 has it since s38; the job reads ranges
+    close() { src.closed = true; },
+  };
+  return src;
+}
+const inRange = (times, { t0, t1 }) => times.filter(t => t >= t0 - 1e-6 && t <= t1 + 1e-6).length;
+
+// The pose engine's interface (s10's PoseEngine): estimate takes the frame and closes it.
+function fakeEngine({ clock, ms = () => 100, keypoints = () => standing(), hold = null, fail = null } = {}) {
+  const e = {
+    info: { ...ENGINE_INFO }, frames: [], resets: 0, closed: false,
+    async estimate(frame, tMs) {
+      if (e.closed) throw new Error('pose engine closed');
+      e.frames.push({ index: frame.index, tMs });
+      frame.close();
+      const n = e.frames.length;
+      if (hold) await hold(n, frame);
+      if (fail && fail(n)) throw new Error('worker: WebGL context lost');
+      if (clock) clock.t += ms(n);
+      return { keypoints: keypoints(frame, n), ms: ms(n) };
+    },
+    async reset() { if (e.closed) throw new Error('pose engine closed'); e.resets++; },
+    close() { e.closed = true; },
+  };
+  return e;
+}
+
+// Timers the test drives: tick(n) runs every interval n times.
+function fakeTimers() {
+  const fns = new Map();
+  const periods = [];   // the period each setInterval asked for
+  let next = 1;
+  return {
+    periods,
+    setInterval(fn, ms) { periods.push(ms); fns.set(next, fn); return next++; },
+    clearInterval(id) { fns.delete(id); },
+    tick(n = 1) { for (let k = 0; k < n; k++) for (const fn of [...fns.values()]) fn(); },
+    get active() { return fns.size; },
+  };
+}
+
+const settle = () => new Promise(r => setImmediate(r));
+async function until(cond, what) {
+  for (let k = 0; k < 500; k++) { if (cond()) return; await settle(); }
+  throw new Error(`timed out waiting for ${what}`);
+}
+
+async function setup({ storage, engines, sources, wrapStore, ...opts } = {}) {
+  const { createStore } = await load('src/store/index.mjs');
+  const { createQueue } = await load('src/analysis/index.mjs');
+  const fake = storage || createFakeStorage();
+  const store = createStore({ storage: fake.storage, now: NOW, appVersion: '0.1.0' });
+  const queueStore = wrapStore ? wrapStore(store) : store;
+  const clock = { t: 0, now() { return clock.t; } };
+  const timers = fakeTimers();
+  const made = [];
+  const opened = [];
+  const createEngine = async () => {
+    const e = engines ? engines(made.length, clock) : fakeEngine({ clock });
+    made.push(e);
+    return e;
+  };
+  const openFrameSource = async blob => {
+    const src = sources ? sources(blob, opened.length) : fakeSource({});
+    opened.push({ blob, src });
+    return src;
+  };
+  const queue = createQueue({
+    store: queueStore, createEngine, openFrameSource, Diagnostics, now: clock.now, timers, stallMs: 30000, tickMs: 1000, ...opts,
+  });
+  return { fake, store, queue, clock, timers, made, opened };
+}
+
+async function storeLift(store, { lift = 'lateral-raise', range = { t0: 0.5, t1: 1.2 }, bytes = [1, 2, 3, 4] } = {}) {
+  return store.saveLift({ lift, video: new Blob([Uint8Array.from(bytes)], { type: 'video/mp4' }), range });
+}
+
+// Every snapshot a subscriber gets, per job id.
+function record(queue) {
+  const seen = new Map();
+  const all = [];
+  queue.subscribe(jobs => {
+    all.push(jobs);
+    for (const j of jobs) {
+      if (!seen.has(j.id)) seen.set(j.id, []);
+      seen.get(j.id).push(j);
+    }
+  });
+  return { seen, all, states: id => (seen.get(id) || []).map(j => j.state).filter((s, i, a) => i === 0 || s !== a[i - 1]) };
+}
+
+// ---- the job's way through the queue ----
+
+test('jobs go queued, reading, pose, scoring, done, one at a time, in order, and pass contract 2 throughout', async () => {
+  const { validateAnalysisJob } = await load('src/contracts/analysis-job.mjs');
+  const { store, queue, made } = await setup();
+  const a = await storeLift(store, { range: { t0: 0.5, t1: 1.0 } });
+  const b = await storeLift(store, { lift: 'snatch', range: { t0: 0.2, t1: 0.6 } });
+  const rec = record(queue);
+  const ja = await queue.enqueue(a);
+  const jb = await queue.enqueue(b);
+  assert.equal(ja.state, 'queued');
+  assert.equal(ja.source, a.video);
+  assert.deepEqual(ja.range, a.range);
+  await queue.idle();
+
+  assert.deepEqual(rec.states(ja.id), ['queued', 'reading', 'pose', 'scoring', 'done']);
+  assert.deepEqual(rec.states(jb.id), ['queued', 'reading', 'pose', 'scoring', 'done']);
+  // one at a time: while a runs, b waits queued; b starts after a is done
+  for (const jobs of rec.all) {
+    const running = jobs.filter(j => ['reading', 'pose', 'scoring'].includes(j.state));
+    assert.ok(running.length <= 1, 'one job runs at a time');
+    const sa = jobs.find(j => j.id === ja.id), sb = jobs.find(j => j.id === jb.id);
+    if (sb && sb.state !== 'queued') assert.equal(sa.state, 'done', 'b starts after a');
+  }
+  // one engine for the queue, a's frames before b's
+  assert.equal(made.length, 1);
+  const lifts = { [ja.id]: a, [jb.id]: b };
+  for (const [id, snaps] of rec.seen) for (const j of snaps) assert.deepEqual(validateAnalysisJob(j, { lift: lifts[id] }), [], `${id} ${j.state}`);
+});
+
+test('progress per stage: reading, then every frame of the range posed, then scoring', async () => {
+  const { store, queue } = await setup();
+  const lift = await storeLift(store, { range: { t0: 0.5, t1: 1.0 } });
+  const rec = record(queue);
+  const job = await queue.enqueue(lift);
+  await queue.idle();
+  const total = inRange(Array.from({ length: 60 }, (_, i) => i / 30), lift.range);
+  const snaps = rec.seen.get(job.id).filter(j => j.progress);
+  const by = stage => snaps.filter(j => j.state === stage).map(j => [j.progress.done, j.progress.total]);
+  assert.deepEqual(by('reading').at(-1), [1, 1]);
+  assert.deepEqual(by('reading')[0], [0, 1]);
+  const pose = by('pose');
+  assert.deepEqual(pose[0], [0, total]);
+  assert.deepEqual(pose.map(p => p[0]), Array.from({ length: total + 1 }, (_, i) => i), 'done counts every posed frame');
+  assert.ok(pose.every(p => p[1] === total));
+  assert.deepEqual(by('scoring'), [[0, 1], [1, 1]]);
+  const done = rec.seen.get(job.id).at(-1);
+  assert.equal(done.state, 'done');
+  assert.deepEqual([done.progress.stage, done.progress.done, done.progress.total], ['scoring', 1, 1]);
+});
+
+test('the time left comes from the running median of the measured ms per frame', async () => {
+  // per frame: 100, 400, 100, 300, 100, 100, … ms (the clock moves while the engine works)
+  const costs = [100, 400, 100, 300];
+  const ms = n => costs[n - 1] ?? 100;
+  const { store, queue } = await setup({ engines: (k, clock) => fakeEngine({ clock, ms }) });
+  const lift = await storeLift(store, { range: { t0: 0, t1: 0.5 } });
+  const rec = record(queue);
+  const job = await queue.enqueue(lift);
+  await queue.idle();
+  const pose = rec.seen.get(job.id).filter(j => j.state === 'pose');
+  const total = pose[0].progress.total;
+  assert.equal(total, 16);
+  assert.equal(pose[0].progress.etaS, null, 'no measurement yet on a first run');
+  // medians of the first n frames: 100; 250; 100; 200; 100; then 100
+  const medians = [100, 250, 100, 200, 100];
+  for (const j of pose.slice(1)) {
+    const n = j.progress.done;
+    const med = medians[n - 1] ?? 100;
+    assert.ok(Math.abs(j.progress.etaS - med * (total - n) / 1000) < 1e-9, `after ${n} frames`);
+  }
+});
+
+test('cancel stops between frames, resets the engine, and leaves the lift unanalysed', async () => {
+  let queue;
+  let cancelled;
+  const { store, queue: q, made, opened } = await setup({
+    engines: (k, clock) => fakeEngine({ clock, hold: async n => { if (n === 3) cancelled = queue.cancel(job.id); } }),
+  });
+  queue = q;
+  const lift = await storeLift(store, { range: { t0: 0, t1: 1 } });
+  const job = await queue.enqueue(lift);
+  await queue.idle();
+  assert.equal(await cancelled, true);
+  const e = made[0];
+  assert.equal(e.frames.length, 3, 'the frame in flight finishes, no next frame is sent');
+  assert.equal(e.resets, 1, 'the engine is reset after a cancel');
+  const end = queue.jobs().find(j => j.id === job.id);
+  assert.equal(end.state, 'cancelled');
+  assert.equal(end.error, null);
+  assert.ok(opened[0].src.closed, 'the source is closed');
+  assert.ok(opened[0].src.made.every(f => f.closed), 'no frame is left open');
+  assert.equal((await store.getLift(lift.id)).track, null);
+  assert.equal((await store.readQueue()).jobs.find(j => j.id === job.id).state, 'cancelled');
+});
+
+test('a queued job is cancelled before it runs; cancel of an ended job changes nothing', async () => {
+  let release;
+  const gate = new Promise(r => { release = r; });
+  const { store, queue, made } = await setup({ engines: (k, clock) => fakeEngine({ clock, hold: () => gate }) });
+  const a = await storeLift(store);
+  const b = await storeLift(store);
+  const ja = await queue.enqueue(a);
+  const jb = await queue.enqueue(b);
+  await until(() => made[0] && made[0].frames.length === 1, 'a in pose');
+  await queue.cancel(jb.id);
+  assert.equal(queue.jobs().find(j => j.id === jb.id).state, 'cancelled');
+  assert.equal(queue.jobs().find(j => j.id === jb.id).progress, null);
+  release();
+  await queue.idle();
+  assert.equal(queue.jobs().find(j => j.id === ja.id).state, 'done');
+  assert.ok(made[0].frames.every(f => f.index !== undefined));
+  assert.equal(await queue.cancel(ja.id), false);
+  assert.equal(queue.jobs().find(j => j.id === ja.id).state, 'done');
+});
+
+test('a job cancelled while it starts (the settings still being read) never runs, and stays cancelled', async () => {
+  // pump() has taken the job, but drive() still waits on getSettings (OPFS): the job is
+  // still "queued" then. A cancel in that window must stop it, not let it run to done.
+  let releaseSettings;
+  const settingsGate = new Promise(r => { releaseSettings = r; });
+  let asked = false;
+  const { store, queue, made, opened } = await setup({
+    wrapStore: s => Object.assign(Object.create(s), {
+      async getSettings() { asked = true; await settingsGate; return s.getSettings(); },
+    }),
+  });
+  const lift = await storeLift(store, { range: { t0: 0, t1: 1 } });
+  const rec = record(queue);
+  const job = await queue.enqueue(lift);
+  await until(() => asked, 'the job reading the settings');
+  const cancelled = queue.cancel(job.id);
+  releaseSettings();
+  assert.equal(await cancelled, true);
+  await queue.idle();
+  assert.equal(made.reduce((n, e) => n + e.frames.length, 0), 0, 'the engine posed no frame');
+  assert.equal(opened.length, 0, 'the cut was never opened');
+  assert.equal(queue.jobs().find(j => j.id === job.id).state, 'cancelled');
+  assert.ok(!rec.states(job.id).some(s => ['reading', 'pose', 'scoring', 'done'].includes(s)), `states: ${rec.states(job.id).join(', ')}`);
+  assert.equal((await store.getLift(lift.id)).track, null, 'no result saved');
+  assert.equal((await store.readQueue()).jobs.find(j => j.id === job.id).state, 'cancelled');
+});
+
+test('a failed job says why, and the queue goes on with the next', async () => {
+  let calls = 0;
+  const { store, queue } = await setup({
+    sources: () => {
+      if (calls++ === 0) { const e = new Error("This video's format (hvc1) can't be decoded on this device."); e.code = 'unsupported-codec'; throw e; }
+      return fakeSource({});
+    },
+  });
+  const a = await storeLift(store);
+  const b = await storeLift(store);
+  const ja = await queue.enqueue(a);
+  const jb = await queue.enqueue(b);
+  await queue.idle();
+  const fa = queue.jobs().find(j => j.id === ja.id);
+  assert.equal(fa.state, 'failed');
+  assert.equal(fa.error, "This video's format (hvc1) can't be decoded on this device.");
+  assert.equal(queue.jobs().find(j => j.id === jb.id).state, 'done');
+  // the failure is kept: a queue read back after a restart still says why
+  const saved = await store.readQueue();
+  assert.equal(saved.jobs.find(j => j.id === ja.id).error, fa.error);
+});
+
+test('an engine that fails is replaced once; failing again fails the job in its words', async () => {
+  const { store, queue, made } = await setup({ engines: (k, clock) => fakeEngine({ clock, fail: n => n === 2 }) });
+  const lift = await storeLift(store);
+  const job = await queue.enqueue(lift);
+  await queue.idle();
+  assert.equal(made.length, 2);
+  assert.ok(made[0].closed);
+  const end = queue.jobs().find(j => j.id === job.id);
+  assert.equal(end.state, 'failed');
+  assert.equal(end.error, 'The pose engine failed: worker: WebGL context lost');   // d23: the phrase the error screen reads, then the worker's words
+});
+
+test('a stalled decoder runs the job again on the same engine', async () => {
+  let opens = 0;
+  const { store, queue, made } = await setup({
+    sources: () => {
+      const src = fakeSource({});
+      if (opens++ === 0) {
+        src.frames = async function* () {
+          const e = new Error('The video decoder made no progress for 15 s.'); e.code = 'decode-stalled'; throw e;
+        };
+      }
+      return src;
+    },
+  });
+  const job = await queue.enqueue(await storeLift(store));
+  await queue.idle();
+  assert.equal(queue.jobs().find(j => j.id === job.id).state, 'done');
+  assert.equal(opens, 2);
+  assert.equal(made.length, 1, 'the engine is kept');
+});
+
+test('the track and the result are saved through the store, the track in the fixture format', async () => {
+  const { validateTrack, APP_PERSON_ID } = await load('src/contracts/track.mjs');
+  const { validateResultView } = await load('src/contracts/cue-view.mjs');
+  const { scoreLift } = await load('src/scoring/score.mjs');
+  const { validateStoredLift } = await load('src/contracts/stored-lift.mjs');
+  const times = Array.from({ length: 40 }, (_, i) => 0.0331 * i);   // not a round rate: the times are the authority
+  const nobody = new Set([4, 7]);   // frames in the range where the model found nobody
+  const { store, queue } = await setup({
+    sources: () => fakeSource({ fps: 30.2, width: 360, height: 640, frameTimes: times }),
+    engines: (k, clock) => fakeEngine({ clock, keypoints: f => (nobody.has(f.index) ? null : standing()) }),
+  });
+  const lift = await storeLift(store, { range: { t0: 0.1, t1: 0.9 } });
+  await queue.enqueue(lift);
+  await queue.idle();
+  const stored = await store.getLift(lift.id);
+  assert.deepEqual(validateStoredLift(stored), []);
+  assert.deepEqual(stored.engine, { model: ENGINE_INFO.model, backend: ENGINE_INFO.backend, runtime: ENGINE_INFO.runtime });
+  const track = await store.readTrack(lift.id);
+  assert.deepEqual(validateTrack(track), []);
+  const want = times.map((t, i) => [t, i]).filter(([t]) => t >= 0.1 - 1e-6 && t <= 0.9 + 1e-6);
+  assert.deepEqual(track.meta.frame_indices, want.map(([, i]) => i), 'indices are frames of the cut');
+  assert.deepEqual(track.meta.frame_times_ms, want.map(([t]) => t * 1e6 / 1000));
+  assert.equal(track.meta.frame_count, 40);
+  assert.equal(track.meta.fps, 30.2);
+  assert.deepEqual([track.meta.width, track.meta.height], [360, 640]);
+  assert.equal(track.meta.tracks.kept, APP_PERSON_ID);
+  assert.equal(track.meta.tracks.kept_frames, want.filter(([, i]) => !nobody.has(i)).length);
+  assert.deepEqual(track.keypoints['7'], {});
+  assert.equal(track.keypoints['3'], undefined, 'a frame before the range is not posed');
+  const result = await store.readResult(lift.id);
+  assert.deepEqual(validateResultView(result), []);
+  assert.deepEqual(result, JSON.parse(JSON.stringify(scoreLift(track, 'lateral-raise', { Diagnostics }).view)));
+  // result.json says which smoothing its verdicts were scored with (contract 4): S1's σ, velocity kept
+  const { DEFAULT_KEEP_VELOCITY } = await load('src/scoring/score.mjs');
+  const settings = await store.getSettings();
+  assert.equal(typeof settings.view.smoothingSigmaMs, 'number');
+  assert.deepEqual(result.smoothing, { sigmaMs: settings.view.smoothingSigmaMs, keepVelocity: DEFAULT_KEEP_VELOCITY });
+});
+
+test('a source without frameTimes breaks contract 5: the job fails in the contract\'s words, no times are made up from the rate', async () => {
+  const { store, queue } = await setup({
+    sources: () => { const src = fakeSource({}); delete src.frameTimes; return src; },
+  });
+  const lift = await storeLift(store);
+  const job = await queue.enqueue(lift);
+  await queue.idle();
+  const done = queue.jobs().find(j => j.id === job.id);
+  assert.equal(done.state, 'failed');
+  assert.match(done.error, /frameTimes/);
+  assert.equal(await store.readResult(lift.id).catch(() => null), null, 'nothing scored');
+});
+
+test('a snatch with a start and no held finish reaches result.json with its start: liftWindow {t0, t1: null} and the engine\'s reason', async () => {
+  // The longest committed snatch (over 400 frames), cut off at 2.0 s as in scoring.test.js:
+  // the pull is in the range, the finish is not. Fed in place of the engine, through the job.
+  const slug = 'global/snatch/Session14_01_0h18m07s_made';
+  const fixture = JSON.parse(fs.readFileSync(trackPathFor(slug), 'utf8'));
+  const { meta } = fixture;
+  assert.ok(meta.frame_count > 400, slug);
+  const times = meta.frame_times_ms.map(ms => ms / 1000);
+  const { store, queue } = await setup({
+    sources: () => {
+      const src = fakeSource({ fps: meta.fps, width: meta.width, height: meta.height, frameTimes: times });
+      const frames = src.frames;
+      src.frames = async function* (t0, t1) { for await (const f of frames(t0, t1)) { f.timestamp = meta.frame_times_ms[f.index] * 1000; yield f; } };
+      return src;
+    },
+    engines: (k, clock) => fakeEngine({ clock, keypoints: f => (fixture.keypoints[String(f.index)] || {})[meta.tracks.kept] || null }),
+  });
+  const stored = await storeLift(store, { lift: 'snatch', range: { t0: 0, t1: 2.0 } });
+  await queue.enqueue(stored);
+  await queue.idle();
+  const result = await store.readResult(stored.id);
+  const { validateResultView } = await load('src/contracts/cue-view.mjs');
+  assert.deepEqual(validateResultView(result), []);
+  // what the engine says of the stored track, with the job's smoothing
+  const D = loadDiagnostics();
+  const { smoothKeypoints } = await import(pathToFileURL(path.join(APP, '..', 'src', 'track', 'smoothing.mjs')).href);
+  const track = await store.readTrack(stored.id);
+  D.setPage('snatch');
+  const sm = smoothKeypoints(track.keypoints, track.meta, result.smoothing.sigmaMs / 1000, result.smoothing.keepVelocity);
+  const want = D.computeResults(sm, track.meta, track.meta.tracks.kept).lift;
+  assert.ok(want.t0 != null && want.t1 == null && !want.error, 'the range has a start and no end: ' + JSON.stringify(want).slice(0, 200));
+  assert.deepEqual(result.liftWindow, { t0: want.t0, t1: null });
+  assert.equal(result.liftWindowReason, want.notes.at(-1));
+  assert.match(result.liftWindowReason, /no end marker/);
+});
+
+// ---- cut off, and back ----
+
+test('the app closed mid-job: the job restarts when the app is back, its source found in the store', async () => {
+  const fake = createFakeStorage();
+  const first = await setup({ storage: fake, engines: (k, clock) => fakeEngine({ clock, hold: n => (n === 4 ? new Promise(() => {}) : null) }) });
+  const lift = await storeLift(first.store, { range: { t0: 0.2, t1: 0.8 }, bytes: [9, 8, 7, 6, 5] });
+  const job = await first.queue.enqueue(lift);
+  await until(() => first.made[0] && first.made[0].frames.length === 4, 'the first app in pose');
+  const saved = await first.store.readQueue();
+  assert.equal(saved.jobs.find(j => j.id === job.id).state, 'pose', 'the queue is kept as the job runs');
+  // the app is gone (nothing closes it); a new one opens the same storage
+  const second = await setup({ storage: fake });
+  const back = await second.queue.load();
+  assert.equal(back.find(j => j.id === job.id).state, 'queued', 'a job cut off is queued again');
+  await second.queue.idle();
+  const end = second.queue.jobs().find(j => j.id === job.id);
+  assert.equal(end.state, 'done');
+  assert.deepEqual([...new Uint8Array(await second.opened[0].blob.arrayBuffer())], [9, 8, 7, 6, 5], 'the source is the stored cut');
+  assert.ok((await second.store.getLift(lift.id)).track);
+  assert.equal((await second.store.readQueue()).jobs.some(j => j.id === job.id), false, 'a done job leaves the kept queue');
+});
+
+test('the WebView frozen: hidden time is no stall, and the job resumes where it was', async () => {
+  let release;
+  const gate = new Promise(r => { release = r; });
+  const { store, queue, made, timers } = await setup({ engines: (k, clock) => fakeEngine({ clock, hold: n => (n === 2 ? gate : null) }) });
+  const lift = await storeLift(store);
+  const job = await queue.enqueue(lift);
+  await until(() => made[0] && made[0].frames.length === 2, 'frame 2 in flight');
+  queue.setVisible(false);
+  timers.tick(1000);                 // far past the stall time, all of it hidden
+  await settle();
+  queue.setVisible(true);
+  timers.tick(29);                   // back, but less than 30 s without progress
+  release();
+  await queue.idle();
+  assert.equal(made.length, 1, 'the engine was kept');
+  assert.equal(queue.jobs().find(j => j.id === job.id).state, 'done');
+});
+
+test('a hang while visible: the engine is replaced and the job restarts; a second hang fails it', async () => {
+  // first the first engine hangs on its 3rd frame; then every 3rd frame sent hangs, whichever engine
+  let phase = 1, calls = 0;
+  const never = () => new Promise(() => {});
+  const { store, queue, made, timers } = await setup({
+    engines: (k, clock) => fakeEngine({ clock, hold: n => {
+      if (phase === 1) return k === 0 && n === 3 ? never() : null;
+      return ++calls % 3 === 0 ? never() : null;
+    } }),
+  });
+  const lift = await storeLift(store);
+  const rec = record(queue);
+  const job = await queue.enqueue(lift);
+  await until(() => made[0] && made[0].frames.length === 3, 'the first hang');
+  timers.tick(29);
+  await settle();
+  assert.equal(made.length, 1, 'not yet: 29 s');
+  timers.tick(1);
+  await queue.idle();
+  assert.equal(made.length, 2);
+  assert.ok(made[0].closed, 'the hung engine is closed');
+  assert.equal(queue.jobs().find(j => j.id === job.id).state, 'done');
+  assert.deepEqual(rec.states(job.id), ['queued', 'reading', 'pose', 'reading', 'pose', 'scoring', 'done'], 'restarted from the start');
+
+  phase = 2;
+  const other = await storeLift(store);
+  const j2 = await queue.enqueue(other);
+  await until(() => calls === 3, 'the second job hangs');
+  assert.equal(made[1].resets, 1, 'the kept engine was reset for the new clip');
+  timers.tick(30);
+  await until(() => calls === 6, 'and hangs again on a new engine');
+  assert.equal(made.length, 3);
+  timers.tick(30);
+  await queue.idle();
+  const end = queue.jobs().find(j => j.id === j2.id);
+  assert.equal(end.state, 'failed');
+  assert.match(end.error, /stopped responding/);
+  assert.ok(made[2].closed);
+  assert.equal(timers.active, 0, 'no watchdog left running');
+});
+
+test('s59: the watchdog\'s defaults (c26): 20 s without progress, a tick of 1 s, one restart', async () => {
+  // c26's numbers (report a51b9e8): the longest wait between two progress events was 1,044 ms, c20's cold engine create 4.35 s;
+  // nordmu, 2026-11-04 (docs/decisions.md): stallMs 20 s, tickMs 1 s, maxRestarts 1. No stallMs, tickMs or maxRestarts is passed here.
+  const never = () => new Promise(() => {});
+  const { store, queue, made, timers } = await setup({
+    stallMs: undefined, tickMs: undefined, maxRestarts: undefined,
+    engines: (k, clock) => fakeEngine({ clock, hold: n => (n === 3 ? never() : null) }),   // every engine hangs on its 3rd frame
+  });
+  const job = await queue.enqueue(await storeLift(store));
+  await until(() => made[0] && made[0].frames.length === 3, 'the first hang');
+  assert.deepEqual(timers.periods, [1000], 'the watchdog ticks every 1000 ms');
+  timers.tick(19);
+  await settle();
+  assert.equal(made.length, 1, 'not yet: 19 ticks of 1 s');
+  assert.ok(!made[0].closed);
+  timers.tick(1);
+  await until(() => made.length === 2 && made[1].frames.length === 3, 'the job restarted on a new engine after the 20th tick');
+  assert.ok(made[0].closed, 'the hung engine is closed');
+  timers.tick(19);
+  await settle();
+  assert.equal(made.length, 2, 'the restart has its own 20 s');
+  timers.tick(1);
+  await queue.idle();
+  const end = queue.jobs().find(j => j.id === job.id);
+  assert.equal(end.state, 'failed', 'one restart only');
+  assert.match(end.error, /stopped responding/);
+  assert.match(end.error, /20 s/);
+  assert.equal(made.length, 2);
+});
+
+test('s59: the time left is null until the cut is open (reading 0/1), then the last rate\'s ms per frame times the range\'s frames; Q1 says "estimating…" before', async () => {
+  const { analysingView } = await load('src/ui/analysing-model.mjs');
+  // 50 ms a frame at 30 fps: rate.sPerS = 1.5 s per second of video, so a range of 1 s unscaled would say 1.5 s
+  const { store, queue } = await setup({ engines: (k, clock) => fakeEngine({ clock, ms: () => 50 }) });
+  await queue.enqueue(await storeLift(store, { range: { t0: 0, t1: 1 } }));
+  await queue.idle();
+  assert.ok(queue.rate());
+  const rec = record(queue);
+  const lift = await storeLift(store, { range: { t0: 0, t1: 0.5 } });
+  const job = await queue.enqueue(lift);
+  await queue.idle();
+  const snaps = rec.seen.get(job.id).filter(j => j.state === 'reading' && j.progress);
+  const first = snaps.find(j => j.progress.done === 0);
+  const opened = snaps.find(j => j.progress.done === 1);
+  assert.equal(first.progress.etaS, null, 'before the cut is open the frame count is not known');
+  const total = rec.seen.get(job.id).find(j => j.state === 'pose').progress.total;   // the range's frames: 0 to 0.5 s at 30 fps, 16
+  assert.equal(total, 16);
+  assert.ok(Math.abs(opened.progress.etaS - 0.05 * total) < 1e-9, 'ms per frame x the range\'s frames');
+  const view = analysingView([first], { liftId: lift.id, lift, rate: queue.rate() });
+  assert.equal(view.kind, 'running');
+  assert.equal(view.left, 'estimating…');
+  assert.ok(!/\d/.test(view.left));
+});
+
+// ---- the cost while marking ----
+
+test('the estimate before Analyse: 2.9 s per second of 30 fps video on a first run, then the measured rate', async () => {
+  const { estimateCost, DEFAULT_RATE } = await load('src/analysis/index.mjs');
+  // ui-design.md, "What the mockups add": about 2.9 s per second of 30 fps video on the Fairphone
+  assert.equal(DEFAULT_RATE.sPerS, 2.9);
+  assert.equal(DEFAULT_RATE.fps, 30);
+  const fake = createFakeStorage();
+  const { store, queue } = await setup({ storage: fake, engines: (k, clock) => fakeEngine({ clock, ms: () => 50 }) });
+  const first = await queue.estimate(10);
+  assert.ok(Math.abs(first.seconds - 29) < 1e-9);
+  assert.equal(first.measured, false);
+  assert.match(first.basis, /Fairphone/);
+  assert.ok(Math.abs((await queue.estimate(10, { fps: 60 })).seconds - 58) < 1e-9, 'twice the frames, twice the time');
+  assert.deepEqual(estimateCost(10, null), first);
+
+  const lift = await storeLift(store, { range: { t0: 0, t1: 1 } });
+  await queue.enqueue(lift);
+  await queue.idle();
+  const after = await queue.estimate(10);
+  // 50 ms a frame at the source's 30 fps: 1.5 s per second of video
+  assert.equal(after.measured, true);
+  assert.ok(Math.abs(after.perSecond - 1.5) < 1e-9);
+  assert.ok(Math.abs(after.seconds - 15) < 1e-9);
+  // kept across a restart
+  const again = await setup({ storage: fake });
+  await again.queue.load();
+  const kept = await again.queue.estimate(10);
+  assert.equal(kept.measured, true);
+  assert.ok(Math.abs(kept.seconds - 15) < 1e-9);
+  // and the time left of a new job starts from it, before its first frame
+  const rec = record(again.queue);
+  const j = await again.queue.enqueue(await storeLift(again.store, { range: { t0: 0, t1: 1 } }));
+  await again.queue.idle();
+  const firstPose = rec.seen.get(j.id).find(s => s.state === 'pose');
+  assert.ok(Math.abs(firstPose.progress.etaS - 0.05 * firstPose.progress.total) < 1e-9);
+});
+
+// ---- Analyse: the cut first ----
+
+test('at Analyse the cut is stored before the job starts, and the job reads the stored cut in its timeline', async t => {
+  // mediabunny stamps the current second into the MP4 header (mvhd, tkhd, mdhd), so both cuts below need one frozen clock
+  t.mock.timers.enable({ apis: ['Date'], now: NOW().getTime() });
+  const { keepVideo, cutVideo } = await load('src/media/cut.mjs');
+  const file = new Blob([fs.readFileSync(CLIP)], { type: 'video/mp4' });
+  const log = [];
+  const fake = createFakeStorage();
+  const { createStore } = await load('src/store/index.mjs');
+  const real = createStore({ storage: fake.storage, now: NOW, appVersion: '0.1.0' });
+  const store = { ...real, saveLift: async x => { const r = await real.saveLift(x); log.push('saved'); return r; } };
+  const { createQueue } = await load('src/analysis/index.mjs');
+  const opened = [];
+  const queue = createQueue({
+    store, keepVideo, Diagnostics, timers: fakeTimers(), now: () => 0,
+    createEngine: async () => { log.push('engine'); return fakeEngine({}); },
+    openFrameSource: async blob => { log.push('opened'); opened.push(blob); return fakeSource({}); },
+  });
+  queue.subscribe(jobs => { for (const j of jobs) if (log.at(-1) !== j.state) log.push(j.state); });
+  const job = await queue.analyse('lateral-raise', file, { t0: 1.2, t1: 2.0 });
+  await queue.idle();
+  assert.equal(log[0], 'saved', 'the cut is stored first');
+  assert.ok(log.indexOf('queued') > 0 && log.indexOf('opened') > log.indexOf('queued'));
+  const cut = await cutVideo(file, { t0: 1.2, t1: 2.0 });
+  const lift = await real.getLift(job.liftId);
+  assert.equal(job.source, lift.video);
+  assert.deepEqual(job.range, cut.range, 'the range is in the cut\'s timeline');
+  assert.deepEqual(lift.range, cut.range);
+  assert.notEqual(opened[0], file, 'never the picked file');
+  const stored = await real.readVideo(job.liftId);
+  assert.deepEqual(Buffer.from(await opened[0].arrayBuffer()), Buffer.from(await stored.arrayBuffer()));
+  assert.deepEqual(Buffer.from(await opened[0].arrayBuffer()), Buffer.from(await cut.blob.arrayBuffer()));
+});
+
+test('a cut that cannot be stored starts no job, and the store\'s error comes through', async () => {
+  const { keepVideo } = await load('src/media/cut.mjs');
+  const file = new Blob([fs.readFileSync(CLIP)], { type: 'video/mp4' });
+  const { store, queue } = await setup({ storage: createFakeStorage({ quota: 1000 }), keepVideo });
+  await assert.rejects(() => queue.analyse('snatch', file, { t0: 0, t1: 2.9 }), { code: 'storage-full' });
+  assert.deepEqual(queue.jobs(), []);
+  assert.deepEqual(await store.listLifts(), []);
+});
+
+// ---- s50: a re-marked lift replaces the old one once its analysis is done ----
+
+// keepVideo's part for a re-mark without mediabunny: the picked bytes stored as the new lift's cut
+const keepAsIs = async (store, lift, file, range) => ({ lift: await store.saveLift({ lift, video: file, range }) });
+const cutOf = (...b) => new Blob([Uint8Array.from(b)], { type: 'video/mp4' });
+async function analysedLift(store, queue, opts) {
+  const l = await storeLift(store, opts);
+  await queue.enqueue(l);
+  await queue.idle();
+  const rec = await store.getLift(l.id);
+  assert.ok(rec.result, 'the old lift is analysed');
+  return rec;
+}
+// The old lift as it was: its record, its track, its result and its cut, all readable.
+async function assertUntouched(store, old, bytes) {
+  assert.deepEqual(await store.getLift(old.id), old);
+  assert.ok((await store.readTrack(old.id)).keypoints);
+  assert.ok((await store.readResult(old.id)).cues.length > 0);
+  assert.deepEqual([...new Uint8Array(await (await store.readVideo(old.id)).arrayBuffer())], bytes);
+  assert.ok((await store.listLifts()).some(l => l.id === old.id), 'H still lists it');
+}
+// H's rows, as homeView draws them, for one listing and the jobs at that moment.
+async function rowsOf(listing, jobs) {
+  const { homeView } = await load('src/ui/home-model.mjs');
+  const v = homeView(await listing, jobs);
+  return [...(v.today ? v.today.rows : []), ...v.earlier.flatMap(d => d.rows)];
+}
+async function assertReplaced(store, fake, old, job) {
+  const lifts = await store.listLifts();
+  assert.deepEqual(lifts.map(l => l.id), [job.liftId], 'one lift left, the new one');
+  assert.ok(lifts[0].result, 'the new one is analysed');
+  assert.equal(await store.getLift(old.id), null);
+  assert.deepEqual(fake.paths().filter(p => p.startsWith(`lifts/${old.id}/`)), [], 'the old cut, track, result and record are gone');
+  await assert.rejects(() => store.readVideo(old.id), { code: 'not-found' });
+}
+
+test('s50: a re-mark analysed successfully replaces the old lift, and H never shows both as done lifts', async () => {
+  const listings = [];   // [H's listing, the jobs then]: at every change of the queue, and while the result is saved
+  let queue;
+  const { store, queue: q, fake } = await setup({
+    keepVideo: keepAsIs,
+    wrapStore: s => Object.assign(Object.create(s), {
+      updateLift(...a) { const p = s.updateLift(...a); listings.push([s.listByDay(), queue.jobs()]); return p; },
+    }),
+  });
+  queue = q;
+  const old = await analysedLift(store, queue, { range: { t0: 0.5, t1: 1.0 }, bytes: [1, 2, 3] });
+  listings.length = 0;
+  queue.subscribe(jobs => listings.push([store.listByDay(), jobs]));
+  const job = await queue.analyse('lateral-raise', cutOf(7, 7, 7), { t0: 0.4, t1: 1.1 }, { replaces: old.id });
+  assert.equal(job.replaces, old.id, 'the job names the lift it replaces');
+  assert.notEqual(job.liftId, old.id);
+  assert.equal((await store.readQueue()).jobs.find(j => j.id === job.id).replaces, old.id, 'and keeps it in queue.json');
+  await queue.idle();
+  await assertReplaced(store, fake, old, job);
+  assert.equal(queue.jobs().find(j => j.id === job.id).state, 'done');
+  assert.ok(!queue.jobs().some(j => j.liftId === old.id), 'the old lift\'s ended job leaves the list');
+  assert.ok(listings.length > 5);
+  let bothSeen = 0;
+  for (const [listing, jobs] of listings) {
+    const rows = await rowsOf(listing, jobs);
+    const ready = rows.filter(r => r.state.kind === 'ready' && (r.id === old.id || r.id === job.liftId));
+    assert.ok(ready.length <= 1, `H showed both as done: ${ready.map(r => r.id).join(', ')}`);
+    if (rows.some(r => r.id === old.id) && rows.some(r => r.id === job.liftId)) bothSeen++;
+  }
+  assert.ok(bothSeen > 0, 'while the re-mark ran, H listed the old lift beside the new one');
+});
+
+test('s50: a re-mark whose analysis fails leaves the old lift untouched; a retry that succeeds replaces it', async () => {
+  let calls = 0;
+  const { store, queue, fake } = await setup({
+    keepVideo: keepAsIs,
+    sources: () => {
+      if (calls++ === 1) { const e = new Error("This video's format (hvc1) can't be decoded on this device."); e.code = 'unsupported-codec'; throw e; }
+      return fakeSource({});
+    },
+  });
+  const old = await analysedLift(store, queue, { bytes: [1, 2, 3] });
+  const job = await queue.analyse('lateral-raise', cutOf(7, 7), { t0: 0.4, t1: 1.1 }, { replaces: old.id });
+  await queue.idle();
+  const failed = queue.jobs().find(j => j.id === job.id);
+  assert.equal(failed.state, 'failed');
+  assert.equal(failed.replaces, old.id, 'the failed job still names it, for a retry');
+  await assertUntouched(store, old, [1, 2, 3]);
+  assert.equal((await store.getLift(job.liftId)).result, null);
+  assert.equal(await queue.retry(job.id), true);
+  await queue.idle();
+  await assertReplaced(store, fake, old, job);
+});
+
+test('s50: a re-mark cancelled leaves the old lift untouched; a retry that succeeds replaces it', async () => {
+  let queue, armed = false, cancelled = null, jobId = null;
+  const { store, queue: q, fake } = await setup({
+    keepVideo: keepAsIs,
+    engines: (k, clock) => fakeEngine({ clock, hold: async () => { if (armed) { armed = false; cancelled = queue.cancel(jobId); } } }),
+  });
+  queue = q;
+  const old = await analysedLift(store, queue, { bytes: [4, 5, 6] });
+  armed = true;
+  const job = await queue.analyse('lateral-raise', cutOf(7, 7), { t0: 0.4, t1: 1.1 }, { replaces: old.id });
+  jobId = job.id;
+  await until(() => cancelled, 'the cancel');
+  assert.equal(await cancelled, true);
+  await queue.idle();
+  const end = queue.jobs().find(j => j.id === job.id);
+  assert.equal(end.state, 'cancelled');
+  assert.equal(end.replaces, old.id);
+  await assertUntouched(store, old, [4, 5, 6]);
+  assert.equal(await queue.retry(job.id), true);
+  await queue.idle();
+  await assertReplaced(store, fake, old, job);
+});
+
+test('s50: a re-mark still waiting when the app restarts leaves the old lift readable until its analysis is done', async () => {
+  const fake = createFakeStorage();
+  let hang = false;
+  const first = await setup({ storage: fake, keepVideo: keepAsIs, engines: (k, clock) => fakeEngine({ clock, hold: () => (hang ? new Promise(() => {}) : null) }) });
+  const old = await analysedLift(first.store, first.queue, { bytes: [1, 2, 3] });
+  hang = true;
+  const job = await first.queue.analyse('lateral-raise', cutOf(9, 9), { t0: 0.4, t1: 1.1 }, { replaces: old.id });
+  await until(() => first.made[0].frames.length > 16, 'the re-mark in pose');
+  // the app is gone mid-job; a new one opens the same storage
+  let release;
+  const gate = new Promise(r => { release = r; });
+  const second = await setup({ storage: fake, engines: (k, clock) => fakeEngine({ clock, hold: () => gate }) });
+  const back = await second.queue.load();
+  const waiting = back.find(j => j.id === job.id);
+  assert.equal(waiting.state, 'queued');
+  assert.equal(waiting.replaces, old.id, 'the job read back still names the lift it replaces');
+  await assertUntouched(second.store, old, [1, 2, 3]);
+  await until(() => second.made[0] && second.made[0].frames.length === 1, 'the re-mark running again');
+  await assertUntouched(second.store, old, [1, 2, 3]);
+  release();
+  await second.queue.idle();
+  await assertReplaced(second.store, fake, old, job);
+});
+
+// ---- the kept queue ----
+
+test('the store keeps the queue: valid jobs only, written whole', async () => {
+  const { createJob } = await load('src/contracts/analysis-job.mjs');
+  const { store, fake } = await setup();
+  assert.deepEqual(await store.readQueue(), { jobs: [], rate: null });
+  const lift = await storeLift(store);
+  const job = createJob('job-' + lift.id, lift);
+  await store.saveQueue({ jobs: [job], rate: { msPerFrame: 90, fps: 30, sPerS: 2.7 } });
+  assert.deepEqual(await store.readQueue(), { jobs: [job], rate: { msPerFrame: 90, fps: 30, sPerS: 2.7 } });
+  await assert.rejects(() => store.saveQueue({ jobs: [{ ...job, source: new Blob([]) }], rate: null }), { code: 'invalid' });
+  assert.ok(fake.ops.some(o => /queue\.json/.test(JSON.stringify(o))));
+});
+
+// ---- the engine's place taken by a committed track ----
+
+for (const slug of ['global/example/lateral-raise-cable-1', 'global/snatch/Session14_01_0h18m07s_made']) {
+  test(`${slug}: its track fed in place of the engine gives the adapter's result`, async () => {
+    const { scoreLift } = await load('src/scoring/score.mjs');
+    const fixture = JSON.parse(fs.readFileSync(trackPathFor(slug), 'utf8'));
+    const { meta } = fixture;
+    const lift = slug.includes('snatch') ? 'snatch' : 'lateral-raise';
+    const times = meta.frame_times_ms.map(ms => ms / 1000);
+    const { store, queue } = await setup({
+      sources: () => {
+        const src = fakeSource({ fps: meta.fps, width: meta.width, height: meta.height, frameTimes: times });
+        // the decoder's timestamps are the track's times
+        const frames = src.frames;
+        src.frames = async function* (t0, t1) { for await (const f of frames(t0, t1)) { f.timestamp = meta.frame_times_ms[f.index] * 1000; yield f; } };
+        return src;
+      },
+      engines: (k, clock) => fakeEngine({ clock, keypoints: f => (fixture.keypoints[String(f.index)] || {})[meta.tracks.kept] || null }),
+    });
+    const stored = await storeLift(store, { lift, range: { t0: 0, t1: times.at(-1) } });
+    await queue.enqueue(stored);
+    await queue.idle();
+    const track = await store.readTrack(stored.id);
+    assert.equal(track.meta.frames_processed, meta.frames_processed);
+    const alone = scoreLift(fixture, lift, { Diagnostics }).view;
+    assert.deepEqual(await store.readResult(stored.id), JSON.parse(JSON.stringify(alone)));
+  });
+}
