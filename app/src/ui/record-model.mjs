@@ -110,12 +110,14 @@ export const captureProblem = status => (status.state === 'failed' ? problemOf(s
 
 /**
  * H's gym card: it opens R1; while a session runs it reads "Back to the session" with the clock and goes to the
- * session's live state (`live` or `delayed`, d29b).
- * @param {{active: boolean, elapsedS: number, liveState?: string|null}|null|undefined} session
+ * session's live state (`live` or `delayed`, d29b). d66: with the preview switch off (`enabled` not true) and no
+ * session running there is no card (null); a session that runs is reached whatever the switch says.
+ * @param {{enabled?: boolean, active: boolean, elapsedS: number, liveState?: string|null}|null|undefined} session
  */
 export function gymCard(session) {
   if (session && session.active) return { title: 'Back to the session', clock: clockText(session.elapsedS), to: SESSION_STATES.includes(session.liveState) ? session.liveState : SESSION_STATES[0] };
-  return { title: 'Gym session', clock: null, to: 'setup' };
+  if (session && session.enabled === true) return { title: 'Gym session', clock: null, to: 'setup' };
+  return null;
 }
 
 /**

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// S1, Settings and about (design/mockups/Settings.dc.html): the replay mode and
-// lengths, camera, quality and default lift (d28, d29b: all enabled but the quality, one
+// S1, Settings and about (design/mockups/Settings.dc.html): the default lift (its own group, "Lifts": L1 rings
+// it), the gym session behind a preview switch that is off in 0.1.0 (d66) and, with it on, the replay mode and
+// lengths, camera and quality (d28, d29b: all enabled but the quality, one
 // value), storage, and about: the version, the privacy
 // text, the credits and licences. "Keep the video of each analysed lift" is
 // not drawn in 0.1.0 (nordmu, 2026-11-02): contract 3 needs every lift's cut,
@@ -81,7 +82,7 @@ function Choice({ row, onPick }) {
     </label>`;
 }
 
-export function S1({ flow, store, queue }) {
+export function S1({ flow, store, queue, session }) {
   const [settings, setSettings] = useState(null);
   const [storage, setStorage] = useState(null);
   const [jobs, setJobs] = useState([]);
@@ -101,6 +102,15 @@ export function S1({ flow, store, queue }) {
   const pick = async (field, raw) => {
     const value = ['defaultLift', 'camera', 'quality', 'replayMode'].includes(field) ? raw : Number(raw);
     try { setSettings(await store.saveSettings({ [field]: value })); setProblem(null); } catch (e) { setProblem(messageOf(e)); }
+  };
+  // d66: the preview switch is saved, and the app's session (read synchronously by H and the flow) follows the saved value
+  const toggleGym = async () => {
+    try {
+      const saved = await store.saveSettings({ gymSession: !(settings && settings.gymSession === true) });
+      setSettings(saved);
+      if (session) session.setEnabled(saved.gymSession === true);
+      setProblem(null);
+    } catch (e) { setProblem(messageOf(e)); }
   };
   const deleteAll = async () => {
     try { await deleteAllLifts(store); setProblem(null); } catch (e) { setProblem(messageOf(e)); }
@@ -122,14 +132,25 @@ export function S1({ flow, store, queue }) {
       </header>
       <div class="settings">
         ${problem ? html`<p class="error" role="alert">${problem}</p>` : null}
-        <section class="settings__section" aria-labelledby="rec-h">
-          <h2 class="section__title" id="rec-h">Gym session</h2>
+        <section class="settings__section" aria-labelledby="lifts-h">
+          <h2 class="section__title" id="lifts-h">Lifts</h2>
+          ${rec ? html`<div class="group">${rec.liftRows.map(r => html`<${Choice} key=${r.field} row=${r} onPick=${pick} />`)}</div>` : null}
+        </section>
+        <section class="settings__section" aria-label="Gym session">
           ${rec ? html`
-            <div class="segmented" role="group" aria-label="How the replay shows up">
-              ${rec.modes.map(m => html`<button type="button" key=${m.id} aria-pressed=${m.on} disabled=${rec.modesDisabled} class=${m.on ? 'segmented__on' : ''} onClick=${() => pick('replayMode', m.id)}>${m.label}</button>`)}
-            </div>
-            <div class="group">${rec.rows.map(r => html`<${Choice} key=${r.field} row=${r} onPick=${pick} />`)}</div>
-            <p class="quiet">${rec.note}</p>` : null}
+            <button type="button" class="vo-switch" role="switch" data-setting="gymSession" aria-checked=${rec.gym.on} onClick=${toggleGym}>
+              <span class="vo-switch__text">
+                <span class="vo-switch__name">${rec.gym.label}</span>
+                <span class="vo-switch__sub">${rec.gym.note}</span>
+              </span>
+              <span class="vo-switch__track" aria-hidden="true"><span class="vo-switch__knob"></span></span>
+            </button>
+            ${rec.gym.on ? html`
+              <div class="segmented" role="group" aria-label="How the replay shows up">
+                ${rec.modes.map(m => html`<button type="button" key=${m.id} aria-pressed=${m.on} disabled=${rec.modesDisabled} class=${m.on ? 'segmented__on' : ''} onClick=${() => pick('replayMode', m.id)}>${m.label}</button>`)}
+              </div>
+              <div class="group">${rec.rows.map(r => html`<${Choice} key=${r.field} row=${r} onPick=${pick} />`)}</div>
+              <p class="quiet">${rec.note}</p>` : null}` : null}
         </section>
         <section class="settings__section" aria-labelledby="st-h">
           <h2 class="section__title" id="st-h">Storage</h2>

@@ -393,7 +393,11 @@ async function main() {
     // S1, its credits, S1b
     await click('button', 'Settings and about');
     await waitFor(`document.querySelector('[data-screen="S1"][data-view="main"]')`, 'S1');
-    await check('S1');
+    await waitFor(`document.querySelector('[data-screen="S1"] [data-setting="gymSession"]')`, "S1's gym session switch");
+    await check('S1');   // d66: the gym session's switch is off here: the default lift and the switch, no gym rows
+    await click('[data-screen="S1"] [data-setting="gymSession"]');
+    await waitFor(`document.querySelector('[data-screen="S1"] [data-setting="gymSession"][aria-checked="true"]') && document.querySelector('[data-screen="S1"] [aria-label="How the replay shows up"]')`, 'S1 with the gym session switch on');
+    await check('S1 (gym session on)');   // measured again with the gym rows; S1 must still scroll at 360×800 for the cue below, and R1 and R2 are reachable later
     // d55's cue: on S1 at 360×800 (the page scrolls) it shows, with a touch-sized button inside the window; at the bottom it is gone
     await setViewport(VIEWPORTS[0]);
     await sleep(400);

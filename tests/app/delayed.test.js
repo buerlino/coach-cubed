@@ -387,7 +387,7 @@ test('S1: the delay row is enabled, with no "comes later" note', async () => {
   const { recordingView, NOT_YET } = await load('ui', 'settings-model.mjs');
   const { DEFAULT_SETTINGS } = await load('store', 'settings.mjs');
   assert.ok(!NOT_YET.includes('delayS'));
-  const d = recordingView({ ...DEFAULT_SETTINGS, replayMode: 'delayed' });
+  const d = recordingView({ ...DEFAULT_SETTINGS, gymSession: true, replayMode: 'delayed' });   // d66: behind the switch
   assert.deepEqual(d.rows.map(r => [r.field, r.disabled]).slice(0, 1), [['delayS', false]]);
   assert.ok(!('laterNote' in d), 'no note that the delay comes later');
   assert.deepEqual(d.rows[0].options.map(o => o.value), [5, 10, 15, 20]);

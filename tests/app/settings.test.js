@@ -31,11 +31,12 @@ const lr = (bytes = 4) => ({ lift: 'lateral-raise', video: new Blob([new Uint8Ar
 test('S1 shows v1\'s defaults from the store, in the mockup\'s words', async () => {
   const { recordingView } = await model();
   const { store } = await setup();
-  const v = recordingView(await store.getSettings());
+  const v = recordingView(await store.saveSettings({ gymSession: true }));   // d66: the gym rows are behind the switch
   assert.deepEqual(v.rows.map(r => [r.label, r.shown]), [
     ['Replay length', '20 s'], ['Keep in memory', 'last 60 s'], ['Camera', 'Back'],
-    ['Quality', '1080p · 30 fps'], ['Default lift', 'Lateral raise'],
+    ['Quality', '1080p · 30 fps'],
   ]);
+  assert.deepEqual(v.liftRows.map(r => [r.label, r.shown]), [['Default lift', 'Lateral raise']], 'd66: the default lift is outside the gym rows');
   assert.deepEqual(v.modes.map(m => [m.label, m.on]), [['Replay button', true], ['Delayed view', false]]);
   assert.equal(v.note, 'Up to 30 fps; less in dim light.');
 });
@@ -43,7 +44,7 @@ test('S1 shows v1\'s defaults from the store, in the mockup\'s words', async () 
 test('the delayed view swaps the replay length for the delay, 10 s by default', async () => {
   const { recordingView } = await model();
   const { store } = await setup();
-  const v = recordingView(await store.saveSettings({ replayMode: 'delayed' }));
+  const v = recordingView(await store.saveSettings({ gymSession: true, replayMode: 'delayed' }));
   assert.deepEqual(v.rows.map(r => [r.label, r.shown]).slice(0, 2), [['Delay', '10 s'], ['Keep in memory', 'last 60 s']]);
   assert.equal(v.modes.find(m => m.on).label, 'Delayed view');
 });
@@ -53,17 +54,17 @@ test('a choice is saved, kept after a restart and shown again', async () => {
   const { store, make } = await setup();
   await store.saveSettings({ defaultLift: 'snatch' });
   const again = recordingView(await make().getSettings());
-  assert.equal(again.rows.find(r => r.field === 'defaultLift').shown, 'Snatch');
+  assert.equal(again.liftRows.find(r => r.field === 'defaultLift').shown, 'Snatch');
 });
 
 test('d28, d29b: the replay mode, lengths, buffer, camera and the delay are enabled; the quality (one value) is not', async () => {
   const { recordingView, NOT_YET } = await model();
   const { store } = await setup();
-  const v = recordingView(await store.getSettings());
+  const v = recordingView({ ...(await store.getSettings()), gymSession: true });
   assert.equal(v.modesDisabled, false);
   assert.deepEqual([...NOT_YET].sort(), ['quality']);
-  for (const r of v.rows) assert.equal(r.disabled, NOT_YET.includes(r.field), r.field);
-  assert.equal(recordingView({ ...(await store.getSettings()), replayMode: 'delayed' }).rows[0].disabled, false, 'the delay, which R3b uses (d29b)');
+  for (const r of [...v.rows, ...v.liftRows]) assert.equal(r.disabled, NOT_YET.includes(r.field), r.field);
+  assert.equal(recordingView({ ...(await store.getSettings()), gymSession: true, replayMode: 'delayed' }).rows[0].disabled, false, 'the delay, which R3b uses (d29b)');
 });
 
 test('S1 offers values only inside c8\'s ranges, and the default among them', async () => {
@@ -82,8 +83,8 @@ test('every value S1 offers, the store accepts', async () => {
   const { recordingView } = await model();
   const { store } = await setup();
   for (const mode of ['replay', 'delayed']) {
-    const v = recordingView(await store.saveSettings({ replayMode: mode }));
-    for (const r of v.rows) for (const o of r.options) await store.saveSettings({ [r.field]: o.value });
+    const v = recordingView(await store.saveSettings({ gymSession: true, replayMode: mode }));
+    for (const r of [...v.rows, ...v.liftRows]) for (const o of r.options) await store.saveSettings({ [r.field]: o.value });
   }
 });
 
@@ -92,10 +93,10 @@ test('"Keep the video of each analysed lift" is not drawn in 0.1.0, but keepVide
   const { store } = await setup();
   const s = await store.getSettings();
   assert.equal(s.keepVideos, true, 'the store keeps the field, true by default (D2)');
-  const drawn = JSON.stringify([recordingView(s), storageView({ count: 3, liftsBytes: 5000, info: null })]);
+  const drawn = JSON.stringify([recordingView(s), recordingView({ ...s, gymSession: true }), storageView({ count: 3, liftsBytes: 5000, info: null })]);
   assert.doesNotMatch(drawn, /keep the video|keepVideos|Off: keep only/i);
   const screen = read('app', 'src', 'ui', 'screens', 'S1.mjs').replace(/^\s*\/\/.*$/gm, '');
-  assert.doesNotMatch(screen, /keepVideos|Keep the video|role="switch"/);
+  assert.doesNotMatch(screen, /keepVideos|Keep the video/);
 });
 
 test('the provisional ranges are said in settings.mjs above FIELDS and in the README\'s store section', () => {
@@ -112,6 +113,80 @@ test('the provisional ranges are said in settings.mjs above FIELDS and in the RE
   assert.match(store, /provisional/i);
   assert.match(store, /c30/);
   assert.doesNotMatch(store, /until `c27`/);
+});
+
+// ---- d66: the gym session behind a switch, off in 0.1.0 ----
+
+test('d66: the switch is a boolean setting, off by default; it has no range and the RANGES pin stays', async () => {
+  const lib = await load('src', 'store', 'settings.mjs');
+  assert.equal(lib.DEFAULT_SETTINGS.gymSession, false);
+  assert.equal(lib.defaultSettings().gymSession, false);
+  assert.deepEqual(lib.validateSettingsPatch({ gymSession: true }), []);
+  assert.deepEqual(lib.validateSettingsPatch({ gymSession: false }), []);
+  assert.match(lib.validateSettingsPatch({ gymSession: 'yes' })[0], /gymSession: must be true or false/);
+  assert.equal(lib.validateSettingsPatch({ gymSession: 1 }).length, 1);
+  assert.deepEqual(lib.validateSettings(lib.DEFAULT_SETTINGS), []);
+  assert.deepEqual(Object.keys(lib.RANGES), ['replayS', 'delayS', 'bufferS'], 'the switch has no range');
+});
+
+test('d66: a saved switch reads back after a restart; a bad value is refused and nothing is kept', async () => {
+  const { store, make, fake } = await setup();
+  assert.equal((await store.getSettings()).gymSession, false);
+  assert.equal(fake.exists('settings.json'), false, 'reading writes nothing');
+  assert.equal((await store.saveSettings({ gymSession: true })).gymSession, true);
+  assert.equal((await make().getSettings()).gymSession, true);
+  await assert.rejects(() => store.saveSettings({ gymSession: 'yes' }), { code: 'invalid' });
+  assert.equal((await make().getSettings()).gymSession, true);
+  assert.equal((await store.saveSettings({ gymSession: false })).gymSession, false);
+  assert.equal((await make().getSettings()).gymSession, false);
+});
+
+test('d66: a record from before d66 reads as off and keeps every other field it has; nothing is rewritten', async () => {
+  const { store, fake } = await setup();
+  const before = JSON.stringify({ replayS: 15, replayMode: 'delayed', defaultLift: 'snatch' });
+  fake.put('settings.json', before);
+  const s = await store.getSettings();
+  assert.equal(s.gymSession, false);
+  assert.deepEqual([s.replayS, s.replayMode, s.defaultLift], [15, 'delayed', 'snatch']);
+  assert.equal(await fake.text('settings.json'), before, 'the stored record is untouched');
+  fake.put('settings.json', JSON.stringify({ gymSession: 'yes', replayS: 15 }));
+  assert.equal((await store.getSettings()).gymSession, false, 'a bad value takes the default');
+});
+
+test('d66: S1 has the switch "Gym session (preview)" with a one-line note, its state from gymSession, whichever way it is', async () => {
+  const { recordingView } = await model();
+  const { DEFAULT_SETTINGS } = await load('src', 'store', 'settings.mjs');
+  const off = recordingView({ ...DEFAULT_SETTINGS });
+  assert.deepEqual(off.gym, { field: 'gymSession', label: 'Gym session (preview)', on: false, note: 'Unfinished: recording at the gym.' });
+  const on = recordingView({ ...DEFAULT_SETTINGS, gymSession: true });
+  assert.deepEqual(on.gym, { ...off.gym, on: true }, 'the switch itself looks the same, only its state changes');
+});
+
+test('d66: with the switch off S1 shows no gym rows, no replay mode and no "Up to 30 fps" note, but the default lift; on, they are as before', async () => {
+  const { recordingView } = await model();
+  const { DEFAULT_SETTINGS } = await load('src', 'store', 'settings.mjs');
+  const off = recordingView({ ...DEFAULT_SETTINGS, replayMode: 'delayed' });
+  assert.deepEqual(off.rows, []);
+  assert.deepEqual(off.modes, []);
+  assert.equal(off.note, null);
+  assert.doesNotMatch(JSON.stringify(off), /Up to 30 fps|Replay button|Keep in memory|Camera|Quality|Delay/);
+  assert.deepEqual(off.liftRows.map(r => r.field), ['defaultLift'], 'L1 rings the default lift: milestone A keeps the row');
+  assert.equal(off.liftRows[0].disabled, false);
+  const on = recordingView({ ...DEFAULT_SETTINGS, gymSession: true });
+  assert.deepEqual(on.rows.map(r => r.field), ['replayS', 'bufferS', 'camera', 'quality']);
+  assert.deepEqual(on.modes.map(m => m.id), ['replay', 'delayed']);
+  assert.equal(on.note, 'Up to 30 fps; less in dim light.');
+  assert.deepEqual(on.liftRows.map(r => r.field), ['defaultLift']);
+});
+
+test('d66: S1.mjs draws the switch as role="switch" with data-setting="gymSession", the lifts group above the gym section, the gym rows only while it is on', () => {
+  const screen = read('app', 'src', 'ui', 'screens', 'S1.mjs').replace(/^\s*\/\/.*$/gm, '');
+  assert.match(screen, /role="switch"/);
+  assert.match(screen, /data-setting="gymSession"/);
+  assert.match(screen, /aria-checked=\$\{/);
+  assert.ok(screen.indexOf('liftRows') < screen.indexOf('rec.gym'), 'the lifts group comes before the gym section');
+  assert.match(screen, /rec\.gym\.on \?/, 'the gym rows are drawn only while the switch is on');
+  assert.match(screen, /setEnabled\(/, 'a tap updates the live value');
 });
 
 // ---- storage ----
@@ -277,7 +352,7 @@ test('S1 draws the mockup\'s strings for what this package builds', () => {
   const screen = read('app', 'src', 'ui', 'screens', 'S1.mjs') + read('app', 'src', 'ui', 'settings-model.mjs');
   for (const s of ['Settings and about', 'Gym session', 'How the replay shows up', 'Replay button', 'Delayed view', 'Replay length', 'Delay', 'Keep in memory', 'Camera',
     'Quality', 'Default lift', 'Storage', 'On this phone', 'Delete all lifts…', 'About', 'Credits and licences', 'How the cues are scored', 'Source code', 'AGPL-3.0-or-later',
-    'Back to home', 'Up to 30 fps; less in dim light.']) assert.ok(screen.includes(s), s);
+    'Back to home', 'Up to 30 fps; less in dim light.', 'Gym session (preview)', 'Unfinished: recording at the gym.', 'Lifts']) assert.ok(screen.includes(s), s);
 });
 
 test('"Delete all lifts…" is drawn as the destructive action: danger colour, weight 600, quiet when disabled', () => {

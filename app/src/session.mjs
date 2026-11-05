@@ -22,9 +22,13 @@ import { CaptureError } from './media/capture-error.mjs';
  */
 
 /**
- * @param {{makeCapture: (settings: object) => ReturnType<typeof import('./media/capture.mjs').createCapture>, now?: () => number}} options
+ * d66: the gym session is behind a preview switch, off in 0.1.0. `enabled` is its live value (read at once, so H's top
+ * never changes after it draws): off, `open()` makes no capture and asks for no camera, and `start()` throws. main.mjs
+ * makes the app's session off and sets it from the settings before the first draw; without the option it is on.
+ * @param {{makeCapture: (settings: object) => ReturnType<typeof import('./media/capture.mjs').createCapture>, now?: () => number, enabled?: boolean}} options
  */
-export function createSession({ makeCapture, now = () => Date.now() }) {
+export function createSession({ makeCapture, now = () => Date.now(), enabled: enabledAtStart = true }) {
+  let enabled = enabledAtStart === true;
   let capture = null, settings = null, active = false, lift = null, startedAt = null, liveState = null;
   const listeners = new Set();
   const state = () => ({ active, lift, startedAt });
@@ -36,6 +40,13 @@ export function createSession({ makeCapture, now = () => Date.now() }) {
     /** The settings the capture was made from (the buffer and the camera that run), else null. */
     get settings() { return settings; },
     get active() { return active; },
+    /** d66: the gym session's preview switch; off in 0.1.0. */
+    get enabled() { return enabled; },
+    /** d66: turns the switch on or off. A running session is not touched: it can still be reached and ended. */
+    setEnabled(on) {
+      if (typeof on !== 'boolean') throw new TypeError('setEnabled takes true or false.');
+      enabled = on;
+    },
     get lift() { return lift; },
     get startedAt() { return startedAt; },
     /**
@@ -56,8 +67,10 @@ export function createSession({ makeCapture, now = () => Date.now() }) {
     /**
      * R1: the capture for these settings and its camera. The same capture while it is open; after a failure it
      * opens afresh ("Try again"). The capture's errors are not thrown: its status says them.
+     * d66: with the switch off nothing is made and no camera is asked for: null.
      */
     async open(next) {
+      if (!enabled && !capture) return null;
       if (!capture) { capture = makeCapture(next); settings = next; }
       const mine = capture;
       try { await mine.open(); } catch { /* mine.status.error says why */ }
@@ -76,7 +89,7 @@ export function createSession({ makeCapture, now = () => Date.now() }) {
      */
     async start(chosen, { replayMode = 'replay' } = {}) {
       if (active) throw new Error('A session is already running.');
-      if (!capture) throw new Error('The camera is not open: open() first.');
+      if (!capture) throw new Error(enabled ? 'The camera is not open: open() first.' : 'The gym session is off (d66): its preview switch is in the settings.');
       if (!isLift(chosen)) throw new Error(`Not a lift of the registry: ${chosen}`);
       const mine = capture;
       await mine.start();

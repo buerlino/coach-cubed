@@ -17,6 +17,9 @@
 //      compares each with the view model of s11's adapter (scoreLift) computed in Node from the same
 //      fixture track: per cue its id, status class, verdict line, value and the card's label (with the
 //      status word). Not empty, not different;
+//   3a. (d66) the gym session is off by default: after the offline reload H has no gym card and no getUserMedia call has been
+//      made (counted in the page), and still none at the end of the lift walks. Before 3b: H → "Settings and about" → S1 →
+//      the switch on → "Back to home" → H with the gym card. The output names the step.
 //   3b. (d28) the session walk: H → the gym card → R1 (the camera's preview, a lift tapped) → Start → R2 (the clock moves, the
 //      real rate reads 30 fps ± 1) → (d29) wait 4 s, Replay → R3 (the position moves, ½× switches, a pause holds the countdown)
 //      → Keep and mark → M (1, a drag, 2, 3 Analyse) → R2 with the queue line showing the lift → Q1 through it, the recorded
@@ -249,6 +252,21 @@ try {
   if (breakKind === 'console') await evaluate(`console.error('page-test --break console')`);
   if (breakKind === 'rejection') await evaluate(`void Promise.reject(new Error('page-test --break rejection'))`);
 
+  // d66: the gym session is off by default. H has no gym card, and the page counts every getUserMedia call (the camera is
+  // asked for only by R1, which is not reachable while the switch is off).
+  const gym = result.gymSwitch = { steps: [] };
+  if (!realClip) {
+    await evaluate(`(() => {
+      if (globalThis.__gumCalls !== undefined) return;
+      globalThis.__gumCalls = 0;
+      const gum = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      navigator.mediaDevices.getUserMedia = (...a) => { globalThis.__gumCalls++; return gum(...a); };
+    })()`);
+    if (await evaluate(`!!document.querySelector('[data-screen="H"] [data-card="session"]')`)) problems.push('d66: H has a gym card with the switch off');
+    if (await evaluate(`globalThis.__gumCalls`) !== 0) problems.push('d66: the camera was asked for before any lift walk');
+    gym.steps.push('H after the offline reload: no gym card, no getUserMedia call');
+  }
+
   // 5. the lifts
   const todo = realClip
     ? [{ ...(LIFTS.find(l => l.track.id === `example/${realClip}`) ?? (() => { throw new Error(`--real wants lateral-raise-cable-1 or athlete-a-trim (got ${realClip})`); })()), file: join(phase0(), 'tests', 'fixtures', 'local', 'example', `${realClip}.mp4`) }]
@@ -419,6 +437,28 @@ try {
     // M's Close goes home
     if (!await click('[data-screen="M"] button[aria-label="Close"]')) throw new Error('M: no Close button');
     await waitFor(`document.querySelector('[data-screen="H"]')`, 'H after closing M');
+  }
+
+  // d66: the lift walks never asked for the camera; then the switch is turned on in S1 and H shows the gym card
+  if (!realClip) {
+    await waitFor(`document.querySelector('[data-screen="H"]')`, 'H (the switch)');
+    if (await evaluate(`globalThis.__gumCalls`) !== 0) problems.push('d66: the camera was asked for during the lift walks');
+    if (await evaluate(`!!document.querySelector('[data-screen="H"] [data-card="session"]')`)) problems.push('d66: H has a gym card after the lift walks, the switch still off');
+    gym.steps.push('H after the lift walks: no gym card, the camera never asked for');
+    if (!await click('[data-screen="H"] button[aria-label="Settings and about"]')) throw new Error('H: no "Settings and about" button');
+    await waitFor(`document.querySelector('[data-screen="S1"][data-view="main"]')`, 'S1 (the switch)');
+    await waitFor(`document.querySelector('[data-screen="S1"] [data-setting="gymSession"]')`, "S1's gym session switch");
+    gym.steps.push('H → Settings and about → S1');
+    const off = await evaluate(`document.querySelector('[data-screen="S1"] [data-setting="gymSession"]')?.getAttribute('aria-checked') ?? null`);
+    if (off !== 'false') problems.push(`d66: S1's switch reads ${JSON.stringify(off)} by default, not "false"`);
+    if (await evaluate(`!!document.querySelector('[data-screen="S1"] [aria-label="How the replay shows up"]')`)) problems.push('d66: S1 shows the replay mode with the switch off');
+    if (!await evaluate(`[...document.querySelectorAll('[data-screen="S1"] .row')].some(r => r.textContent.includes('Default lift'))`)) problems.push('d66: S1 has no Default lift row with the switch off');
+    if (!await click('[data-screen="S1"] [data-setting="gymSession"]')) throw new Error('S1: no gym session switch');
+    await waitFor(`document.querySelector('[data-screen="S1"] [data-setting="gymSession"][aria-checked="true"]')`, 'S1 with the switch on');
+    gym.steps.push('S1: the gym session switch on');
+    if (!await click('[data-screen="S1"] button[aria-label="Back to home"]')) throw new Error('S1: no "Back to home" button');
+    await waitFor(`document.querySelector('[data-screen="H"] [data-card="session"]')`, 'H with the gym card');
+    gym.steps.push('S1 → Back to home → H with the gym card');
   }
 
   // 5a. d28: the session. H → the gym card → R1 (the preview plays, a lift is tapped) → Start → R2 (the clock moves, the real
@@ -679,6 +719,10 @@ result.ok = result.problems.length === 0 && result.lifts.length > 0 && result.li
 say(JSON.stringify(result, null, 2));
 // a lift the app offers with no fixture: listed every run, so a lift isn't left out of the walk unnoticed
 if (!realClip && COVERAGE.untested.length) say(`page-test: not walked, no fixture in app/tools/lift-fixtures.mjs: ${COVERAGE.untested.join(', ')}`);
+if (!realClip) {
+  say('page-test: gym session switch (d66: off by default, no gym card, no camera asked; S1 → on → H with the card)');
+  for (const st of result.gymSwitch.steps) say(`page-test:   ${st}`);
+}
 if (!realClip && result.session) say(`page-test: session walk (H, R1, Start, R2, R3, M, R2, Q1, R2, End session, H): ${result.session.fps} fps, clock ${result.session.clockS?.join(' → ')} s, ${result.session.tracks} camera tracks ended`);
 if (!realClip && result.session?.replay) for (const st of result.session.replay.steps) say(`page-test:   ${st}`);
 if (!realClip && result.session?.delayed) {

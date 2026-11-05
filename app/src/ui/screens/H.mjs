@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// H, home (design/mockups/Main.dc.html): the gym session (opens R1; while one runs it is "Back to the session" with
+// H, home (design/mockups/Main.dc.html): the gym session (d66: only with its preview switch on, or while one runs; opens R1; while one runs it is "Back to the session" with
 // the clock and goes to R2, d28), import a video (the card opens the phone's picker; L1 asks the lift next), today's lifts with their state, earlier
 // sessions, and the privacy line. H changes the flow's state only; the queue
 // and the store are injected (main.mjs gives the app's), so tests pass fakes.
@@ -31,7 +31,7 @@ export function H({ flow, queue, store, updates, session }) {
     const timer = setInterval(() => tick(n => n + 1), 1000);
     return () => clearInterval(timer);
   }, [running]);
-  const card = gymCard(session ? { active: running, elapsedS: session.elapsedS(), liveState: session.liveState } : null);
+  const card = gymCard(session ? { enabled: session.enabled, active: running, elapsedS: session.elapsedS(), liveState: session.liveState } : null);
 
   const sig = jobs ? signature(jobs) : null;
   useEffect(() => {
@@ -57,13 +57,14 @@ export function H({ flow, queue, store, updates, session }) {
         <button type="button" aria-label="Settings and about" onClick=${() => flow.go('settings')}><${SettingsIcon} /></button>
       </header>
       <div class="screen__body">
-        <button type="button" class="card card--row card--primary" data-card="session" onClick=${() => flow.go(card.to)}>
-          <span class="card__icon"><${CameraIcon} /></span>
-          <span class="card__text">
-            <span class="card__title card__title--big">${card.title}</span>
-            ${card.clock ? html`<span class="card__clock" data-card="clock">${card.clock}</span>` : null}
-          </span>
-        </button>
+        ${card ? html`
+          <button type="button" class="card card--row card--primary" data-card="session" onClick=${() => flow.go(card.to)}>
+            <span class="card__icon"><${CameraIcon} /></span>
+            <span class="card__text">
+              <span class="card__title card__title--big">${card.title}</span>
+              ${card.clock ? html`<span class="card__clock" data-card="clock">${card.clock}</span>` : null}
+            </span>
+          </button>` : null}
         <${PickVideo} flow=${flow} class="card card--row">
           <span class="card__icon"><${ImportIcon} /></span>
           <span class="card__text">

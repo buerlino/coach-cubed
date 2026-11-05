@@ -25,6 +25,7 @@ import { isLift } from '../contracts/lifts.mjs';
  * @property {import('../contracts/lifts.mjs').LiftId} defaultLift
  * @property {boolean} keepVideos an analysed lift keeps its cut video
  * @property {boolean} introSeen the first-run screen has been shown and left (d23); it shows once
+ * @property {boolean} gymSession the gym session's preview switch, off in 0.1.0 (d66)
  * @property {ViewOptions} view
  */
 
@@ -39,6 +40,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   defaultLift: 'lateral-raise',
   keepVideos: true,
   introSeen: false,
+  gymSession: false,
   view: Object.freeze({ skeleton: true, cues: true, unsure: false, loop: true, speed: 1, smoothingSigmaMs: 50 }),
 });
 
@@ -77,6 +79,7 @@ const FIELDS = {
   defaultLift: [isLift, () => `must be one of ${LIFTS.join(', ')}`],
   keepVideos: [bool, 'must be true or false'],
   introSeen: [bool, 'must be true or false'],
+  gymSession: [bool, 'must be true or false'],
 };
 const VIEW_FIELDS = {
   skeleton: [bool, 'must be true or false'],

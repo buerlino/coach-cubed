@@ -16,8 +16,11 @@ import { startState } from './ui/welcome-model.mjs';
 const store = createStore();
 // The gym session (d28): made here, once, so it outlives the screens. It has no capture and opens no camera until R1 asks
 // (no permission prompt before the user wants one); the flow lets H go back to it while it runs.
-const session = createSession({ makeCapture: settings => createCapture(settings) });
-const flow = createFlow(await startState(store), { sessionRunning: () => session.active });   // the first run starts at the intro, once (d23)
+const session = createSession({ makeCapture: settings => createCapture(settings), enabled: false });
+// The gym session's preview switch (d66, off in 0.1.0): read once, before the first draw, so that H's top never changes
+// after it draws; S1 keeps the session's copy in step with the saved one. A record that can't be read means off.
+session.setEnabled(await store.getSettings().then(s => s.gymSession === true, () => false));
+const flow = createFlow(await startState(store), { sessionRunning: () => session.active, gymSession: () => session.enabled });   // the first run starts at the intro, once (d23)
 const queue = appQueue({ store });   // one queue per app: it outlives the screens, H and Q1 subscribe to it
 const updates = createUpdates({ queue });   // the service worker (c19): offline, and an update that waits for the queue to be idle
 render(html`<${App} flow=${flow} queue=${queue} store=${store} updates=${updates} session=${session} />`, document.getElementById('app'));

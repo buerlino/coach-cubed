@@ -252,3 +252,46 @@ test('d29b: a session\'s live state comes from its replay mode; the way back to 
   assert.equal(sessionReturn('result', delayed), 'home');
   assert.equal(sessionReturn('delayed'), 'delayed', 'without the session: where it was opened from');
 });
+
+// ---- d66: R1 behind the gym session's switch ----
+
+test('d66: with gymSession off, setup (R1) is unreachable from home; on, home -> setup works as before', async () => {
+  const { createFlow } = await load();
+  const off = createFlow('home', { gymSession: () => false });
+  assert.equal(off.can('setup'), false);
+  assert.throws(() => off.go('setup'), /home.*setup/);
+  assert.equal(off.state, 'home');
+  const on = createFlow('home', { gymSession: () => true });
+  assert.equal(on.can('setup'), true);
+  on.go('setup');
+  assert.equal(on.state, 'setup');
+  assert.equal(createFlow('home').can('setup'), true, 'without the option the flow is as before');
+});
+
+test('d66: the switch is read at each check, not once', async () => {
+  const { createFlow } = await load();
+  let on = false;
+  const flow = createFlow('home', { gymSession: () => on });
+  assert.equal(flow.can('setup'), false);
+  on = true;
+  assert.equal(flow.can('setup'), true);
+  on = false;
+  assert.equal(flow.can('setup'), false);
+});
+
+test('d66: with the switch off and a session running, home still goes back to live or delayed; the other moves are untouched', async () => {
+  const { createFlow } = await load();
+  for (const to of ['live', 'delayed']) {
+    const flow = createFlow('home', { gymSession: () => false, sessionRunning: () => true });
+    assert.equal(flow.can(to), true, to);
+    flow.go(to);
+    assert.equal(flow.state, to);
+  }
+  const idle = createFlow('home', { gymSession: () => false, sessionRunning: () => false });
+  assert.equal(idle.can('live'), false);
+  assert.equal(idle.can('delayed'), false);
+  for (const to of ['lift', 'settings', 'queued', 'result']) assert.equal(idle.can(to), true, to);
+  // R1 is left as before, by a session that was started with the switch on
+  assert.equal(createFlow('setup', { gymSession: () => false }).can('home'), true);
+  assert.equal(createFlow('setup', { gymSession: () => false }).can('live'), true);
+});

@@ -36,6 +36,7 @@ export const SCREEN_OF = {
 // or when M can't open the video (mark → lift); re-mark from the result (A3). Every newly picked video passes L1 (d53).
 // S1's "How the cues are scored" (d18): settings → scoring and back.
 // The first run (d23): the app starts in `welcome` once, which leads to home or the lift step; nothing leads back to it.
+// d66: milestone B is behind a preview switch, off in 0.1.0: createFlow's `gymSession` closes home -> setup while it is off.
 // Milestone B: H, setup (R1), live (R2), replay (R3), mark, then back to live with the
 // lift queued; a session ends at home. A session starts on R1: home does not lead to live, except
 // for H's "Back to the session" while one runs (createFlow's `sessionRunning`, d28).
@@ -80,16 +81,20 @@ export function sessionReturn(from, session) {
 
 /**
  * @param {string} [initial]
- * @param {{sessionRunning?: () => boolean}} [options] `sessionRunning`: whether a gym session runs (the app's
+ * @param {{sessionRunning?: () => boolean, gymSession?: () => boolean}} [options] `sessionRunning`: whether a gym session runs (the app's
  *   session, main.mjs gives it). While one does, home may go to `live` or `delayed` (H's "Back to the session").
+ *   `gymSession` (d66): whether the gym session's preview switch is on; while it is off, home does not lead to `setup` (R1).
+ *   Without the option the switch counts as on.
  */
-export function createFlow(initial = 'home', { sessionRunning = () => false } = {}) {
+export function createFlow(initial = 'home', { sessionRunning = () => false, gymSession = () => true } = {}) {
   if (!STATES.includes(initial)) throw new Error(`unknown state '${initial}'`);
   let state = initial;
   let params = {};
   const listeners = new Set();
 
-  const can = (to) => STATES.includes(to) && (TRANSITIONS[state].includes(to) || (state === 'home' && SESSION_STATES.includes(to) && sessionRunning() === true));
+  const can = (to) => STATES.includes(to)
+    && !(state === 'home' && to === 'setup' && gymSession() !== true)   // d66: R1 only with the switch on
+    && (TRANSITIONS[state].includes(to) || (state === 'home' && SESSION_STATES.includes(to) && sessionRunning() === true));
 
   function go(to, next = {}) {
     if (!STATES.includes(to)) throw new Error(`unknown state '${to}'`);
