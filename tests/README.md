@@ -221,5 +221,16 @@ ffmpeg -y -f lavfi -i "testsrc2=size=108x192:rate=25" -frames:v 75  $X264 -g 25 
 ffmpeg -y -f lavfi -i "testsrc2=size=108x192:rate=30" -frames:v 107 $X264 -g 30 -keyint_min 30 testsrc2-snatch-30fps-107f.mp4
 ```
 
+For `s63` (a 59.94 fps clip keeps its last frame): the first block's flags at 60000/1001 fps, 80 frames, a keyframe every 60
+(6.7 kB). mediabunny's MP4 muxer stores the cut at a timescale of 57600, where 1001/60000 s is 960.96 ticks, so every frame
+time is rounded to a whole tick; 80 frames, so that the last one (79 × 960.96 = 75,915.84 ticks) rounds up, as `lateral-raise-cable-2`'s
+frame 179 does. Checked with `ffprobe`: `r_frame_rate` 60000/1001, `time_base` 1/60000, `nb_frames` 80.
+
+```sh
+cd tests/app/clips
+X264="-c:v libx264 -preset veryslow -crf 36 -pix_fmt yuv420p -g 60 -keyint_min 60 -sc_threshold 0 -bf 2 -movflags +faststart -an -map_metadata -1 -fflags +bitexact -flags:v +bitexact"
+ffmpeg -y -f lavfi -i "testsrc2=size=96x54:rate=60000/1001" -frames:v 80 $X264 testsrc2-h264-59.94fps-80f.mp4
+```
+
 The tests take their expected values from these commands (90 frames at n/30 s; which frames the select keeps), never from
-a decode. Regenerating the clips changes their bytes if the encoder changes, not the expectations.
+a decode (the 59.94 fps clip: 80 frames, frame n at n × 1001/60000 s). Regenerating the clips changes their bytes if the encoder changes, not the expectations.

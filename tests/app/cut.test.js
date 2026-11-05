@@ -290,3 +290,75 @@ test('an HEVC file is cut too: nothing is decoded, so the WebView\'s decoders do
   assert.equal(got.codec, 'hevc');
   assert.equal(got.packets[0].type, 'key');
 });
+
+// s63: a 59.94 fps clip keeps its last frame. mediabunny's MP4 muxer stores the cut at a
+// timescale of 57600, where one frame (1001/60000 s) is 960.96 ticks, so every frame time in the
+// cut is rounded to a whole tick (up to ±8.7 µs). The range cutVideo() returned used the source's
+// times; the cut's last frame (n = 79: 75,915.84 ticks, rounded up) then lay 2.78 µs past
+// range.t1, outside the 1 µs slack of framesInRange() and the sample table, and the job posed 79 of 80.
+// The clip: tests/README.md ("The test clips"): 80 frames, frame n at n × 1001/60000 s, a keyframe at 0 and at 60.
+const NTSC = 'testsrc2-h264-59.94fps-80f.mp4';
+const FRAME = 1001 / 60000;
+const atFrame = n => n * FRAME;
+
+/** The cut's frame times (seconds, presentation order, first at 0), read from its packets. */
+async function cutTimes(blob) {
+  const { buildSampleTable } = await load('src/media/sample-table.mjs');
+  return buildSampleTable((await read(blob)).packets.map(({ type, timestamp, duration }) => ({ type, timestamp, duration }))).times;
+}
+
+for (const [first, last, count] of [[0, 79, 80], [13, 40, 28], [61, 79, 19]]) {
+  test(`s63: a cut of frames ${first}..${last} of a 59.94 fps clip has all ${count} in its range`, async () => {
+    const { cutVideo } = await load('src/media/cut.mjs');
+    const { framesInRange } = await load('src/analysis/job.mjs');
+    const { openFrameSource } = await load('src/media/frame-source.mjs');
+    const { createFakeWebCodecs } = require('./fake-webcodecs.js');
+    const cut = await cutVideo(clip(NTSC), { t0: atFrame(first), t1: atFrame(last) });
+    const times = await cutTimes(cut.blob);
+    // the range holds every frame of the source's range, counted on the cut's own times
+    assert.equal(framesInRange(times, cut.range), count, 'framesInRange');
+    // the cut starts on a keyframe, frame k0 of the source
+    const k0 = Math.round(cut.start / FRAME);
+    const src = await openFrameSource(cut.blob, { webcodecs: createFakeWebCodecs() });
+    try {
+      const got = [];
+      for await (const f of src.frames(cut.range.t0, cut.range.t1)) { got.push(f.timestamp / 1e6); f.close(); }
+      assert.equal(got.length, count, 'frames() of the frame source');
+      // the first and the last frame of the range are among them
+      near(got[0], times[first - k0], 1e-6);
+      near(got.at(-1), times[last - k0], 1e-6);
+    } finally { src.close(); }
+    // the marks sit on frames: within half a frame of the cut's first and last frame of the range
+    assert.ok(Math.abs(cut.range.t0 - times[first - k0]) <= FRAME / 2, `t0 ${cut.range.t0} vs frame ${times[first - k0]}`);
+    assert.ok(Math.abs(cut.range.t1 - times[last - k0]) <= FRAME / 2, `t1 ${cut.range.t1} vs frame ${times[last - k0]}`);
+    // each of the cut's frames is within half a frame of its source time minus the cut's start
+    times.forEach((t, i) => assert.ok(Math.abs(t - (atFrame(i + k0) - cut.start)) <= FRAME / 2, `frame ${i}: ${t}`));
+  });
+}
+
+test('s63: keepVideo\'s stored lift carries the same range, and the job reads all of it', async () => {
+  const { keepVideo } = await load('src/media/cut.mjs');
+  const { framesInRange } = await load('src/analysis/job.mjs');
+  const { validateStoredLift } = await load('src/contracts/stored-lift.mjs');
+  const { store } = await setup();
+  for (const [first, last, count] of [[0, 79, 80], [13, 40, 28]]) {
+    const kept = await keepVideo(store, 'lateral-raise', clip(NTSC), { t0: atFrame(first), t1: atFrame(last) });
+    assert.deepEqual(validateStoredLift(kept.lift), []);
+    assert.deepEqual(kept.lift.range, kept.range);
+    const stored = await store.getLift(kept.lift.id);
+    assert.deepEqual(stored.range, kept.range);
+    assert.equal(framesInRange(await cutTimes(await store.readVideo(kept.lift.id)), stored.range), count, `${first}..${last}`);
+  }
+});
+
+test('s63: the range is widened only as far as the rounding moved its first and last frame', async () => {
+  const { cutVideo } = await load('src/media/cut.mjs');
+  // frame 13 rounds 8.3 µs early in the cut, frame 40 too: t0 moves to the cut's time of 13, t1 stays on the mark
+  const cut = await cutVideo(clip(NTSC), { t0: atFrame(13), t1: atFrame(40) });
+  const times = await cutTimes(cut.blob);
+  assert.ok(times[13] < atFrame(13), 'the clip still shows the rounding this test is about');
+  assert.ok(cut.range.t0 <= times[13], 't0 is at most the cut\'s time of the first frame');
+  near(cut.range.t0, atFrame(13), 1e-5);
+  assert.ok(cut.range.t1 >= times[40], 't1 is at least the cut\'s time of the last frame');
+  near(cut.range.t1, atFrame(40), 1e-5);
+});
