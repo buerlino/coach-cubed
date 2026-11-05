@@ -737,7 +737,10 @@ test('a seek away from a refill behind the playhead gives that decode up instead
   await st.settled();
   assert.equal((await st.step(-1)).index, 60);
   const backDecoder = () => fake.log.decoders.slice(base).find(d => d.fed[0] && d.fed[0].type === 'key' && d.fed[0].timestamp === us(1));
-  for (let k = 0; k < 200 && !backDecoder(); k++) await new Promise(r => setImmediate(r));
+  // A deadline, not a count of ticks: on GitHub's 2-core runner 200 ticks weren't always enough
+  // for the refill to start (run 42006236951); each tick is still one setImmediate, so the seek
+  // below still comes early in that decode.
+  for (const end = Date.now() + 2000; !backDecoder() && Date.now() < end;) await new Promise(r => setImmediate(r));
   const d = backDecoder();
   assert.ok(d, 'the refill behind the playhead started');
   assert.ok(d.fed.length < 20, 'the seek comes while it is still decoding');
