@@ -1,0 +1,4 @@
+# GitHub's language bar: the parked research report (its notebook alone is ~570 KB) and the report on old main
+# are documentation, not the app's code. The files stay in the repo.
+parked/** linguist-documentation
+report/** linguist-documentation
