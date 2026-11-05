@@ -1,0 +1,84 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# 0.1.0 on https://coach-cubed.org (package c67): builds the PWA and publishes it to GitHub Pages.
+# Runs on a pushed tag v* and by hand. A manual run only builds and checks (the Kaggle download,
+# TF.js, assemble, check-dist) unless "deploy" is ticked: the first CI build is tested before
+# anything goes live. The steps nordmu takes before the tag: docs/handover.md.
+# No credentials of ours: only the workflow's own token (permissions below).
+name: Pages
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Also deploy to GitHub Pages (off: build and check only)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a running one is never cancelled half done.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The repo pins no Node version (no .nvmrc, no engines): 22 is the laptop's (v22.23.2), where
+      # every check runs.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: The tag is app/package.json's version
+        if: github.ref_type == 'tag'
+        run: |
+          version="$(node -p "require('./app/package.json').version")"
+          if [ "${GITHUB_REF_NAME#v}" != "$version" ]; then
+            echo "tag $GITHUB_REF_NAME is not v$version (app/package.json)" >&2
+            exit 1
+          fi
+
+      - name: Install the build's inputs
+        run: npm --prefix app ci
+
+      # The quick unit tests, not test:page and not check:layout. The runner's image has
+      # google-chrome on PATH (app/tools/browser.mjs), so the few tests that launch a browser run.
+      - name: Test
+        run: npm --prefix app test
+
+      - name: TF.js from source
+        run: node app/tools/build-tfjs.mjs
+
+      - name: MoveNet's weights from Kaggle (SHA-256 checked)
+        run: app/tools/fetch-models.sh
+
+      - name: Build the release
+        run: npm --prefix app run assemble -- --cname coach-cubed.org
+
+      - name: Check the release
+        run: node app/tools/check-dist.mjs --release app/dist
+
+      # Hidden files stay out of the artifact; the build has none.
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: app/dist
+
+  deploy:
+    needs: build
+    if: github.ref_type == 'tag' || inputs.deploy
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

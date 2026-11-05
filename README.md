@@ -72,6 +72,7 @@ becomes a test case: [`tests/README.md`](tests/README.md).
 | [`parked/`](parked/) | Areas outside 0.1.0's core, moved here and unwired from the app: the research report and bar detection. |
 | [`docs/`](docs/) | The rules, the plan, the decisions, the map of the repo and the reference docs; the index is [`docs/README.md`](docs/README.md). |
 | [`app/`](app/README.md) | The new app (plan Phase 5): static files, plain ES modules, the screens in Preact with htm; its flow, tokens, vendored Preact, htm and fonts, and `tools/` (`assemble.mjs` builds `dist/`, `serve.mjs` serves it). |
+| [`.github/`](.github/workflows/pages.yml) | The Pages workflow (`c67`): on a `v*` tag it builds, tests and publishes the app to https://coach-cubed.org ([docs/handover.md](docs/handover.md)). |
 | [`spike/`](spike/) | The on-device pose spike (plan Phase 3). |
 | [`design/`](design/README.md) | Design work that isn't app code: a copy of the UI mockups' canvas (plan step 5.2). |
 | `vendor/` | `easy_ViTPose`, a git submodule (server pose). |

@@ -51,17 +51,17 @@ class FakeCaches {
   }
 }
 
-// A server: a version and its files (name -> text), at SCOPE.
-function server(version, files, { missing = [], listVersion = version } = {}) {
+// A server: a version and its files (name -> text), at SCOPE (or `scope`).
+function server(version, files, { missing = [], listVersion = version, scope = SCOPE } = {}) {
   const net = { log: [], version, files };
   net.fetch = async (input) => {
     const url = typeof input === 'string' ? input : input.url;
     net.log.push(url);
-    if (url === `${SCOPE}files.json`) {
+    if (url === `${scope}files.json`) {
       return new Response(JSON.stringify({ version: listVersion, files: Object.keys(files) }), { status: 200 });
     }
-    const name = url.slice(SCOPE.length).split('?')[0];
-    if (url.startsWith(SCOPE) && name in files && !missing.includes(name)) return new Response(`${version}:${files[name]}`, { status: 200 });
+    const name = url.slice(scope.length).split('?')[0];
+    if (url.startsWith(scope) && name in files && !missing.includes(name)) return new Response(`${version}:${files[name]}`, { status: 200 });
     return new Response('not found', { status: 404 });
   };
   return net;
@@ -178,6 +178,33 @@ test('a new version installs alongside the old, which keeps answering, and takes
   assert.equal(w2.calls.skipWaiting, 0, 'an unknown message does nothing');
   await w2.dispatch('message', { data: { type: 'skip-waiting' } });
   assert.equal(w2.calls.skipWaiting, 1);
+});
+
+test('served at an origin\'s root (https://coach-cubed.org/, c67): install, a file from the cache, a second version alongside', async () => {
+  const ROOT_SCOPE = 'https://coach-cubed.org/';
+  const caches = new FakeCaches();
+  const net1 = server('r00t0001', FILES, { scope: ROOT_SCOPE });
+  const w1 = await worker({ caches, net: net1, scope: ROOT_SCOPE });
+  await w1.dispatch('install');
+  await w1.dispatch('activate');
+  const cache = await caches.open('coach-r00t0001');
+  assert.deepEqual((await cache.keys()).sort(), [...Object.keys(FILES).map(f => ROOT_SCOPE + f), `${ROOT_SCOPE}files.json`].sort());
+  net1.log.length = 0;
+  const hit = await w1.get(`${ROOT_SCOPE}src/main.mjs`);
+  assert.equal(await hit.response.text(), 'r00t0001:main');
+  const start = await w1.get(ROOT_SCOPE, { mode: 'navigate' });
+  assert.equal(await start.response.text(), 'r00t0001:<html>', 'the start URL / is index.html');
+  assert.deepEqual(net1.log, [], 'no request reached the network');
+  const other = await w1.dispatch('fetch', { request: { url: 'https://example.org/src/main.mjs', method: 'GET', mode: 'cors' } });
+  assert.equal(other.answered, false, 'another origin is left to the browser');
+
+  const net2 = server('r00t0002', FILES, { scope: ROOT_SCOPE });
+  const w2 = await worker({ caches, net: net2, scope: ROOT_SCOPE });
+  await w2.dispatch('install');
+  assert.deepEqual((await caches.keys()).sort(), ['coach-r00t0001', 'coach-r00t0002']);
+  assert.equal(w2.calls.skipWaiting, 0);
+  assert.equal(await (await w1.get(`${ROOT_SCOPE}src/main.mjs`)).response.text(), 'r00t0001:main');
+  assert.equal(await (await w2.get(`${ROOT_SCOPE}src/main.mjs`)).response.text(), 'r00t0002:main');
 });
 
 test('activate removes the old caches and claims the pages, and leaves other caches alone', async () => {

@@ -39,6 +39,8 @@ the size budgets ([tests/docs.test.js](../tests/docs.test.js)).
 | Doc | Covers |
 | --- | --- |
 | [lifts.md](lifts.md) | For Noah and his agents: adding a cue (the `lifting-diagnostic` contract in short) or a lift (its set in `diagnostics.js`, one entry in the app's lift registry, a fixture and its golden), and the checks in order, from `npm --prefix app test` to the phone. |
+| [release-0.1.0.md](release-0.1.0.md) | The 0.1.0 release notes: what it does, where it was tested, what it needs, what is not in it, how to install it, the licences. |
+| [handover.md](handover.md) | For nordmu and Noah: the steps that release 0.1.0 on GitHub Pages and the ones that hand the repo and the domain over; what is left (the packages and their files) and the open questions. |
 | [pose-spike.md](pose-spike.md) | Step 3.7, the working pick (nordmu, 2026-11-01): the on-device pose spike's numbers on the Fairphone (speed, memory, agreement with ViTPose-L, capture, heat), the licence gate, F-Droid (3.8) and the decision. |
 | [fixture-data-contract.md](fixture-data-contract.md) | The consuming side: `track.json`/`manifest.json` schemas, where profiles live, the endpoints a page reads them through, and what the extracted data is actually like. |
 | [../tests/README.md](../tests/README.md) | What each test file covers, how to run the tests, and how a lift video becomes a fixture with a golden snapshot. |
