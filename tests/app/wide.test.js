@@ -164,15 +164,15 @@ test('d58 layout-check: A1 and A2 at the four portrait sizes have no vertical sc
   assert.equal(M_SIZES.length, 9);
 });
 
-test('d58: A1 and A2 are 100dvh screens that keep their height: .screen\'s flex: 1 (a basis of 0%) overrode it and the page scrolled; the wide A1 stays as it was', () => {
+test('d58: A1 and A2 are window-high screens (--screen-h) that keep their height: .screen\'s flex: 1 (a basis of 0%) overrode it and the page scrolled; the wide A1 stays as it was', () => {
   const css = read('src', 'styles', 'base.css');
   const rule = sel => css.match(new RegExp(`^${sel.replace('.', '\\.')} \\{[^}]*\\}`, 'm'))?.[0] ?? '';
   for (const sel of ['.result', '.detail']) {
     assert.match(rule(sel), /flex:\s*none/, `${sel} has flex: none`);
-    assert.match(rule(sel), /height:\s*100dvh/, `${sel} is 100dvh high`);
+    assert.match(rule(sel), /height:\s*var\(--screen-h\)/, `${sel} is a window high (--screen-h)`);
   }
-  assert.match(css, /@media \(min-width: 980px\) \{\s*\.result \{ height: auto; min-height: 100dvh;/, 'A1\'s wide layout is unchanged');
-  assert.match(css, /@media \(max-height: 519px\) \{ \.result \{ height: auto; min-height: 100dvh; \} \}/, 'a phone in landscape keeps A1 as high as its content (the list would be 28 px high)');
+  assert.match(css, /@media \(min-width: 980px\) \{\s*\.result \{ height: auto; min-height: var\(--screen-h\);/, 'A1\'s wide layout is unchanged');
+  assert.match(css, /@media \(max-height: 519px\) \{ \.result \{ height: auto; min-height: var\(--screen-h\); \} \}/, 'a phone in landscape keeps A1 as high as its content (the list would be 28 px high)');
 });
 
 test('layout-check: no browser is one clear line (exit 1), or a skip with COACH_PAGE_TEST_SKIP=1', () => {

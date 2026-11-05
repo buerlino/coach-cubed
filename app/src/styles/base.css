@@ -27,7 +27,7 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
-#app { min-height: 100%; display: flex; flex-direction: column; }
+#app { min-height: 100%; display: flex; flex-direction: column; padding-top: var(--inset-top); }
 
 h1, h2, p { margin: 0; }
 
@@ -218,7 +218,7 @@ button:disabled { color: var(--text-quiet); cursor: default; }
    design/checkpoint-a/round-1.html). Every row has a fixed height but the stage's, which takes what is left, so
    nothing moves when a mark is set. `flex: none` matters: .screen's `flex: 1` is a flex-basis of 0% that
    overrode the height, and M took its content's height in #app (whose height is only a minimum), so the page scrolled. */
-.mark { flex: none; height: 100dvh; display: flex; flex-direction: column; }
+.mark { flex: none; height: var(--screen-h); display: flex; flex-direction: column; }
 .mark-header { height: calc(var(--touch) + var(--space-4)); flex: none; display: flex; align-items: center; gap: var(--space-2); padding: 0 var(--space-3); }
 .mark-header__title { font-size: var(--size-heading); font-weight: var(--weight-bold); }
 .mark-header__lift .tag { font-weight: var(--weight-semibold); }
@@ -264,7 +264,7 @@ button:disabled { color: var(--text-quiet); cursor: default; }
    left), the replay-mode choice (d29b, in the place d28 kept for it) and the bar with the line and the record disc. Nothing moves
    when a lift is tapped or the tip changes. `flex: none` as M's (.mark): .screen's `flex: 1` is a basis of 0%. The window's
    height is a least height: a phone in landscape scrolls (nothing is cut off) where the rows do not fit. */
-.setup, .live { flex: none; min-height: 100dvh; position: relative; display: flex; flex-direction: column; background: var(--stage-ground); }
+.setup, .live { flex: none; min-height: var(--screen-h); position: relative; display: flex; flex-direction: column; background: var(--stage-ground); }
 .camera-stage { position: absolute; inset: 0; background: var(--stage-ground); }
 .camera-stage video { width: 100%; height: 100%; object-fit: cover; display: block; }
 .setup > :not(.camera-stage), .live > :not(.camera-stage) { position: relative; }
@@ -325,7 +325,7 @@ button:disabled { color: var(--text-quiet); cursor: default; }
    below (REPLAY and how long ago, "Still recording"; the bar row, Keep and mark, Not this one with its countdown). The
    position and the countdown have widths of their own: nothing moves while they change. It fits a portrait phone from
    640 px high without a vertical scroll. */
-.replay { flex: none; min-height: 100dvh; position: relative; display: flex; flex-direction: column; background: var(--stage-ground); }
+.replay { flex: none; min-height: var(--screen-h); position: relative; display: flex; flex-direction: column; background: var(--stage-ground); }
 .replay-stage { position: absolute; inset: 0; background: var(--stage-ground); }
 .replay-layer { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
 .replay-layer[hidden] { display: none; }
@@ -360,7 +360,7 @@ button:disabled { color: var(--text-quiet); cursor: default; }
    aspect kept); over them REC with the clock and the delay on the left, the live view in the right corner, and at the
    bottom the delay's choices, Keep this lift and the End session row. The clock and the delay have widths of their own:
    nothing moves while they change. It fits a portrait phone from 640 px high without a vertical scroll. */
-.delayed { flex: none; min-height: 100dvh; position: relative; display: flex; flex-direction: column; background: var(--stage-ground); }
+.delayed { flex: none; min-height: var(--screen-h); position: relative; display: flex; flex-direction: column; background: var(--stage-ground); }
 .delayed-stage { position: absolute; inset: 0; background: var(--stage-ground); }
 .delayed-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .delayed-note { position: absolute; left: var(--space-4); right: var(--space-4); top: 50%; margin: 0; transform: translateY(-50%); text-align: center; color: var(--text-soft); }
@@ -391,10 +391,10 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .delayed-hands { min-width: 0; padding-right: var(--space-2); color: var(--text-quiet); font-size: var(--size-small); text-align: right; }
 
 /* A1, Result: the player (docs/ui-design.md, design/mockups/Result.dc.html) */
-.result { flex: none; height: 100dvh; }   /* d58: flex: none, as M's (.mark): .screen's flex: 1 is a basis of 0% that overrode the height, and the page scrolled instead of the list */
+.result { flex: none; height: var(--screen-h); }   /* d58: flex: none, as M's (.mark): .screen's flex: 1 is a basis of 0% that overrode the height, and the page scrolled instead of the list */
 /* A phone in landscape (the window under 520 px high: the video's least height, the bar and the header leave the list nothing) keeps A1 as
    it was: as high as its content, the page scrolls and the list shows in full. The 520 px is a media query's, which cannot read a token. */
-@media (max-height: 519px) { .result { height: auto; min-height: 100dvh; } }
+@media (max-height: 519px) { .result { height: auto; min-height: var(--screen-h); } }
 .result-header__text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
 .result-header__more { margin-left: auto; }
 .result-problem { padding: var(--space-4) var(--space-5); }
@@ -445,7 +445,7 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .cues-window { margin: 0 var(--space-1); font-size: var(--size-small); line-height: 1.35; color: var(--text-soft); }
 
 /* A2, a cue's detail (docs/ui-design.md, design/mockups/CueDetail.dc.html) */
-.detail { flex: none; height: 100dvh; }   /* d58: as .result */
+.detail { flex: none; height: var(--screen-h); }   /* d58: as .result */
 .detail-header .bar-header__title { flex: 1; min-width: 0; }
 .detail-badge { margin-right: var(--space-2); height: calc(var(--touch) - var(--space-3)); padding: 0 var(--space-3); border-radius: var(--radius-xl); background: var(--surface-raised); display: flex; align-items: center; gap: var(--space-1h); }
 .detail-badge svg { width: var(--space-4); height: var(--space-4); }
@@ -575,7 +575,7 @@ button:disabled { color: var(--text-quiet); cursor: default; }
 .cue-card[data-selected="true"] { background: var(--surface-raised); box-shadow: inset 0 0 0 1px var(--accent); }
 
 @media (min-width: 980px) {
-  .result { height: auto; min-height: 100dvh; max-width: var(--wide-max); padding: var(--space-4) var(--space-6) var(--space-6); gap: var(--space-4); }
+  .result { height: auto; min-height: var(--screen-h); max-width: var(--wide-max); padding: var(--space-4) var(--space-6) var(--space-6); gap: var(--space-4); }
   .result-body { display: grid; grid-template-columns: minmax(0, auto) minmax(var(--wide-panel-min), 1fr) var(--wide-aside); grid-template-areas: "stage selected cues" "bar bar cues"; column-gap: var(--space-4); row-gap: var(--space-3); align-items: start; }
   .result-stage { grid-area: stage; flex: none; min-height: 0; width: min(var(--wide-stage-max), calc(var(--wide-stage) * var(--frame-ratio))); max-width: 100%; border-radius: var(--radius-s); overflow: hidden; }
   .result-frame { height: auto; width: 100%; }
