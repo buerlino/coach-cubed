@@ -392,3 +392,35 @@ test('c65: phone-sample.sh on Android 9 (no dumpsys gpu, no HAL temperatures) wr
   assert.match(src.split('\n').slice(0, 20).join('\n'), /Android 9/, 'the header says so');
   assert.match(fs.readFileSync(path.join(ROOT, 'spike', 'pose-bench', 'README.md'), 'utf8'), /phone-sample\.sh[^\n]*-s/);
 });
+
+test('c65: the decoder names found in the app\'s log lines are Codec2\'s and OMX\'s (Android 9), each once', async () => {
+  const { codecNames } = await load('tools', 'codec-names.mjs');
+  // lines shaped like logcat's (threadtime), from memory of Android's media framework: c60 sees the S8+'s own
+  const codec2 = [
+    '11-04 20:01:02.345  4242  4300 I CCodec  : state->set(ALLOCATING) [c2.qti.avc.decoder]',
+    '11-04 20:01:02.350  4242  4300 I Codec2Client: Creating a Codec2 client to service "default"',
+    '11-04 20:01:02.351  4242  4300 I CCodec  : Created component [c2.qti.avc.decoder]',
+    '11-04 20:01:09.001  4242  4301 I CCodec  : Created component [c2.android.hevc.decoder]',
+  ].join('\n');
+  assert.deepEqual(codecNames(codec2), ['c2.qti.avc.decoder', 'c2.android.hevc.decoder']);
+  const omx = [
+    '11-04 20:01:02.345  4242  4300 I ACodec  : [OMX.Exynos.AVC.Decoder] Now Loaded->Idle',
+    '11-04 20:01:02.346  4242  4300 I OMXClient: IOmx service obtained',
+    '11-04 20:01:02.360  4242  4300 I ACodec  : setupAVCEncoderParameters with [profile: Baseline] [level: Level42] [OMX.Exynos.AVC.Encoder].',
+    '11-04 20:01:03.000  4242  4302 I MediaCodec: [OMX.google.h264.decoder] configured',
+  ].join('\n');
+  assert.deepEqual(codecNames(omx), ['OMX.Exynos.AVC.Decoder', 'OMX.Exynos.AVC.Encoder', 'OMX.google.h264.decoder']);
+  assert.deepEqual(codecNames(`${codec2}\n${omx}`).length, 5);
+  assert.deepEqual(codecNames(''), []);
+});
+
+test('c65: check-media-apk.mjs counts the idle stepper at the phone\'s M size, 440 × its devicePixelRatio, beside 440 and 1320; its decoders by codecNames', () => {
+  const src = fs.readFileSync(path.join(APP, 'tools', 'check-media-apk.mjs'), 'utf8');
+  assert.match(src, /\[`idle-\$\{c\}`, 'idleDecoded', c, \(\) => \(\{ height: 440 \}\)\]/);
+  assert.match(src, /\[`idle1320-\$\{c\}`, 'idleDecoded', c, \(\) => \(\{ height: 1320 \}\)\]/);
+  assert.match(src, /\[`idleM-\$\{c\}`, 'idleDecoded', c, \(\) => \(\{ height: Math\.round\(440 \* pixelRatio\) \}\)\]/);
+  assert.match(src, /pixelRatio = Number\(await c\.evaluate\('devicePixelRatio'\)\) \|\| 1;/);
+  assert.ok(src.indexOf("evaluate('devicePixelRatio')") < src.indexOf('for (let k = 1; k <= RUNS; k++)'), 'read before the first run');
+  assert.match(src, /out\.decoders = codecNames\(lines\);/);
+  assert.doesNotMatch(src, /c2\\\./, 'the names in one place, codec-names.mjs');
+});

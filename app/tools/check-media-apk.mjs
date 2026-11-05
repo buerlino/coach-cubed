@@ -25,6 +25,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { readdirSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { codecNames } from './codec-names.mjs';
 
 const APP = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PKG = 'org.coach.placeholder';
@@ -39,6 +40,8 @@ const PORT = Number(arg('--port', 9336));
 const KEEP = process.argv.includes('--keep');
 if (!SERIAL || !CLIPS) { console.error('check-media-apk: --serial <serial> and --clips <dir> are required'); process.exit(2); }
 
+// the check page's devicePixelRatio, read once it is open (idleM's height)
+let pixelRatio = 1;
 // The measurements: [id, call, clip, args]. Every id runs RUNS times; k is the run (1..RUNS), the seed of the random ones.
 const PLAN = [
   ...['k1', 'k2to5', 'p60', 'rot90', 'rot90p60', 'vfr', 'hevc', 'big'].map(c => [`open-${c}`, 'open', c, () => undefined]),
@@ -56,10 +59,12 @@ const PLAN = [
     [`stepCached-tap-${c}`, 'stepCached', c, k => ({ n: 30, seed: k, gapMs: 150 })],
     [`stepCached-back-${c}`, 'stepCached', c, k => ({ n: 30, seed: k, dir: -1, gapMs: 150 })],
     [`seekCached-${c}`, 'seekCached', c, k => ({ n: 20, seed: k })],
-    // the decoder's frames still open while the stepper sits on a frame (s38f1, c26): at 440 px, and at
-    // 1320 px, M1–M3's size at the Fairphone's pixel ratio of 3
+    // the decoder's frames still open while the stepper sits on a frame (s38f1, c26): at 440 px, at
+    // 1320 px (M1–M3's size at the Fairphone's pixel ratio of 3), and at M1–M3's size on this phone,
+    // 440 × the page's devicePixelRatio (c65; read once the check page is open)
     [`idle-${c}`, 'idleDecoded', c, () => ({ height: 440 })],
     [`idle1320-${c}`, 'idleDecoded', c, () => ({ height: 1320 })],
+    [`idleM-${c}`, 'idleDecoded', c, () => ({ height: Math.round(440 * pixelRatio) })],
   ]),
   ['cut-k1', 'cut', 'k1', () => ({ t0: 0, t1: 60 })],
   ['keep-k1', 'cut', 'k1', () => ({ t0: 0, t1: 60, keep: true })],
@@ -170,6 +175,8 @@ try {
     await sleep(200);
   }
   out.basics = await c.evaluate('window.c20.basics', { timeout: 60000 });
+  pixelRatio = Number(await c.evaluate('devicePixelRatio')) || 1;
+  out.pixelRatio = pixelRatio;
 
   // The clips into the app's own files/c34/, one at a time through /data/local/tmp.
   const names = readdirSync(CLIPS).filter(f => f.endsWith('.mp4')).sort();
@@ -222,10 +229,11 @@ try {
     }
   }
   c.close();
-  // Which decoder Android gave the WebView: Codec2's component names in our own processes' log lines only.
+  // Which decoder Android gave the WebView: Codec2's or OMX's component names (codec-names.mjs) in our own
+  // processes' log lines only.
   try {
     const lines = [pid, ...renderers].map(p => { try { return sh(`logcat -d --pid=${p}`); } catch { return ''; } }).join('\n');
-    out.decoders = [...new Set(lines.match(/c2\.[A-Za-z0-9_.]+\.(?:decoder|encoder)[A-Za-z0-9_.]*/g) || [])];
+    out.decoders = codecNames(lines);
   } catch (e) { out.decoders = String(e.message || e); }
 } catch (e) {
   out.error = String((e && e.stack) || e);
