@@ -93,7 +93,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 114 | `d58` | A1 and A2 fit the window, A1's cue list fades, Welcome says it once (d54's and d55's follow-ups; nordmu, 2026-11-03) | dirac, sonnet | `d54`, `d55` | merged `3e699b6` |
 | 115 | `c61` | One camera at a time, a Start that says when it didn't, a failed camera that keeps the lift (the milestone B review, 2026-11-03) | curie, opus | `d29b` | merged `6294d58` (one fix round: the page test's R3b problem text); laptop only (nordmu, 2026-11-03: Try again and keep the lift) |
 | 58 | `s59` | s12's watchdog from c26's numbers: the stall time, restarts, tick and Q1's time left | schrödinger, sonnet | `c26` | merged `63e7fc7` (run 65, no fix round) |
-| 59 | `s63` | A 59.94 fps clip keeps its last frame (c26's cable-2: the cut's 1/57600 timescale) | schrödinger, sonnet | `c26` | waits; laptop only (nordmu, 2026-11-04, c26's decision 3) |
+| 59 | `s63` | A 59.94 fps clip keeps its last frame (c26's cable-2: the cut's 1/57600 timescale) | schrödinger, sonnet | `c26` | merged `b8d90a3` (run 66, no fix round) |
 | 60 | `d62` | H's wordmark clears the status bar: the top inset in the shell, the screen height in one token | dirac, sonnet | `c26` | waits; laptop only; the next phone package glances at H in the APK (nordmu, 2026-11-04, c26's decision 5) |
 | 61 | `c65` | Chrome 101 fallbacks: the decode loop without `dequeue`, `100dvh`, the S8+'s tool gaps, a probe for c60 | curie, opus | `d62`, `c26` | waits; laptop only, no adb (nordmu, 2026-11-04: c60 split into c65 and c60) |
 | 62 | `d66` | The gym session behind a switch, off in 0.1.0: no gym card on H, R1–R3b only with "Gym session (preview)" on | dirac, sonnet | `c65` | waits; laptop only (nordmu, 2026-11-04) |
