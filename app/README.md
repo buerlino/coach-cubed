@@ -66,10 +66,10 @@ It logs each request (`200 /index.html`); a `404` there is a broken path.
 | `src/analysis/` | The analysis job and its queue (`s12`): `appQueue()` is the app's one queue; Analyse keeps the cut (`s32`), then queues the job, which poses every frame of the range, builds the track and scores it. See [The analysis](#the-analysis). |
 | `src/pose/` | The pose engine (`s10`): `PoseEngine.create()` gives one async `estimate(frame, tMs)` over a worker running MoveNet Thunder on TF.js. See [The pose engine](#the-pose-engine). |
 | `vendor/` | Third-party files, each with its licence text, byte for byte from its npm package ([THIRD_PARTY.md](../THIRD_PARTY.md#in-the-new-app-app)): `preact/` (Preact 11.1.1 and its hooks), `htm/` (htm 3.1.1), `mediabunny/` (mediabunny 1.61.6, MPL-2.0, the frame source's one demuxer), `fonts/` (Barlow and Barlow Condensed, woff2, with `OFL.txt`). `vendor/tfjs/` is built by `tools/build-tfjs.mjs` (gitignored). |
-| `tools/` | `assemble.mjs`, `serve.mjs`, `make-icon.mjs`, and the TF.js build: `build-tfjs.mjs`, `fetch-models.sh`, `check-tfjs.mjs`, `patches/` ([below](#tfjs-from-source)), `check-media.mjs` (the frame source on a real decoder, [above](#the-frame-source)), `check-capture.mjs` (the capture on headless Brave's fake camera, [above](#capture-and-the-rolling-buffer)), and the debug APK's `build-apk.sh` and `check-apk.mjs` ([The Android shell](#the-android-shell)), and `make-phone-clips.sh` and `check-media-apk.mjs`, the frame source and the cut on the phone ([On the phone](#on-the-phone)). Node only; only `build-tfjs.mjs` needs `app/node_modules/` (esbuild). Not copied into `dist/`. `page-test.mjs` is the page test ([below](#the-page-test)), `lift-fixtures.mjs` its fixture per lift (`s49`). `browser.mjs` is the one place a tool finds, launches and ends a headless browser (`c47`, [below](#the-tools-browser)), and holds the fake camera's flags (`FAKE_CAMERA`, `d28`). `layout-check.mjs` is the responsive check ([below](#a4-and-the-responsive-check)). |
+| `tools/` | `assemble.mjs`, `serve.mjs`, `make-icon.mjs`, and the TF.js build: `build-tfjs.mjs`, `fetch-models.sh`, `check-tfjs.mjs`, `patches/` ([below](#tfjs-from-source)), `check-media.mjs` (the frame source on a real decoder, [above](#the-frame-source)), `check-capture.mjs` (the capture on headless Brave's fake camera, [above](#capture-and-the-rolling-buffer)), and the debug APK's `build-apk.sh` and `check-apk.mjs` ([The Android shell](#the-android-shell)), and `make-phone-clips.sh` and `check-media-apk.mjs` (with `codec-names.mjs`, the decoder's name from the log, `c65`), the frame source and the cut on the phone ([On the phone](#on-the-phone)). Node only; only `build-tfjs.mjs` needs `app/node_modules/` (esbuild). Not copied into `dist/`. `page-test.mjs` is the page test ([below](#the-page-test)), `lift-fixtures.mjs` its fixture per lift (`s49`). `browser.mjs` is the one place a tool finds, launches and ends a headless browser (`c47`, [below](#the-tools-browser)), and holds the fake camera's flags (`FAKE_CAMERA`, `d28`). `layout-check.mjs` is the responsive check ([below](#a4-and-the-responsive-check)). |
 | `dist/` | The assembled app (gitignored): what the PWA host and Capacitor get. `files.json` lists every file in it, with a version hash, for the service worker. |
 | `android/`, `capacitor.config.json` | The Capacitor shell (`c20`): the Android project `npx cap add android` generated, committed; Gradle's outputs and the copied web assets are gitignored. See [The Android shell](#the-android-shell). |
-| `debug/` | The check page (`c20`), assembled only into the debug APK (`assemble.mjs --debug`), never into the shipped `dist/`. |
+| `debug/` | The check page (`c20`; `media.mjs` `c34`, `compat.mjs` the probe for Chrome 101, `c65`), assembled only into the debug APK (`assemble.mjs --debug`), never into the shipped `dist/`. |
 | `page-test/` | The page test's test build only (`c21`, `assemble.mjs --test`): the replay engine and the boot that installs it. Never in the shipped `dist/`. See [The page test](#the-page-test). |
 | `out/` | `coach-debug.apk`, from `tools/build-apk.sh` (gitignored). |
 | `models/` | MoveNet SinglePose Thunder v4's weights, `movenet-thunder-4/` (`model.json` and three shards), fetched by `tools/fetch-models.sh` (gitignored). |
@@ -392,6 +392,19 @@ held are closed.
 few decoded frames wait, so a slow consumer (the pose model) keeps the
 decoder a few frames ahead instead of filling memory; a hardware decoder's
 last frames come out while the loop is still draining, not after the flush.
+
+**Without the decoder's `dequeue` event (`c65`).** A chunk the decoder takes
+wakes the loop to feed the next one: the `dequeue` event, Chrome 106 and later
+(from memory: `c60` checks). Chrome 101, the Samsung S8+'s browser and WebView,
+has neither the event nor `VideoDecoder.prototype.ondequeue`, and there only an
+output woke the loop: the stepper's stream (one chunk fed at a time,
+`STREAM_QUEUES`) on a decoder that holds B-frames back waited for an output
+that never came, and ended with `decode-stalled`. Where `ondequeue` is
+missing, and only while the loop waits with its queue full, it re-checks
+`decodeQueueSize` every `DEQUEUE_POLL_MS` (4 ms, a timer, which Chrome clamps
+to that anyway). Where the event exists no timer runs (`tests/app/chrome101.test.js`)
+and the stepper's timing is unchanged (`c65`'s report: `check-media.mjs` in headless
+Brave against `s38f1`'s step times).
 
 ### The stepper
 
@@ -1473,7 +1486,12 @@ scrolls to them; nothing is cut off, but landscape has no layout of its own (5.7
 `--screen-h: calc(100dvh - var(--inset-top))`. `#app` pads its top by `--inset-top`, for every screen; each screen that is a window
 high (`.mark`, `.setup`, `.live`, `.replay`, `.delayed`, `.result`, `.detail`) uses `var(--screen-h)` where it had `100dvh`, so the page plus
 the inset is the window's height and M, A1 and A2 still don't scroll. No rule in `base.css` writes `100dvh`; the height lives in the
-one token (`c60`'s `100vh` fallback for Chrome 101 goes there, under `@supports`). **Headless can't test the inset:** Brave gives no
+one token, with its fallback for a browser without `dvh` (Chrome 108, from memory; `c65`): at the end of `tokens.css`,
+`@supports not (height: 100dvh) { :root { --screen-h: calc(100vh - var(--inset-top)); } }`. A `100vh` line before a declaration
+that holds `var()` wouldn't do: such a declaration is found invalid only when computed, and then falls back to `unset`, not to the line
+before. In the S8+'s WebView (Chrome 101) there is no toolbar, so `100vh` is the window; in its Chrome tab `100vh` is the height
+with the toolbar hidden, so a tab may scroll by the toolbar's height (`c60` measures it). The check page's probe reports which
+value applies (`height` in `window.c20.compat`, [The Android shell](#the-android-shell)). **Headless can't test the inset:** Brave gives no
 real inset (`env()` is 0), so `check:layout` and the page test see the layout as before; `tests/app/safe-area.test.js` reads the
 files, and the real check is the APK on a phone with WebView 140 or later.
 
@@ -1866,10 +1884,38 @@ own `files/` (`run-as`), runs the engine, prints the JSON and uninstalls.
 `debug/media.mjs` (`c34`) adds the frame source's and the cut's measurements
 (`window.c34`) on clips set on the page's second input, `#media`;
 `tools/check-media-apk.mjs` drives them the same way, five runs each, with the
-memory sampled on the phone ([On the phone](#on-the-phone)). `debug/capture.html`
+memory sampled on the phone ([On the phone](#on-the-phone)); since `c65` it also counts the idle stepper's
+decoded frames at M1–M3's size on the phone at hand (`idleM-`, 440 × the page's `devicePixelRatio`, beside `idle-`
+at 440 and `idle1320-`, the Fairphone's), and finds the decoder's name among Codec2's (`c2.…`) and OMX's
+(`OMX.…`, Android 9 and older) in the app's log lines (`tools/codec-names.mjs`). `debug/capture.html`
 (`c30`, `window.c30`) records the camera with the real capture and times what it
 doesn't report; `tools/check-capture-phone.mjs` drives it, and R1 to R3 through
 the app's screens, in the APK or in Brave ([the capture on the phone](#on-the-phone-c30)).
+
+**The compatibility probe** (`debug/compat.mjs`, `c65`) runs at the check page's load as `window.c20.compat`, for `c60` on the
+Samsung S8+, whose Chrome and WebView stay at 101: one function over the page's globals (so `tests/app/chrome101.test.js` runs it
+on fakes) that returns, as JSON, `decoderDequeue` (`'ondequeue' in VideoDecoder.prototype`: Chrome 106's event, which the decode
+loop falls back from, [above](#the-frame-source)); `opfs` (`getDirectory`, a file's `createWritable` and `move`, the move over an
+existing name that the store's `writeAtomic` does, in a folder of its own, `c65-compat`, removed after; the store has no fallback
+without the first two); `height` (`CSS.supports('height', '100dvh')`, the `--screen-h` that applies and what it measures, beside
+`innerHeight`); `videoDecoder1080p` (`VideoDecoder.isConfigSupported` for H.264 at 1920 × 1080: a phone camera's `avc1.640028`
+and the capture's three `CODECS`); `videoEncoder` (`VideoEncoder.isConfigSupported` for each config the capture's `start()`
+asks, from capture.mjs's own `encoderConfig`, at 1080p30 both ways up, then the first without `hardwareAcceleration` and
+without `latencyMode`, so a refusal names its key; no camera is opened); `mediaStreamTrackProcessor`; `wakeLock`;
+`requestVideoFrameCallback`; `workerWebgl2` (WebGL 2 in an `OffscreenCanvas` in a worker of its own); and `userAgent`. A part
+that throws is its `{error}`. `tools/check-apk.mjs` prints it as `compat`. How `c60` reads it on the phone (`<serial>` is the
+phone's; curie only, with its lock):
+
+- **In the debug APK:** `node app/tools/check-apk.mjs --serial <serial> --engine 0` (the APK from `tools/build-apk.sh`):
+  `compat` in its JSON.
+- **In Chrome:** a `--debug` dist served from the laptop through the reverse: `node app/tools/assemble.mjs --debug --out
+  /tmp/coach-debug-dist`, `node app/tools/serve.mjs --dir /tmp/coach-debug-dist --port 8791`, `adb -s <serial> reverse tcp:8791
+  tcp:8791`; open `http://localhost:8791/debug/check.html` in Chrome on the phone (localhost is a secure context: OPFS and
+  WebCodecs are there); `adb -s <serial> forward tcp:9340 localabstract:chrome_devtools_remote`, then `node
+  app/tools/check-phone.mjs eval --port 9340 --origin http://localhost:8791 'window.c20.compat'`. After: `adb -s <serial> forward
+  --remove tcp:9340`, `adb -s <serial> reverse --remove tcp:8791`, and the tab closed.
+
+In headless Brave on the laptop (`c65`'s report has the whole JSON) every key is there and true, `ondequeue` included.
 
 **On the Fairphone 6** (Android 16, LineageOS 4.4.1, WebView 153.0.8010.36,
 Adreno 810; the debug APK of 2026-11-02, `c20`'s report has every number):
