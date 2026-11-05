@@ -5,7 +5,8 @@
 // (build-apk.sh), starts it, checks the app shell opened, then drives the
 // check page (app/debug/, debug builds only) over the WebView's DevTools:
 //   1. the basics: the WebView, WebGL, OPFS (a folder of its own, removed
-//      after) and persist();
+//      after) and persist(); and the compatibility probe (debug/compat.mjs,
+//      c65: the features newer than Chrome 101), as `compat`;
 //   2. file import: the page's <input type="file"> clicked with a user gesture
 //      opens Android's picker (the resumed activity is recorded, then Back);
 //      the test clip, copied into the app's own files/ with run-as, is set on
@@ -99,6 +100,7 @@ try {
     await sleep(200);
   }
   out.basics = await c.evaluate('window.c20.basics', { timeout: 60000 });
+  out.compat = await c.evaluate('window.c20.compat', { timeout: 60000 });
 
   // File import: the picker, then the input set to the clip in the app's own files/.
   const before = resumed();

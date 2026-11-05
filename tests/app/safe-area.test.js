@@ -21,7 +21,9 @@ test('d62: tokens.css defines the top inset once and the screen\'s height from i
   const tokens = stripComments(read('src', 'styles', 'tokens.css'));
   assert.equal([...tokens.matchAll(/--inset-top:/g)].length, 1);
   assert.match(tokens, /--inset-top:\s*env\(safe-area-inset-top,\s*0px\)\s*;/);
-  assert.equal([...tokens.matchAll(/--screen-h:/g)].length, 1);
+  // once in :root, and once more in c65's fallback for a browser without dvh (tests/app/chrome101.test.js pins it)
+  assert.equal([...tokens.matchAll(/--screen-h:/g)].length, 2);
+  assert.equal([...tokens.replace(/@supports not \(height: 100dvh\) \{[^}]*\}\s*\}/, '').matchAll(/--screen-h:/g)].length, 1);
   assert.match(tokens, /--screen-h:\s*calc\(100dvh - var\(--inset-top\)\)\s*;/);
   assert.match(read('src', 'styles', 'tokens.css'), /d62/, 'the comment names d62');
 });
@@ -46,7 +48,8 @@ test('d62: no rule in base.css uses 100dvh itself: the full-height screens use v
   assert.match(rule('.detail'), /height:\s*var\(--screen-h\)/);
   // the six rules above, .result's phone-landscape override and the wide .result: eight uses in all
   assert.equal([...css.matchAll(/var\(--screen-h\)/g)].length, 8, 'every former 100dvh');
-  assert.doesNotMatch(read('src', 'styles', 'tokens.css').replace(/--screen-h:[^;]*;/, ''), /100dvh/, '--screen-h is the one place');
+  assert.doesNotMatch(stripComments(read('src', 'styles', 'tokens.css')).replace(/--screen-h:[^;]*;/, '').replace('@supports not (height: 100dvh)', ''), /100dvh/,
+    '--screen-h is the one place (and c65\'s fallback asks for it)');
 });
 
 test('d62: capacitor.config.json leaves SystemBars\' insetsHandling alone (never "disable")', () => {

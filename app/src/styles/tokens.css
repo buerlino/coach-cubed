@@ -84,7 +84,8 @@
   /* The status bar's inset (d62). Capacitor 8.5.3's SystemBars draws the APK edge to edge on a WebView of 140 or later
      (viewport-fit=cover in index.html) and puts the real insets in env(safe-area-inset-*); an older WebView is padded
      natively and its inset is 0, as in a browser tab. #app pads its top by --inset-top; a screen that is a window high
-     is --screen-h, so that the page plus the inset is the window's height. The height is kept in this one token. */
+     is --screen-h, so that the page plus the inset is the window's height. The height is kept in this one token, with
+     its 100vh fallback for a browser without dvh at the end of this file (c65). */
   --inset-top: env(safe-area-inset-top, 0px);
   --screen-h: calc(100dvh - var(--inset-top));
 
@@ -294,4 +295,12 @@
   --delayed-keep-h: 88px;
   --size-keep: 28px;
   --delayed-keep-icon: 30px;
+}
+
+/* --screen-h without dvh (c65): dvh needs Chrome 108 (from memory: c60 checks), and the S8+'s Chrome and WebView stay at
+   101. A 100vh line before a declaration that holds var() wouldn't do: such a declaration is found invalid only when
+   computed, and then falls back to unset, not to the line before. 100vh in an Android Chrome tab is the height with the
+   toolbar hidden, so a tab may scroll by the toolbar's height (c60 measures it); in the WebView there is no toolbar. */
+@supports not (height: 100dvh) {
+  :root { --screen-h: calc(100vh - var(--inset-top)); }
 }

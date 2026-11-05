@@ -12,7 +12,9 @@
 //    in presentation (timestamp) order; a key chunk flushes what it holds (a
 //    closed GOP), flush() outputs the rest;
 //  - output comes later, never inside decode() (setImmediate);
-//  - decodeQueueSize counts chunks not yet taken, and 'dequeue' fires when one is;
+//  - decodeQueueSize counts chunks not yet taken, and 'dequeue' fires when one is,
+//    with an `ondequeue` property as Chrome 106+ has; `dequeue: false` is a decoder
+//    from before 106 (Chrome 101, the S8+'s WebView: c65): no event, no property;
 //  - a frame is { timestamp, duration, displayWidth, displayHeight, close() }, the
 //    size from configure()'s codedWidth/codedHeight; closing twice is harmless;
 //  - a bitmap records the frame it was drawn from (`source`: its size, its turn).
@@ -27,6 +29,7 @@ function createFakeWebCodecs({
   failOnChunk = null,      // call error() when this many chunks have been fed (1 = the first)
   failConfigure = false,   // configure() reports the error through error()
   hangFlush = false,       // flush() never settles (a decoder that is stuck)
+  dequeue = true,          // false: no 'dequeue' event and no ondequeue property (Chrome before 106)
 } = {}) {
   const log = { checked: [], decoders: [], frames: [], bitmaps: [], rotations: [], chunks: [] };
 
@@ -49,10 +52,11 @@ function createFakeWebCodecs({
       this.pending = 0;
       this.listeners = [];
       this.outputs = 0;
+      if (dequeue) this.ondequeue = null;
       log.decoders.push(this);
     }
     get decodeQueueSize() { return this.pending; }
-    addEventListener(type, fn) { if (type === 'dequeue') this.listeners.push(fn); }
+    addEventListener(type, fn) { if (type === 'dequeue' && dequeue) this.listeners.push(fn); }
     configure(config) {
       if (this.state === 'closed') throw new DOMException('closed', 'InvalidStateError');
       this.config = config;
