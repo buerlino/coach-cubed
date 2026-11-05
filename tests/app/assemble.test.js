@@ -38,7 +38,10 @@ function fakeTree({ tfjs = false, models = false } = {}) {
   const app = path.join(root, 'app');
   const src = path.join(root, 'src');
   put(app, 'index.html', '<!doctype html>');
-  put(app, 'package.json', '{}');
+  put(app, 'package.json', '{}');       // dev files: never in dist/ (c67)
+  put(app, 'package-lock.json', '{}');
+  put(app, 'README.md', 'dev');
+  put(app, '.npmrc', 'legacy-peer-deps=true');
   put(app, 'src/main.mjs', 'export {};');
   put(app, 'vendor/preact/preact.mjs', 'p');
   put(app, 'tools/assemble.mjs', 'no');
@@ -74,6 +77,9 @@ test('the real app assembles into a temporary folder: shell, manifest, vendored 
   ]) assert.ok(files.includes(f), `${f} is missing from the assembled app`);
   for (const f of files) assert.ok(!/^(tools|android|dist|debug|node_modules)\//.test(f), `${f} must not be copied`);
   assert.ok(!files.includes('capacitor.config.json'));
+  // dev files and dot files stay off the site (c67): the version is readable from APP_VERSION
+  for (const f of ['README.md', 'package.json', 'package-lock.json', '.npmrc']) assert.ok(!files.includes(f), `${f} must not be copied`);
+  assert.ok(!files.some((f) => f.split('/').some((s) => s.startsWith('.'))), 'no file or folder starting with a dot');
 });
 
 test('the shipped dist/ has no check page; --debug adds it and its clip (the debug APK, c20)', () => {
@@ -103,7 +109,7 @@ test('--debug on a fake tree: app/debug/ and the clip are listed, and nothing el
   assemble(['--app', t.app, '--src', t.src, '--out', out, '--debug']);
   assert.deepEqual(walk(out), [
     'debug/check.html', 'debug/check.mjs', 'debug/clips/testsrc2-h264-30fps.mp4',
-    'files.json', 'index.html', 'package.json', 'src/diagnostics.js', 'src/main.mjs', 'src/track/lift-window.mjs',
+    'files.json', 'index.html', 'src/diagnostics.js', 'src/main.mjs', 'src/track/lift-window.mjs',
     'src/track/smoothing.mjs', 'vendor/preact/preact.mjs',
   ]);
   // A second run without --debug leaves no check page behind.
@@ -132,10 +138,10 @@ test('the app\'s own imports of src/track/ resolve in the repo and in the assemb
   }
 });
 
-test('the manifest: the placeholder name, start_url and scope ./, standalone, the ground colour, relative icons', () => {
+test('the manifest: Coach Cubed / coach³, start_url and scope ./, standalone, the ground colour, relative icons', () => {
   const m = JSON.parse(fs.readFileSync(path.join(APP, 'manifest.webmanifest'), 'utf8'));
-  assert.equal(m.name, 'coach');
-  assert.equal(m.short_name, 'coach');
+  assert.equal(m.name, 'Coach Cubed');
+  assert.equal(m.short_name, 'coach³');
   assert.equal(m.start_url, './');
   assert.equal(m.scope, './');
   assert.equal(m.display, 'standalone');
@@ -190,7 +196,7 @@ test('without app/vendor/tfjs/ and app/models/ it says so and goes on', () => {
   assert.match(stdout, /models[^\n]*(absent|not found|skipp)/i);
   const files = walk(out);
   assert.deepEqual(files, [
-    'files.json', 'index.html', 'package.json', 'src/diagnostics.js', 'src/main.mjs', 'src/track/lift-window.mjs',
+    'files.json', 'index.html', 'src/diagnostics.js', 'src/main.mjs', 'src/track/lift-window.mjs',
     'src/track/smoothing.mjs', 'vendor/preact/preact.mjs',
   ]);
   assert.deepEqual(manifestOf(out).files, files.filter((f) => f !== 'files.json'));
