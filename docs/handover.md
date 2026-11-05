@@ -27,7 +27,10 @@ domain is verified for `buerlino`, the certificate is issued for the apex and
    with `deploy` off (Actions → Pages → Run workflow, or
    `gh workflow run pages.yml --ref main -f deploy=false`): the build must pass
    on GitHub before the tag (the Kaggle download can't be tested from the
-   laptop).
+   laptop). *Done 2026-11-05:* run 42004801286 showed Chrome's sandbox
+   blocked on the runner (fixed in the workflow), run 42006236951 a flaky
+   frame-source test (fixed in the test), then green: 861 tests, the model's
+   SHA-256, 144 files and 17,488,916 bytes, as on the laptop.
 6. The `github-pages` environment's tag rule. The environment exists once
    Pages' source is "GitHub Actions" (or after the first run) and by default
    allows only `main`, so a run on a tag is refused at the deploy ("Tag v0.1.0
@@ -36,6 +39,9 @@ domain is verified for `buerlino`, the certificate is issued for the apex and
    `gh api repos/buerlino/coach-cubed/environments/github-pages/deployment-branch-policies -f type=tag -f name='v*'`. *Done.*
 7. On nordmu's word after step 5 passes: `git tag -a v0.1.0 -m "…"` on `main`,
    and push the tag; the workflow builds, tests and deploys (Actions tab).
+   *Done 2026-11-05:* `v0.1.0` on `main` 1f85182, run 42006806102 built and
+   deployed; the GitHub Release "Coach Cubed 0.1.0" carries public notes and
+   the 512 px icon.
 8. "Enforce HTTPS" once the certificate is issued. *Done.*
 9. A smoke test on a phone: install, airplane mode, analyse an example clip.
 
