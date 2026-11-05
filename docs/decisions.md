@@ -30,6 +30,15 @@ restructuring window, merged packages' details) are in [decisions-archive.md](de
 
 ### What 0.1.0 is
 
+- **2026-11-05, nordmu, the release route and four reports** (each as
+  recommended): `phase-0` goes onto `main` as a merge, no force-push; the
+  first GitHub run is by hand with deploy off, and the tag `v0.1.0` waits
+  for nordmu's word after it passes. The workflow's checkout gets
+  `persist-credentials: false` (`c67`). Q1's "Up next" estimate, blind to
+  the clip's frame rate (`s59`), becomes `s68`, held for Noah. No repair
+  for ranges stored before `s63` (nothing was released before it).
+  `d66`'s switch row as the gym section's heading and `createSession` on
+  by default stay.
 - **2026-11-04 (late), nordmu: 0.1.0 is milestone A, as a PWA on
   coach-cubed.org.** The gym session ships off by default behind a
   "preview" switch (`d66`); Noah finishes milestone B (`c30b`, `c60`,
@@ -38,22 +47,10 @@ restructuring window, merged packages' details) are in [decisions-archive.md](de
   logo merges as it is. nordmu releases `v0.1.0` from
   `buerlino/coach-cubed` through Pages (`c67`), then transfers the repo
   and the domain to Noah (docs/handover.md).
-- **2026-11-04, nordmu, on c26's and c61's reports** (each as
-  recommended): a camera lost between the ring's start and the wake
-  lock's grant counts as a running session (R2's "Camera stopped", the
-  ring kept), as `c61` built it. `s59`: s12's stall time 30 → 20 s, the
-  tick 1 s and one restart stay; Q1 shows "estimating…" until the cut is
-  open. New: `d62` (H's wordmark under the status bar), `s63` (a 59.94 fps
-  clip's last frame), `c64` (the stepper's decoder holds 10–14 frames).
-  2.8 prepares and dry-runs beside `c30`; the real rewrite waits for a gap
-  after `c30` merges and nordmu's OK.
 - **2026-11-03, nordmu:** the S8+ runs `c60` after `c26`, on Chrome 101
   as it is (the oldest likely Chrome). A failed camera offers Try again and keeps the
   lift (`c61`). The PWA goes online unlisted once named: own domain, Pages
   from a public repo.
-- **2026-11-03, nordmu, on d58:** A1 in phone landscape (a window under
-  520 px high) keeps scrolling the page, as M and A4 do; no landscape
-  mockup.
 - **2026-11-02, nordmu, on milestone B's packages** (`c27` to `c31`,
   [packages/](packages/README.md)): R1–R3b are built from v1's mockups with
   checkpoint A's rules (fewer words, symbols, nothing moves) and reviewed in

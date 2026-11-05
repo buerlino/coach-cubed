@@ -106,6 +106,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 68 | `c31` | A session on the Fairphone, 30–60 minutes: heat, battery, storage, memory | curie, sonnet | `c30b` | held: Noah's, after 0.1.0 (nordmu, 2026-11-04: 0.1.0 is milestone A) |
 | | | **Checkpoint B:** nordmu runs a real gym session | | `c31` | |
 | 69 | `c40` | The handover: the pipeline runnable for Noah | curie | checkpoint B | held: Noah's, after 0.1.0 (nordmu, 2026-11-04: 0.1.0 is milestone A) |
+| 70 | `s68` | Q1's "Up next" estimates count the clip's frame rate (s59's report) | schrödinger, sonnet | `s59` | held: Noah's, after 0.1.0 (nordmu, 2026-11-05) |
 
 Gates outside the queue ([../app-plan.md](../app-plan.md#gates-outside-the-sessions)): no APK goes to testers before
 `c33`, which needs the name and the package ID (question 10) and the signing key's holder.

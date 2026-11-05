@@ -30,7 +30,10 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     steps:
+      # The build never pushes, so the token isn't left in .git/config (nordmu, 2026-11-05, c67's report).
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # The repo pins no Node version (no .nvmrc, no engines): 22 is the laptop's (v22.23.2), where
       # every check runs.

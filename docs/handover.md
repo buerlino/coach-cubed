@@ -8,28 +8,35 @@ works: the app's [Releasing: GitHub Pages](../app/README.md#releasing-github-pag
 
 ## Releasing (nordmu, before the handover)
 
-On `buerlino/coach-cubed`:
+On `buerlino/coach-cubed`. Steps 1–4, 6 and 8 were done by 2026-11-05
+(checked through GitHub's API that day: Pages builds from the workflow, the
+domain is verified for `buerlino`, the certificate is issued for the apex and
+`www`, HTTPS is enforced, and `github-pages` allows `main` and tags `v*`).
 
-1. Settings → Pages: Source "GitHub Actions".
+1. Settings → Pages: Source "GitHub Actions". *Done.*
 2. Verify coach-cubed.org in the owner's account (the account's Settings, not
    the repo's, → Pages → "Add a domain"): a TXT record
-   `_github-pages-challenge-<login>` at Infomaniak.
-3. The repo's custom domain: coach-cubed.org.
+   `_github-pages-challenge-buerlino` at Infomaniak. *Done.*
+3. The repo's custom domain: coach-cubed.org. *Done.*
 4. The apex DNS records GitHub documents (A and AAAA; `www` as a CNAME to
-   `<login>.github.io`), see
-   [Managing a custom domain](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site).
-5. A manual run of the workflow with `deploy` off (Actions → Pages → Run
-   workflow): the build must pass on GitHub before the tag (the Kaggle download
-   can't be tested from the laptop).
+   `buerlino.github.io`), see
+   [Managing a custom domain](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site). *Done.*
+5. `phase-0` onto `main` as a merge, no force-push (nordmu, 2026-11-05: `main`
+   carries the `.gitattributes` commit that `phase-0` has as its own copy, so it
+   can't fast-forward); push both. Then a manual run of the workflow on `main`
+   with `deploy` off (Actions → Pages → Run workflow, or
+   `gh workflow run pages.yml --ref main -f deploy=false`): the build must pass
+   on GitHub before the tag (the Kaggle download can't be tested from the
+   laptop).
 6. The `github-pages` environment's tag rule. The environment exists once
    Pages' source is "GitHub Actions" (or after the first run) and by default
    allows only `main`, so a run on a tag is refused at the deploy ("Tag v0.1.0
    is not allowed to deploy to github-pages due to environment protection
    rules"). Settings → Environments → github-pages → add a tag rule `v*`, or
-   `gh api repos/<owner>/<repo>/environments/github-pages/deployment-branch-policies -f type=tag -f name='v*'`.
-7. `git tag -a v0.1.0 -m "…"` on `main`, and push the tag; the workflow builds,
-   tests and deploys (Actions tab).
-8. "Enforce HTTPS" once the certificate is issued.
+   `gh api repos/buerlino/coach-cubed/environments/github-pages/deployment-branch-policies -f type=tag -f name='v*'`. *Done.*
+7. On nordmu's word after step 5 passes: `git tag -a v0.1.0 -m "…"` on `main`,
+   and push the tag; the workflow builds, tests and deploys (Actions tab).
+8. "Enforce HTTPS" once the certificate is issued. *Done.*
 9. A smoke test on a phone: install, airplane mode, analyse an example clip.
 
 ## The handover
@@ -41,8 +48,9 @@ On `buerlino/coach-cubed`:
 3. Noah accepts.
 4. The domain moves to Noah's Infomaniak account: a screenshot of the DNS zone
    before, compared after.
-5. Noah verifies the domain in his account with his own TXT record, and the
-   old TXT record is removed.
+5. Noah verifies the domain in his account with his own TXT record
+   (`_github-pages-challenge-noahsta`), the old `buerlino` one is removed, and
+   `www`'s CNAME changes to `noahsta.github.io`.
 6. Check https://coach-cubed.org; if it is down, run the Pages workflow once
    (Actions → Run workflow).
 7. Branch protection on `main` (question 9 below).

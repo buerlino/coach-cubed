@@ -6,6 +6,18 @@ log is [decisions.md](decisions.md).
 
 ### What 0.1.0 is, done
 
+- **2026-11-04, nordmu, on c26's and c61's reports** (each as
+  recommended): a camera lost between the ring's start and the wake
+  lock's grant counts as a running session (R2's "Camera stopped", the
+  ring kept), as `c61` built it. `s59`: s12's stall time 30 → 20 s, the
+  tick 1 s and one restart stay; Q1 shows "estimating…" until the cut is
+  open. New: `d62` (H's wordmark under the status bar), `s63` (a 59.94 fps
+  clip's last frame), `c64` (the stepper's decoder holds 10–14 frames).
+  2.8 prepares and dry-runs beside `c30`; the real rewrite waits for a gap
+  after `c30` merges and nordmu's OK.
+- **2026-11-03, nordmu, on d58:** A1 in phone landscape (a window under
+  520 px high) keeps scrolling the page, as M and A4 do; no landscape
+  mockup.
 - **2026-11-03, nordmu, on the second night's reports** (each as the
   worker recommended): no clean-and-jerk in 0.1.0 (Noah's to add through
   docs/lifts.md), and `registerLift` stays for the tests (`s49`). M's
