@@ -81,6 +81,13 @@
   --radius-xl: 20px;
   --radius-button: 18px;
 
+  /* The status bar's inset (d62). Capacitor 8.5.3's SystemBars draws the APK edge to edge on a WebView of 140 or later
+     (viewport-fit=cover in index.html) and puts the real insets in env(safe-area-inset-*); an older WebView is padded
+     natively and its inset is 0, as in a browser tab. #app pads its top by --inset-top; a screen that is a window high
+     is --screen-h, so that the page plus the inset is the window's height. The height is kept in this one token. */
+  --inset-top: env(safe-area-inset-top, 0px);
+  --screen-h: calc(100dvh - var(--inset-top));
+
   /* Touch targets are 44 px or more */
   --touch: 44px;
   --icon-inline: 18px;   /* a status icon beside a count or a word on a row (d55) */

@@ -762,7 +762,7 @@ test('d54 nothing moves: every row of M but the stage has a fixed height, and M 
   const rule = sel => { const m = css.match(new RegExp(`(^|\\n)${sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\{([^}]*)\\}`)); assert.ok(m, `${sel} has a rule`); return m[2]; };
   const token = name => { const m = tokens.match(new RegExp(`${name}: ([0-9.]+)px;`)); assert.ok(m, `${name} in tokens.css`); return Number(m[1]); };
   // .screen's flex: 1 is a flex-basis of 0% that overrode .mark's height in #app (min-height only): M took its content's height
-  assert.match(rule('.mark'), /flex: none; height: 100dvh/);
+  assert.match(rule('.mark'), /flex: none; height: var\(--screen-h\)/);
   assert.match(rule('.mark-stage'), /flex: 1 1 0; min-height: var\(--mark-stage-min\)/);
   assert.equal(token('--mark-stage-min'), 140);
   assert.match(rule('.mark-stage canvas'), /position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain/, 'the canvas is sized by CSS, never by its pixel size');

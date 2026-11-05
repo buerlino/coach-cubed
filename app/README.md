@@ -1160,7 +1160,7 @@ first screen draws), the frame source by `openSource` (default `openFrameSource`
   short label; bottom padding plus the safe-area inset). Every height but the stage's is fixed, and every row is drawn
   before the video opens, so only the stage takes what is left (at least 140 px, `--mark-stage-min`): M fits a portrait
   phone from 640 px high with no page scroll. The video's canvas is sized by CSS to fit the stage (`object-fit:
-  contain`), never by its pixel size. `.mark` is `flex: none; height: 100dvh`: before `d54`, `.screen`'s `flex: 1` (a
+  contain`), never by its pixel size. `.mark` is `flex: none; height: var(--screen-h)`: before `d54`, `.screen`'s `flex: 1` (a
   flex-basis of 0%) overrode `.mark`'s height, so in `#app` (only a `min-height`) M took its content's height, with the
   stage at its full 440 px; at 412×760 in headless Brave that is a page 815 px high in M1 and M2 and 909 in M3, where the
   hints under the strip grew by 94 px. That was nordmu's scroll at checkpoint A; the canvas was not the cause (drawn
@@ -1273,13 +1273,13 @@ the scoring adapter builds from committed fixture tracks) lays the view model
   window, the worst moments of cues to watch or work on, and the phase of the open card's
   cue. A tap on a worst-moment mark seeks to that moment (`seekTime`, 22 px); a drag follows
   the finger, the arrow keys step.
-- **A1 fits its window** (`d58`). `.result` is `flex: none; height: 100dvh`, as M's `.mark` (`d54`): `.screen`'s `flex: 1` is a flex
+- **A1 fits its window** (`d58`). `.result` is `flex: none; height: var(--screen-h)`, as M's `.mark` (`d54`): `.screen`'s `flex: 1` is a flex
   basis of 0% that overrode the height, and on phase-0 A1 took its content's height (1,185 px at 360×640, 1,148 px at 412×915), so the
   *page* scrolled and the cue list did not. Now the header, the video (`flex: 0 1 var(--result-stage)`, shrinking to
   `--result-stage-min`), the player's bar and the timeline keep their places and the list takes what is left and scrolls inside (the
   page does not, and `d55`'s page cue does not show). A phone in landscape (a window under 520 px high: the media query cannot read a
   token) keeps A1 as it was, as high as its content, because the list would get 28 px at 800×360. From 980 px, A4's `height: auto;
-  min-height: 100dvh` is as it was.
+  min-height: var(--screen-h)` is as it was.
 - **The list's fade** (`d58`, `ui/components/list-fade.mjs`): the page cue follows the page and A1's list scrolls inside, so the list has
   a fade of its own at its bottom edge, the page cue's rule on the list's scroller: `moreBelow(list)` (`more-below-model.mjs`, the
   same function), shown while the list has more than 8 px to go below, hidden at its end and when nothing scrolls. `ListFade` is the
@@ -1350,7 +1350,7 @@ are two of the controller's controls, the same state.
 
 **Words (`d55`):** "No lift to show.", "No result yet.", "No such cue.", "Couldn’t show this cue." (A1 has "Couldn’t show this lift." and the card's button "Details"); the plot's line says "band: both sides". Cue texts, verdicts and reasons are `diagnostics.js`'s and unchanged.
 
-**It fits its window (`d58`):** `.detail` is `flex: none; height: 100dvh` (as A1 and M: `.screen`'s `flex: 1` had made the page scroll, 2,000 px at
+**It fits its window (`d58`):** `.detail` is `flex: none; height: var(--screen-h)` (as A1 and M: `.screen`'s `flex: 1` had made the page scroll, 2,000 px at
 360×800), so the header stays and `.detail-body` (the frame, the plot, the tiles, the text) scrolls inside. The page cue does not show.
 
 `d18`. `screens/A2.mjs` (design/mockups/CueDetail.dc.html) is `detail` in the flow, opened by A1's "Details"
@@ -1468,6 +1468,14 @@ does not look at that; the list has its own fade (`d58`, `ui/components/list-fad
 **What it does not say:** at phone
 landscape (800×360) the video, M's stage and the like are as tall as the window, so their buttons are under the fold and the page
 scrolls to them; nothing is cut off, but landscape has no layout of its own (5.7).
+
+**The status bar's inset (`d62`).** `tokens.css` holds two tokens: `--inset-top: env(safe-area-inset-top, 0px)` and
+`--screen-h: calc(100dvh - var(--inset-top))`. `#app` pads its top by `--inset-top`, for every screen; each screen that is a window
+high (`.mark`, `.setup`, `.live`, `.replay`, `.delayed`, `.result`, `.detail`) uses `var(--screen-h)` where it had `100dvh`, so the page plus
+the inset is the window's height and M, A1 and A2 still don't scroll. No rule in `base.css` writes `100dvh`; the height lives in the
+one token (`c60`'s `100vh` fallback for Chrome 101 goes there, under `@supports`). **Headless can't test the inset:** Brave gives no
+real inset (`env()` is 0), so `check:layout` and the page test see the layout as before; `tests/app/safe-area.test.js` reads the
+files, and the real check is the APK on a phone with WebView 140 or later.
 
 ## The screens v1 doesn't draw (`d23`)
 
@@ -1883,6 +1891,13 @@ so the app is offline already; a worker would keep a second copy of `dist/`
 `c19` registers it only in a browser ([Offline](#offline-the-service-worker)): when `window.Capacitor?.isNativePlatform?.()`
 isn't true (Capacitor injects `window.Capacitor` into the page even though the
 app imports nothing of it).
+
+**The status bar (`d62`).** Android 16 draws the APK edge to edge on a WebView of 140 or later: Capacitor 8.5.3's SystemBars plugin
+(its default `insetsHandling` "css", which `capacitor.config.json` leaves alone) sees `viewport-fit=cover` in `index.html` and gives
+the page the real insets in `env(safe-area-inset-*)`, so the page reaches under the status bar. The shell pads its top by that
+inset (`#app { padding-top: var(--inset-top) }`, [below](#a4-and-the-responsive-check)). An older WebView (the S8+'s Chrome 101)
+is padded natively by Capacitor and its insets are 0, as they are in a browser tab; the padding is then 0 and nothing changes.
+The bottom insets (`env(safe-area-inset-bottom, 0px)` in the controls' padding) were already used.
 
 ## Offline: the service worker
 
