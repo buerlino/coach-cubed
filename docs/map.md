@@ -4,9 +4,9 @@
 
 Every tracked file sorted into areas, so the core of 0.1.0 can be chosen
 ([restructure-plan.md](restructure-plan.md), steps 1.1–1.3). It started as a
-snapshot of `62b2cee` (tag `pre-cleanup`). Phase 2 updated it, up to step
+snapshot of `dec5b04` (tag `pre-cleanup`). Phase 2 updated it, up to step
 2.9, where a step moved files or resolved a coupling, and said which step;
-line numbers are those of `62b2cee` unless a step says otherwise.
+line numbers are those of `dec5b04` unless a step says otherwise.
 
 **Sources:**
 - four read-only mapping passes over the code, with their main claims checked
@@ -361,7 +361,7 @@ What follows describes it as it was.
 
 ## 11. Tests and fixtures
 
-- **Results** at `62b2cee`: `npm test` passed 66 of 66 and the Python tests
+- **Results** at `dec5b04`: `npm test` passed 66 of 66 and the Python tests
   3 of 3 (only the launcher ports were tested in Python). Today's count is
   in [restructure-plan.md](restructure-plan.md#next-session-starts-here).
 - **No test reads a video:** the tests use `track.json` and the goldens only.
@@ -388,7 +388,7 @@ What follows describes it as it was.
 - **README.md:** ~~ends with clipper's `clip-nvidia` section, copied in by
   mistake~~: removed in step 2.3 (it is in clipper's own README).
 - ~~[fixture-data-contract.md](fixture-data-contract.md) gave keypoints as
-  `[x, y, confidence]`~~: fixed on 2026-10-31 (`3c15f62`); it now says
+  `[x, y, confidence]`~~: fixed on 2026-10-31 (`69e1249`); it now says
   `[y, x, conf]`, like the code and data.
 
 ## Hidden couplings
@@ -430,10 +430,10 @@ These break silently, not as import errors:
   it, so it never ships (nordmu, 2026-11-02).
 - **`.auth_password`:** an unsalted SHA-256 hash of the app's old login
   password.
-  - The first commit (`0529038`, 2026-08-30) read it, with a comment calling
+  - The first commit (`d050eac`, 2026-08-30) read it, with a comment calling
     the scheme "identical to tecna".
-  - `c80c14d` (2026-09-01) removed the reader and the `.gitignore` entry;
-    `dc30cc9` committed the file that same afternoon.
+  - `b8f2e33` (2026-09-01) removed the reader and the `.gitignore` entry;
+    `86ad6d8` committed the file that same afternoon.
   - Step 2.5 (2026-10-31) untracked it again and put it back in
     `.gitignore`; it stays in the history until step 2.8.
   - An unsalted hash of a weak password can be cracked. **Ask Noah whether the

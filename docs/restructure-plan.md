@@ -18,7 +18,7 @@ finish (git keeps the history). Decisions and open questions are in
   checkpoint B and 2.8. The public PWA waits for the name and domain
   (own domain, Pages from a public repo, unlisted test build first).
 - **Current step:** Phases 0–2 are done, and the review's fixes are in
-  (commits since `a0a9499`), apart from two steps that run at Phase 5's
+  (commits since `abc7ab5`), apart from two steps that run at Phase 5's
   checkpoint A, with the queue empty
   (D8, [app-plan.md](app-plan.md#decided-2026-11-01)):
   - 2.7's LICENSE and SPDX headers (AGPL-3.0-or-later, all four authors
@@ -76,7 +76,7 @@ finish (git keeps the history). Decisions and open questions are in
   nordmu, then `s2` and `d3` (`d3` watched too); after that faraday runs
   the queue overnight (`.claude/agents/faraday.md`).
 - **`phase-0` is on GitHub** as its own branch (`origin/phase-0`,
-  2026-11-02, nordmu's OK). `main` stays at `62b2cee` until Noah has looked
+  2026-11-02, nordmu's OK). `main` stays at `dec5b04` until Noah has looked
   at `phase-0` and agreed; every later push needs nordmu's OK too.
 - **Start now, outside a session** (to-dos, not session work):
   - nordmu, then Noah: the next message, with branch protection on `main`
@@ -202,32 +202,32 @@ Android phone with Google's WebView is still untested.
 
 Finished steps keep one line each; the details are in their commits.
 
-- [x] Tag `pre-cleanup` on `main` at `62b2cee`, branch `phase-0` and its
-      worktree, this plan, Read limits on the huge files (`881d9e7`).
+- [x] Tag `pre-cleanup` on `main` at `dec5b04`, branch `phase-0` and its
+      worktree, this plan, Read limits on the huge files (`5ebe000`).
 - [x] The first message to Noah ([decisions.md](decisions.md#needs-an-answer)).
 
 ### Phase 1: the map, then the core
 
-- [x] 1.1 The map, [map.md](map.md) (`fde52f1`; verified in `916958f`).
+- [x] 1.1 The map, [map.md](map.md) (`7a17a2a`; verified in `49dc14f`).
 - [x] 1.2 Ran the full app on the CPU, the preview, and the in-browser pose on
-      the Fairphone 6 against ViTPose-L (map.md, Phone test; `fde52f1`).
-- [x] 1.3 nordmu named the core (`0640216`; [decisions.md](decisions.md)).
+      the Fairphone 6 against ViTPose-L (map.md, Phone test; `7a17a2a`).
+- [x] 1.3 nordmu named the core (`b1c0b0b`; [decisions.md](decisions.md)).
 
 ### Phase 2: cleanup (interactive, in `phase-0`)
 
 - [x] 2.0 The core's pose into `src/pose/` with one 33→17 mapping, `/original/`
-      fixed (`423ab8d`). Behind `/coach/`, the frozen code's absolute paths
+      fixed (`49a1bde`). Behind `/coach/`, the frozen code's absolute paths
       still 404 ([backlog.md](backlog.md)).
-- [x] 2.1–2.2 The docs skeleton and nordmu's per-area decisions (`b8c4b96`).
-- [x] 2.3 `clipper/` back to `../weightlifting-clipper` (`ea1bd5e`), `report/`
-      to `parked/report/` (`229d350`), bar detection to
-      `parked/bar-detection/` (`212f502`); the other parkings were cancelled,
-      those areas freeze with the old page until step 5.8 (`3c15f62`).
-- [x] 2.4 The example videos out of git, the athletes pseudonymized (`0c7825a`).
-- [x] 2.5 `.auth_password` and two `.DS_Store` files untracked (`d0d98cc`).
-- [x] 2.6 The docs describe the repo as it is now (`e5d3d60`).
+- [x] 2.1–2.2 The docs skeleton and nordmu's per-area decisions (`8f42ab8`).
+- [x] 2.3 `clipper/` back to `../weightlifting-clipper` (`e3b7b7b`), `report/`
+      to `parked/report/` (`1e2cd78`), bar detection to
+      `parked/bar-detection/` (`f5984f5`); the other parkings were cancelled,
+      those areas freeze with the old page until step 5.8 (`69e1249`).
+- [x] 2.4 The example videos out of git, the athletes pseudonymized (`398cf5a`).
+- [x] 2.5 `.auth_password` and two `.DS_Store` files untracked (`4d0ce46`).
+- [x] 2.6 The docs describe the repo as it is now (`d16d3d6`).
 - [x] 2.7 [THIRD_PARTY.md](../THIRD_PARTY.md) and [authors.md](authors.md)
-      (`cc72cc8`); on 2026-11-03 the root LICENSE (the AGPL-3.0 text from
+      (`697ba97`); on 2026-11-03 the root LICENSE (the AGPL-3.0 text from
       <https://www.gnu.org/licenses/agpl-3.0.txt>, SHA-256 `0d96a4ff…abcb0`)
       and the SPDX header in all 290 own source files (vendored code keeps
       its own), held by `tests/spdx.test.js`. All four authors agreed;
@@ -239,7 +239,7 @@ Finished steps keep one line each; the details are in their commits.
       videos, the password and the removed bloat, and the athletes' real
       names: they are in old file paths, in old file contents
       (`athlete-a`/`athlete-b` since step 2.4) **and** in commit messages
-      (`212f502` and `6904224`; find others with
+      (`f5984f5` and `d8ae1da`; find others with
       `git log --all -i --grep=<name>`). So path filtering alone isn't
       enough: `git filter-repo` also needs `--replace-text` for the contents
       and `--replace-message` for the messages, both fed from the
@@ -248,7 +248,7 @@ Finished steps keep one line each; the details are in their commits.
       line): `git log --all --format=%B | grep -iwf <file>`,
       `git rev-list --all | xargs git grep -iwl -f <file>` and
       `git log --all --name-only --format= | grep -iwf <file>` all print
-      nothing. Rewritten history doesn't descend from `62b2cee`, so:
+      nothing. Rewritten history doesn't descend from `dec5b04`, so:
       - `main` is reset and force-pushed to `noahsta/coach`, with Noah's OK;
       - the `pre-cleanup` tag and the merged branches `test-fixtures-pipeline`
         and `origin/feature/keypoint-plotting` are deleted or moved to a
@@ -275,7 +275,7 @@ Finished steps keep one line each; the details are in their commits.
       package files citing report commits): rewrite them in one commit
       from filter-repo's `commit-map`.
 - [x] 2.9 A lean AGENTS.md, its rules moved to rules-core, and
-      `tests/docs.test.js` (`0aaf936`).
+      `tests/docs.test.js` (`aedb7c4`).
 
 ### Phase 3: on-device pose spike (in `spike/`)
 
@@ -294,46 +294,46 @@ condition are decided ([decisions.md](decisions.md#what-010-is)).
       machine, 2026-09-07). All 10 verdicts the same, raw and smoothed;
       keypoints mean 2.7 px, p95 6.8, max 52.9 (one left ear at confidence
       0.48), none across the 0.3 confidence gate. A second run here matched
-      the first to 0.000 px, and `212f502` only removed the bar-detection
+      the first to 0.000 px, and `f5984f5` only removed the bar-detection
       thread, off for this clip: the machine differs, not the code. Tools:
       `src/app.py` started directly (`coach_launch.sh` runs `pkill -f`) and
-      `spike/pose-bench/difftrack.mjs` (`db315b5`); 75 frames took 1.5 min
+      `spike/pose-bench/difftrack.mjs` (`bb3e493`); 75 frames took 1.5 min
       at nice 19 beside a night shift.
 - [x] 3.1 Candidates: MediaPipe Pose Landmarker (lite, full, heavy),
       ViTPose-S/B and RTMPose-s/m, the last two behind Megvii's YOLOX
       (Apache-2.0); versions, sources and licence flags (ViTPose's MAE
       pretraining is CC BY-NC) in [THIRD_PARTY.md](../THIRD_PARTY.md)
-      (`47f1ac2`).
+      (`ef2943c`).
 - [x] 3.2 Smoothing and the lift window in `src/track/`, pinned to the old
       page by `tests/track.test.js`; the spike scores smoothed tracks with it
-      (`bb5dfbb`).
+      (`0833afa`).
 - [x] 3.3 The page, [spike/pose-bench/](../spike/pose-bench/README.md):
       mp4box.js and WebCodecs, the model in a worker behind one async
       `estimate()`, `track.json` in the fixture format, scored with
-      `src/track/` (`c06ccc3`).
+      `src/track/` (`e0aa76c`).
 - [x] 3.4 **Capture checks** for the recording session (milestone B):
       `getUserMedia` at 60 fps and `MediaRecorder` inside the Capacitor
       WebView, and a 30–60 minute heat and battery run on the Fairphone,
       recording and processing. [spike/capture-check/](../spike/capture-check/README.md)
-      (`fa2e6a3`, `ca02d24`); the camera gives 30 fps at most
+      (`2be7790`, `fc06c34`); the camera gives 30 fps at most
       ([pose-spike.md](pose-spike.md#capture-step-34-brave)).
 - [x] 3.5 Measure on the Fairphone, in Brave and inside a Capacitor WebView:
       ms per frame, decode time, total time per clip, peak memory, download
       size. The Samsung S8+ (Google's WebView) comes after the spike (question 3).
-      `ffc8b8a`, the shell [spike/webview-shell/](../spike/webview-shell/README.md)
-      (`d20df09`), the samplers (`53bd301`, `5668d11`); numbers in
+      `e671f99`, the shell [spike/webview-shell/](../spike/webview-shell/README.md)
+      (`5e0b7ad`), the samplers (`c31dd17`, `5f4b685`); numbers in
       [pose-spike.md](pose-spike.md).
 - [~] 3.6 Run `diagnostics.js` on each candidate's smoothed tracks of the
       validation set and compare with the references, counting only scored
       verdicts, against the thresholds from 3.0. The script:
-      `spike/pose-bench/compare.mjs` (`c7f30d5`).
+      `spike/pose-bench/compare.mjs` (`6cc74b4`).
 - [~] 3.7 A decision record: model, runtime and shell (PWA / Capacitor /
       TWA), with the numbers, and whether the stop condition was hit:
-      [pose-spike.md](pose-spike.md). First round `1277d38`; after the
-      open-runtime rule (`d5e41e2`), MoveNet Thunder and Lightning and
-      BlazePose on TensorFlow.js (`8aec0a4`) and BlazePose's Tasks models on
-      ONNX Runtime (`160a10c`), measured on the Fairphone in Brave and the
-      WebView (plans `7eb0142`; the record `64412d8`). **nordmu,
+      [pose-spike.md](pose-spike.md). First round `74f7d9a`; after the
+      open-runtime rule (`a0fd7b3`), MoveNet Thunder and Lightning and
+      BlazePose on TensorFlow.js (`f061c4b`) and BlazePose's Tasks models on
+      ONNX Runtime (`528a61f`), measured on the Fairphone in Brave and the
+      WebView (plans `0729aa5`; the record `c4f0e6f`). **nordmu,
       2026-11-01: MoveNet Thunder on TF.js is the working pick**; final once
       3.6 passes on the validation set.
 - [x] 3.8 **F-Droid, a paper check**, off the critical path

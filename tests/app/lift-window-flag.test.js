@@ -9,10 +9,10 @@
 //
 // Where the expected values come from:
 //  - the barbell windows, from golden/lift-windows.json: phase-0's
-//    computeResults().lift (src/diagnostics.js at b8039d4, before s36) on every
+//    computeResults().lift (src/diagnostics.js at 35c1050, before s36) on every
 //    committed fixture, scored raw as the goldens are, under each set that has
 //    a window. Recorded with
-//      git show b8039d4:src/diagnostics.js > /tmp/phase0-diagnostics.js
+//      git show 35c1050:src/diagnostics.js > /tmp/phase0-diagnostics.js
 //      RECORD_LIFT_WINDOWS=/tmp/phase0-diagnostics.js node --test tests/app/lift-window-flag.test.js
 //    s36 adds one field to them, hasLiftWindow: true, and changes nothing else.
 //  - which sets have a window, from the package (nordmu's decision above).

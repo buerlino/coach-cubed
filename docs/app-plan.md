@@ -23,7 +23,7 @@ Rewrite in place.
 
 | What | Where | State |
 | --- | --- | --- |
-| The design | [ui-design.md](ui-design.md), [design/mockups/](../design/README.md) | v1, 14 screens, approved to build on. The canvas is unchanged since the copy in `31d84bb`. |
+| The design | [ui-design.md](ui-design.md), [design/mockups/](../design/README.md) | v1, 14 screens, approved to build on. The canvas is unchanged since the copy in `9366da6`. |
 | Scoring | `src/diagnostics.js` | `computeResults(keypoints, meta, personId)` after `setPage(lift)`, pure, tested against goldens. The headless API (`s4`, documented above the `Diagnostics` object) gives each cue's descriptor with `describe(set)`, and `tiles`, `referenceLine`, `worstMoment` and `drawCue(ctx, id, t, computed)` from `computeResults()`'s output, with no mounted panel. |
 | The track | `src/track/` | Smoothing and the lift window, tested against the old page (3.2). |
 | Pose | `spike/pose-bench/` | The worker and its one async `estimate()`, MoveNet on TF.js through pose-detection, mp4box and WebCodecs decoding, `build-tfjs.mjs` (from npm's built `dist/`, not from source yet). |

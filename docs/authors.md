@@ -4,7 +4,7 @@ For the licence: Noah chose GPL-3.0-or-later and all four authors agreed.
 On 2026-11-02 nordmu proposed AGPL-3.0-or-later instead; it waits for Noah,
 and the written OKs still to collect are OKs to AGPL
 ([decisions.md](decisions.md#licence), question 11).
-Counted on 2026-10-31 at the end of step 2.6 (`e5d3d60`).
+Counted on 2026-10-31 at the end of step 2.6 (`d16d3d6`).
 
 ## How it was counted
 

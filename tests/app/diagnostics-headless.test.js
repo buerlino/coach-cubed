@@ -138,7 +138,7 @@ function digest(calls) {
 // Diagnostics.overlay() on the mounted old page, over every sample time and the
 // midpoints between them, in each motion mode. The digests in
 // golden/overlay-digests.json were recorded from phase-0's src/diagnostics.js
-// (8a4fcdf), before s4 touched it, on the committed tracks above
+// (3c4192d), before s4 touched it, on the committed tracks above
 // (UPDATE_OVERLAY_DIGESTS=1 node --test tests/app/diagnostics-headless.test.js).
 // They prove the shared drawing code still draws exactly what it drew.
 const DIGESTS = path.join(__dirname, 'golden', 'overlay-digests.json');
@@ -176,7 +176,7 @@ test('the old page draws the same overlay as before s4 (digests from phase-0)', 
 // --- describe(set) ------------------------------------------------------------
 //
 // The text the old page shows, as written in src/diagnostics.js at phase-0
-// (8a4fcdf). Pinned here so a change to a title, cue, unit or phase label shows
+// (3c4192d). Pinned here so a change to a title, cue, unit or phase label shows
 // up as a failing test, not only as a moved mockup.
 const CUES = {
   'lateral-raise': [
