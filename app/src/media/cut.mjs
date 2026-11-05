@@ -5,7 +5,8 @@
 //
 //   const cut = await cutVideo(blob, { t0, t1 });   // seconds in the source's timeline
 //   cut.blob       the MP4
-//   cut.range      { t0, t1 } in the cut's own timeline (0 is the cut's first frame)
+//   cut.range      { t0, t1 } in the cut's own timeline (0 is the cut's first frame); widened to the cut's own
+//                  times of the range's first and last frame (the muxer rounds times to its timescale, s63)
 //   cut.start      the source time of the cut's first frame: the keyframe at or before t0
 //   cut.duration   the cut's length in seconds
 //   const kept = await keepVideo(store, lift, blob, { t0, t1 });   // c8's saveLift
@@ -28,6 +29,22 @@ import { MediaError, asMediaError } from './media-error.mjs';
 import { buildSampleTable } from './sample-table.mjs';
 
 const isTime = t => typeof t === 'number' && Number.isFinite(t);
+
+// The start times (seconds, from the cut's earliest packet) of the packets at these places in
+// storage order, read back from the finished MP4 without their data.
+async function packetTimes(blob, slots) {
+  const input = new Input({ source: new BlobSource(blob), formats: ALL_FORMATS });
+  try {
+    const track = await input.getPrimaryVideoTrack();
+    const times = [];
+    for await (const p of new EncodedPacketSink(track).packets(undefined, undefined, { metadataOnly: true })) times.push(p.timestamp);
+    if (slots.some(k => k < 0 || k >= times.length)) throw new MediaError('unreadable', "The cut doesn't hold the range's frames.");
+    const origin = Math.min(...times);
+    return slots.map(k => times[k] - origin);
+  } finally {
+    try { input.dispose(); } catch { /* already closed */ }
+  }
+}
 
 /**
  * @param {Blob} blob the picked File (or any MP4/MOV/WebM the demuxer reads)
@@ -78,11 +95,16 @@ export async function cutVideo(blob, range) {
     output.addVideoTrack(source, { rotation });
     await output.start();
 
+    // where the range's first and last frame land among the packets written (storage order)
+    const dFirst = table.decOf(r.first), dLast = table.decOf(r.last);
+    let slotFirst = -1, slotLast = -1;
     let d = startDec, written = 0, end = 0, done = false;
     for await (const p of sink.packets(first)) {
       const i = table.presOf(d);
       // a picture shown before the keyframe (an open group) can't be decoded from it: left out
       if (p.timestamp >= keyRaw - 1e-9) {
+        if (d === dFirst) slotFirst = written;
+        if (d === dLast) slotLast = written;
         const duration = p.duration > 0 ? p.duration : table.durationUs(i) / 1e6;
         const shifted = p.clone({ timestamp: p.timestamp - keyRaw, duration });
         await source.add(shifted, written === 0 && config ? { decoderConfig: config } : undefined);
@@ -94,10 +116,18 @@ export async function cutVideo(blob, range) {
     if (!done) throw new MediaError('unreadable', 'The video file ends before the end of the range.');
     await output.finalize();
 
+    const cutBlob = new Blob([target.buffer], { type: 'video/mp4' });
+    // s63: the muxer stores times at its own timescale (57600), rounding each to a whole tick, so
+    // a frame of the range can lie a few µs outside the range as the source's times give it. The
+    // range is widened to the cut's own times of its first and last frame, no further.
+    const own = await packetTimes(cutBlob, [slotFirst, slotLast]);
     return {
-      blob: new Blob([target.buffer], { type: 'video/mp4' }),
-      // the marked range in the cut's timeline, held to the video's span
-      range: { t0: Math.max(0, Math.max(0, range.t0) - start), t1: Math.min(range.t1, table.duration) - start },
+      blob: cutBlob,
+      // the marked range in the cut's timeline, held to the video's span, and holding its first and last frame
+      range: {
+        t0: Math.min(Math.max(0, Math.max(0, range.t0) - start), own[0]),
+        t1: Math.max(Math.min(range.t1, table.duration) - start, own[1]),
+      },
       start,
       duration: end,
     };
