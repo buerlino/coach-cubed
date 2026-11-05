@@ -572,7 +572,7 @@ test('s59: the time left is null until the cut is open (reading 0/1), then the l
   const first = snaps.find(j => j.progress.done === 0);
   const opened = snaps.find(j => j.progress.done === 1);
   assert.equal(first.progress.etaS, null, 'before the cut is open the frame count is not known');
-  const total = opened.progress.total;
+  const total = rec.seen.get(job.id).find(j => j.state === 'pose').progress.total;   // the range's frames: 0 to 0.5 s at 30 fps, 16
   assert.equal(total, 16);
   assert.ok(Math.abs(opened.progress.etaS - 0.05 * total) < 1e-9, 'ms per frame x the range\'s frames');
   const view = analysingView([first], { liftId: lift.id, lift, rate: queue.rate() });

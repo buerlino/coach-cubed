@@ -42,7 +42,8 @@ export const JOB_STAGES = Object.freeze(['reading', 'pose', 'scoring']);
  * @property {number} total units in this stage: 1 for reading and scoring, the
  *   range's frames for pose
  * @property {number|null} etaS the time left for the whole job in seconds,
- *   from the measured ms per frame; null until there is a measurement
+ *   from the measured ms per frame; null until there is a measurement and the
+ *   cut is open (not at reading 0/1: the range's frames aren't counted yet, s59)
  */
 
 /**

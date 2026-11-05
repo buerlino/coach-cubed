@@ -61,7 +61,7 @@ const failureOf = e => (e && e.name === 'MediaError' && typeof e.code === 'strin
  * @param {Object} [deps.Diagnostics] for the scoring adapter; default window.Diagnostics
  * @param {() => number} [deps.now] ms, for the time per frame
  * @param {{setInterval: Function, clearInterval: Function}} [deps.timers] the watchdog's
- * @param {number} [deps.stallMs] no progress this long while visible is a hang (30 s)
+ * @param {number} [deps.stallMs] no progress this long while visible is a hang (20 s)
  * @param {number} [deps.tickMs] the watchdog's period (1 s)
  * @param {number} [deps.maxRestarts] restarts of a job after a hang or an engine failure (1)
  */
@@ -69,7 +69,7 @@ export function createQueue({
   store, createEngine, openFrameSource, keepVideo, Diagnostics,
   now = () => globalThis.performance.now(),
   timers = { setInterval: (f, ms) => globalThis.setInterval(f, ms), clearInterval: id => globalThis.clearInterval(id) },
-  stallMs = 30000, tickMs = 1000, maxRestarts = 1,
+  stallMs = 20000, tickMs = 1000, maxRestarts = 1,
 } = {}) {
   let jobs = [];            // the records, in queue order
   let rate = null;          // the last measured rate (estimate.mjs)
