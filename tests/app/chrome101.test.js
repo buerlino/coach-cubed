@@ -143,7 +143,7 @@ test('c65 guard: every shipped JS and CSS file comes out of esbuild\'s transform
   const { files } = await assembled();
   const code = files.filter(x => /\.(m?js|css)$/.test(x.f));
   for (const name of ['src/main.mjs', 'src/media/decode.mjs', 'src/diagnostics.js', 'sw.js', 'vendor/htm/htm.mjs', 'vendor/preact/preact.mjs',
-    'vendor/mediabunny/mediabunny.mjs', 'src/styles/tokens.css', 'debug/check.mjs', 'debug/compat.mjs']) {
+    'vendor/mediabunny/mediabunny.mjs', 'src/styles/tokens.css', 'debug/check.mjs', 'debug/media.mjs']) {
     assert.ok(code.some(x => x.f === name), `${name} is in the list`);
   }
   assert.ok(code.some(x => x.f.startsWith('src/track/')), "src/track/'s files are in the list");
