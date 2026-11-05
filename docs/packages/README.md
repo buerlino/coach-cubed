@@ -95,7 +95,7 @@ in a docs commit first. After a merge the row gets the merge commit; the file go
 | 58 | `s59` | s12's watchdog from c26's numbers: the stall time, restarts, tick and Q1's time left | schrödinger, sonnet | `c26` | merged `63e7fc7` (run 65, no fix round) |
 | 59 | `s63` | A 59.94 fps clip keeps its last frame (c26's cable-2: the cut's 1/57600 timescale) | schrödinger, sonnet | `c26` | merged `b8d90a3` (run 66, no fix round) |
 | 60 | `d62` | H's wordmark clears the status bar: the top inset in the shell, the screen height in one token | dirac, sonnet | `c26` | merged `11daea1` (run 67, no fix round); the next phone package glances at H in the APK (nordmu, 2026-11-04, c26's decision 5) |
-| 61 | `c65` | Chrome 101 fallbacks: the decode loop without `dequeue`, `100dvh`, the S8+'s tool gaps, a probe for c60 | curie, opus | `d62`, `c26` | waits; laptop only, no adb (nordmu, 2026-11-04: c60 split into c65 and c60) |
+| 61 | `c65` | Chrome 101 fallbacks: the decode loop without `dequeue`, `100dvh`, the S8+'s tool gaps, a probe for c60 | curie, opus | `d62`, `c26` | merged `7e6d45d` (run 68, no fix round; laptop only, no adb) |
 | 62 | `d66` | The gym session behind a switch, off in 0.1.0: no gym card on H, R1–R3b only with "Gym session (preview)" on | dirac, sonnet | `c65` | waits; laptop only (nordmu, 2026-11-04) |
 | 63 | `c67` | 0.1.0 on coach-cubed.org: the version, the Pages workflow, the release notes, the handover note for Noah | curie, sonnet | `d66` | waits; laptop only (nordmu, 2026-11-04) |
 | | | **Release 0.1.0:** nordmu tags `v0.1.0` on `main` and Pages deploys it; then the repo and the domain go to Noah (docs/handover.md, from `c67`) | | `c67` | |
