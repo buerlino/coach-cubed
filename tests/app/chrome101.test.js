@@ -117,3 +117,227 @@ test('c65: tokens.css gives --screen-h a 100vh fallback where 100dvh is not supp
   // base.css keeps no dvh of its own (d62's test pins its var(--screen-h) uses); .licence's 50vh is plain vh, Chrome 20
   assert.doesNotMatch(stripComments(fs.readFileSync(path.join(APP, 'src', 'styles', 'base.css'), 'utf8')), /\d+dvh\b/);
 });
+
+// ---- the survey as guards: no syntax, built-in or CSS newer than Chrome 101 in what ships --------------------------
+//
+// These two pass on phase-0 by design: they keep the survey true, they are not regression tests. The files are
+// assemble.mjs's own list (files.json), with --debug, so the check page c60 opens on the phone is covered too and a
+// new file is covered without this list changing.
+
+const os = require('node:os');
+const assembled = (() => {
+  let cache = null;
+  return async () => {
+    if (cache) return cache;
+    const { assemble } = await load('tools', 'assemble.mjs');
+    const out = fs.mkdtempSync(path.join(os.tmpdir(), 'c65-dist-'));
+    const { files } = assemble({ out, app: APP, src: path.join(ROOT, 'src'), debug: true, log: () => {} });
+    cache = { out, files: files.map(f => ({ f, text: fs.readFileSync(path.join(out, f), 'utf8') })).filter(x => /\.(m?js|css|html)$/.test(x.f)) };
+    process.on('exit', () => fs.rmSync(out, { recursive: true, force: true }));
+    return cache;
+  };
+})();
+
+test('c65 guard: every shipped JS and CSS file comes out of esbuild\'s transform the same at chrome101 as at esnext; the TF.js bundle builds at es2020', async () => {
+  const esbuild = require(path.join(APP, 'node_modules', 'esbuild'));
+  const { files } = await assembled();
+  const code = files.filter(x => /\.(m?js|css)$/.test(x.f));
+  for (const name of ['src/main.mjs', 'src/media/decode.mjs', 'src/diagnostics.js', 'sw.js', 'vendor/htm/htm.mjs', 'vendor/preact/preact.mjs',
+    'vendor/mediabunny/mediabunny.mjs', 'src/styles/tokens.css', 'debug/check.mjs', 'debug/compat.mjs']) {
+    assert.ok(code.some(x => x.f === name), `${name} is in the list`);
+  }
+  assert.ok(code.some(x => x.f.startsWith('src/track/')), "src/track/'s files are in the list");
+  const differ = [];
+  for (const { f, text } of code) {
+    const loader = f.endsWith('.css') ? 'css' : 'js';
+    const at = target => { try { return esbuild.transformSync(text, { loader, target }).code; } catch (e) { return `error: ${e.message}`; } };
+    if (at('chrome101') !== at('esnext')) differ.push(f);
+  }
+  assert.deepEqual(differ, [], 'files esbuild has to lower (or refuses) for Chrome 101');
+  // the TF.js bundle (gitignored, built by tools/build-tfjs.mjs) is built at es2020 (Chrome 80, from memory) or lower
+  const build = fs.readFileSync(path.join(APP, 'tools', 'build-tfjs.mjs'), 'utf8');
+  const targets = [...build.matchAll(/target: '([^']+)'/g)].map(m => m[1]);
+  assert.ok(targets.length > 0 && targets.every(t => /^es20(1\d|20)$|^es[56]$/.test(t)), `build-tfjs targets: ${targets}`);
+});
+
+// [what, Chrome version (from memory, MDN: c60 checks), the use, the check that may sit beside it]
+const NEWER = [
+  ['structuredClone()', 98, /\bstructuredClone\s*\(/, /typeof structuredClone|'structuredClone' in/],
+  ['Array findLast()/findLastIndex()', 97, /\.findLast(Index)?\s*\(/, /\.findLast(Index)?\s*\?|'findLast(Index)?' in/],
+  ['Array toSorted()/toReversed()/toSpliced()/with()', 110, /\.(toSorted|toReversed|toSpliced)\s*\(/, /'to(Sorted|Reversed|Spliced)' in/],
+  ['Promise.withResolvers()', 119, /Promise\.withResolvers/, /typeof Promise\.withResolvers|'withResolvers' in/],
+  ['Object.groupBy()/Map.groupBy()', 117, /\b(Object|Map)\.groupBy\b/, /typeof (Object|Map)\.groupBy|'groupBy' in/],
+  ['AbortSignal.any()', 116, /AbortSignal\.any\b/, /typeof AbortSignal\.any|'any' in AbortSignal/],
+  ['AbortSignal.timeout()', 103, /AbortSignal\.timeout\b/, /typeof AbortSignal\.timeout|'timeout' in AbortSignal/],
+  ['Array.fromAsync()', 121, /Array\.fromAsync\b/, /typeof Array\.fromAsync|'fromAsync' in/],
+  ['the inert attribute', 102, /\binert\b/, /'inert' in/],
+  ['popover', 114, /\bpopover(?=[=\s>])|\.(show|hide|toggle)Popover\s*\(|:popover-open/, /'popover' in|showPopover\s*\?/],
+  [':has()', 105, /:has\(/, /@supports selector\(:has|CSS\.supports/],
+  ['container queries', 105, /@container\b|container-type\s*:/, /@supports \(container-type/],
+  ['color-mix()', 111, /color-mix\(/, /@supports \(color: color-mix|CSS\.supports/],
+  ['light-dark()', 123, /light-dark\(/, /@supports \(color: light-dark|CSS\.supports/],
+  ['subgrid', 117, /\bsubgrid\b/, /@supports \(grid-template-columns: subgrid|CSS\.supports/],
+  ['@scope and @starting-style', 117, /@scope\b|@starting-style\b/, /(?!)/],
+  ['text-wrap: balance', 114, /text-wrap\s*:/, /@supports \(text-wrap/],
+  // dvh is allowed in tokens.css's --screen-h and its @supports fallback only (step 3); a JS use needs CSS.supports beside it
+  ['dvh, svh, lvh', 108, /\d(?:d|s|l)v[hw]\b/, /CSS\.supports\(\s*'height',\s*'100dvh'\s*\)/],
+];
+const isComment = l => /^\s*(\/\/|\*|\/\*)/.test(l);
+const nested = css => {
+  // a rule inside a style rule (CSS nesting, Chrome 112); @media, @supports, @keyframes and the like may hold rules
+  const out = [];
+  const stack = [];
+  let prelude = '';
+  for (const ch of css.replace(/\/\*[\s\S]*?\*\//g, '')) {
+    if (ch === '{') { const p = prelude.trim(); if (stack.length && !stack[stack.length - 1].startsWith('@') && !/^(from|to|\d+%)/.test(p)) out.push(p); stack.push(p); prelude = ''; } else if (ch === '}') { stack.pop(); prelude = ''; } else if (ch === ';') prelude = ''; else prelude += ch;
+  }
+  return out;
+};
+
+test('c65 guard: no built-in, attribute or CSS newer than Chrome 101 in what ships, unless a check for it sits beside the use', async () => {
+  const { files } = await assembled();
+  const found = [];
+  for (const { f, text } of files) {
+    const lines = text.split('\n');
+    lines.forEach((line, i) => {
+      if (isComment(line)) return;
+      for (const [what, version, use, check] of NEWER) {
+        if (!use.test(line)) continue;
+        if (what.startsWith('dvh') && f === 'src/styles/tokens.css' && /--screen-h:\s*calc\(100dvh|@supports not \(height: 100dvh\)/.test(line)) continue;
+        const near = lines.slice(Math.max(0, i - 3), i + 1).join('\n');
+        if (!check.test(near)) found.push(`${f}:${i + 1}: ${what} (Chrome ${version}): ${line.trim().slice(0, 120)}`);
+      }
+    });
+    if (f.endsWith('.css')) for (const p of nested(text)) found.push(`${f}: CSS nesting (Chrome 112): ${p}`);
+  }
+  assert.deepEqual(found, []);
+  // the rules themselves catch what they are for
+  assert.deepEqual(nested('a { color: red; b { color: blue; } }'), ['b']);
+  assert.deepEqual(nested('@media (min-width: 1px) { a { color: red; } } @keyframes k { from { top: 0; } 50% { top: 1px; } }'), []);
+  const hit = s => NEWER.filter(([, , use]) => use.test(s)).map(([w]) => w);
+  assert.deepEqual(hit('const c = structuredClone(x);'), ['structuredClone()']);
+  assert.deepEqual(hit('xs.findLast(f)'), ['Array findLast()/findLastIndex()']);
+  assert.deepEqual(hit('var findLast = (arr, p) => {'), [], "mediabunny's own findLast helper is not the built-in");
+  assert.deepEqual(hit('"popover"!=t'), [], "preact's attribute list is not a use");
+  assert.deepEqual(hit('<div popover>'), ['popover']);
+  assert.deepEqual(hit('.a:has(.b) { }'), [':has()']);
+  assert.deepEqual(hit('height: 100dvh;'), ['dvh, svh, lvh']);
+  assert.deepEqual(hit('min-height: 100vh;'), []);
+});
+
+// ---- the probe c60 runs on the phone (app/debug/compat.mjs, the check page's window.c20.compat) --------------------
+
+// a fake OPFS: folders and files in maps; `move` only when asked for
+function fakeStorage({ move = true, writable = true } = {}) {
+  const made = [];
+  const folder = () => {
+    const entries = new Map();
+    const d = {
+      entries,
+      async getDirectoryHandle(name, { create } = {}) {
+        if (!entries.has(name)) { if (!create) throw new DOMException('missing', 'NotFoundError'); entries.set(name, folder()); made.push(name); }
+        return entries.get(name);
+      },
+      async getFileHandle(name, { create } = {}) {
+        if (!entries.has(name)) { if (!create) throw new DOMException('missing', 'NotFoundError'); entries.set(name, file(d, name)); }
+        return entries.get(name);
+      },
+      async removeEntry(name) { entries.delete(name); },
+    };
+    return d;
+  };
+  const file = (dir, name) => {
+    const h = { text: '', name, async getFile() { return { text: async () => h.text }; } };
+    if (writable) h.createWritable = async () => { let t = ''; return { write: async x => { t += x; }, close: async () => { h.text = t; } }; };
+    if (move) h.move = async to => { dir.entries.delete(h.name); h.name = to; dir.entries.set(to, h); };
+    return h;
+  };
+  const root = folder();
+  return { storage: { getDirectory: async () => root }, root, made };
+}
+function fakeGlobals({ chrome101 }) {
+  const { storage, root, made } = fakeStorage({ move: !chrome101 });
+  const asked = { decoder: [], encoder: [] };
+  function VideoDecoder() {}
+  if (!chrome101) VideoDecoder.prototype.ondequeue = null;
+  VideoDecoder.isConfigSupported = async c => { asked.decoder.push(c); return { supported: true }; };
+  function VideoEncoder() {}
+  // as Chrome before the enum's rename might: 'no-preference' is not one of its values (c60 finds out)
+  VideoEncoder.isConfigSupported = async c => {
+    asked.encoder.push(c);
+    if (chrome101 && c.hardwareAcceleration === 'no-preference') throw new TypeError("The provided value 'no-preference' is not a valid enum value");
+    return { supported: true };
+  };
+  const style = { '--screen-h': chrome101 ? ' calc(100vh - 0px)' : ' calc(100dvh - 0px)' };
+  const body = { appendChild() {} };
+  function HTMLVideoElement() {}
+  if (!chrome101) HTMLVideoElement.prototype.requestVideoFrameCallback = () => {};
+  class Worker {
+    constructor(url) { this.url = url; setImmediate(() => this.onmessage({ data: { offscreenCanvas: true, webgl2: true, renderer: 'fake' } })); }
+    terminate() { this.terminated = true; }
+  }
+  const g = {
+    navigator: { userAgent: chrome101 ? 'Mozilla/5.0 (Linux; Android 9; SM-G955F) Chrome/101.0.4951.61 Mobile' : 'Chrome/140', storage, ...(chrome101 ? {} : { wakeLock: { request() {} } }) },
+    VideoDecoder, VideoEncoder, HTMLVideoElement, Worker, Blob,
+    URL: { createObjectURL: () => 'blob:fake', revokeObjectURL() {} },
+    CSS: { supports: (p, v) => !(chrome101 && /dvh/.test(v)) },
+    document: { documentElement: {}, body, createElement: () => ({ style: {}, getBoundingClientRect: () => ({ height: 800 }), remove() {} }) },
+    getComputedStyle: () => ({ getPropertyValue: n => style[n] ?? '' }),
+    innerHeight: 800,
+    ...(chrome101 ? {} : { MediaStreamTrackProcessor: function MediaStreamTrackProcessor() {} }),
+  };
+  return { g, root, made, asked };
+}
+
+test('c65: the probe on fakes, as Chrome 101 and as a current Chrome: every key, plain JSON, its OPFS folder removed', async () => {
+  const { compat, OPFS_FOLDER } = await load('debug', 'compat.mjs');
+  const { CODECS, encoderConfig } = await load('src', 'media', 'capture.mjs');
+  const keys = ['userAgent', 'decoderDequeue', 'opfs', 'height', 'videoDecoder1080p', 'videoEncoder', 'mediaStreamTrackProcessor', 'wakeLock', 'requestVideoFrameCallback', 'workerWebgl2'];
+  const run = async chrome101 => {
+    const f = fakeGlobals({ chrome101 });
+    const out = await compat(f.g);
+    assert.deepEqual(Object.keys(out), keys);
+    assert.deepEqual(JSON.parse(JSON.stringify(out)), out, 'plain JSON');
+    assert.deepEqual(f.made, [OPFS_FOLDER], 'one folder of its own');
+    assert.equal(f.root.entries.size, 0, 'and it is removed');
+    return { out, asked: f.asked };
+  };
+  const old = await run(true);
+  assert.deepEqual(old.out.decoderDequeue, { videoDecoder: true, ondequeue: false });
+  assert.deepEqual(old.out.opfs, { getDirectory: true, createWritable: true, move: false, moveOverExisting: null, readBack: 'probe' });
+  assert.deepEqual(old.out.height, { dvh: false, screenH: 'calc(100vh - 0px)', screenHPx: 800, innerHeight: 800 });
+  assert.equal(old.out.mediaStreamTrackProcessor, false);
+  assert.equal(old.out.wakeLock, false);
+  assert.equal(old.out.requestVideoFrameCallback, false);
+  assert.deepEqual(old.out.workerWebgl2, { offscreenCanvas: true, webgl2: true, renderer: 'fake' });
+  assert.match(old.out.videoEncoder['avc1.42002A 1920x1080'].error, /TypeError: .*no-preference/, 'a refusal by a throw is its words');
+  assert.equal(old.out.videoEncoder.withoutHardwareAcceleration, true, 'and the variant without the key says which key it was');
+  // the configs asked are capture.mjs's own, at 1080p30 both ways up
+  const want = [[1920, 1080], [1080, 1920]].flatMap(([w, h]) => CODECS.map(c => encoderConfig(c, w, h, 30)));
+  assert.deepEqual(old.asked.encoder.slice(0, want.length), want);
+  assert.deepEqual(old.asked.decoder.map(c => `${c.codec} ${c.codedWidth}x${c.codedHeight}`), ['avc1.640028', ...CODECS].map(c => `${c} 1920x1080`));
+  const now = await run(false);
+  assert.deepEqual(now.out.decoderDequeue, { videoDecoder: true, ondequeue: true });
+  assert.deepEqual(now.out.opfs, { getDirectory: true, createWritable: true, move: true, moveOverExisting: true, readBack: 'probe' });
+  assert.equal(now.out.height.dvh, true);
+  assert.equal(now.out.mediaStreamTrackProcessor, true);
+  assert.equal(now.out.wakeLock, true);
+  assert.equal(now.out.requestVideoFrameCallback, true);
+  assert.ok(Object.values(now.out.videoEncoder).every(v => v === true));
+  // no VideoDecoder, no storage, no document: answers, never a throw
+  const bare = await compat({ navigator: {}, URL, Blob });
+  assert.deepEqual(bare.decoderDequeue, { videoDecoder: false, ondequeue: null });
+  assert.equal(bare.opfs.getDirectory, false);
+  assert.deepEqual(bare.videoDecoder1080p, { videoDecoder: false });
+  assert.deepEqual(bare.workerWebgl2, { worker: false });
+});
+
+test('c65: the check page runs the probe at load (window.c20.compat), check-apk.mjs prints it, capture.mjs builds its configs once', () => {
+  const check = fs.readFileSync(path.join(APP, 'debug', 'check.mjs'), 'utf8');
+  assert.match(check, /import \{ compat \} from '\.\/compat\.mjs';/);
+  assert.match(check, /window\.c20\.compat = step\('compat', \(\) => compat\(window\)\);/);
+  assert.match(fs.readFileSync(path.join(APP, 'tools', 'check-apk.mjs'), 'utf8'), /out\.compat = await c\.evaluate\('window\.c20\.compat'/);
+  const capture = fs.readFileSync(path.join(APP, 'src', 'media', 'capture.mjs'), 'utf8');
+  assert.equal([...capture.matchAll(/hardwareAcceleration:/g)].length, 1, 'one builder, start() and configure() use it');
+  assert.equal([...capture.matchAll(/encoderConfig\(/g)].length, 3);
+});

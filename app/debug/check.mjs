@@ -4,6 +4,7 @@
 // (assemble.mjs --debug); tools/check-apk.mjs drives it over DevTools.
 //
 //   window.c20.basics    the WebView, WebGL, OPFS, persist(): run at load
+//   window.c20.compat    the features newer than Chrome 101 (compat.mjs, c65): run at load
 //   window.c20.engine    the engine, when ?engine=N (N runs) or the button
 //   window.c20.import    the picked file opened by the frame source (after a pick)
 //   window.c20.runEngine(n)   starts the engine's runs (once), returns its promise
@@ -12,6 +13,7 @@
 // failure is reported in the object (`error`), never thrown.
 import { openFrameSource } from '../src/media/frame-source.mjs';
 import { PoseEngine } from '../src/pose/pose-client.mjs';
+import { compat } from './compat.mjs';
 
 const CLIP = './clips/testsrc2-h264-30fps.mp4';
 const now = () => performance.now();
@@ -194,6 +196,7 @@ function runEngine(n) {
 }
 
 window.c20 = { runEngine };
+window.c20.compat = step('compat', () => compat(window));
 window.c20.basics = (async () => {
   await step('environment', environment);
   await step('webgl', webgl);

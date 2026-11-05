@@ -52,6 +52,17 @@ export function bitrateFor(width, height, fps) {
   return Math.max(MIN_BITRATE, Math.round(BITRATE_1080P30 * (width * height * fps) / (1920 * 1080 * 30)));
 }
 
+/**
+ * The encoder's config for one of CODECS at a frame size: what start() asks isConfigSupported for and what the
+ * encoder is configured with. Exported for the check page's probe (app/debug/compat.mjs, c65), which asks the same.
+ */
+export function encoderConfig(codec, width, height, fps) {
+  return {
+    codec, width, height, framerate: fps, bitrate: bitrateFor(width, height, fps),
+    hardwareAcceleration: 'no-preference', latencyMode: 'realtime', avc: { format: 'avc' },
+  };
+}
+
 /** The frame rate from the frames' own timestamps: the median interval over the last RATE_WINDOW_US. */
 function createRateMeter() {
   let ts = [];
@@ -224,10 +235,7 @@ export function createCapture(settings = {}, { api = browserCaptureApi(), now = 
     const w = f.displayWidth, h = f.displayHeight, rot = f.rotation ?? 0;
     if (!s.configured || s.configured.w !== w || s.configured.h !== h || s.configured.rot !== rot) {
       try {
-        s.encoder.configure({
-          codec, width: w, height: h, framerate: quality.fps, bitrate: bitrateFor(w, h, quality.fps),
-          hardwareAcceleration: 'no-preference', latencyMode: 'realtime', avc: { format: 'avc' },
-        });
+        s.encoder.configure(encoderConfig(codec, w, h, quality.fps));
       } catch (e) { onEncoderError(s, e); return; }
       s.configured = { w, h, rot };
       s.rotations.push(rot);
@@ -347,7 +355,7 @@ export function createCapture(settings = {}, { api = browserCaptureApi(), now = 
       const w = width || quality.width, h = height || quality.height;
       codec = null;
       for (const c of CODECS) {
-        const config = { codec: c, width: w, height: h, framerate: quality.fps, bitrate: bitrateFor(w, h, quality.fps), hardwareAcceleration: 'no-preference', latencyMode: 'realtime', avc: { format: 'avc' } };
+        const config = encoderConfig(c, w, h, quality.fps);
         let ok = false;
         try { ok = !!(await api.isEncoderConfigSupported(config)).supported; } catch { ok = false; }
         if (ok) { codec = c; break; }
