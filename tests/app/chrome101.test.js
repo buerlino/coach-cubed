@@ -365,7 +365,7 @@ function sample(android, args, env = {}) {
   const out = path.join(phone.dir, 'out.csv');
   try {
     const r = spawnSync('bash', [path.join(ROOT, 'spike', 'pose-bench', 'phone-sample.sh'), ...args.map(a => (a === 'OUT' ? out : a))], {
-      encoding: 'utf8', timeout: 1500, env: { ...process.env, ANDROID_SERIAL: '', ...env, PATH: `${phone.dir}${path.delimiter}${process.env.PATH}` },
+      cwd: phone.dir, encoding: 'utf8', timeout: 1500, env: { ...process.env, ANDROID_SERIAL: '', ...env, PATH: `${phone.dir}${path.delimiter}${process.env.PATH}` },
     });
     const rows = fs.existsSync(out) ? fs.readFileSync(out, 'utf8').trim().split('\n') : [];
     const calls = fs.existsSync(phone.log) ? fs.readFileSync(phone.log, 'utf8').trim().split('\n') : [];
