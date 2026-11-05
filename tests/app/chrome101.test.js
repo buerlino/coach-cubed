@@ -95,3 +95,25 @@ test('c65: where the decoder has the dequeue event, the loop runs no timer of it
   assert.equal(await count(true), 0, 'no re-check where the event exists');
   assert.ok(await count(false) > 0, 'the re-check runs where it does not');
 });
+
+// ---- the screen's height without dvh (Chrome 108) ------------------------------------------------------------------
+//
+// d62 keeps the height of a window-high screen in one token, --screen-h: calc(100dvh - var(--inset-top)). Chrome 101 has
+// no dvh, and a 100vh line before a declaration holding var() doesn't help (such a declaration is invalid only when
+// computed, and then falls back to `unset`), so the fallback is an @supports block after :root.
+
+const fs = require('node:fs');
+const stripComments = css => css.replace(/\/\*[\s\S]*?\*\//g, '');
+
+test('c65: tokens.css gives --screen-h a 100vh fallback where 100dvh is not supported, after the token, and nowhere else', () => {
+  const css = stripComments(fs.readFileSync(path.join(APP, 'src', 'styles', 'tokens.css'), 'utf8'));
+  const token = css.search(/--screen-h:\s*calc\(100dvh - var\(--inset-top\)\)\s*;/);
+  assert.ok(token > 0, 'd62\'s token');
+  const fallback = css.match(/@supports not \(height: 100dvh\) \{\s*:root \{\s*--screen-h:\s*calc\(100vh - var\(--inset-top\)\);\s*\}\s*\}/);
+  assert.ok(fallback, 'the @supports fallback');
+  assert.ok(fallback.index > token, 'after the token, so it wins where it applies');
+  assert.equal([...css.matchAll(/@supports/g)].length, 1);
+  assert.equal([...css.matchAll(/100vh/g)].length, 1, 'no other vh');
+  // base.css keeps no dvh of its own (d62's test pins its var(--screen-h) uses); .licence's 50vh is plain vh, Chrome 20
+  assert.doesNotMatch(stripComments(fs.readFileSync(path.join(APP, 'src', 'styles', 'base.css'), 'utf8')), /\d+dvh\b/);
+});
