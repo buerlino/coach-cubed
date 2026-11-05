@@ -336,6 +336,8 @@ test('c65: the check page runs the probe at load (window.c20.compat), check-apk.
   const check = fs.readFileSync(path.join(APP, 'debug', 'check.mjs'), 'utf8');
   assert.match(check, /import \{ compat \} from '\.\/compat\.mjs';/);
   assert.match(check, /window\.c20\.compat = step\('compat', \(\) => compat\(window\)\);/);
+  // the page loads the app's tokens, so the probe reads the --screen-h that applies (it read none before: c65's Brave run)
+  assert.match(fs.readFileSync(path.join(APP, 'debug', 'check.html'), 'utf8'), /<link rel="stylesheet" href="\.\.\/src\/styles\/tokens\.css">/);
   assert.match(fs.readFileSync(path.join(APP, 'tools', 'check-apk.mjs'), 'utf8'), /out\.compat = await c\.evaluate\('window\.c20\.compat'/);
   const capture = fs.readFileSync(path.join(APP, 'src', 'media', 'capture.mjs'), 'utf8');
   assert.equal([...capture.matchAll(/hardwareAcceleration:/g)].length, 1, 'one builder, start() and configure() use it');

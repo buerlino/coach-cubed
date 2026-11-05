@@ -1915,7 +1915,9 @@ phone's; curie only, with its lock):
   app/tools/check-phone.mjs eval --port 9340 --origin http://localhost:8791 'window.c20.compat'`. After: `adb -s <serial> forward
   --remove tcp:9340`, `adb -s <serial> reverse --remove tcp:8791`, and the tab closed.
 
-In headless Brave on the laptop (`c65`'s report has the whole JSON) every key is there and true, `ondequeue` included.
+In headless Brave on the laptop (Brave 1.98.60, Chromium 156; `c65`'s report has the whole JSON) every feature is there, `ondequeue`
+included, and `--screen-h` is `calc(100dvh - 0px)`, 443 px, the window's `innerHeight`. The check page links the app's `tokens.css`
+for it (its first run, without, read no `--screen-h`).
 
 **On the Fairphone 6** (Android 16, LineageOS 4.4.1, WebView 153.0.8010.36,
 Adreno 810; the debug APK of 2026-11-02, `c20`'s report has every number):
