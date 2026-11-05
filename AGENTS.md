@@ -21,10 +21,10 @@ Setup for both (the `.venv`, the checkpoints): [README.md](README.md). The serve
 - Decisions belong to nordmu, or to Noah where [docs/decisions.md](docs/decisions.md) says so: ask, don't guess, and record the answer there.
 
 ## Layout
-What each folder holds: the Layout table in [README.md](README.md#layout).
+What each folder holds: the Layout table in [docs/development.md](docs/development.md#layout).
 
 ## Conventions
 - One place per fact ([docs/README.md](docs/README.md) says which). A change updates the doc that describes it in the same commit; docs are rewritten in place, git keeps the history. No status, history or reasoning in this file.
 - Root special files are uppercase (`README.md`, `THIRD_PARTY.md`); everything under `docs/` is lowercase-kebab-case. Every subfolder with its own docs has a `README.md`.
-- The root README's Layout table and docs/README.md are the maps: update them when a folder or doc is added or moved.
+- The Layout table in docs/development.md and docs/README.md are the maps: update them when a folder or doc is added or moved.
 - Budgets and links are tested (`tests/docs.test.js`): this file at most 40 lines and 6 kB, CLAUDE.md at most 10 lines.

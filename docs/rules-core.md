@@ -93,8 +93,8 @@ These rules stop a third time. The server's own rules are in
   there. A `report.aux` at the root is always a mistake (the root
   `.gitignore` catches it).
 - A new kind of file gets a new folder named for its purpose, not a spot at
-  the root "because it's just one file". The Layout table in the root
-  [README](../README.md#layout) is the map and stays accurate.
+  the root "because it's just one file". The Layout table in
+  [development.md](development.md#layout) is the map and stays accurate.
 
 ### Moving a file
 Grep the whole repo for the old name before you call the move done: docs,

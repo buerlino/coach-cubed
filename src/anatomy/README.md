@@ -10,7 +10,7 @@ original workspace.
 ## Using it
 
 Open the original workspace with `launchers/run_original.py` or the Movement
-Lab with `launchers/run_anatomy.py` (the root README has the setup). The
+Lab with `launchers/run_anatomy.py` ([docs/development.md](../../docs/development.md) has the setup). The
 header links switch between the two pages; export the session first, because
 switching pages reloads it. Both pages start with anatomy off.
 

@@ -17,6 +17,7 @@ the size budgets ([tests/docs.test.js](../tests/docs.test.js)).
 | [rules-core.md](rules-core.md) | **Binding:** the goal, the four principles, the hard rules (offline, nothing leaves the phone, licence-compatible dependencies), and the rules for changing this repo: relative paths, the minimal root, moving a file, landmines, when to stop and ask (in AGENTS.md until step 2.9). |
 | [restructure-plan.md](restructure-plan.md) | The restructuring toward an offline 0.1.0 (from 2026-10-31): "Next session starts here", the findings, the phases and their status. |
 | [map.md](map.md) | A frozen snapshot of 2026-10-31: every tracked file in 12 areas, what each does, offline feasibility, hidden couplings, provenance, and the phone test on the Fairphone 6. Read "Hidden couplings" before any move; current facts are in the docs below. |
+| [development.md](development.md) | For developers: the repo's layout (the map of its folders), running the old page and the ViTPose dev server, the tests, the naming conventions. The root README is the public page. |
 | [../AGENTS.md](../AGENTS.md) | The entry point every agent loads (CLAUDE.md points to it): what coach is, the commands, the workflow, the layout, the conventions. At most 40 lines and 6 kB. |
 
 ## Where each fact lives

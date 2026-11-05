@@ -1,96 +1,92 @@
-# coach
+<p align="center">
+  <img src="logo/coach-cubed-512.png" width="96" height="96" alt="The coach³ icon">
+</p>
 
-Film a lift and get technique feedback cue by cue: the skeleton over the
-video, keypoint plots, and a verdict per cue (back angle, triple extension,
-top height, tempo, symmetry, ...), scored from the pose keypoints.
+# Coach Cubed
 
-coach is being restructured toward 0.1.0: an offline app for phones, with the
-pose model running on the phone. What is here today is the starting point:
-the diagnostics engine, an in-browser pose prototype, and the old analysis
-page with a Flask dev server around it. The binding goal and rules are in
-[`docs/rules-core.md`](docs/rules-core.md), the plan and its status in
-[`docs/restructure-plan.md`](docs/restructure-plan.md).
+Technique feedback on your lifts, cue by cue, on your phone. Pick a video of
+a lift and mark where it starts and ends. Coach Cubed finds your joints in
+every frame and checks each cue: the back angle in the first pull, triple
+extension, how high the arms go, whether the torso stays upright, the elbows,
+the tempo, left against right. It all runs on the phone. Nothing is uploaded.
 
-## Run it
+**Open the app: [coach-cubed.org](https://coach-cubed.org)** · version 0.1.0 ·
+[release notes](docs/release-0.1.0.md)
 
-### The local preview: pose in the browser
+<p align="center">
+  <img src="docs/img/welcome.png" width="200" alt="Welcome: pick a video, then mark the lift">
+  <img src="docs/img/which-lift.png" width="200" alt="Which lift? Lateral raise or snatch">
+  <img src="docs/img/cues.png" width="200" alt="The result: one card per cue, with its verdict and value">
+  <img src="docs/img/cue-detail.png" width="200" alt="A cue's detail: its value over time against the Good, Watch and Work on bands">
+</p>
 
-The old analysis page, with pose running in the browser (MediaPipe) instead of
-on a server, served by a small Python server. No pose models to download. From
-the repo root:
+## What it does
+
+1. **Pick a video** of your lift from the phone.
+2. **Pick the lift:** the lateral raise or the snatch.
+3. **Mark the lift:** step frame by frame to where it starts and where it
+   ends.
+4. **Read the cues.** Each cue gets a card with its verdict (good, watch,
+   work on) and its value. Open one to see the value over the whole lift and
+   the moment it was worst. If the pose isn't clear enough to judge a cue,
+   the card says "can't score" instead of guessing.
+
+The thresholds are marked *provisional* until they have been checked on a set
+of real lifts.
+
+## Private and offline
+
+There is no account, no server and no analytics. Your videos, the poses and
+the results stay in the browser's storage on your phone. After the first
+visit the app works in airplane mode; the pose model (MoveNet Thunder, about
+17.5 MB with the rest of the app) is stored on the phone too.
+
+## Install
+
+Open [coach-cubed.org](https://coach-cubed.org) on your phone, then choose
+**Install app** or **Add to Home screen** in the browser's menu.
+
+It needs Chrome or another Chromium-based browser, version 108 or newer. It
+was tested on a Fairphone 6 (Android 16) in Brave and in Android's WebView.
+Firefox and Safari, and with them iPhones, haven't been tested yet.
+
+## What's next
+
+- **The gym session:** keep the camera running while you train, replay your
+  last lift right after it, and mark it there. It is built but unfinished,
+  so it is off in 0.1.0. To try it: Settings → "Gym session (preview)".
+- **An Android app** (APK) on this repo's Releases, and later on F-Droid.
+- **Checking the cues against real lifts,** so the thresholds can lose their
+  "provisional" tag.
+- **More lifts.** How to add a lift or a cue: [docs/lifts.md](docs/lifts.md).
+
+## Development
+
+The app is static files: plain ES modules, the screens in Preact with htm, no
+build step for the code. The pose model runs on TensorFlow.js, built from its
+sources. From the repo root, with Node.js 22:
 
 ```sh
-python3 launchers/run_original.py   # the analysis page, http://127.0.0.1:8785/
-python3 launchers/run_anatomy.py    # the Movement Lab, http://127.0.0.1:8784/squat/
+npm --prefix app ci                       # the build's inputs
+node app/tools/build-tfjs.mjs             # TF.js from source
+app/tools/fetch-models.sh                 # MoveNet Thunder's weights, checksum verified
+node app/tools/assemble.mjs               # builds app/dist/
+node app/tools/serve.mjs --port 8090      # http://127.0.0.1:8090/
+npm test                                  # all tests
 ```
 
-It needs Python 3.9 or newer and a browser with WebGL and WebAssembly. The 3D
-reconstruction also needs numpy and OpenCV:
+More:
 
-```sh
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements-preview.txt   # Windows: .venv\Scripts\python.exe
-.venv/bin/python launchers/run_original.py
-```
+- [app/README.md](app/README.md): every command, how the app is built, and
+  each screen;
+- [docs/development.md](docs/development.md): the repo's layout, the older
+  analysis page and the ViTPose dev server;
+- [docs/README.md](docs/README.md): the index of the docs.
 
-Pass `--port 8786` if the port is taken; Ctrl+C stops it. `launchers/` has
-double-click twins for macOS (`.command`) and Windows (`.bat`):
-`setup-local-*` makes the `.venv`, `OPEN_ORIGINAL_UI_*` and
-`OPEN_ANATOMY_UI_*` open the two pages.
+## Licence
 
-The example gallery shows only on a machine that has the example clips: they
-are third-party, so they are not in git
-([`tests/fixtures/README.md`](tests/fixtures/README.md#videos)).
-
-### The dev server: pose with ViTPose
-
-Server-side pose with ViTPose, for reference tracks and goldens. It needs
-torch and about 3.7 GB of checkpoints:
-
-```sh
-./scripts/setup_no_conda_linux.sh   # or setup_conda_linux.sh / setup_conda_mac.sh
-./scripts/download_models.sh
-./scripts/coach_launch.sh local     # http://127.0.0.1:8080
-```
-
-The deploy behind Caddy, every script and the server's landmines:
-[`docs/server.md`](docs/server.md).
-
-## Tests
-
-`npm test` and the Python tests; what they cover, and how a lift video
-becomes a test case: [`tests/README.md`](tests/README.md).
-
-## Layout
-
-| Path | What's there |
-| --- | --- |
-| [`src/`](src/) | `diagnostics.js` (the cues; runs in the browser and in Node), `pose/` (MediaPipe pose in the browser, mapped to COCO-17), `track/` (what happens to a pose track before scoring: time smoothing and the lift window, ported from the old page and tested against it), `app.py` (the dev server, and the old page, frozen), `vitpose_backend.py` (server pose), `depth_backend.py` and `local_depth.py` (the 3D reconstruction), `anatomy/` and `squat/` (the anatomy view and the Movement Lab, frozen with the old page), `vendor/` (three.js). |
-| [`launchers/`](launchers/) | The local preview: `run_local.py`, its entry points, and their double-click `.command`/`.bat` twins. They all `cd` to the repo root before touching `.venv` or `src/`, so they only work from inside this folder: don't move them apart. |
-| [`scripts/`](scripts/) | The dev server's setup, model download, launch and restart; turning clips into fixtures (`batch_extract_tracks.py`, and `sync_clipper_fixtures.py` for clips cut by clipper, its own repo `weightlifting-clipper`); `build_anatomy.py`. |
-| [`tests/`](tests/) | The JS and Python tests, the fixtures (cached pose tracks, which double as the example gallery) and their golden snapshots. |
-| [`parked/`](parked/) | Areas outside 0.1.0's core, moved here and unwired from the app: the research report and bar detection. |
-| [`docs/`](docs/) | The rules, the plan, the decisions, the map of the repo and the reference docs; the index is [`docs/README.md`](docs/README.md). |
-| [`app/`](app/README.md) | The new app (plan Phase 5): static files, plain ES modules, the screens in Preact with htm; its flow, tokens, vendored Preact, htm and fonts, and `tools/` (`assemble.mjs` builds `dist/`, `serve.mjs` serves it). |
-| [`.github/`](.github/workflows/pages.yml) | The Pages workflow (`c67`): on a `v*` tag it builds, tests and publishes the app to https://coach-cubed.org ([docs/handover.md](docs/handover.md)). |
-| [`spike/`](spike/) | The on-device pose spike (plan Phase 3). |
-| [`design/`](design/README.md) | Design work that isn't app code: a copy of the UI mockups' canvas (plan step 5.2). |
-| `vendor/` | `easy_ViTPose`, a git submodule (server pose). |
-| [`logo/`](logo/README.md) | The coach³ logo (CC BY-SA 4.0): its Affinity source and the two icon layers every icon is rendered from. |
-| `clips_inbox/` | A gitignored landing spot for raw clips waiting to become fixtures. |
-| `Caddyfile`, `pki-public/`, `log/` | A reference copy of the reverse-proxy config (not the live one), the published root cert, and the dev server's logs. |
-| [`pipeline/`](pipeline/README.md) | The agent pipeline's scripts: one work package from its file to a merge into `phase-0`, with fresh agents ([docs/pipeline.md](docs/pipeline.md)). |
-| `.claude/agents/` | The pipeline's agents: the workers dirac, schrödinger and curie, the advisor einstein, the auditor hillbert, and faraday, who runs the queue overnight. |
-| `.claude/hooks/` | `adb_guard.py`, run before every Bash command (`.claude/settings.json`): an adb command must name the phone, `adb -s 4d42e62f`, and nothing may name the tablet of pascaline's nights. |
-| `.claude/skills/` | Playbooks for recurring changes (add a lift page, add a diagnostic), written for an AI pair-programmer but just as usable by hand. |
-| `THIRD_PARTY.md` | Every third-party component: version, licence and source. |
-| `TODO.md` | Open research notes on the 3D reconstruction. |
-
-## Conventions
-
-- Root-level special files stay `README.md`/`LICENSE`-style uppercase;
-  everything under `docs/` uses lowercase-kebab-case.
-- Every subfolder with its own docs gets a `README.md`.
-- The Layout table above and [`docs/README.md`](docs/README.md) are the maps:
-  update them in the same commit whenever a folder or doc moves or a new one
-  is added.
+Coach Cubed is free software under the
+[GNU Affero General Public License v3.0 or later](LICENSE). The coach³ logo
+is CC BY-SA 4.0 ([logo/](logo/README.md)). The authors are listed in
+[docs/authors.md](docs/authors.md), and every third-party component, with its
+licence, is in [THIRD_PARTY.md](THIRD_PARTY.md).
