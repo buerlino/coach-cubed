@@ -579,6 +579,19 @@ kept.lift;                                        // the StoredLift (contract 3)
   second on a phone's camera). A range past either end of the video is held to
   its span; one with no frame in it, or `t1` before `t0`, is a `MediaError`
   with code `range`.
+- **The cut's times are rounded (`s63`).** mediabunny's MP4 muxer stores video at a
+  timescale of 57600 when no frame rate is given, so each frame time in the cut is
+  rounded to a whole tick (up to ±8.7 µs). That is exact at 30, 60 and 25 fps, but
+  1001/60000 s (59.94 fps) is 960.96 ticks: `lateral-raise-cable-2`'s last frame (179) lay
+  2.78 µs past `range.t1`, outside the 1 µs slack of `framesInRange()` and the sample
+  table, and the job posed 179 of 180 (an 80-frame 59.94 fps clip: 79 of 80 for the whole
+  clip, 27 of 28 for frames 13..40, which rounds 8.3 µs early at the start). So `cutVideo`
+  reads the cut's packet times back after `finalize()` and widens `range` to the cut's own
+  times of the range's first and last frame (`t0` at most the first's, `t1` at least the
+  last's), no further: a mark between frames or past the end keeps its place. After it, 180
+  of 180, 80 of 80, 28 of 28. `addVideoTrack()` gets no `frameRate`: mediabunny would then
+  round every time to a multiple of 1/frameRate and move a variable rate's own times
+  (contract 5). A lift stored before `s63` keeps its old range.
 - **Errors:** a file that can't be read is a `MediaError`; a full disk is the
   store's `StoreError` with code `storage-full`, passed through unchanged for
   d23. The cut is built in memory before it is saved (a minute of 1080p phone
